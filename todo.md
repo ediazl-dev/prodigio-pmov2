@@ -28,7 +28,8 @@
 - [x] Corregir la cobertura de las seis etapas y el aislamiento de datos que afectan las pruebas de deadlines.
 - [x] Actualizar la configuración corporativa PPDC y los tiempos de prueba de Jira según el entorno restaurado.
 - [x] Validar la interfaz de las rutas principales en escritorio y móvil.
-- [ ] Guardar una versión recuperada verificable y entregar el acceso para publicación desde la interfaz de administración.
+- [x] Guardar una versión recuperada verificable.
+- [x] Entregar al usuario el checkpoint recuperado y orientarlo para publicar desde la interfaz de administración.
 - [x] Aplicar y verificar en código los cambios de branding visibles del dashboard con la marca Prodigio.
 - [x] Auditar y corregir la nomenclatura visible restante del dashboard y la navegación para asegurar consistencia con Prodigio.
 - [x] Sustituir la nomenclatura heredada en las comunicaciones de invitación por la marca Prodigio.
