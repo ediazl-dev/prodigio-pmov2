@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -43,74 +44,78 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
+  /* Prodigio Tech Brand: Magenta primary, Dark navy sidebar */
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
+  --background: oklch(0.98 0.005 240);
+  --foreground: oklch(0.18 0.02 240);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
+  --card-foreground: oklch(0.18 0.02 240);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+  --popover-foreground: oklch(0.18 0.02 240);
+  --primary: #e91e8c;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.35 0.14 240);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.95 0.01 240);
+  --muted-foreground: oklch(0.5 0.02 240);
+  --accent: oklch(0.95 0.03 240);
+  --accent-foreground: oklch(0.35 0.14 240);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.9 0.01 240);
+  --input: oklch(0.9 0.01 240);
+  --ring: #e91e8c;
+  --chart-1: #e91e8c;
+  --chart-2: oklch(0.35 0.14 240);
+  --chart-3: oklch(0.55 0.12 195);
+  --chart-4: oklch(0.65 0.18 140);
+  --chart-5: oklch(0.65 0.18 60);
+  /* Sidebar Prodigio Tech Guide: Navy #0F1A2E + brand #e91e8c */
+  --sidebar: #0F1A2E;
+  --sidebar-foreground: #E2E8F0;
+  --sidebar-accent: #1A2D4A;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1A2D4A;
+  --sidebar-ring: #e91e8c;
+  --sidebar-primary: #1E3A5F;
+  --sidebar-primary-foreground: #FFFFFF;
+  --accent-rose: #e91e8c;
 }
 
 .dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  --background: oklch(0.13 0.03 240);
+  --foreground: oklch(0.95 0.01 240);
+  --card: oklch(0.18 0.03 240);
+  --card-foreground: oklch(0.95 0.01 240);
+  --popover: oklch(0.18 0.03 240);
+  --popover-foreground: oklch(0.95 0.01 240);
+  --primary: #e91e8c;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.45 0.12 240);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.22 0.03 240);
+  --muted-foreground: oklch(0.65 0.02 240);
+  --accent: oklch(0.22 0.04 240);
+  --accent-foreground: oklch(0.95 0.01 240);
+  --destructive: oklch(0.60 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.28 0.03 240);
+  --input: oklch(0.28 0.03 240);
+  --ring: #e91e8c;
+  --chart-1: #e91e8c;
+  --chart-2: oklch(0.55 0.14 240);
+  --chart-3: oklch(0.60 0.12 195);
+  --chart-4: oklch(0.65 0.18 140);
+  --chart-5: oklch(0.65 0.18 60);
+  /* Sidebar Prodigio Tech Guide: Dark theme */
+  --sidebar: #1E293B;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #F8FAFC;
+  --sidebar-border: #334155;
+  --sidebar-ring: #e91e8c;
+  --sidebar-primary: #e91e8c;
+  --sidebar-primary-foreground: #FFFFFF;
 }
 
 @layer base {
@@ -119,6 +124,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Poppins', system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -173,5 +183,119 @@
       padding-right: 2rem;
       max-width: 1280px; /* Standard content width */
     }
+  }
+}
+
+/* Custom scrollbar for sidebar - Prodigio Tech Guide */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+@media (max-width: 640px) {
+  .prodigio-dashboard {
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  .prodigio-dashboard .prodigio-hero-content {
+    padding: 18px 20px 16px !important;
+  }
+
+  .prodigio-dashboard .prodigio-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .prodigio-dashboard .prodigio-dashboard-body {
+    padding: 16px 20px 24px !important;
+  }
+
+  .prodigio-dashboard .prodigio-ai-banner {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+    gap: 12px !important;
+    padding: 16px !important;
+  }
+
+  .prodigio-dashboard .prodigio-dashboard-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .prodigio-dashboard .prodigio-dashboard-footer {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 20px !important;
+  }
+
+  .prodigio-projects {
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  .prodigio-projects .prodigio-projects-hero {
+    padding: 18px 20px 16px !important;
+  }
+
+  .prodigio-projects .prodigio-projects-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .prodigio-projects .prodigio-projects-filters {
+    overflow-x: auto;
+    padding: 12px 20px !important;
+  }
+
+  .prodigio-projects .prodigio-projects-footer {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 20px !important;
+  }
+
+  .prodigio-profile {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: clip;
+  }
+
+  .prodigio-profile .prodigio-profile-hero {
+    padding: 20px !important;
+  }
+
+  .prodigio-profile .prodigio-profile-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px !important;
+  }
+
+  .prodigio-profile .prodigio-profile-kpis > * {
+    min-width: 0;
+    padding: 10px !important;
+  }
+
+  .prodigio-profile .prodigio-profile-body {
+    padding: 20px !important;
+  }
+
+  .prodigio-profile .prodigio-profile-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .prodigio-profile .prodigio-profile-footer {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 20px !important;
   }
 }

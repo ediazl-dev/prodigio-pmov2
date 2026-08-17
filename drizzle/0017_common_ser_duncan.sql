@@ -1,0 +1,1 @@
+ALTER TABLE `billing_milestones` ADD `dateSource` enum('gantt','sow','ai','manual');

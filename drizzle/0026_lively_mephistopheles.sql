@@ -1,0 +1,20 @@
+CREATE TABLE `recurring_service_ai_analyses` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`serviceId` int NOT NULL,
+	`semaphore` varchar(20) NOT NULL,
+	`semaphoreJustification` text,
+	`executiveAbstract` text,
+	`fullAnalysis` text,
+	`slaDimension` varchar(20),
+	`slaScore` int,
+	`slaDetail` text,
+	`deliverablesDimension` varchar(20),
+	`deliverablesScore` int,
+	`deliverablesDetail` text,
+	`billingDimension` varchar(20),
+	`billingScore` int,
+	`billingDetail` text,
+	`generatedBy` int,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `recurring_service_ai_analyses_id` PRIMARY KEY(`id`)
+);

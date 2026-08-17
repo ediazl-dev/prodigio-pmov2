@@ -7,4 +7,8 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  jiraBaseUrl: process.env.JIRA_BASE_URL ?? "",
+  jiraEmail: process.env.JIRA_EMAIL ?? "",
+  jiraApiToken: process.env.JIRA_API_TOKEN ?? "",
+  pipedriveApiToken: process.env.PIPEDRIVE_API_TOKEN ?? "",
 };

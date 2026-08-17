@@ -1,0 +1,1 @@
+ALTER TABLE `risks` ADD `confirmed` boolean DEFAULT false NOT NULL;

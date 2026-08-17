@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `origin` enum('platform','linked') DEFAULT 'platform' NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE `stage_approvals` ADD `closedBy` int;

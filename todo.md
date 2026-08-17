@@ -1,0 +1,40 @@
+# Prodigio PMO Platform — Restauración desde respaldo
+
+- [x] Reemplazar el esqueleto inicial por el código fuente restaurado del respaldo `prodigio-pmo-main.zip`.
+- [x] Restaurar el esquema completo de Drizzle y las 27 migraciones de base de datos para las entidades PMO requeridas.
+- [x] Validar aceptación de invitaciones y vinculación OAuth para cada rol: `admin`, `pmo`, `pm` y `consulta`.
+- [x] Corregir el identificador temporal de invitaciones para que soporte correos largos dentro del límite de base de datos.
+- [x] Restaurar el DashboardLayout y el dashboard principal con marca Prodigio, color `#e91e8c`, fuente Poppins, KPIs y listado de proyectos.
+- [x] Validar específicamente el pipeline de seis etapas y el desbloqueo posterior a la aprobación de SoW.
+- [x] Ejecutar y documentar una prueba funcional del SoW agéntico, desde extracción a aprobación.
+- [x] Corregir la persistencia de borradores SoW para que la extracción vacía o parcial no infrinja restricciones de base de datos.
+- [x] Generar un borrador SoW estructurado a partir de los metadatos disponibles cuando el proveedor de IA responda sin contenido.
+- [x] Validar las cuatro categorías exactas de riesgos, el versionado y la exportación a Excel.
+- [x] Añadir y ejecutar una prueba no omitida que cubra explícitamente PERT, ruta crítica, hitos, Gantt y backlog del módulo de planificación sin depender de una variable live.
+- [x] Calcular y normalizar en servidor la estimación PERT de cada tarea para no depender de valores aproximados del modelo de IA.
+- [x] Ejecutar y registrar evidencia verificable de los flujos SoW y planificación después del cambio de modelo, o documentarlos como validaciones opt-in.
+- [x] Añadir una prueba no omitida de la contingencia WBS y backlog cuando la IA devuelva una estructura vacía.
+- [x] Ejecutar y registrar una validación exitosa del DOCX del SoW, además del DOCX y PPTX de avance.
+- [x] Ejecutar y registrar una prueba dirigida de interfaz para la descarga DOCX que compruebe la mutación, URL y nombre de archivo resultantes.
+- [x] Eliminar trazas diagnósticas temporales de respuestas IA para evitar registrar contenido de proyecto en consola.
+- [x] Validar lecciones aprendidas, compliance y registros de auditoría dentro del módulo de cierre.
+- [x] Validar explícitamente el panel admin para usuarios, token Jira, plantillas, auditoría y compliance.
+- [x] Restaurar el módulo de servicios recurrentes y su pipeline propio.
+- [x] Instalar y fijar las dependencias compatibles con el código restaurado.
+- [x] Aplicar migraciones a la base de datos gestionada y verificar su consistencia.
+- [x] Configurar las credenciales externas necesarias mediante variables seguras, sin incorporarlas al código.
+- [x] Robustecer la verificación de conectividad de Pipedrive frente a fallos transitorios de red.
+- [x] Ejecutar compilación estática, suite Vitest y corregir errores de restauración.
+- [x] Corregir la cobertura de las seis etapas y el aislamiento de datos que afectan las pruebas de deadlines.
+- [x] Actualizar la configuración corporativa PPDC y los tiempos de prueba de Jira según el entorno restaurado.
+- [x] Validar la interfaz de las rutas principales en escritorio y móvil.
+- [ ] Guardar una versión recuperada verificable y entregar el acceso para publicación desde la interfaz de administración.
+- [x] Aplicar y verificar en código los cambios de branding visibles del dashboard con la marca Prodigio.
+- [x] Auditar y corregir la nomenclatura visible restante del dashboard y la navegación para asegurar consistencia con Prodigio.
+- [x] Sustituir la nomenclatura heredada en las comunicaciones de invitación por la marca Prodigio.
+- [x] Capturar evidencia visual verificable del branding Prodigio antes de guardar la recuperación.
+- [x] Corregir el desbordamiento horizontal detectado en las vistas principales para pantallas móviles.
+- [x] Aplicar Poppins como tipografía principal global de Prodigio.
+- [x] Normalizar los tokens y acentos visuales al color de marca exacto `#e91e8c`.
+- [x] Corregir el ancho y la cuadrícula del perfil en móvil, y alinear sus acentos compartidos al color exacto `#e91e8c`.
+- [x] Aplicar una grilla adaptativa al perfil para que sus dos columnas se apilen cuando no haya ancho suficiente.

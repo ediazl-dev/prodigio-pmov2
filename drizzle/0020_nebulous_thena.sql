@@ -1,0 +1,20 @@
+CREATE TABLE `executive_verdicts` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`projectId` int NOT NULL,
+	`generatedBy` int NOT NULL,
+	`generatedByName` varchar(200),
+	`semaphore` enum('VERDE','AMARILLO','ROJO') NOT NULL,
+	`ctoTitle` varchar(500),
+	`ctoInsights` json,
+	`cfoTitle` varchar(500),
+	`cfoInsights` json,
+	`commercialTitle` varchar(500),
+	`commercialInsights` json,
+	`overallVerdict` text,
+	`semaphoreJustification` text,
+	`keyRisks` json,
+	`recommendations` json,
+	`metricsSnapshot` json,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `executive_verdicts_id` PRIMARY KEY(`id`)
+);
