@@ -46,6 +46,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       "Impacto y costo financiero de la desviación",
       "Daño cuantificado y proyección a término",
       "Puente de destrucción de margen",
+      "Componentes del puente:",
       "Descalce entre curva de pago y cumplimiento",
       "Exigencias, pauta de remediación y descargos",
       "Exigencias vigentes",
