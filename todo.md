@@ -65,11 +65,11 @@
 - [x] Reemplazar en la consulta productiva el motor de avance ponderado por un motor determinista cardinal, auditable y cubierto por pruebas de borde.
 - [x] Construir el flujo documental de minutas, extracción revisable de compromisos y cobertura de evidencia sin fabricar valores faltantes.
 - [x] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre, incluida anulación visible restringida al Gerente de Delivery con motivo auditable.
-- [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
+- [x] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
 - [x] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
 - [x] Ejecutar el preflight inicial de sincronización y validar la base recuperable C0 antes de iniciar el rediseño.
 - [x] Guardar y validar un checkpoint recuperable por cada incremento del rediseño v2 antes de continuar al siguiente bloque.
-- [ ] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
+- [x] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
 - [x] Configurar el fixture determinista del 17-ago-2026 separado de los datos productivos y conservar M01–M10 como nomenclatura contractual real de Tanner.
 - [x] Registrar a Eduardo como PM y a Ariel como Gerente de Delivery en las reglas de responsabilidades del piloto ejecutivo Tanner.
 - [x] Habilitar la incorporación de actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
@@ -94,3 +94,10 @@
 - [x] Realizar una auditoría de accesibilidad verificable del dashboard completo: teclado, orden de foco, semántica, estados interactivos y contraste.
 - [ ] Demostrar con evidencia específica la paridad de PRD, descargos, escalamiento, cobertura/coherencia de minutas y señales secundarias frente a la maqueta.
 - [x] Separar de forma estricta el fixture de validación del 17-ago-2026 de la consulta y rotulación productiva del Dashboard Ejecutivo v2 de Tanner.
+- [ ] Capturar evidencia verificable por bloque de PRD, descargos, escalamiento, cobertura/coherencia documental y señales secundarias en la sesión autenticada.
+- [ ] Fijar por prueba los bloques de descargos, escalamiento y la estructura detallada de señales secundarias frente a la maqueta aprobada.
+- [ ] Demostrar mediante pruebas de render o evidencia de interfaz la densidad informativa de las perspectivas CFO, Comercial y CTO.
+- [ ] Crear una matriz explícita en la documentación que compare, zona por zona y vista por vista, la maqueta HTML aprobada con la implementación y evidencia textual verificable.
+- [ ] Añadir pruebas de render/DOM para las perspectivas CFO, Comercial y CTO que fijen contenido mínimo, métricas y guardrails visibles.
+- [ ] Reforzar la evidencia autenticada del bloque documental (cobertura/coherencia) y de señales secundarias con extracciones verificables por subbloque.
+- [ ] Convertir las señales secundarias enriquecidas a una estructura tabular cuando la maqueta lo exija o documentar formalmente la equivalencia aprobada.

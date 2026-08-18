@@ -12,6 +12,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       'id="hitos"',
       'id="finanzas"',
       'id="exigencias"',
+      'id="remediacion"',
       'id="operacion"',
       'id="minutas"',
       'id="preclasificacion"',
@@ -80,6 +81,57 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     expect(component).not.toContain('className="edv2-card" open><summary><span>Jira / backlog</span>');
     expect(executiveHeader).not.toContain("AOJ");
     expect(styles).toContain("filter: saturate(.35)");
+  });
+
+  it("preserva descargos, escalamiento y señales secundarias como bloques detallados y no como resúmenes planos", () => {
+    [
+      "rúbrica · 100 pts",
+      "aprueba con ≥ 75 puntos y ninguna sección en cero",
+      "Descargos requeridos al PM",
+      "Eduardo · respuesta escrita",
+      "D-01",
+      "D-02",
+      "D-03",
+      "Re-baseline formal",
+      "Continuidad / stop-loss",
+      "Recuperación económica",
+      "Issues:",
+      "Hitos/risgos/cambios:",
+      "Vínculo contractual:",
+      "Jira puede activar una penalización",
+    ].forEach((detail) => expect(component).toContain(detail));
+
+    expect((component.match(/className="edv2-card edv2-secondary-signal"/g) ?? []).length).toBe(3);
+    expect(component).toContain("prdRubric.map");
+    expect(component).toContain("responseQuestions.map");
+    expect(component).toContain('<table className="edv2-table">');
+  });
+
+  it("expone una matriz tabular de señales secundarias con procedencia y límites de gobierno explícitos", () => {
+    [
+      "Matriz de señales secundarias y sus límites de gobierno",
+      "Lectura observada",
+      "Procedencia",
+      "Límite de gobierno",
+      "Sólo penaliza; no acredita actas, CHC, IGE ni estado.",
+      "Exige análisis y dueño; no reemplaza evidencia contractual.",
+      "No proyecta carry ni autoriza continuidad sin insumos aprobados.",
+    ].forEach((detail) => expect(component).toContain(detail));
+  });
+
+  it("mantiene tres vistas derivadas con métricas y restricciones diferenciadas", () => {
+    [
+      "Exposición de margen y caja con base cardinal.",
+      "Facturación y cumplimiento se muestran por separado.",
+      "La trazabilidad técnica se observa, pero no acredita entrega.",
+      "CV ·",
+      "Facturación aceptada",
+      "Hitos con issue Jira",
+      "La aceptación documentada sigue siendo el único gatillo de avance.",
+    ].forEach((detail) => expect(component).toContain(detail));
+
+    expect((component.match(/role="tab"/g) ?? []).length).toBeGreaterThanOrEqual(1);
+    expect(component).toContain('role="tabpanel"');
   });
 
   it("declara las barreras de rol para evidencia, gobierno, PRD y anulación", () => {
