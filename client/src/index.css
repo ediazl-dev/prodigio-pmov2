@@ -226,6 +226,16 @@
 .edv2-root .edv2-operational-panels details { overflow: hidden; }
 .edv2-root .edv2-secondary-signal { filter: saturate(.35); opacity: .74; transition: filter 160ms ease-out, opacity 160ms ease-out; }
 .edv2-root .edv2-secondary-signal:hover, .edv2-root .edv2-secondary-signal:focus-within { filter: none; opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .edv2-root *, .edv2-root *::before, .edv2-root *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 .edv2-root .edv2-operational-panels summary { align-items: center; cursor: pointer; display: grid; gap: 10px; grid-template-columns: minmax(170px, .8fr) minmax(130px, .5fr) minmax(0, 1.3fr); list-style: none; padding: 14px 18px; }
 .edv2-root .edv2-operational-panels summary::-webkit-details-marker { display: none; }
 .edv2-root .edv2-operational-panels summary span { color: #0D1117; font: 700 11px "JetBrains Mono", monospace; letter-spacing: .09em; text-transform: uppercase; }

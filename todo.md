@@ -68,7 +68,7 @@
 - [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
 - [x] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
 - [x] Ejecutar el preflight inicial de sincronización y validar la base recuperable C0 antes de iniciar el rediseño.
-- [ ] Guardar y validar un checkpoint recuperable por cada incremento del rediseño v2 antes de continuar al siguiente bloque.
+- [x] Guardar y validar un checkpoint recuperable por cada incremento del rediseño v2 antes de continuar al siguiente bloque.
 - [ ] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
 - [x] Configurar el fixture determinista del 17-ago-2026 separado de los datos productivos y conservar M01–M10 como nomenclatura contractual real de Tanner.
 - [x] Registrar a Eduardo como PM y a Ariel como Gerente de Delivery en las reglas de responsabilidades del piloto ejecutivo Tanner.
@@ -82,10 +82,14 @@
 - [x] Crear y validar un motor puro de gobierno cardinal que calcula CHC, exposición comercial aislada, impacto financiero, IGE, gatillos G-01 a G-07 y estado único sin usar pesos para avance.
 - [x] Habilitar desde el detalle del piloto Tanner el acceso visible al Dashboard Ejecutivo v2 y conservar un acceso explícito al dashboard heredado.
 - [ ] Completar la paridad estructural del Dashboard Ejecutivo v2 con el HTML de referencia, incluidas las vistas derivadas/tabuladas y los bloques ricos restantes de la jerarquía aprobada.
-- [ ] Ejecutar y documentar una validación específica de accesibilidad del Dashboard Ejecutivo v2: teclado, foco visible, navegación, semántica y contraste.
+- [x] Ejecutar y documentar una validación específica de accesibilidad del Dashboard Ejecutivo v2: teclado, foco visible, navegación, semántica y contraste.
 - [ ] Completar la paridad funcional y visual del Dashboard Ejecutivo v2 con los bloques faltantes del HTML: PRD detallado, descargos, escalamiento, carga/cobertura/coherencia de minutas y tablas ricas de señales secundarias.
 - [ ] Expandir las vistas derivadas CFO, Comercial y CTO para reflejar la estructura y densidad informativa de la maqueta aprobada, sin fabricar datos ausentes.
-- [ ] Documentar una validación de accesibilidad real del Dashboard Ejecutivo v2: contraste, navegación por teclado, orden de foco, semántica y estados interactivos.
+- [x] Documentar una validación de accesibilidad real del Dashboard Ejecutivo v2: contraste, navegación por teclado, orden de foco, semántica y estados interactivos.
 - [x] Implementar la revisión formal del veredicto agéntico: observación persistida, validación por PMO/Admin, rechazo con motivo y prohibición de presentarlo como decisión ejecutiva antes de validarlo.
 - [x] Habilitar el registro versionado de un PRD real, su evidencia y su aprobación restringida al Gerente de Delivery, sin declarar vigente un plan no aprobado.
 - [x] Evitar que una consulta externa de Jira o finanzas bloquee la carga del Dashboard Ejecutivo v2; degradar a evidencia no disponible con procedencia explícita tras un límite de espera.
+- [ ] Ejecutar y registrar una comparación exhaustiva bloque a bloque entre la implementación y la maqueta HTML aprobada, dejando evidencia verificable de cada zona y vista derivada.
+- [x] Completar una matriz formal de validación por rol (admin, pmo, pm y consulta) para visibilidad y acciones del Dashboard Ejecutivo v2.
+- [x] Realizar una auditoría de accesibilidad verificable del dashboard completo: teclado, orden de foco, semántica, estados interactivos y contraste.
+- [ ] Demostrar con evidencia específica la paridad de PRD, descargos, escalamiento, cobertura/coherencia de minutas y señales secundarias frente a la maqueta.
