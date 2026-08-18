@@ -48,3 +48,23 @@ Según maqueta HTML líneas 427-486:
 3. Actualizar pruebas de aceptación
 4. Validar con compilación y pruebas
 5. Publicar checkpoint
+
+---
+
+## Cierre de implementación — 2026-08-18 (checkpoint 62c4947a)
+
+| Fase | Estado | Artefacto verificable |
+|---|---|---|
+| 1. Extracción del bloque anterior | ✅ | `/tmp/gantt_old.txt` (2705 chars, MD5 verificado) |
+| 2. Generación del nuevo bloque | ✅ | `/tmp/gantt_new.txt` (4686 chars) |
+| 3. Reemplazo quirúrgico | ✅ | `ExecutiveDashboardV2.tsx` líneas 256-337 con `edv2-gantt-wrap` |
+| 4. Validación TypeScript | ✅ | `tsc --noEmit` limpio tras corregir 6 errores de tipos implícitos (`.getTime()`, `Date \| null`) |
+| 5. Checkpoint publicado | ✅ | `62c4947a` (auto-publicado a producción) |
+
+### Trabajo adicional ejecutado en el cierre
+- Sistema de clases `edv2-gantt-*` (33 reglas) añadido a `client/src/index.css` con paleta grafito/papel/teal, estados ok/atraso/hoy/plan, barra de deriva rayada, línea de corte y leyenda; incluye adaptación responsive y `prefers-reduced-motion`.
+- Pruebas de aceptación actualizadas a la nueva estructura del Gantt (título "baseline vs. real", clases del wrap/leyenda, campos `jiraDueDate`/`jiraClosedDate`/`acceptedAt`).
+- Validación: 30 pruebas focales aprobadas (5 archivos), TypeScript limpio, ruta `/projects/180002/executive-dashboard-v2` responde HTTP 200 y el CSS servido incluye las 17 clases `edv2-gantt-*`.
+
+### Nota sobre el bucle detectado y resuelto
+Durante la Fase 4 se detectó un bucle de 10+ iteraciones con la herramienta de parches (archivo grande truncado en caché → desajuste de versión). Se resolvió cambiando a scripts Python de reemplazo directo por strings, conforme a la estrategia anti-loop: cada acción produce un artefacto verificable.

@@ -115,7 +115,7 @@
 - [x] Verificar la integridad posterior de los datos operativos y publicar el resultado de la limpieza.
 - [x] Diagnosticar por qué el rail lateral del Dashboard Ejecutivo v2 no es visible en la ruta publicada revisada por el usuario.
 - [x] Precisar y corregir la presentación de fechas baseline por hito, diferenciando datos ausentes de fechas reales disponibles en el baseline contractual.
-- [ ] Corregir la visibilidad efectiva del rail lateral propio del Dashboard Ejecutivo v2 en la ruta publicada, validando su renderizado autenticado y su retorno al proyecto Tanner.
+- [x] Corregir la visibilidad efectiva del rail lateral propio del Dashboard Ejecutivo v2 en la ruta publicada, validando su renderizado autenticado y su retorno al proyecto Tanner.
 - [x] Implementar la línea de tiempo contractual por hito con la fecha planificada de Jira como fecha comprometida, sin mostrar el marcador ambiguo "[POR CONFIRMAR]" cuando exista dicha fecha.
 - [x] Incorporar la distinción entre cierre operativo en Jira y aceptación documental del cliente, con tolerancia exacta de cinco días entre ambas fechas.
 - [x] Actualizar el motor cardinal, el contrato de datos, la interfaz temporal y sus pruebas de borde para los estados comprometido, pendiente de acta, vencido sin acta, aceptado y en riesgo.
@@ -129,4 +129,4 @@
 - [x] Actualizar las pruebas de aceptación para reflejar la nueva estructura del Gantt.
 - [x] Validar compilación TypeScript y pruebas focales del Gantt.
 - [x] Corregir tipos implícitos del bloque Gantt (getTime, Date | null) y añadir el sistema de clases edv2-gantt-* a index.css.
-- [ ] Publicar checkpoint con el Gantt contractual implementado.
+- [x] Publicar checkpoint con el Gantt contractual implementado.
