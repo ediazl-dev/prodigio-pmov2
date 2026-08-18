@@ -26,6 +26,13 @@ describe("Dashboard Ejecutivo v2 — accesibilidad de la navegación", () => {
     expect(component).toContain("← Volver al proyecto");
   });
 
+  it("aplica un layout lateral visible y una alternativa desplazable para pantallas estrechas", () => {
+    expect(component).toContain(".edv2-body-shell{display:flex;align-items:flex-start;gap:0;background:var(--p)}");
+    expect(component).toContain(".edv2-side-nav{position:sticky;top:60px;z-index:35;display:flex;flex:0 0 224px");
+    expect(component).toContain(".edv2-main-content{min-width:0;flex:1}");
+    expect(component).toContain(".edv2-side-nav{position:sticky;top:60px;display:flex;min-height:auto;max-height:none;flex-direction:row;align-items:center;overflow-x:auto");
+  });
+
   it("usa pestañas con selección, controles y navegación por flechas", () => {
     expect(component).toContain('role="tablist"');
     expect(component).toContain('role="tab"');

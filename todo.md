@@ -113,7 +113,7 @@
 - [x] Inventariar y validar los registros de prueba candidatos, excluyendo proyectos, etapas, documentos y relaciones operativas reales.
 - [x] Eliminar sólo registros de prueba confirmados y sus dependencias, conservando trazabilidad de la operación.
 - [x] Verificar la integridad posterior de los datos operativos y publicar el resultado de la limpieza.
-- [ ] Diagnosticar por qué el rail lateral del Dashboard Ejecutivo v2 no es visible en la ruta publicada revisada por el usuario.
+- [x] Diagnosticar por qué el rail lateral del Dashboard Ejecutivo v2 no es visible en la ruta publicada revisada por el usuario.
 - [ ] Precisar y corregir la presentación de fechas baseline por hito, diferenciando datos ausentes de fechas reales disponibles en el baseline contractual.
 - [ ] Corregir la visibilidad efectiva del rail lateral propio del Dashboard Ejecutivo v2 en la ruta publicada, validando su renderizado autenticado y su retorno al proyecto Tanner.
 - [ ] Implementar la línea de tiempo contractual por hito con la fecha planificada de Jira como fecha comprometida, sin mostrar el marcador ambiguo "[POR CONFIRMAR]" cuando exista dicha fecha.
