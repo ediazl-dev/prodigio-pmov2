@@ -50,3 +50,6 @@
 - [x] Ejecutar y registrar evidencia explícita de las pruebas automatizadas para la respuesta estructurada, los reintentos y el error detallado de generación de riesgos.
 - [x] Validar la generación corregida con la versión de SoW que consume el flujo de [PMO] CCLA SRP MVP1 Deal 4728, sin reemplazar riesgos existentes hasta obtener un resultado válido.
 - [x] Añadir y ejecutar una prueba automatizada del flujo de generación que cubra explícitamente reintentos, recuperación posterior y agotamiento de los tres intentos.
+- [x] Elaborar y validar el backlog de implementación del Dashboard Ejecutivo v2, con SoW como fuente contractual, hitos leídos desde Jira y guardrails de sincronización de versiones.
+- [ ] Verificar la preparación contractual, documental, Jira y financiera del proyecto Tanner como piloto del Dashboard Ejecutivo v2.
+- [ ] Ejecutar y aprobar la auditoría F0 de KPIs, fuentes, denominadores y semáforo para el piloto Tanner antes de cambios de esquema o interfaz.
