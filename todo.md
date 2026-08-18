@@ -66,7 +66,7 @@
 - [x] Construir el flujo documental de minutas, extracción revisable de compromisos y cobertura de evidencia sin fabricar valores faltantes.
 - [x] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre, incluida anulación visible restringida al Gerente de Delivery con motivo auditable.
 - [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
-- [ ] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
+- [x] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
 - [x] Ejecutar el preflight inicial de sincronización y validar la base recuperable C0 antes de iniciar el rediseño.
 - [ ] Guardar y validar un checkpoint recuperable por cada incremento del rediseño v2 antes de continuar al siguiente bloque.
 - [ ] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
