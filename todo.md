@@ -39,3 +39,6 @@
 - [x] Normalizar los tokens y acentos visuales al color de marca exacto `#e91e8c`.
 - [x] Corregir el ancho y la cuadrícula del perfil en móvil, y alinear sus acentos compartidos al color exacto `#e91e8c`.
 - [x] Aplicar una grilla adaptativa al perfil para que sus dos columnas se apilen cuando no haya ancho suficiente.
+- [x] Migrar los datos operativos reales desde la instancia anterior de Prodigio PMO, preservando relaciones, etapas, documentos y configuraciones válidas.
+- [x] Inspeccionar el respaldo importable recibido, validar su estructura y compatibilidad con el esquema actual antes de importar datos.
+- [x] Preparar un lote de importación no destructivo que excluya el DDL heredado, adapte identidades OAuth y preserve únicamente las relaciones de negocio compatibles.
