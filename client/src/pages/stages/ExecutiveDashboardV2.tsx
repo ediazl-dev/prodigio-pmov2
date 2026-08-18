@@ -84,7 +84,7 @@ export default function ExecutiveDashboardV2() {
   const [verdictReviewNote, setVerdictReviewNote] = useState("");
   const [recoveryPlanFormOpen, setRecoveryPlanFormOpen] = useState(false);
   const [recoveryPlanForm, setRecoveryPlanForm] = useState({ version: "", dueDate: "", fileName: "", fileUrl: "", fileSha256: "", summary: "" });
-  const dashboard = trpc.advance.getExecutiveDashboardV2.useQuery({ projectId }, { retry: false, enabled: Boolean(user) && Number.isFinite(projectId) });
+  const dashboard = trpc.advance.getExecutiveDashboardV2.useQuery({ projectId }, { retry: false, enabled: !authLoading && Number.isFinite(projectId) });
   const recordMinute = trpc.advance.recordExecutiveMinute.useMutation({ onSuccess: () => { setMinuteFormOpen(false); setMinuteForm({ meetingDate: "", title: "", fileName: "", fileUrl: "", commitmentTitle: "", commitmentOwner: "", commitmentDueDate: "" }); void dashboard.refetch(); } });
   const previewCommitments = trpc.advance.previewExecutiveCommitments.useMutation({ onSuccess: (result) => setCommitmentPreviews(result.commitments) });
   const recordAcceptance = trpc.advance.recordExecutiveMilestoneAcceptance.useMutation({ onSuccess: () => { setAcceptanceFormOpen(false); setAcceptanceForm({ milestoneId: "", acceptedAt: "", evidenceFileName: "", evidenceUrl: "", notes: "" }); void dashboard.refetch(); } });

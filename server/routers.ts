@@ -60,6 +60,7 @@ import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAccept
 import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
 import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
 import { buildExecutiveOperationalEvidence } from "./executiveOperationalEvidence";
+import { resolveExternalEvidence } from "./executiveExternalEvidence";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3754,17 +3755,25 @@ Responde SOLO con JSON:
       for (const acceptance of acceptances) {
         if (!acceptanceByMilestone.has(acceptance.milestoneId)) acceptanceByMilestone.set(acceptance.milestoneId, acceptance);
       }
-      const { getFinancialDataForDeal } = await import("./financialDataFetcher");
-      let financial: any = null;
-      try { financial = await getFinancialDataForDeal(source.dealId); } catch (error) { console.warn("No fue posible obtener finanzas para dashboard v2:", error); }
-      let jiraOperationalReport: Awaited<ReturnType<typeof getJiraAdvanceReport>> | null = null;
-      const jiraObservedAt = new Date().toISOString();
-      try {
-        if (source.jiraProjectKey) jiraOperationalReport = await getJiraAdvanceReport(source.jiraProjectKey);
-      } catch (error) {
-        console.warn("No fue posible obtener evidencia operativa de Jira para dashboard v2:", error);
-      }
-      const operationalEvidence = buildExecutiveOperationalEvidence(jiraOperationalReport, jiraOperationalReport ? jiraObservedAt : null);
+      const [financialEvidenceResult, jiraEvidenceResult] = await Promise.all([
+        resolveExternalEvidence({
+          source: "finanzas",
+          load: async () => {
+            const { getFinancialDataForDeal } = await import("./financialDataFetcher");
+            return getFinancialDataForDeal(source.dealId);
+          },
+        }),
+        source.jiraProjectKey
+          ? resolveExternalEvidence({ source: "Jira", load: () => getJiraAdvanceReport(source.jiraProjectKey!) })
+          : Promise.resolve({ availability: "unavailable" as const, value: null, observedAt: null, reason: "source_error" as const }),
+      ]);
+      const financial = financialEvidenceResult.value as any;
+      const jiraOperationalReport = jiraEvidenceResult.value;
+      const operationalEvidence = {
+        ...buildExecutiveOperationalEvidence(jiraOperationalReport, jiraEvidenceResult.observedAt),
+        availability: jiraEvidenceResult.availability,
+        retrievalReason: jiraEvidenceResult.reason,
+      };
       const financialSnapshot = financial?.projectFinancial ?? null;
       const latestFinancial = persistedFinancialSnapshot?.financialData ?? financialSnapshot;
       const cutoffMs = Date.parse(`${cutoffDate}T00:00:00Z`);
