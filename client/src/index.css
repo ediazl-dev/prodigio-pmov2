@@ -352,3 +352,28 @@
     padding: 12px 20px !important;
   }
 }
+
+/* Panel de revisión documental: separado visualmente y nunca presentado como evidencia persistida. */
+.edv2-root > .edv2-wrap:first-child {
+  box-sizing: border-box;
+  max-width: none;
+  padding: 16px max(20px, calc((100% - 1160px) / 2));
+}
+.edv2-root > .edv2-wrap:first-child .edv2-card {
+  background: #101B2A;
+  border-radius: 0;
+  box-shadow: none;
+  color: #F2F4F7;
+}
+.edv2-root > .edv2-wrap:first-child h2 { color: #F2F4F7; font: 400 26px/1 "Instrument Serif", Georgia, serif; }
+.edv2-root > .edv2-wrap:first-child .edv2-note { background: transparent; color: #B6C2D0; font-size: 11.5px; line-height: 1.55; margin: 0; padding: 0; }
+.edv2-root > .edv2-wrap:first-child textarea { background: #0D1117; border: 1px solid #314153; border-radius: 0; color: #F2F4F7; font: 12px/1.5 "JetBrains Mono", monospace; padding: 10px; }
+.edv2-root > .edv2-wrap:first-child textarea::placeholder { color: #8090A2; }
+.edv2-root > .edv2-wrap:first-child button { font: 700 10px "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; }
+.edv2-root > .edv2-wrap:first-child .edv2-list { background: #F7F9FB; margin-bottom: 0; }
+.edv2-root > .edv2-wrap:first-child .edv2-list li { grid-template-columns: auto minmax(0, 1fr) auto; }
+
+@media (max-width: 640px) {
+  .edv2-root > .edv2-wrap:first-child { padding: 12px 14px; }
+  .edv2-root > .edv2-wrap:first-child .edv2-list li { grid-template-columns: 1fr; }
+}
