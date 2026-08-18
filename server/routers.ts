@@ -57,6 +57,7 @@ import { canApproveExecutiveRecoveryPlan } from "./executiveRecoveryPlanPolicy";
 import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
 import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
 import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAcceptancePolicy";
+import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3514,6 +3515,19 @@ Responde SOLO con JSON:
         platformStageData,
       };
     }),
+
+  /** Preclasificación no persistente: el usuario debe revisar cada compromiso antes de registrarlo. */
+  previewExecutiveCommitments: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    rawText: z.string().trim().min(20).max(30000),
+  })).mutation(async ({ input }) => {
+    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "La preclasificación documental v2 está habilitada sólo para el piloto Tanner" });
+    const commitments = extractReviewableCommitments(input.rawText);
+    return {
+      commitments,
+      notice: "Resultado preclasificado: revísalo y confirma cada campo antes de registrar la minuta. No se ha guardado evidencia ni compromiso.",
+    };
+  }),
 
   /** Registro de una minuta real. Sólo PMO/Admin puede cargar la referencia y sus compromisos revisables. */
   recordExecutiveMinute: adminOrPmo.input(z.object({

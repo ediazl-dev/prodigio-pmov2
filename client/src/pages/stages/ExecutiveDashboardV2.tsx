@@ -71,6 +71,8 @@ export default function ExecutiveDashboardV2() {
   const [derivedView, setDerivedView] = useState<"cfo" | "commercial" | "cto">("cfo");
   const [minuteFormOpen, setMinuteFormOpen] = useState(false);
   const [minuteForm, setMinuteForm] = useState({ meetingDate: "", title: "", fileName: "", fileUrl: "", commitmentTitle: "", commitmentOwner: "", commitmentDueDate: "" });
+  const [minuteRawText, setMinuteRawText] = useState("");
+  const [commitmentPreviews, setCommitmentPreviews] = useState<any[]>([]);
   const [acceptanceFormOpen, setAcceptanceFormOpen] = useState(false);
   const [acceptanceForm, setAcceptanceForm] = useState({ milestoneId: "", acceptedAt: "", evidenceFileName: "", evidenceUrl: "", notes: "" });
   const [requirementFormOpen, setRequirementFormOpen] = useState(false);
@@ -82,6 +84,7 @@ export default function ExecutiveDashboardV2() {
   const [recoveryPlanForm, setRecoveryPlanForm] = useState({ version: "", dueDate: "", fileName: "", fileUrl: "", fileSha256: "", summary: "" });
   const dashboard = trpc.advance.getExecutiveDashboardV2.useQuery({ projectId }, { retry: false, enabled: Boolean(user) && Number.isFinite(projectId) });
   const recordMinute = trpc.advance.recordExecutiveMinute.useMutation({ onSuccess: () => { setMinuteFormOpen(false); setMinuteForm({ meetingDate: "", title: "", fileName: "", fileUrl: "", commitmentTitle: "", commitmentOwner: "", commitmentDueDate: "" }); void dashboard.refetch(); } });
+  const previewCommitments = trpc.advance.previewExecutiveCommitments.useMutation({ onSuccess: (result) => setCommitmentPreviews(result.commitments) });
   const recordAcceptance = trpc.advance.recordExecutiveMilestoneAcceptance.useMutation({ onSuccess: () => { setAcceptanceFormOpen(false); setAcceptanceForm({ milestoneId: "", acceptedAt: "", evidenceFileName: "", evidenceUrl: "", notes: "" }); void dashboard.refetch(); } });
   const createRequirement = trpc.advance.createExecutiveRequirement.useMutation({ onSuccess: () => { setRequirementFormOpen(false); setRequirementForm({ requirementCode: "", priority: "P1", title: "", rationale: "", ownerName: "", dueDate: "", acceptanceCriteria: "", consequence: "" }); void dashboard.refetch(); } });
   const closeRequirement = trpc.advance.closeExecutiveRequirement.useMutation({ onSuccess: () => { setClosingRequirementId(null); setClosureForm({ evidenceUrl: "", notes: "" }); void dashboard.refetch(); } });
