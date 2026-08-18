@@ -44,7 +44,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -53,6 +53,7 @@ import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
 import { isoWeekFromDate } from "./executiveMinutes";
+import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3552,6 +3553,49 @@ Responde SOLO con JSON:
     await audit(ctx, "executive_minute_recorded", "executive_meeting_minute", minuteId, input.title, { projectId: input.projectId, sourceId: source.id, commitments: commitmentIds.length });
     return { minuteId, commitmentIds, isoWeek: isoWeekFromDate(input.meetingDate) };
   }),
+
+  /** Exigencias ejecutivas: sólo Admin/PMO crea y cierra con evidencia; Delivery asignado puede anular con motivo. */
+  createExecutiveRequirement: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    requirementCode: z.string().trim().min(3).max(50),
+    priority: z.enum(["P0", "P1", "P2"]),
+    title: z.string().trim().min(3).max(500),
+    rationale: z.string().trim().min(3).max(10000),
+    ownerName: z.string().trim().min(2).max(200),
+    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    acceptanceCriteria: z.string().trim().min(3).max(10000),
+    consequence: z.string().trim().min(3).max(10000),
+  })).mutation(async ({ input, ctx }) => {
+    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "Las exigencias v2 están habilitadas sólo para el piloto Tanner" });
+    const source = await getExecutiveProjectSource(input.projectId);
+    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const id = await createExecutiveRequirement({ ...input, sourceId: source.id, requirementStatus: "open" });
+    await audit(ctx, "executive_requirement_created", "executive_requirement", id, input.title, { projectId: input.projectId, sourceId: source.id, priority: input.priority, requirementCode: input.requirementCode });
+    return { id };
+  }),
+
+  closeExecutiveRequirement: adminOrPmo.input(z.object({
+    projectId: z.number(), requirementId: z.number(), closureEvidenceUrl: z.string().url().max(1000), closureNotes: z.string().trim().max(10000).optional(),
+  })).mutation(async ({ input, ctx }) => {
+    const requirement = await getExecutiveRequirementById(input.requirementId);
+    if (!requirement || requirement.projectId !== input.projectId) throw new TRPCError({ code: "NOT_FOUND", message: "Exigencia ejecutiva no encontrada para este proyecto" });
+    if (!canCloseExecutiveRequirement({ status: requirement.requirementStatus, closureEvidenceUrl: input.closureEvidenceUrl })) throw new TRPCError({ code: "BAD_REQUEST", message: "La exigencia ya está terminal o no cuenta con evidencia de cierre válida" });
+    await closeExecutiveRequirement(input.requirementId, { closedBy: ctx.user.id, closureEvidenceUrl: input.closureEvidenceUrl, closureNotes: input.closureNotes ?? null });
+    await audit(ctx, "executive_requirement_closed", "executive_requirement", input.requirementId, requirement.title, { projectId: input.projectId, evidence: input.closureEvidenceUrl });
+    return { id: input.requirementId, status: "closed" as const };
+  }),
+
+  waiveExecutiveRequirement: protectedProcedure.input(z.object({ projectId: z.number(), requirementId: z.number(), reason: z.string().trim().min(3).max(10000) }))
+    .mutation(async ({ input, ctx }) => {
+      const requirement = await getExecutiveRequirementById(input.requirementId);
+      if (!requirement || requirement.projectId !== input.projectId) throw new TRPCError({ code: "NOT_FOUND", message: "Exigencia ejecutiva no encontrada para este proyecto" });
+      const assignments = await getExecutiveGovernanceAssignments(input.projectId, requirement.sourceId ?? undefined);
+      const isAssignedDeliveryManager = assignments.some((assignment) => assignment.active && assignment.governanceRole === "delivery_manager" && assignment.userId === ctx.user.id);
+      if (!canWaiveExecutiveRequirement({ status: requirement.requirementStatus, isAssignedDeliveryManager, reason: input.reason })) throw new TRPCError({ code: "FORBIDDEN", message: "Sólo el Gerente de Delivery asignado puede anular una exigencia abierta con un motivo explícito" });
+      await waiveExecutiveRequirement(input.requirementId, { waivedBy: ctx.user.id, waiverReason: input.reason });
+      await audit(ctx, "executive_requirement_waived", "executive_requirement", input.requirementId, requirement.title, { projectId: input.projectId, reason: input.reason });
+      return { id: input.requirementId, status: "waived" as const };
+    }),
 
   /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
   getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number(), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))

@@ -74,6 +74,7 @@
 - [x] Registrar a Eduardo como PM y a Ariel como Gerente de Delivery en las reglas de responsabilidades del piloto ejecutivo Tanner.
 - [ ] Incorporar actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
 - [x] Habilitar para Admin/PMO el registro auditable de una minuta real, su URL de evidencia y compromisos manualmente revisados, sin extracción automática ni carga de datos ficticios.
+- [x] Habilitar la creación de exigencias aprobadas por comité y su cierre con evidencia para Admin/PMO; restringir la anulación al Gerente de Delivery asignado con motivo explícito.
 - [x] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR] en `DASHBOARD_EJECUTIVO_V2_AUDITORIA_FINANCIERA_TANNER.md`.
 - [x] Crear y validar un motor puro de gobierno cardinal que calcula CHC, exposición comercial aislada, impacto financiero, IGE, gatillos G-01 a G-07 y estado único sin usar pesos para avance.
 - [x] Habilitar desde el detalle del piloto Tanner el acceso visible al Dashboard Ejecutivo v2 y conservar un acceso explícito al dashboard heredado.

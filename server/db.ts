@@ -509,6 +509,13 @@ export async function createExecutiveRequirement(data: InsertExecutiveRequiremen
   return Number((result as any).insertId);
 }
 
+export async function getExecutiveRequirementById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(executiveRequirements).where(eq(executiveRequirements.id, id)).limit(1);
+  return rows[0];
+}
+
 export async function closeExecutiveRequirement(id: number, data: { closedBy: number; closureEvidenceUrl: string; closureNotes?: string | null }) {
   const db = await getDb();
   if (!db) return;
