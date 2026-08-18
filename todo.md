@@ -67,9 +67,11 @@
 - [ ] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre.
 - [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
 - [ ] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
-- [ ] Ejecutar el preflight de sincronización, validar base recuperable y guardar checkpoints por cada incremento antes de cualquier publicación.
+- [x] Ejecutar el preflight inicial de sincronización y validar la base recuperable C0 antes de iniciar el rediseño.
+- [ ] Guardar y validar un checkpoint recuperable por cada incremento del rediseño v2 antes de continuar al siguiente bloque.
 - [ ] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
 - [ ] Configurar el fixture determinista del 17-ago-2026 separado de los datos productivos y conservar M01–M10 como nomenclatura contractual real de Tanner.
 - [ ] Registrar a Eduardo como PM y a Ariel como Gerente de Delivery en las reglas de responsabilidades del piloto ejecutivo Tanner.
 - [ ] Incorporar actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
 - [ ] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR].
+- [x] Crear y validar un motor puro de gobierno cardinal que calcula CHC, exposición comercial aislada, impacto financiero, IGE, gatillos G-01 a G-07 y estado único sin usar pesos para avance.
