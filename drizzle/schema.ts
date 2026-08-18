@@ -576,6 +576,7 @@ export const executiveContractMilestones = mysqlTable("executive_contract_milest
   jiraIssueKey: varchar("jiraIssueKey", { length: 50 }).notNull(),
   jiraStatusName: varchar("jiraStatusName", { length: 100 }),
   jiraDueDate: date("jiraDueDate", { mode: "string" }),
+  jiraClosedDate: date("jiraClosedDate", { mode: "string" }),
   semanticStatus: mysqlEnum("semanticStatus", ["pending", "fulfilled", "delayed", "blocked"]).default("pending").notNull(),
   isCritical: boolean("isCritical").default(false).notNull(),
   reconciliationNotes: text("reconciliationNotes"),

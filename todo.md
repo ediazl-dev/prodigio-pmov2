@@ -120,6 +120,6 @@
 - [x] Incorporar la distinción entre cierre operativo en Jira y aceptación documental del cliente, con tolerancia exacta de cinco días entre ambas fechas.
 - [x] Actualizar el motor cardinal, el contrato de datos, la interfaz temporal y sus pruebas de borde para los estados comprometido, pendiente de acta, vencido sin acta, aceptado y en riesgo.
 - [x] Crear y validar un checkpoint recuperable antes de modificar el rail, el contrato de Jira o la línea de tiempo contractual de Tanner.
-- [ ] Persistir y sincronizar la fecha de cierre de la issue Jira vinculada, usando `resolutiondate` sin modificar actas ni aceptación existentes.
+- [x] Persistir y sincronizar la fecha de cierre de la issue Jira vinculada, usando `resolutiondate` sin modificar actas ni aceptación existentes.
 - [x] Añadir pruebas deterministas de la tolerancia de aceptación a los 0, 5 y 6 días desde el cierre operativo Jira.
 - [ ] Validar TypeScript, Vitest y la ruta autenticada de Tanner antes de publicar los ajustes del cronograma contractual.

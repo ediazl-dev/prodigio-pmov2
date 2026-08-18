@@ -23,6 +23,12 @@ La vista ahora modela la **fecha planificada de Jira como fecha comprometida con
 
 Las pruebas focales del motor de gobierno, contrato de aceptación visual y accesibilidad aprobaron **30 verificaciones**. La captura automatizada aislada volvió a detenerse en “Cargando evidencia ejecutiva…” porque su contexto independiente no reutiliza la sesión OAuth; los registros de red confirman que la consulta autenticada del dashboard respondió para Tanner. No se utilizó ningún dato ficticio ni se modificaron actas productivas durante esta validación.
 
+La navegación directa a la ruta publicada del 18-ago-2026 redirigió al portal OAuth en el navegador de validación, que no contiene la sesión autorizada del usuario. Por tanto, la comprobación visual productiva queda correctamente protegida por autenticación y debe completarse con una sesión OAuth autorizada; no se intentó evadir ni modificar esa protección.
+
+Tras habilitar la opción de navegador personal para esta tarea, una nueva navegación conservó la redirección al mismo portal OAuth. Esto confirma que la sesión de navegador disponible sigue sin estar autenticada para Prodigio; la validación productiva de visualización permanece pendiente de esa sesión, mientras que la compilación y las pruebas de contrato continúan siendo las evidencias técnicas disponibles.
+
+La migración `0031_broken_banshee.sql` añadió de forma no destructiva `jiraClosedDate` a `executive_contract_milestones`; la base fue verificada posteriormente. Cuando Jira está disponible, el dashboard actualiza la fecha comprometida, fecha de cierre, estado y marca temporal observados para cada issue vinculada. Esta sincronización no escribe ni modifica actas, fechas de aceptación ni el crédito cardinal de los hitos.
+
 ## Validación ejecutada
 
 | Ámbito | Evidencia | Resultado |

@@ -439,6 +439,17 @@ export async function getExecutiveContractMilestones(projectId: number, sourceId
     .orderBy(executiveContractMilestones.milestoneCode);
 }
 
+export async function updateExecutiveContractMilestoneJiraObservation(
+  milestoneId: number,
+  observation: { jiraDueDate?: string | null; jiraClosedDate?: string | null; jiraStatusName?: string | null }
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(executiveContractMilestones)
+    .set({ ...observation, lastObservedAt: new Date() })
+    .where(eq(executiveContractMilestones.id, milestoneId));
+}
+
 export async function replaceExecutiveContractMilestones(projectId: number, sourceId: number, milestones: Omit<InsertExecutiveContractMilestone, "projectId" | "sourceId">[]) {
   const db = await getDb();
   if (!db) return;

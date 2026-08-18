@@ -218,6 +218,13 @@
       "when": 1787025612299,
       "tag": "0030_loud_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1787064564132,
+      "tag": "0031_broken_banshee",
+      "breakpoints": true
     }
   ]
 }

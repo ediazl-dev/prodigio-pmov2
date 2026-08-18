@@ -1,0 +1,1 @@
+ALTER TABLE `executive_contract_milestones` ADD `jiraClosedDate` date;
