@@ -24,7 +24,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     positions.forEach((position) => expect(position).toBeGreaterThan(-1));
     positions.slice(1).forEach((position, index) => expect(position).toBeGreaterThan(positions[index]));
     expect(component).toContain("La evidencia define el");
-    expect(component).toContain("no puede mejorar el estado ejecutivo");
+    expect(component).toContain("sólo el acta del cliente acredita aceptación");
   });
 
   it("mantiene un semáforo contractual único y KPI cardinales auditables", () => {
@@ -42,7 +42,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
   it("mantiene los bloques ricos y las vistas derivadas con acciones explícitas y datos ausentes trazables", () => {
     [
       "Eje primario — cumplimiento cardinal de hitos",
-      "Línea de tiempo contractual — baseline vs. real",
+      "Línea de tiempo contractual — Jira vs. aceptación",
       "Hitos vencidos sin aceptación y evidencia por hito",
       "Impacto y costo financiero de la desviación",
       "Daño cuantificado y proyección a término",
@@ -73,23 +73,25 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     expect(component).not.toContain('>N/A<');
   });
 
-  it("ofrece navegación lateral accesible y distingue baseline de fecha real acreditada", () => {
+  it("ofrece navegación lateral accesible y muestra la línea de tiempo Jira con aceptación documentada", () => {
     [
       'className="edv2-side-nav"',
       'aria-label="Navegación lateral del dashboard ejecutivo"',
       'className="edv2-side-nav-return"',
-      'Baseline / real acreditado',
-      'className="edv2-dot baseline"',
-      'className={`edv2-dot realized',
-      '<b>Baseline</b>',
-      '<b>Real</b>',
-      'Compromiso:',
-      'style={{ left: `${baselinePosition}%` }}',
-      'style={{ left: `${realizedPosition}%` }}',
+      "Fecha comprometida",
+      "Fecha real",
+      "Variación",
+      "Compromiso contractual",
+      "Regla de gobierno:",
+      "ventana de cinco días",
+      "PENDIENTE ACTA",
+      "VENCIDO SIN ACTA",
+      "milestone.jiraDueDate",
+      "timeline.acceptanceWindowDays",
     ].forEach((detail) => expect(component).toContain(detail));
 
-    expect(component).toContain('milestone.acceptedAt ?? milestone.committedDate');
-    expect(component).toContain('formatDate(milestone.baselineDate)');
+    expect(component).toContain('formatDate(milestone.acceptedAt)');
+    expect(component).not.toContain("Línea de tiempo contractual — baseline vs. real");
   });
 
   it("mantiene el eje operativo colapsado, desaturado y fuera de la cabecera ejecutiva", () => {

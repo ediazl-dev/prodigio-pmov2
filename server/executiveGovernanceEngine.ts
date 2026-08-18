@@ -6,6 +6,7 @@ export type CardinalMilestone = {
   code: string;
   baselineDate?: string | null;
   committedDate?: string | null;
+  jiraClosedDate?: string | null;
   acceptedAt?: string | null;
   acceptanceEvidenceUrl?: string | null;
   isCritical?: boolean;
@@ -141,6 +142,59 @@ function dayStamp(value?: string | null) {
   if (!match) return null;
   const timestamp = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+export type MilestoneTimelineStatus = "COMPROMETIDO" | "PENDIENTE_ACTA" | "VENCIDO_SIN_ACTA" | "ACEPTADO" | "EN_RIESGO" | "SIN_FECHA_COMPROMETIDA";
+
+export type MilestoneTimelineClassification = {
+  status: MilestoneTimelineStatus;
+  varianceDays: number | null;
+  acceptanceWindowDays: number | null;
+  acceptanceWithinTolerance: boolean | null;
+};
+
+/**
+ * Jira fija la fecha comprometida y aporta sólo el cierre operativo.
+ * Una acta con fecha y evidencia sigue siendo la única condición que acredita aceptación.
+ */
+export function classifyMilestoneTimeline(input: {
+  jiraDueDate?: string | null;
+  jiraClosedDate?: string | null;
+  acceptanceDate?: string | null;
+  acceptanceEvidenceUrl?: string | null;
+  today: string;
+  acceptanceToleranceDays?: number;
+}): MilestoneTimelineClassification {
+  const due = dayStamp(input.jiraDueDate);
+  const closed = dayStamp(input.jiraClosedDate);
+  const acceptance = dayStamp(input.acceptanceDate);
+  const today = dayStamp(input.today);
+  const tolerance = input.acceptanceToleranceDays ?? 5;
+  const hasValidAcceptance = acceptance != null && Boolean(input.acceptanceEvidenceUrl?.trim());
+  const acceptanceWindowDays = hasValidAcceptance && closed != null ? Math.floor((acceptance - closed) / DAY_MS) : null;
+  const acceptanceWithinTolerance = acceptanceWindowDays == null ? null : acceptanceWindowDays >= 0 && acceptanceWindowDays <= tolerance;
+  const varianceDays = hasValidAcceptance && due != null ? Math.floor((acceptance - due) / DAY_MS) : null;
+
+  if (hasValidAcceptance) return { status: "ACEPTADO", varianceDays, acceptanceWindowDays, acceptanceWithinTolerance };
+  if (due == null) return { status: "SIN_FECHA_COMPROMETIDA", varianceDays: null, acceptanceWindowDays: null, acceptanceWithinTolerance: null };
+
+  const operationallyClosed = closed != null && (today == null || closed <= today);
+  if (operationallyClosed) {
+    const elapsedDays = today == null ? 0 : Math.max(0, Math.floor((today - closed) / DAY_MS));
+    return {
+      status: elapsedDays <= tolerance ? "PENDIENTE_ACTA" : "VENCIDO_SIN_ACTA",
+      varianceDays: null,
+      acceptanceWindowDays: elapsedDays,
+      acceptanceWithinTolerance: null,
+    };
+  }
+
+  return {
+    status: today != null && due < today ? "EN_RIESGO" : "COMPROMETIDO",
+    varianceDays: null,
+    acceptanceWindowDays: null,
+    acceptanceWithinTolerance: null,
+  };
 }
 
 function effectiveDate(milestone: CardinalMilestone) {

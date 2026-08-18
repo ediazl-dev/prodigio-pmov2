@@ -114,12 +114,12 @@
 - [x] Eliminar sólo registros de prueba confirmados y sus dependencias, conservando trazabilidad de la operación.
 - [x] Verificar la integridad posterior de los datos operativos y publicar el resultado de la limpieza.
 - [x] Diagnosticar por qué el rail lateral del Dashboard Ejecutivo v2 no es visible en la ruta publicada revisada por el usuario.
-- [ ] Precisar y corregir la presentación de fechas baseline por hito, diferenciando datos ausentes de fechas reales disponibles en el baseline contractual.
+- [x] Precisar y corregir la presentación de fechas baseline por hito, diferenciando datos ausentes de fechas reales disponibles en el baseline contractual.
 - [ ] Corregir la visibilidad efectiva del rail lateral propio del Dashboard Ejecutivo v2 en la ruta publicada, validando su renderizado autenticado y su retorno al proyecto Tanner.
-- [ ] Implementar la línea de tiempo contractual por hito con la fecha planificada de Jira como fecha comprometida, sin mostrar el marcador ambiguo "[POR CONFIRMAR]" cuando exista dicha fecha.
-- [ ] Incorporar la distinción entre cierre operativo en Jira y aceptación documental del cliente, con tolerancia exacta de cinco días entre ambas fechas.
-- [ ] Actualizar el motor cardinal, el contrato de datos, la interfaz temporal y sus pruebas de borde para los estados comprometido, pendiente de acta, vencido sin acta, aceptado y en riesgo.
+- [x] Implementar la línea de tiempo contractual por hito con la fecha planificada de Jira como fecha comprometida, sin mostrar el marcador ambiguo "[POR CONFIRMAR]" cuando exista dicha fecha.
+- [x] Incorporar la distinción entre cierre operativo en Jira y aceptación documental del cliente, con tolerancia exacta de cinco días entre ambas fechas.
+- [x] Actualizar el motor cardinal, el contrato de datos, la interfaz temporal y sus pruebas de borde para los estados comprometido, pendiente de acta, vencido sin acta, aceptado y en riesgo.
 - [x] Crear y validar un checkpoint recuperable antes de modificar el rail, el contrato de Jira o la línea de tiempo contractual de Tanner.
 - [ ] Persistir y sincronizar la fecha de cierre de la issue Jira vinculada, usando `resolutiondate` sin modificar actas ni aceptación existentes.
-- [ ] Añadir pruebas deterministas de la tolerancia de aceptación a los 0, 5 y 6 días desde el cierre operativo Jira.
+- [x] Añadir pruebas deterministas de la tolerancia de aceptación a los 0, 5 y 6 días desde el cierre operativo Jira.
 - [ ] Validar TypeScript, Vitest y la ruta autenticada de Tanner antes de publicar los ajustes del cronograma contractual.

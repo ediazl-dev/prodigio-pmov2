@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateCardinalProgress, calculateExecutiveGovernance, isMilestoneAcceptedAtCutoff, type CardinalMilestone, validatePaymentCurveTotal } from "./executiveGovernanceEngine";
+import { calculateCardinalProgress, calculateExecutiveGovernance, classifyMilestoneTimeline, isMilestoneAcceptedAtCutoff, type CardinalMilestone, validatePaymentCurveTotal } from "./executiveGovernanceEngine";
 
 const cutoff = "2026-08-17";
 
@@ -30,6 +30,19 @@ describe("Executive Governance Engine — cardinalidad contractual", () => {
     const dueToday = milestone("M02", cutoff);
     expect(isMilestoneAcceptedAtCutoff(withNoAct, cutoff)).toBe(false);
     expect(calculateCardinalProgress([withNoAct, dueToday], cutoff)).toMatchObject({ committedCount: 1, acceptedCount: 0, openOverdueCount: 1, dueOnCutoffCount: 1, chcT: 0 });
+  });
+
+  it("clasifica la línea de tiempo con Jira como compromiso contractual y sólo acredita aceptación con acta", () => {
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-20", today: "2026-08-18" })).toMatchObject({ status: "COMPROMETIDO", varianceDays: null });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", today: "2026-08-18" })).toMatchObject({ status: "EN_RIESGO", varianceDays: null });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-13", today: "2026-08-18" })).toMatchObject({ status: "PENDIENTE_ACTA", acceptanceWindowDays: 5 });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-12", today: "2026-08-18" })).toMatchObject({ status: "VENCIDO_SIN_ACTA", acceptanceWindowDays: 6 });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-12", acceptanceDate: "2026-08-17", acceptanceEvidenceUrl: "s3://acta.pdf", today: "2026-08-18" })).toMatchObject({ status: "ACEPTADO", varianceDays: 7, acceptanceWindowDays: 5 });
+  });
+
+  it("mantiene la tolerancia inclusiva: cinco días permiten acta pendiente y el sexto día vence", () => {
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-12", today: "2026-08-17" })).toMatchObject({ status: "PENDIENTE_ACTA", acceptanceWindowDays: 5 });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-12", today: "2026-08-18" })).toMatchObject({ status: "VENCIDO_SIN_ACTA", acceptanceWindowDays: 6 });
   });
 
   it("activa gatillos absolutos sin permitir que Jira mejore el estado", () => {

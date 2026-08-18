@@ -50,7 +50,7 @@ import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
 import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
-import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
+import { calculateExecutiveGovernance, classifyMilestoneTimeline } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
 import { isoWeekFromDate } from "./executiveMinutes";
@@ -3845,6 +3845,7 @@ Responde SOLO con JSON:
       ]);
       const financial = financialEvidenceResult.value as any;
       const jiraOperationalReport = jiraEvidenceResult.value;
+      const jiraMilestoneByKey = new Map((jiraOperationalReport?.milestones ?? []).map((issue) => [issue.key, issue]));
       const operationalEvidence = {
         ...buildExecutiveOperationalEvidence(jiraOperationalReport, jiraEvidenceResult.observedAt),
         availability: jiraEvidenceResult.availability,
@@ -3865,23 +3866,30 @@ Responde SOLO con JSON:
       });
       const milestoneEvidence = milestones.map((milestone) => {
         const acceptance = acceptanceByMilestone.get(milestone.id);
+        const jiraMilestone = jiraMilestoneByKey.get(milestone.jiraIssueKey);
+        const jiraDueDate = jiraMilestone?.duedate ?? milestone.jiraDueDate;
+        const jiraClosedDate = jiraMilestone?.resolutiondate?.slice(0, 10) ?? null;
+        const acceptedAt = acceptance?.acceptanceStatus === "accepted" ? acceptance.acceptedAt : null;
+        const acceptanceEvidenceUrl = acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceUrl : null;
         return {
           id: milestone.id,
           code: milestone.milestoneCode,
           milestoneCode: milestone.milestoneCode,
           title: milestone.title,
           baselineDate: milestone.baselineDate,
-          committedDate: milestone.jiraDueDate ?? milestone.baselineDate,
+          committedDate: jiraDueDate,
           jiraIssueKey: milestone.jiraIssueKey,
-          jiraDueDate: milestone.jiraDueDate,
-          jiraStatusName: milestone.jiraStatusName,
+          jiraDueDate,
+          jiraClosedDate,
+          jiraStatusName: jiraMilestone?.status ?? milestone.jiraStatusName,
           semanticStatus: milestone.semanticStatus,
           isCritical: milestone.isCritical,
           billingWeight: milestone.billingWeight,
-          acceptedAt: acceptance?.acceptanceStatus === "accepted" ? acceptance.acceptedAt : null,
-          acceptanceEvidenceUrl: acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceUrl : null,
+          acceptedAt,
+          acceptanceEvidenceUrl,
           acceptanceFileName: acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceFileName : null,
           acceptanceStatus: acceptance?.acceptanceStatus ?? "unverified",
+          timeline: classifyMilestoneTimeline({ jiraDueDate, jiraClosedDate, acceptanceDate: acceptedAt, acceptanceEvidenceUrl, today: cutoffDate }),
         };
       });
       const governance = calculateExecutiveGovernance({

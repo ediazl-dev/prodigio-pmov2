@@ -17,6 +17,12 @@ El 18-ago-2026, la sesión autenticada de Tanner mostró controles de archivo y 
 
 No se cargó evidencia de prueba ni se modificó Tanner durante esta comprobación. El contrato técnico valida extensión, MIME, firma y tamaño; una carga aislada se audita como pendiente de registro y no modifica por sí misma la aceptación contractual, la cobertura de minutas ni la vigencia del PRD.
 
+## Línea de tiempo contractual Jira — validación técnica
+
+La vista ahora modela la **fecha planificada de Jira como fecha comprometida contractual**. La fecha de resolución de Jira se utiliza únicamente como cierre operativo: inicia una ventana de cinco días para la recepción del acta del cliente y no acredita aceptación por sí misma. La tabla contractual presenta las columnas **Hito**, **Fecha comprometida (Jira)**, **Fecha real (acta)**, **Estado** y **Variación (días)**, preservando los datos ausentes como `[PENDIENTE]` o `[POR CONFIRMAR]`.
+
+Las pruebas focales del motor de gobierno, contrato de aceptación visual y accesibilidad aprobaron **30 verificaciones**. La captura automatizada aislada volvió a detenerse en “Cargando evidencia ejecutiva…” porque su contexto independiente no reutiliza la sesión OAuth; los registros de red confirman que la consulta autenticada del dashboard respondió para Tanner. No se utilizó ningún dato ficticio ni se modificaron actas productivas durante esta validación.
+
 ## Validación ejecutada
 
 | Ámbito | Evidencia | Resultado |

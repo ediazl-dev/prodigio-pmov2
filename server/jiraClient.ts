@@ -947,7 +947,7 @@ export interface JiraAdvanceReport {
   // Epics map
   epics: Array<{ key: string; summary: string; status: string; statusCategory: string; doneSubtasks: number; totalSubtasks: number }>;
   // Milestones (Hito PMO)
-  milestones: Array<{ key: string; summary: string; status: string; statusCategory: string; percentage?: string; duedate?: string | null }>;
+  milestones: Array<{ key: string; summary: string; status: string; statusCategory: string; percentage?: string; duedate?: string | null; resolutiondate?: string | null }>;
   // Risks
   risks: Array<{ key: string; summary: string; status: string; statusCategory: string; priority: string }>;
   // Scope changes (Cambio de Alcance)
@@ -1069,7 +1069,7 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
       epics.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, doneSubtasks: 0, totalSubtasks: 0 });
     } else if (typeNorm.includes("hito") || typeNorm.includes("milestone")) {
       const pctMatch = issue.fields.summary.match(/(\d+)%/);
-      milestones.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, percentage: pctMatch?.[1], duedate: (issue.fields as any).duedate ?? null });
+      milestones.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, percentage: pctMatch?.[1], duedate: (issue.fields as any).duedate ?? null, resolutiondate: (issue.fields as any).resolutiondate ?? null });
     } else if (typeNorm.includes("riesgo") || typeNorm.includes("risk")) {
       risks.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, priority });
     } else if (typeNorm.includes("cambio") || typeNorm.includes("change") || typeNorm.includes("avance")) {
