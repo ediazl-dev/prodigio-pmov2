@@ -42,3 +42,4 @@
 - [x] Migrar los datos operativos reales desde la instancia anterior de Prodigio PMO, preservando relaciones, etapas, documentos y configuraciones válidas.
 - [x] Inspeccionar el respaldo importable recibido, validar su estructura y compatibilidad con el esquema actual antes de importar datos.
 - [x] Preparar un lote de importación no destructivo que excluya el DDL heredado, adapte identidades OAuth y preserve únicamente las relaciones de negocio compatibles.
+- [x] Eliminar de forma auditada los registros transitorios generados por las pruebas para conservar exclusivamente los datos migrados reales.
