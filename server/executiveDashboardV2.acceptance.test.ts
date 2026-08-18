@@ -42,7 +42,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
   it("mantiene los bloques ricos y las vistas derivadas con acciones explícitas y datos ausentes trazables", () => {
     [
       "Eje primario — cumplimiento cardinal de hitos",
-      "Línea de tiempo contractual — Jira vs. aceptación",
+      "Línea de tiempo contractual — baseline vs. real",
       "Hitos vencidos sin aceptación y evidencia por hito",
       "Impacto y costo financiero de la desviación",
       "Daño cuantificado y proyección a término",
@@ -78,20 +78,19 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       'className="edv2-side-nav"',
       'aria-label="Navegación lateral del dashboard ejecutivo"',
       'className="edv2-side-nav-return"',
-      "Fecha comprometida",
-      "Fecha real",
-      "Variación",
-      "Compromiso contractual",
+      "Línea de tiempo contractual — baseline vs. real",
+      'className="edv2-gantt-wrap"',
+      'className="edv2-gantt-legend"',
+      "Corte 18-ago",
+      "Aceptado por el cliente",
+      "Vencido sin aceptación",
       "Regla de gobierno:",
       "ventana de cinco días",
-      "PENDIENTE ACTA",
-      "VENCIDO SIN ACTA",
+      "fecha comprometida contractual",
       "milestone.jiraDueDate",
-      "timeline.acceptanceWindowDays",
+      "milestone.jiraClosedDate",
+      "milestone.acceptedAt",
     ].forEach((detail) => expect(component).toContain(detail));
-
-    expect(component).toContain('formatDate(milestone.acceptedAt)');
-    expect(component).not.toContain("Línea de tiempo contractual — baseline vs. real");
   });
 
   it("mantiene el eje operativo colapsado, desaturado y fuera de la cabecera ejecutiva", () => {

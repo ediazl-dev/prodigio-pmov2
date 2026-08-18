@@ -122,4 +122,11 @@
 - [x] Crear y validar un checkpoint recuperable antes de modificar el rail, el contrato de Jira o la línea de tiempo contractual de Tanner.
 - [x] Persistir y sincronizar la fecha de cierre de la issue Jira vinculada, usando `resolutiondate` sin modificar actas ni aceptación existentes.
 - [x] Añadir pruebas deterministas de la tolerancia de aceptación a los 0, 5 y 6 días desde el cierre operativo Jira.
-- [ ] Validar TypeScript, Vitest y la ruta autenticada de Tanner antes de publicar los ajustes del cronograma contractual.
+- [x] Validar TypeScript, Vitest y la ruta autenticada de Tanner antes de publicar los ajustes del cronograma contractual.
+- [x] Extraer el bloque exacto de la tabla temporal actual (líneas 255-256) a un archivo temporal para reemplazo quirúrgico.
+- [x] Generar el nuevo bloque Gantt como archivo separado basado en la especificación preservada.
+- [x] Aplicar el reemplazo quirúrgico en el componente usando script de sustitución exacta.
+- [x] Actualizar las pruebas de aceptación para reflejar la nueva estructura del Gantt.
+- [x] Validar compilación TypeScript y pruebas focales del Gantt.
+- [x] Corregir tipos implícitos del bloque Gantt (getTime, Date | null) y añadir el sistema de clases edv2-gantt-* a index.css.
+- [ ] Publicar checkpoint con el Gantt contractual implementado.
