@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateCardinalProgress, calculateExecutiveGovernance, isMilestoneAcceptedAtCutoff, type CardinalMilestone } from "./executiveGovernanceEngine";
+import { calculateCardinalProgress, calculateExecutiveGovernance, isMilestoneAcceptedAtCutoff, type CardinalMilestone, validatePaymentCurveTotal } from "./executiveGovernanceEngine";
 
 const cutoff = "2026-08-17";
 
@@ -60,5 +60,60 @@ describe("Executive Governance Engine — cardinalidad contractual", () => {
     expect(result.financial.financialHealthNorm).toBeNull();
     expect(result.governance.ige).toBeNull();
     expect(result.governance.state).toBe("POR_CONFIRMAR");
+  });
+
+  it("T-19 valida una curva comercial de 100,00 y rechaza una suma distinta sin alterar el contrato", () => {
+    expect(validatePaymentCurveTotal([
+      milestone("M01", "2026-01-10", { billingWeight: 40 }),
+      milestone("M02", "2026-02-10", { billingWeight: 5 }),
+      milestone("M03", "2026-03-10", { billingWeight: 5 }),
+      milestone("M04", "2026-04-10", { billingWeight: 10 }),
+      milestone("M05", "2026-05-10", { billingWeight: 10 }),
+      milestone("M06", "2026-06-10", { billingWeight: 10 }),
+      milestone("M07", "2026-10-10", { billingWeight: 5 }),
+      milestone("M08", "2026-10-10", { billingWeight: 5 }),
+      milestone("M09", "2026-10-10", { billingWeight: 5 }),
+      milestone("M10", "2026-10-10", { billingWeight: 5 }),
+    ])).toEqual({ totalWeight: 100, isValid: true });
+
+    expect(validatePaymentCurveTotal([
+      milestone("M01", "2026-01-10", { billingWeight: 105 }),
+    ])).toEqual({ totalWeight: 105, isValid: false });
+  });
+
+  it("T-20 mantiene CHC invariable ante cambios de pesos de facturación", () => {
+    const accepted = { acceptedAt: "2026-01-11", acceptanceEvidenceUrl: "s3://acta-m01" };
+    const baseline = [milestone("M01", "2026-01-10", { billingWeight: 5, ...accepted }), milestone("M02", "2026-02-10", { billingWeight: 95 })];
+    const altered = [milestone("M01", "2026-01-10", { billingWeight: 95, ...accepted }), milestone("M02", "2026-02-10", { billingWeight: 5 })];
+
+    expect(calculateCardinalProgress(altered, cutoff)).toMatchObject(calculateCardinalProgress(baseline, cutoff));
+  });
+
+  it("T-01 a T-18 reproduce el corte de validación Tanner con cardinalidad, costo y gatillos auditables", () => {
+    const accepted = { acceptedAt: "2026-01-15", acceptanceEvidenceUrl: "s3://acta-cliente" };
+    const result = calculateExecutiveGovernance({
+      cutoffDate: cutoff,
+      milestones: [
+        milestone("M01", "2026-01-10", { billingWeight: 40, valueUf: 0, ...accepted }),
+        milestone("M02", "2026-02-10", { billingWeight: 5, valueUf: 0, ...accepted }),
+        milestone("M03", "2026-07-27", { billingWeight: 5, valueUf: 717.5, isCritical: true }),
+        milestone("M04", "2026-06-10", { billingWeight: 10, valueUf: 717.5 }),
+        milestone("M05", "2026-05-10", { billingWeight: 10, valueUf: 717.5 }),
+        milestone("M06", "2026-04-10", { billingWeight: 10, valueUf: 717.5 }),
+        milestone("M07", cutoff, { billingWeight: 5, valueUf: 0 }),
+        milestone("M08", "2026-10-10", { billingWeight: 5, valueUf: 0 }),
+        milestone("M09", "2026-11-10", { billingWeight: 5, valueUf: 0 }),
+        milestone("M10", "2026-12-10", { billingWeight: 5, valueUf: 0 }),
+      ],
+      financial: { budgetCostUf: 2050, executedCostUf: 3114, saleValueUf: 8200, targetMarginUf: 4000, projectedMarginUf: 1000, annualWacc: 0.12 },
+      governance: { minutesCoveragePct: 40, commitmentCompliancePct: 0, hasValidRecoveryPlan: false, consecutiveMinutesGap: 3, recoveryPlanRequired: true, recoveryPlanOverdue: true, consecutiveRedVerdicts: 2 },
+      operational: { jiraProgressPct: 56, backlogConfidencePct: 34 },
+    });
+
+    expect(result.contractual).toMatchObject({ chcT: 33.33, chcG: 20, expectedG: 60, openOverdueCount: 4, breachRate: 66.67, spiH: 0.33, drcDays: 21 });
+    expect(result.financial).toMatchObject({ evCostUf: 410, cpiH: 0.1317, costPerAcceptedMilestoneUf: 1557, eacFloorUf: 4754, eacCeilingUf: 15570, vacFloorUf: -2704, vacCeilingUf: -13520, terminalMarginFloorPct: 42.02, terminalMarginCeilingPct: -89.88 });
+    expect(result.exposure).toEqual({ acceptedBillingPct: 45, mismatchPp: 25, retainedUf: 2870 });
+    expect(result.governance).toMatchObject({ jiraBiasPp: 22.67, ige: 14.67, state: "CRITICO" });
+    expect(result.governance.activeTriggers).toEqual(["G-01", "G-02", "G-03", "G-04", "G-05", "G-06", "G-07"]);
   });
 });

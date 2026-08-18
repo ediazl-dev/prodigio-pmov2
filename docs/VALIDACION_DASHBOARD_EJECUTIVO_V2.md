@@ -16,7 +16,7 @@ Este documento concentra la evidencia de cierre del piloto Tanner en la ruta `/p
 | Ámbito | Evidencia | Resultado |
 | --- | --- | --- |
 | Compilación estática | `pnpm exec tsc --noEmit` ejecutado el 18-ago-2026 después del último ajuste de interfaz | Sin errores de TypeScript |
-| Regresión completa | `pnpm test` ejecutado el 18-ago-2026 después de la auditoría final | 51 archivos aprobados, 452 pruebas aprobadas y 3 pruebas live omitidas explícitamente |
+| Regresión completa | `pnpm test` ejecutado el 18-ago-2026 después de la matriz formal del motor | 51 archivos aprobados, 455 pruebas aprobadas y 3 pruebas live omitidas explícitamente |
 | Motor y datos cardinales | Suites `executiveGovernanceEngine`, `executiveDashboardFixture`, `executiveMilestoneAcceptancePolicy` y `executiveFinancialEvidence` | Cubren cardinalidad, fixture Tanner, actas obligatorias y separación entre avance, exposición e impacto financiero |
 | Gobierno documental y permisos | Suites `executiveMinutes`, `executiveMinutesCoverage`, `executiveRequirements`, `executiveRecoveryPlanPolicy` y `executiveVerdictReviewPolicy` | Cubren minuta revisable, cobertura semanal, exigencias evidenciadas, PRD versionado y revisión humana del veredicto |
 | Señales Jira | Suite `executiveOperationalEvidence` y regla `secondary_penalty_only` | Jira conserva procedencia y sólo puede penalizar; no acredita aceptación ni mejora el estado |
@@ -75,3 +75,9 @@ El 18-ago-2026 se ejecutaron las cinco suites focales de evidencia y gobierno: *
 | Movimiento reducido | Media query `prefers-reduced-motion: reduce` que suprime transiciones y animaciones no esenciales; prueba estática de regresión | Conforme |
 
 La evidencia manual autenticada se limita al recorrido de escritorio disponible; no se declararon alteraciones de datos reales durante la comprobación. La validación responsiva y de contraste se fija también mediante las reglas adaptativas y los tokens cromáticos de la interfaz, y permanece visible como control de regresión en las pruebas de accesibilidad y paridad.
+
+## Matriz formal del motor — corte Tanner 17-ago-2026
+
+La suite `executiveGovernanceEngine.test.ts` materializa los casos **T-01 a T-20** con una entrada determinista y aislada del proyecto productivo. Los casos T-01 a T-18 comprueban `CHC-T 33,33%`, `CHC-G 20,00%`, `Esperado-G 60,00%`, cuatro vencidos abiertos, tasa de incumplimiento `66,67%`, `SPI-H 0,33`, `EV 410,00 UF`, `CPI-H 0,1317`, costo por hito `1.557,00 UF`, `DRC 21 días`, la banda EAC `4.754,00–15.570,00 UF`, VAC `−2.704,00–−13.520,00 UF`, banda de margen `42,02%–−89,88%`, descalce `+25,00 pp`, UF retenidas `2.870,00`, sesgo Jira `+22,67 pp`, los gatillos G-01 a G-07 y el estado `CRÍTICO`.
+
+El IGE interno de precisión es `14,67/100`; la presentación ejecutiva lo redondea a `15/100`, sin modificar el estado ni los gatillos. T-19 verifica que una curva declarada debe sumar exactamente `100,00` y rechaza un total de `105,00`. T-20 demuestra que los pesos comerciales no alteran `CHC-T` ni `CHC-G`. La banda EAC usa el cociente cardinal sin redondeo intermedio y sólo redondea la salida, evitando que una precisión truncada de CPI-H distorsione el extremo superior de la proyección.

@@ -91,6 +91,11 @@ export type CommercialExposure = {
   retainedUf: number | null;
 };
 
+export type PaymentCurveValidation = {
+  totalWeight: number | null;
+  isValid: boolean;
+};
+
 export type GovernanceOutcome = {
   minutesCoveragePct: number | null;
   commitmentCompliancePct: number | null;
@@ -192,6 +197,14 @@ export function calculateCardinalProgress(milestones: CardinalMilestone[], cutof
 }
 
 /** Los pesos de facturación sólo se usan aquí, como exposición comercial. */
+export function validatePaymentCurveTotal(milestones: CardinalMilestone[]): PaymentCurveValidation {
+  const weights = milestones.map((milestone) => numberOrNull(milestone.billingWeight));
+  if (!weights.length || weights.some((weight) => weight == null)) return { totalWeight: null, isValid: false };
+  const totalWeight = fixed(weights.reduce<number>((total, weight) => total + (weight ?? 0), 0));
+  return { totalWeight, isValid: totalWeight === 100 };
+}
+
+/** Los pesos de facturación sólo se usan aquí, como exposición comercial. */
 export function calculateCommercialExposure(milestones: CardinalMilestone[], cutoffDate: string, progress: CardinalProgress): CommercialExposure {
   const weights = milestones.map((milestone) => numberOrNull(milestone.billingWeight));
   const totalWeight = weights.every((weight) => weight != null) ? weights.reduce((total, weight) => total + (weight as number), 0) : null;
@@ -221,7 +234,8 @@ export function calculateFinancialImpact(progress: CardinalProgress, exposure: C
   const executed = numberOrNull(financial?.executedCostUf);
   const sale = numberOrNull(financial?.saleValueUf);
   const evCostUf = budget != null && progress.chcG != null ? fixed((progress.chcG / 100) * budget) : null;
-  const cpiH = evCostUf != null && executed != null && executed > 0 ? fixed(evCostUf / executed, 4) : null;
+  const rawCpiH = evCostUf != null && executed != null && executed > 0 ? evCostUf / executed : null;
+  const cpiH = rawCpiH != null ? fixed(rawCpiH, 4) : null;
   const costPerAcceptedMilestoneUf = executed != null && progress.acceptedCount > 0 ? fixed(executed / progress.acceptedCount) : null;
   const cvUf = evCostUf != null && executed != null ? fixed(evCostUf - executed) : null;
   const blockedHeadcount = numberOrNull(financial?.blockedHeadcount);
@@ -240,7 +254,7 @@ export function calculateFinancialImpact(progress: CardinalProgress, exposure: C
     ? fixed((carryUf + cashUf) / progress.drcDays)
     : null;
   const eacFloorUf = executed != null && budget != null && evCostUf != null ? fixed(executed + (budget - evCostUf)) : null;
-  const eacCeilingUf = budget != null && cpiH != null && cpiH > 0 ? fixed(budget / cpiH) : null;
+  const eacCeilingUf = budget != null && rawCpiH != null && rawCpiH > 0 ? fixed(budget / rawCpiH) : null;
   const vacFloorUf = budget != null && eacFloorUf != null ? fixed(budget - eacFloorUf) : null;
   const vacCeilingUf = budget != null && eacCeilingUf != null ? fixed(budget - eacCeilingUf) : null;
   const terminalMarginFloorPct = sale != null && sale > 0 && eacFloorUf != null ? fixed(((sale - eacFloorUf) / sale) * 100) : null;
