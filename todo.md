@@ -101,3 +101,7 @@
 - [x] Añadir pruebas de render/DOM para las perspectivas CFO, Comercial y CTO que fijen contenido mínimo, métricas y guardrails visibles.
 - [x] Reforzar la evidencia autenticada del bloque documental (cobertura/coherencia) y de señales secundarias con extracciones verificables por subbloque.
 - [x] Convertir las señales secundarias enriquecidas a una estructura tabular cuando la maqueta lo exija o documentar formalmente la equivalencia aprobada.
+- [ ] Restaurar una barra de navegación lateral específica para el Dashboard Ejecutivo v2, preservando su jerarquía visual, accesibilidad y acceso de retorno al proyecto.
+- [ ] Corregir la Línea de tiempo contractual para que represente las fechas baseline y reales conforme a la maqueta aprobada, sin inventar fechas de aceptación.
+- [ ] Diseñar e implementar la carga, validación y vinculación directa de documentos de evidencia para minutas, actas y PRD, reemplazando el ingreso manual de URL y actualizando la evidencia ejecutiva sólo después de una validación exitosa.
+- [ ] Restringir los archivos de evidencia a PDF para actas y PDF/DOCX para minutas y PRD, con un límite de 25 MB por archivo y revisión humana obligatoria antes de actualizar estados de gobierno.
