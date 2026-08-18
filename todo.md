@@ -109,3 +109,7 @@
 - [x] Corregir cualquier error JSX residual en `ExecutiveDashboardV2.tsx` y confirmar compilación limpia antes del checkpoint de navegación y cronograma.
 - [x] Verificar en código y sesión autenticada que minutas, actas y PRD eliminaron la URL manual y usan exclusivamente selección de archivos validada.
 - [x] Registrar evidencia verificable de las restricciones de formato, firma, MIME y 25 MB, más la no-actualización automática de aceptación, cobertura o vigencia tras una carga aislada.
+- [ ] Crear un checkpoint recuperable y respaldo auditable antes de eliminar registros de prueba.
+- [ ] Inventariar y validar los registros de prueba candidatos, excluyendo proyectos, etapas, documentos y relaciones operativas reales.
+- [ ] Eliminar sólo registros de prueba confirmados y sus dependencias, conservando trazabilidad de la operación.
+- [ ] Verificar la integridad posterior de los datos operativos y publicar el resultado de la limpieza.
