@@ -25,4 +25,12 @@ describe("Dashboard Ejecutivo v2 — accesibilidad de la navegación", () => {
     expect(styles).toContain(".edv2-root :is(a, button, [role=\"tab\"]):focus-visible");
     expect(styles).toContain("outline: 3px solid #e91e8c");
   });
+
+  it("presenta las señales operativas colapsadas y desaturadas, sin atribuirles gobierno del estado", () => {
+    expect(component).toContain('tag="no gobierna el estado"');
+    expect(component).toContain('className="edv2-card edv2-secondary-signal"');
+    expect(component).not.toContain('className="edv2-card" open><summary><span>Jira / backlog</span>');
+    expect(styles).toContain(".edv2-root .edv2-secondary-signal");
+    expect(styles).toContain("filter: saturate(.35)");
+  });
 });
