@@ -166,4 +166,24 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       "delivery_manager",
     ].forEach((contract) => expect(router).toContain(contract));
   });
+
+  it("reemplaza URLs manuales por carga validada de evidencia y preserva la revisión humana", () => {
+    [
+      "uploadExecutiveEvidence: adminOrPmo",
+      "validateExecutiveEvidenceUpload",
+      "25 * 1024 * 1024",
+      "Formato inválido para esta evidencia.",
+      "Archivo validado y almacenado.",
+      "Acta de aceptación (PDF, máx. 25 MB)",
+      "Documento de minuta",
+      "Documento PRD",
+      "La carga por sí sola no acredita el hito.",
+      "La aprobación de Delivery sigue siendo obligatoria.",
+      "type=\"file\"",
+    ].forEach((detail) => expect(`${component}\n${router}`).toContain(detail));
+
+    expect(component).not.toContain('type="url" value={acceptanceForm.evidenceUrl}');
+    expect(component).not.toContain('type="url" value={minuteForm.fileUrl}');
+    expect(component).not.toContain('type="url" value={recoveryPlanForm.fileUrl}');
+  });
 });

@@ -103,7 +103,9 @@
 - [x] Convertir las señales secundarias enriquecidas a una estructura tabular cuando la maqueta lo exija o documentar formalmente la equivalencia aprobada.
 - [x] Restaurar una barra de navegación lateral específica para el Dashboard Ejecutivo v2, preservando su jerarquía visual, accesibilidad y acceso de retorno al proyecto.
 - [x] Corregir la Línea de tiempo contractual para que represente las fechas baseline y reales conforme a la maqueta aprobada, sin inventar fechas de aceptación.
-- [ ] Diseñar e implementar la carga, validación y vinculación directa de documentos de evidencia para minutas, actas y PRD, reemplazando el ingreso manual de URL y actualizando la evidencia ejecutiva sólo después de una validación exitosa.
-- [ ] Restringir los archivos de evidencia a PDF para actas y PDF/DOCX para minutas y PRD, con un límite de 25 MB por archivo y revisión humana obligatoria antes de actualizar estados de gobierno.
+- [x] Diseñar e implementar la carga, validación y vinculación directa de documentos de evidencia para minutas, actas y PRD, reemplazando el ingreso manual de URL y actualizando la evidencia ejecutiva sólo después de una validación exitosa.
+- [x] Restringir los archivos de evidencia a PDF para actas y PDF/DOCX para minutas y PRD, con un límite de 25 MB por archivo y revisión humana obligatoria antes de actualizar estados de gobierno.
 - [x] Añadir una prueba explícita y evidencia autenticada de que el rail lateral incluye un acceso visible y funcional de retorno al detalle del proyecto Tanner, sin degradar accesibilidad ni jerarquía visual.
 - [x] Corregir cualquier error JSX residual en `ExecutiveDashboardV2.tsx` y confirmar compilación limpia antes del checkpoint de navegación y cronograma.
+- [x] Verificar en código y sesión autenticada que minutas, actas y PRD eliminaron la URL manual y usan exclusivamente selección de archivos validada.
+- [x] Registrar evidencia verificable de las restricciones de formato, firma, MIME y 25 MB, más la no-actualización automática de aceptación, cobertura o vigencia tras una carga aislada.

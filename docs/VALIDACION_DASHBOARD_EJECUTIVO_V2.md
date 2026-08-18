@@ -11,6 +11,12 @@ Este documento concentra la evidencia de cierre del piloto Tanner en la ruta `/p
 | Verificación visual automatizada aislada | La captura de desarrollo a 1280 px mostró `Cargando evidencia ejecutiva…` porque su contexto independiente no porta la cookie OAuth; la sesión autenticada sí fue verificada mediante navegador | Limitada por aislamiento de sesión, no es un defecto funcional |
 | Datos reales Tanner | No se alteraron datos ni se registraron actas, minutas, exigencias o valores financieros durante la validación | Conforme |
 
+## Carga documental directa — verificación autenticada
+
+El 18-ago-2026, la sesión autenticada de Tanner mostró controles de archivo y no campos de URL manual en los tres flujos definidos para evidencia ejecutiva. El formulario de actas exige **“Acta de aceptación (PDF, máx. 25 MB)”**; el registro de minutas exige **“Documento de minuta (PDF o DOCX, máx. 25 MB)”**; y el registro de PRD exige **“Documento PRD (PDF o DOCX, máx. 25 MB)”**. Los campos asociados de nombre son de sólo lectura y se completan después de la validación del archivo.
+
+No se cargó evidencia de prueba ni se modificó Tanner durante esta comprobación. El contrato técnico valida extensión, MIME, firma y tamaño; una carga aislada se audita como pendiente de registro y no modifica por sí misma la aceptación contractual, la cobertura de minutas ni la vigencia del PRD.
+
 ## Validación ejecutada
 
 | Ámbito | Evidencia | Resultado |
@@ -122,3 +128,17 @@ La sesión autenticada del piloto Tanner verificó el rail lateral con las ancla
 La línea de tiempo **«baseline vs. real»** muestra los hitos `M01`–`M10`, sus fechas de compromiso y el estado real acreditado sólo cuando existe acta. En este corte, la fuente contractual no contiene fechas baseline persistidas para Tanner; por ello, cada baseline se mantiene como `[POR CONFIRMAR]` y no se sustituye con fixture ni se infiere desde Jira. Esta es una limitación de la fuente contractual, no una fecha omitida de la visualización.
 
 La activación autenticada del enlace lateral **«Volver al proyecto»** navegó correctamente a `/projects/180002` y cargó el detalle del proyecto Tanner, donde quedan visibles los accesos al Dashboard Ejecutivo v2 y al dashboard heredado. La comprobación confirma que el rail no crea un callejón de navegación.
+
+## Carga directa de evidencia documental — 18-ago-2026
+
+La evidencia de minutas, actas de aceptación y versiones PRD se selecciona ahora desde los formularios del Dashboard Ejecutivo v2. El flujo sustituye el ingreso manual de URL por carga validada y exige una selección de archivo antes de permitir el registro formal de gobierno.
+
+| Documento | Formatos admitidos | Límite | Validación previa | Efecto de cargar |
+| --- | --- | ---: | --- | --- |
+| Acta de aceptación | PDF | 25 MB | Extensión, MIME, firma PDF y SHA-256 | No acredita el hito hasta registrar fecha, vínculo y revisión autorizada. |
+| Minuta | PDF o DOCX | 25 MB | Extensión, MIME, firma y SHA-256 | No crea compromisos ni mejora cobertura hasta revisión humana. |
+| PRD | PDF o DOCX | 25 MB | Extensión, MIME, firma y SHA-256 | No aprueba ni vuelve vigente una versión; la aprobación sigue restringida a Delivery. |
+
+La mutación `uploadExecutiveEvidence` sólo está disponible para Admin/PMO dentro del piloto Tanner. Almacena el archivo mediante el servicio de almacenamiento, registra auditoría con nombre, tipo, tamaño y hash SHA-256, y devuelve la referencia para que el formulario formal la vincule. La carga aislada no modifica cardinalidad, aceptación contractual, estado de minuta ni vigencia del PRD.
+
+La validación focal aprobó 13 pruebas para el contrato de carga y aceptación. La regresión completa aprobó 469 pruebas, con 3 pruebas live omitidas explícitamente.

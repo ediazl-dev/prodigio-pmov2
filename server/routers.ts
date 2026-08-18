@@ -36,6 +36,7 @@ import {
   createAuditLog, getAuditLogs, getAuditLogDistinctActions, getAuditLogDistinctEntities,
 } from "./db";
 import { nanoid } from "nanoid";
+import { createHash } from "crypto";
 import { generateSowDocx } from "./sowDocxGenerator";
 import { sowToMarkdown } from "./sowMarkdownGenerator";
 import { generateRiskMatrixExcel } from "./riskExcelGenerator";
@@ -75,6 +76,47 @@ const adminOnly = protectedProcedure.use(({ ctx, next }) => {
 /** Helper to create audit log with user context */
 function audit(ctx: { user: { id: number; name: string | null; role: string } }, action: string, entity: string, entityId?: string | number | null, entityName?: string | null, details?: Record<string, any> | null) {
   return createAuditLog({ action, entity, entityId, entityName, userId: ctx.user.id, userName: ctx.user.name ?? "Unknown", userRole: ctx.user.role, details });
+}
+
+const EXECUTIVE_EVIDENCE_MAX_BYTES = 25 * 1024 * 1024;
+const executiveEvidenceDocumentTypeSchema = z.enum(["minute", "acceptance", "recovery_plan"]);
+type ExecutiveEvidenceDocumentType = z.infer<typeof executiveEvidenceDocumentTypeSchema>;
+
+export function validateExecutiveEvidenceUpload(input: {
+  documentType: ExecutiveEvidenceDocumentType;
+  fileName: string;
+  mimeType: string;
+  contentBase64: string;
+}) {
+  const buffer = Buffer.from(input.contentBase64, "base64");
+  if (!buffer.length || buffer.length > EXECUTIVE_EVIDENCE_MAX_BYTES) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "El archivo debe tener contenido y no superar 25 MB" });
+  }
+
+  const fileName = input.fileName.replace(/[\\/:*?"<>|\x00-\x1F]/g, "_").replace(/\.+/g, ".").trim();
+  if (!fileName || fileName === ".") throw new TRPCError({ code: "BAD_REQUEST", message: "El nombre del archivo no es válido" });
+
+  const extension = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : "";
+  const isPdf = buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+  const isZip = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04;
+  const documentRules: Record<ExecutiveEvidenceDocumentType, { allowed: Array<{ extension: string; mimeType: string; signature: boolean }> }> = {
+    acceptance: { allowed: [{ extension: "pdf", mimeType: "application/pdf", signature: isPdf }] },
+    minute: { allowed: [
+      { extension: "pdf", mimeType: "application/pdf", signature: isPdf },
+      { extension: "docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", signature: isZip },
+    ] },
+    recovery_plan: { allowed: [
+      { extension: "pdf", mimeType: "application/pdf", signature: isPdf },
+      { extension: "docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", signature: isZip },
+    ] },
+  };
+  const rule = documentRules[input.documentType].allowed.find((item) => item.extension === extension && item.mimeType === input.mimeType && item.signature);
+  if (!rule) {
+    const accepted = input.documentType === "acceptance" ? "PDF" : "PDF o DOCX";
+    throw new TRPCError({ code: "BAD_REQUEST", message: `Formato inválido para esta evidencia. Se admite ${accepted} y la firma del archivo debe coincidir.` });
+  }
+
+  return { buffer, fileName, mimeType: input.mimeType, sha256: createHash("sha256").update(buffer).digest("hex") };
 }
 
 // ==================== AUTH ROUTER ====================
@@ -3529,6 +3571,40 @@ Responde SOLO con JSON:
     return {
       commitments,
       notice: "Resultado preclasificado: revísalo y confirma cada campo antes de registrar la minuta. No se ha guardado evidencia ni compromiso.",
+    };
+  }),
+
+  /** Carga validada: subir un archivo no acredita por sí mismo una minuta, acta ni PRD. */
+  uploadExecutiveEvidence: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    documentType: executiveEvidenceDocumentTypeSchema,
+    fileName: z.string().trim().min(1).max(500),
+    mimeType: z.string().trim().min(1).max(150),
+    contentBase64: z.string().min(4).max(36_000_000),
+  })).mutation(async ({ input, ctx }) => {
+    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "La carga documental v2 está habilitada sólo para el piloto Tanner" });
+    const source = await getExecutiveProjectSource(input.projectId);
+    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const validated = validateExecutiveEvidenceUpload(input);
+    const folder = input.documentType === "acceptance" ? "actas" : input.documentType === "minute" ? "minutas" : "prd";
+    const key = `executive-evidence/project-${input.projectId}/${folder}/${Date.now()}-${nanoid(10)}-${validated.fileName}`;
+    const stored = await storagePut(key, validated.buffer, validated.mimeType);
+    await audit(ctx, "executive_evidence_uploaded", "executive_evidence_file", stored.key, validated.fileName, {
+      projectId: input.projectId,
+      sourceId: source.id,
+      documentType: input.documentType,
+      sizeBytes: validated.buffer.length,
+      mimeType: validated.mimeType,
+      sha256: validated.sha256,
+      status: "uploaded_pending_governance_registration",
+    });
+    return {
+      fileName: validated.fileName,
+      fileUrl: stored.url,
+      sha256: validated.sha256,
+      sizeBytes: validated.buffer.length,
+      mimeType: validated.mimeType,
+      notice: "Archivo validado y almacenado. Aún debes registrar y revisar la evidencia para que afecte al gobierno ejecutivo.",
     };
   }),
 
