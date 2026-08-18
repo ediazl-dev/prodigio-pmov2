@@ -7,12 +7,16 @@ import {
   invitations, sowVersions, stageDeadlines, stageOpenings, holidays,
   stageDeadlineExtensions, deadlineNotifications, stageApprovals, stageClosures, jiraSpaces, riskVersions, auditLogs,
   ganttUploads, financialData, executiveVerdicts, linkedProjectDocuments, recurringServices,
-  executiveProjectSources, executiveContractMilestones,
+  executiveProjectSources, executiveContractMilestones, executiveMilestoneAcceptances, executiveMeetingMinutes,
+  executiveCommitments, executiveRequirements, executiveRecoveryPlans, executiveGovernanceAssignments,
+  executiveFinancialSnapshots, executiveDashboardSnapshots,
   InsertUser, InsertProject, InsertSowDocument, InsertRisk, InsertWbsTask, InsertSowVersion,
   InsertStageDeadline, InsertStageOpening, InsertHoliday,
   InsertStageDeadlineExtension, InsertDeadlineNotification, InsertStageApproval, InsertStageClosure, InsertJiraSpace, InsertRiskVersion, InsertAuditLog,
   InsertGanttUpload, InsertFinancialData, InsertExecutiveVerdict, InsertLinkedProjectDocument,
-  InsertExecutiveProjectSource, InsertExecutiveContractMilestone,
+  InsertExecutiveProjectSource, InsertExecutiveContractMilestone, InsertExecutiveMilestoneAcceptance,
+  InsertExecutiveMeetingMinute, InsertExecutiveCommitment, InsertExecutiveRequirement, InsertExecutiveRecoveryPlan,
+  InsertExecutiveGovernanceAssignment, InsertExecutiveFinancialSnapshot, InsertExecutiveDashboardSnapshot,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -440,6 +444,154 @@ export async function replaceExecutiveContractMilestones(projectId: number, sour
   if (!db) return;
   await db.delete(executiveContractMilestones).where(eq(executiveContractMilestones.sourceId, sourceId));
   if (milestones.length) await db.insert(executiveContractMilestones).values(milestones.map((milestone) => ({ ...milestone, projectId, sourceId })));
+}
+
+// ==================== EXECUTIVE DASHBOARD V2: EVIDENCE & GOVERNANCE ====================
+export async function getExecutiveMilestoneAcceptances(projectId: number, sourceId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(executiveMilestoneAcceptances)
+    .where(and(eq(executiveMilestoneAcceptances.projectId, projectId), eq(executiveMilestoneAcceptances.sourceId, sourceId)))
+    .orderBy(desc(executiveMilestoneAcceptances.createdAt));
+}
+
+export async function createExecutiveMilestoneAcceptance(data: InsertExecutiveMilestoneAcceptance) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveMilestoneAcceptances).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getExecutiveMeetingMinutes(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const filter = sourceId == null
+    ? eq(executiveMeetingMinutes.projectId, projectId)
+    : and(eq(executiveMeetingMinutes.projectId, projectId), eq(executiveMeetingMinutes.sourceId, sourceId));
+  return db.select().from(executiveMeetingMinutes).where(filter).orderBy(desc(executiveMeetingMinutes.meetingDate));
+}
+
+export async function createExecutiveMeetingMinute(data: InsertExecutiveMeetingMinute) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveMeetingMinutes).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getExecutiveCommitments(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(executiveCommitments)
+    .where(eq(executiveCommitments.projectId, projectId))
+    .orderBy(desc(executiveCommitments.createdAt));
+}
+
+export async function createExecutiveCommitment(data: InsertExecutiveCommitment) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveCommitments).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getExecutiveRequirements(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const filter = sourceId == null
+    ? eq(executiveRequirements.projectId, projectId)
+    : and(eq(executiveRequirements.projectId, projectId), eq(executiveRequirements.sourceId, sourceId));
+  return db.select().from(executiveRequirements).where(filter).orderBy(desc(executiveRequirements.createdAt));
+}
+
+export async function createExecutiveRequirement(data: InsertExecutiveRequirement) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveRequirements).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function closeExecutiveRequirement(id: number, data: { closedBy: number; closureEvidenceUrl: string; closureNotes?: string | null }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(executiveRequirements).set({ requirementStatus: "closed", closedAt: new Date(), ...data }).where(eq(executiveRequirements.id, id));
+}
+
+export async function waiveExecutiveRequirement(id: number, data: { waivedBy: number; waiverReason: string }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(executiveRequirements).set({ requirementStatus: "waived", waivedAt: new Date(), ...data }).where(eq(executiveRequirements.id, id));
+}
+
+export async function getLatestExecutiveRecoveryPlan(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const filter = sourceId == null
+    ? and(eq(executiveRecoveryPlans.projectId, projectId), eq(executiveRecoveryPlans.recoveryStatus, "vigente"))
+    : and(eq(executiveRecoveryPlans.projectId, projectId), eq(executiveRecoveryPlans.sourceId, sourceId), eq(executiveRecoveryPlans.recoveryStatus, "vigente"));
+  const rows = await db.select().from(executiveRecoveryPlans).where(filter).orderBy(desc(executiveRecoveryPlans.approvedAt)).limit(1);
+  return rows[0];
+}
+
+export async function createExecutiveRecoveryPlan(data: InsertExecutiveRecoveryPlan) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveRecoveryPlans).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getExecutiveGovernanceAssignments(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const filter = sourceId == null
+    ? and(eq(executiveGovernanceAssignments.projectId, projectId), eq(executiveGovernanceAssignments.active, true))
+    : and(eq(executiveGovernanceAssignments.projectId, projectId), eq(executiveGovernanceAssignments.sourceId, sourceId), eq(executiveGovernanceAssignments.active, true));
+  return db.select().from(executiveGovernanceAssignments).where(filter).orderBy(desc(executiveGovernanceAssignments.assignedAt));
+}
+
+export async function replaceExecutiveGovernanceAssignment(data: InsertExecutiveGovernanceAssignment) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const filter = data.sourceId == null
+    ? and(eq(executiveGovernanceAssignments.projectId, data.projectId), eq(executiveGovernanceAssignments.governanceRole, data.governanceRole), eq(executiveGovernanceAssignments.active, true))
+    : and(eq(executiveGovernanceAssignments.projectId, data.projectId), eq(executiveGovernanceAssignments.sourceId, data.sourceId), eq(executiveGovernanceAssignments.governanceRole, data.governanceRole), eq(executiveGovernanceAssignments.active, true));
+  await db.update(executiveGovernanceAssignments).set({ active: false }).where(filter);
+  const [result] = await db.insert(executiveGovernanceAssignments).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function createExecutiveFinancialSnapshot(data: InsertExecutiveFinancialSnapshot) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveFinancialSnapshots).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getLatestExecutiveFinancialSnapshot(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const filter = sourceId == null
+    ? eq(executiveFinancialSnapshots.projectId, projectId)
+    : and(eq(executiveFinancialSnapshots.projectId, projectId), eq(executiveFinancialSnapshots.sourceId, sourceId));
+  const rows = await db.select().from(executiveFinancialSnapshots).where(filter).orderBy(desc(executiveFinancialSnapshots.capturedAt)).limit(1);
+  const row = rows[0];
+  return row ? { ...row, financialData: safeParseJson(row.financialData) ?? {} } : undefined;
+}
+
+export async function createExecutiveDashboardSnapshot(data: InsertExecutiveDashboardSnapshot) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db.insert(executiveDashboardSnapshots).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getLatestExecutiveDashboardSnapshot(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const filter = sourceId == null
+    ? eq(executiveDashboardSnapshots.projectId, projectId)
+    : and(eq(executiveDashboardSnapshots.projectId, projectId), eq(executiveDashboardSnapshots.sourceId, sourceId));
+  const rows = await db.select().from(executiveDashboardSnapshots).where(filter).orderBy(desc(executiveDashboardSnapshots.createdAt)).limit(1);
+  const row = rows[0];
+  return row ? { ...row, metrics: safeParseJson(row.metrics) ?? {} } : undefined;
 }
 
 export async function getBillingByProject(projectId: number) {

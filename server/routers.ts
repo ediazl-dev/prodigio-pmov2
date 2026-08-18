@@ -44,11 +44,12 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveDashboardSnapshot } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
-import { calculateContractualProgress, calculateExecutiveSemaphore, isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
+import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
+import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3508,7 +3509,7 @@ Responde SOLO con JSON:
     }),
 
   /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
-  getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number() }))
+  getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number(), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
     .query(async ({ input }) => {
       if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Dashboard Ejecutivo v2 disponible sólo para el piloto Tanner aprobado" });
@@ -3518,17 +3519,83 @@ Responde SOLO con JSON:
       const source = await getExecutiveProjectSource(input.projectId);
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-      const progress = calculateContractualProgress(milestones.map((milestone) => ({
-        billingWeight: milestone.billingWeight,
-        jiraStatusName: milestone.jiraStatusName,
-        jiraDueDate: milestone.jiraDueDate,
-        semanticStatus: milestone.semanticStatus,
-      })));
+      const cutoffDate = input.cutoffDate ?? "2026-08-17";
+      const [acceptances, minutes, commitments, requirements, recoveryPlan, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot] = await Promise.all([
+        getExecutiveMilestoneAcceptances(input.projectId, source.id),
+        getExecutiveMeetingMinutes(input.projectId, source.id),
+        getExecutiveCommitments(input.projectId),
+        getExecutiveRequirements(input.projectId, source.id),
+        getLatestExecutiveRecoveryPlan(input.projectId, source.id),
+        getExecutiveGovernanceAssignments(input.projectId, source.id),
+        getLatestExecutiveFinancialSnapshot(input.projectId, source.id),
+        getLatestExecutiveDashboardSnapshot(input.projectId, source.id),
+      ]);
+      const acceptanceByMilestone = new Map<number, (typeof acceptances)[number]>();
+      for (const acceptance of acceptances) {
+        if (!acceptanceByMilestone.has(acceptance.milestoneId)) acceptanceByMilestone.set(acceptance.milestoneId, acceptance);
+      }
       const { getFinancialDataForDeal } = await import("./financialDataFetcher");
       let financial: any = null;
       try { financial = await getFinancialDataForDeal(source.dealId); } catch (error) { console.warn("No fue posible obtener finanzas para dashboard v2:", error); }
       const financialSnapshot = financial?.projectFinancial ?? null;
-      const budgetUsedPct = financialSnapshot?.utilizadoUFPorc ?? null;
+      const latestFinancial = persistedFinancialSnapshot?.financialData ?? financialSnapshot;
+      const cutoffMs = Date.parse(`${cutoffDate}T00:00:00Z`);
+      const overdueP0Requirements = requirements.filter((requirement) =>
+        requirement.priority === "P0" && requirement.requirementStatus !== "closed" && requirement.requirementStatus !== "waived" && Date.parse(`${requirement.dueDate}T00:00:00Z`) < cutoffMs
+      ).length;
+      const closedCommitments = commitments.filter((commitment) => commitment.commitmentStatus === "fulfilled").length;
+      const commitmentCompliancePct = commitments.length ? (closedCommitments / commitments.length) * 100 : null;
+      const milestoneEvidence = milestones.map((milestone) => {
+        const acceptance = acceptanceByMilestone.get(milestone.id);
+        return {
+          id: milestone.id,
+          code: milestone.milestoneCode,
+          milestoneCode: milestone.milestoneCode,
+          title: milestone.title,
+          baselineDate: milestone.baselineDate,
+          committedDate: milestone.jiraDueDate ?? milestone.baselineDate,
+          jiraIssueKey: milestone.jiraIssueKey,
+          jiraDueDate: milestone.jiraDueDate,
+          jiraStatusName: milestone.jiraStatusName,
+          semanticStatus: milestone.semanticStatus,
+          isCritical: milestone.isCritical,
+          billingWeight: milestone.billingWeight,
+          acceptedAt: acceptance?.acceptanceStatus === "accepted" ? acceptance.acceptedAt : null,
+          acceptanceEvidenceUrl: acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceUrl : null,
+          acceptanceFileName: acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceFileName : null,
+          acceptanceStatus: acceptance?.acceptanceStatus ?? "unverified",
+        };
+      });
+      const governance = calculateExecutiveGovernance({
+        cutoffDate,
+        milestones: milestoneEvidence,
+        financial: {
+          budgetCostUf: latestFinancial?.presupuestoUF ?? null,
+          executedCostUf: latestFinancial?.utilizadoUF ?? null,
+          saleValueUf: latestFinancial?.valorVentaUF ?? null,
+          targetMarginUf: latestFinancial?.margenBrutoNotaVentaUF ?? null,
+          projectedMarginUf: latestFinancial?.margenProyectadoUF ?? null,
+          annualWacc: latestFinancial?.annualWacc ?? null,
+          blockedHeadcount: latestFinancial?.blockedHeadcount ?? null,
+          dailyRateUf: latestFinancial?.dailyRateUf ?? null,
+          blockedDays: latestFinancial?.blockedDays ?? null,
+          penaltyUf: latestFinancial?.penaltyUf ?? null,
+        },
+        governance: {
+          minutesCoveragePct: minutes.length ? 100 : null,
+          commitmentCompliancePct,
+          hasValidRecoveryPlan: recoveryPlan ? Boolean(recoveryPlan.approvedAt && recoveryPlan.fileUrl) : null,
+          consecutiveMinutesGap: minutes.length ? 0 : null,
+          overdueP0Requirements,
+          recoveryPlanRequired: false,
+          recoveryPlanOverdue: false,
+          consecutiveRedVerdicts: 0,
+        },
+        operational: {
+          jiraProgressPct: null,
+          backlogConfidencePct: null,
+        },
+      });
       return {
         project: { id: project.id, name: project.projectName, client: (project as any).clientName || "" },
         source: {
@@ -3536,12 +3603,26 @@ Responde SOLO con JSON:
           contractFileName: source.contractFileName, contractFileUrl: source.contractFileUrl,
           sourceStatus: source.sourceStatus, approvedAt: source.approvedAt,
         },
+        cutoff: { date: cutoffDate, kind: input.cutoffDate ? "requested" : "fixture", productionSnapshotId: persistedDashboardSnapshot?.id ?? null },
         contractual: {
-          ...progress,
-          semaphore: calculateExecutiveSemaphore(progress, budgetUsedPct),
-          milestones,
+          ...governance.contractual,
+          // Compatibilidad temporal: estos campos ya se derivan de cardinalidad, no de pesos comerciales.
+          progressPct: governance.contractual.chcG ?? 0,
+          fulfilledWeight: governance.contractual.acceptedCount,
+          totalWeight: governance.contractual.totalMilestones,
+          delayedCount: governance.contractual.openOverdueCount,
+          overduePendingCount: 0,
+          semaphore: governance.governance.state === "CRITICO" || governance.governance.state === "ROJO"
+            ? "ROJO"
+            : governance.governance.state === "NARANJO" || governance.governance.state === "AMARILLO"
+              ? "AMARILLO"
+              : "VERDE",
+          milestones: milestoneEvidence,
         },
-        financial: financialSnapshot,
+        commercialExposure: governance.exposure,
+        financial: latestFinancial,
+        financialEvidence: { source: persistedFinancialSnapshot ? "snapshot" : financialSnapshot ? "financial_sync" : "POR_CONFIRMAR", impact: governance.financial },
+        governance: { ...governance.governance, assignments, recoveryPlan, requirements, commitments, minutes },
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
       };

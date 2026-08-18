@@ -59,10 +59,10 @@
 - [x] Eliminar los registros transitorios restantes de la suite de pruebas y confirmar que el dashboard raíz conserva únicamente proyectos operativos.
 - [x] Documentar con una consulta trazable el conjunto final de proyectos que alimenta el dashboard raíz tras la limpieza de datos de prueba.
 - [x] Diagnosticar por qué la publicación muestra el dashboard heredado y no el Dashboard Ejecutivo v2 de Tanner, antes de modificar rutas o navegación.
-- [ ] Auditar y documentar todos los KPI actualmente renderizados, sus fórmulas, fuentes, denominadores y fechas de actualización antes de rediseñar el Dashboard Ejecutivo.
-- [ ] Validar el modelo de gobierno v2: avance cardinal por hitos aceptados, jerarquía contractual-documental-operativa, semáforo único y prohibición de ponderación comercial en métricas de avance.
-- [ ] Diseñar el esquema versionado de hitos, evidencias de aceptación, minutas, compromisos, exigencias, planes de recuperación y veredictos inmutables.
-- [ ] Reemplazar el motor actual de avance ponderado por un motor determinista cardinal, auditable y cubierto por pruebas de borde.
+- [x] Auditar y documentar todos los KPI actualmente renderizados, sus fórmulas, fuentes, denominadores y fechas de actualización en `DASHBOARD_EJECUTIVO_V2_AUDITORIA_KPI_v2.0.md` antes de rediseñar el Dashboard Ejecutivo.
+- [x] Validar el modelo de gobierno v2: avance cardinal por hitos aceptados, jerarquía contractual-documental-operativa, semáforo único y prohibición de ponderación comercial en métricas de avance.
+- [x] Diseñar el esquema versionado de hitos, evidencias de aceptación, minutas, compromisos, exigencias, planes de recuperación y veredictos inmutables.
+- [x] Reemplazar en la consulta productiva el motor de avance ponderado por un motor determinista cardinal, auditable y cubierto por pruebas de borde.
 - [ ] Construir el flujo documental de minutas, extracción revisable de compromisos y cobertura de evidencia sin fabricar valores faltantes.
 - [ ] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre.
 - [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.

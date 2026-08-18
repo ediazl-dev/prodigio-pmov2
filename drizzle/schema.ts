@@ -570,6 +570,166 @@ export const executiveContractMilestones = mysqlTable("executive_contract_milest
 export type ExecutiveContractMilestone = typeof executiveContractMilestones.$inferSelect;
 export type InsertExecutiveContractMilestone = typeof executiveContractMilestones.$inferInsert;
 
+// ==================== EXECUTIVE DASHBOARD V2: EVIDENCE & GOVERNANCE ====================
+// Las aceptaciones son registros independientes: el estado Jira no puede reemplazar una acta.
+export const executiveMilestoneAcceptances = mysqlTable("executive_milestone_acceptances", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId").notNull(),
+  milestoneId: int("milestoneId").notNull(),
+  acceptedAt: date("acceptedAt", { mode: "string" }).notNull(),
+  evidenceFileName: varchar("evidenceFileName", { length: 500 }).notNull(),
+  evidenceUrl: varchar("evidenceUrl", { length: 1000 }).notNull(),
+  evidenceSha256: varchar("evidenceSha256", { length: 64 }),
+  acceptanceStatus: mysqlEnum("acceptanceStatus", ["accepted", "revoked"]).default("accepted").notNull(),
+  notes: text("notes"),
+  recordedBy: int("recordedBy").notNull(),
+  recordedByName: varchar("recordedByName", { length: 200 }),
+  revokedAt: timestamp("revokedAt"),
+  revokedBy: int("revokedBy"),
+  revokeReason: text("revokeReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ExecutiveMilestoneAcceptance = typeof executiveMilestoneAcceptances.$inferSelect;
+export type InsertExecutiveMilestoneAcceptance = typeof executiveMilestoneAcceptances.$inferInsert;
+
+export const executiveMeetingMinutes = mysqlTable("executive_meeting_minutes", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId"),
+  meetingDate: date("meetingDate", { mode: "string" }).notNull(),
+  isoWeek: varchar("isoWeek", { length: 10 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  fileName: varchar("fileName", { length: 500 }).notNull(),
+  fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
+  fileSha256: varchar("fileSha256", { length: 64 }),
+  reviewStatus: mysqlEnum("reviewStatus", ["received", "reviewed", "incomplete"]).default("received").notNull(),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewedBy: int("reviewedBy"),
+  uploadedBy: int("uploadedBy").notNull(),
+  uploadedByName: varchar("uploadedByName", { length: 200 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ExecutiveMeetingMinute = typeof executiveMeetingMinutes.$inferSelect;
+export type InsertExecutiveMeetingMinute = typeof executiveMeetingMinutes.$inferInsert;
+
+export const executiveCommitments = mysqlTable("executive_commitments", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  minuteId: int("minuteId"),
+  title: varchar("title", { length: 500 }).notNull(),
+  ownerName: varchar("ownerName", { length: 200 }),
+  dueDate: date("dueDate", { mode: "string" }),
+  commitmentStatus: mysqlEnum("commitmentStatus", ["open", "fulfilled", "cancelled"]).default("open").notNull(),
+  closureEvidenceUrl: varchar("closureEvidenceUrl", { length: 1000 }),
+  closedAt: timestamp("closedAt"),
+  closedBy: int("closedBy"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExecutiveCommitment = typeof executiveCommitments.$inferSelect;
+export type InsertExecutiveCommitment = typeof executiveCommitments.$inferInsert;
+
+export const executiveRequirements = mysqlTable("executive_requirements", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId"),
+  requirementCode: varchar("requirementCode", { length: 50 }).notNull(),
+  priority: mysqlEnum("priority", ["P0", "P1", "P2"]).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  rationale: text("rationale").notNull(),
+  ownerName: varchar("ownerName", { length: 200 }).notNull(),
+  dueDate: date("dueDate", { mode: "string" }).notNull(),
+  requirementStatus: mysqlEnum("requirementStatus", ["open", "in_progress", "closed", "waived"]).default("open").notNull(),
+  acceptanceCriteria: text("acceptanceCriteria").notNull(),
+  consequence: text("consequence").notNull(),
+  closureEvidenceUrl: varchar("closureEvidenceUrl", { length: 1000 }),
+  closedAt: timestamp("closedAt"),
+  closedBy: int("closedBy"),
+  closureNotes: text("closureNotes"),
+  waivedAt: timestamp("waivedAt"),
+  waivedBy: int("waivedBy"),
+  waiverReason: text("waiverReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExecutiveRequirement = typeof executiveRequirements.$inferSelect;
+export type InsertExecutiveRequirement = typeof executiveRequirements.$inferInsert;
+
+export const executiveRecoveryPlans = mysqlTable("executive_recovery_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId"),
+  version: varchar("version", { length: 50 }).notNull(),
+  recoveryStatus: mysqlEnum("recoveryStatus", ["draft", "vigente", "closed", "superseded"]).default("draft").notNull(),
+  dueDate: date("dueDate", { mode: "string" }),
+  approvedAt: timestamp("approvedAt"),
+  approvedBy: int("approvedBy"),
+  approvedByName: varchar("approvedByName", { length: 200 }),
+  fileName: varchar("fileName", { length: 500 }),
+  fileUrl: varchar("fileUrl", { length: 1000 }),
+  fileSha256: varchar("fileSha256", { length: 64 }),
+  summary: text("summary"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExecutiveRecoveryPlan = typeof executiveRecoveryPlans.$inferSelect;
+export type InsertExecutiveRecoveryPlan = typeof executiveRecoveryPlans.$inferInsert;
+
+export const executiveGovernanceAssignments = mysqlTable("executive_governance_assignments", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId"),
+  governanceRole: mysqlEnum("governanceRole", ["pm", "delivery_manager", "portfolio_owner"]).notNull(),
+  personName: varchar("personName", { length: 200 }).notNull(),
+  userId: int("userId"),
+  active: boolean("active").default(true).notNull(),
+  assignedAt: timestamp("assignedAt").defaultNow().notNull(),
+  assignedBy: int("assignedBy"),
+  notes: text("notes"),
+});
+
+export type ExecutiveGovernanceAssignment = typeof executiveGovernanceAssignments.$inferSelect;
+export type InsertExecutiveGovernanceAssignment = typeof executiveGovernanceAssignments.$inferInsert;
+
+export const executiveFinancialSnapshots = mysqlTable("executive_financial_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId"),
+  dealId: varchar("dealId", { length: 50 }).notNull(),
+  capturedAt: timestamp("capturedAt").defaultNow().notNull(),
+  sourceLabel: varchar("sourceLabel", { length: 200 }).notNull(),
+  dataFingerprint: varchar("dataFingerprint", { length: 64 }),
+  financialData: json("financialData").notNull(),
+  createdBy: int("createdBy"),
+});
+
+export type ExecutiveFinancialSnapshot = typeof executiveFinancialSnapshots.$inferSelect;
+export type InsertExecutiveFinancialSnapshot = typeof executiveFinancialSnapshots.$inferInsert;
+
+export const executiveDashboardSnapshots = mysqlTable("executive_dashboard_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId").notNull(),
+  financialSnapshotId: int("financialSnapshotId"),
+  cutoffDate: date("cutoffDate", { mode: "string" }).notNull(),
+  snapshotKind: mysqlEnum("snapshotKind", ["fixture", "production"]).default("production").notNull(),
+  governanceState: mysqlEnum("governanceState", ["VERDE", "AMARILLO", "NARANJO", "ROJO", "CRITICO", "POR_CONFIRMAR"]).notNull(),
+  metrics: json("metrics").notNull(),
+  inputFingerprint: varchar("inputFingerprint", { length: 64 }).notNull(),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ExecutiveDashboardSnapshot = typeof executiveDashboardSnapshots.$inferSelect;
+export type InsertExecutiveDashboardSnapshot = typeof executiveDashboardSnapshots.$inferInsert;
+
 // ==================== LINKED PROJECT DOCUMENTS (SoW y Gantt de proyectos vinculados) ====================
 export const linkedProjectDocuments = mysqlTable("linked_project_documents", {
   id: int("id").autoincrement().primaryKey(),

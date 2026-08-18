@@ -204,6 +204,13 @@
       "when": 1787019448015,
       "tag": "0028_yielding_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1787023241866,
+      "tag": "0029_secret_scalphunter",
+      "breakpoints": true
     }
   ]
 }

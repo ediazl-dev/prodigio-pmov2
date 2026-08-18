@@ -121,7 +121,7 @@ export default function ExecutiveDashboardV2() {
           <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight">{project.name}</h1>
           <p className="mt-3 max-w-2xl text-sm text-slate-300">SoW {source.baselineVersion} es el baseline contractual; Jira {source.jiraProjectKey} aporta el estado y las fechas operativas de los hitos conciliados.</p>
         </div>
-        <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur"><span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${colors[contractual.semaphore]}`} />Semáforo {contractual.semaphore}</div>
+        <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur"><span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${colors[contractual.semaphore as keyof typeof colors] ?? colors.AMARILLO}`} />Semáforo {contractual.semaphore}</div>
       </div>
     </section>
 
