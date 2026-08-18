@@ -63,8 +63,8 @@
 - [x] Validar el modelo de gobierno v2: avance cardinal por hitos aceptados, jerarquía contractual-documental-operativa, semáforo único y prohibición de ponderación comercial en métricas de avance.
 - [x] Diseñar el esquema versionado de hitos, evidencias de aceptación, minutas, compromisos, exigencias, planes de recuperación y veredictos inmutables.
 - [x] Reemplazar en la consulta productiva el motor de avance ponderado por un motor determinista cardinal, auditable y cubierto por pruebas de borde.
-- [ ] Construir el flujo documental de minutas, extracción revisable de compromisos y cobertura de evidencia sin fabricar valores faltantes.
-- [ ] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre.
+- [x] Construir el flujo documental de minutas, extracción revisable de compromisos y cobertura de evidencia sin fabricar valores faltantes.
+- [x] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre, incluida anulación visible restringida al Gerente de Delivery con motivo auditable.
 - [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
 - [ ] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
 - [x] Ejecutar el preflight inicial de sincronización y validar la base recuperable C0 antes de iniciar el rediseño.
