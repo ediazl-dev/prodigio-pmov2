@@ -44,10 +44,11 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
+import { calculateContractualProgress, calculateExecutiveSemaphore, isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3503,6 +3504,46 @@ Responde SOLO con JSON:
         financial: financialData,
         hasJira,
         platformStageData,
+      };
+    }),
+
+  /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
+  getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number() }))
+    .query(async ({ input }) => {
+      if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Dashboard Ejecutivo v2 disponible sólo para el piloto Tanner aprobado" });
+      }
+      const project = await getProjectById(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
+      const source = await getExecutiveProjectSource(input.projectId);
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+      const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
+      const progress = calculateContractualProgress(milestones.map((milestone) => ({
+        billingWeight: milestone.billingWeight,
+        jiraStatusName: milestone.jiraStatusName,
+        jiraDueDate: milestone.jiraDueDate,
+        semanticStatus: milestone.semanticStatus,
+      })));
+      const { getFinancialDataForDeal } = await import("./financialDataFetcher");
+      let financial: any = null;
+      try { financial = await getFinancialDataForDeal(source.dealId); } catch (error) { console.warn("No fue posible obtener finanzas para dashboard v2:", error); }
+      const financialSnapshot = financial?.projectFinancial ?? null;
+      const budgetUsedPct = financialSnapshot?.utilizadoUFPorc ?? null;
+      return {
+        project: { id: project.id, name: project.projectName, client: (project as any).clientName || "" },
+        source: {
+          dealId: source.dealId, jiraProjectKey: source.jiraProjectKey, baselineVersion: source.baselineVersion,
+          contractFileName: source.contractFileName, contractFileUrl: source.contractFileUrl,
+          sourceStatus: source.sourceStatus, approvedAt: source.approvedAt,
+        },
+        contractual: {
+          ...progress,
+          semaphore: calculateExecutiveSemaphore(progress, budgetUsedPct),
+          milestones,
+        },
+        financial: financialSnapshot,
+        financialAlerts: financial?.alerts ?? [],
+        financialContext: financial?.portfolioContext ?? null,
       };
     }),
 

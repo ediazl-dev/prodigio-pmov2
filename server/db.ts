@@ -7,10 +7,12 @@ import {
   invitations, sowVersions, stageDeadlines, stageOpenings, holidays,
   stageDeadlineExtensions, deadlineNotifications, stageApprovals, stageClosures, jiraSpaces, riskVersions, auditLogs,
   ganttUploads, financialData, executiveVerdicts, linkedProjectDocuments, recurringServices,
+  executiveProjectSources, executiveContractMilestones,
   InsertUser, InsertProject, InsertSowDocument, InsertRisk, InsertWbsTask, InsertSowVersion,
   InsertStageDeadline, InsertStageOpening, InsertHoliday,
   InsertStageDeadlineExtension, InsertDeadlineNotification, InsertStageApproval, InsertStageClosure, InsertJiraSpace, InsertRiskVersion, InsertAuditLog,
   InsertGanttUpload, InsertFinancialData, InsertExecutiveVerdict, InsertLinkedProjectDocument,
+  InsertExecutiveProjectSource, InsertExecutiveContractMilestone,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -400,6 +402,46 @@ export async function updateWbsItemJiraKey(id: number, jiraIssueKey: string, jir
 }
 
 // ==================== BILLING MILESTONES ====================
+// ==================== EXECUTIVE DASHBOARD V2: CONTRACTUAL SOURCES ====================
+export async function getExecutiveProjectSource(projectId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(executiveProjectSources)
+    .where(and(eq(executiveProjectSources.projectId, projectId), eq(executiveProjectSources.sourceStatus, "approved")))
+    .orderBy(desc(executiveProjectSources.approvedAt)).limit(1);
+  return rows[0];
+}
+
+export async function upsertExecutiveProjectSource(data: InsertExecutiveProjectSource) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const existing = await db.select({ id: executiveProjectSources.id }).from(executiveProjectSources)
+    .where(and(eq(executiveProjectSources.projectId, data.projectId), eq(executiveProjectSources.baselineVersion, data.baselineVersion))).limit(1);
+  if (existing[0]) {
+    await db.update(executiveProjectSources).set(data).where(eq(executiveProjectSources.id, existing[0].id));
+    return existing[0].id;
+  }
+  const [result] = await db.insert(executiveProjectSources).values(data);
+  return Number((result as any).insertId);
+}
+
+export async function getExecutiveContractMilestones(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(executiveContractMilestones)
+    .where(sourceId
+      ? and(eq(executiveContractMilestones.projectId, projectId), eq(executiveContractMilestones.sourceId, sourceId))
+      : eq(executiveContractMilestones.projectId, projectId))
+    .orderBy(executiveContractMilestones.milestoneCode);
+}
+
+export async function replaceExecutiveContractMilestones(projectId: number, sourceId: number, milestones: Omit<InsertExecutiveContractMilestone, "projectId" | "sourceId">[]) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(executiveContractMilestones).where(eq(executiveContractMilestones.sourceId, sourceId));
+  if (milestones.length) await db.insert(executiveContractMilestones).values(milestones.map((milestone) => ({ ...milestone, projectId, sourceId })));
+}
+
 export async function getBillingByProject(projectId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -1332,6 +1374,8 @@ export async function deleteProjectAdmin(projectId: number): Promise<{ deleted: 
   const projectName = project.projectName;
 
   // Full cascade delete
+  await db.delete(executiveContractMilestones).where(eq(executiveContractMilestones.projectId, projectId));
+  await db.delete(executiveProjectSources).where(eq(executiveProjectSources.projectId, projectId));
   await db.delete(billingMilestones).where(eq(billingMilestones.projectId, projectId));
   await db.delete(deadlineNotifications).where(eq(deadlineNotifications.projectId, projectId));
   await db.delete(designDocuments).where(eq(designDocuments.projectId, projectId));

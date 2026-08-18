@@ -524,6 +524,52 @@ export const executiveVerdicts = mysqlTable("executive_verdicts", {
 export type ExecutiveVerdict = typeof executiveVerdicts.$inferSelect;
 export type InsertExecutiveVerdict = typeof executiveVerdicts.$inferInsert;
 
+// ==================== EXECUTIVE DASHBOARD V2: SOURCES & CONTRACTUAL BASELINES ====================
+// El SoW fija el baseline contractual; Jira sólo aporta estado y fecha operativa.
+export const executiveProjectSources = mysqlTable("executive_project_sources", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  dealId: varchar("dealId", { length: 50 }).notNull(),
+  jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull(),
+  contractDocumentId: int("contractDocumentId"),
+  baselineVersion: varchar("baselineVersion", { length: 50 }).notNull(),
+  contractFileName: varchar("contractFileName", { length: 500 }).notNull(),
+  contractFileUrl: varchar("contractFileUrl", { length: 1000 }).notNull(),
+  contractSha256: varchar("contractSha256", { length: 64 }),
+  sourceStatus: mysqlEnum("sourceStatus", ["draft", "approved", "superseded"]).default("draft").notNull(),
+  approvedAt: timestamp("approvedAt"),
+  approvedBy: int("approvedBy"),
+  approvedByName: varchar("approvedByName", { length: 200 }),
+  approvalNotes: text("approvalNotes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExecutiveProjectSource = typeof executiveProjectSources.$inferSelect;
+export type InsertExecutiveProjectSource = typeof executiveProjectSources.$inferInsert;
+
+export const executiveContractMilestones = mysqlTable("executive_contract_milestones", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sourceId: int("sourceId").notNull(),
+  milestoneCode: varchar("milestoneCode", { length: 50 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  billingWeight: decimal("billingWeight", { precision: 5, scale: 2 }).notNull(),
+  baselineDate: date("baselineDate", { mode: "string" }),
+  jiraIssueKey: varchar("jiraIssueKey", { length: 50 }).notNull(),
+  jiraStatusName: varchar("jiraStatusName", { length: 100 }),
+  jiraDueDate: date("jiraDueDate", { mode: "string" }),
+  semanticStatus: mysqlEnum("semanticStatus", ["pending", "fulfilled", "delayed", "blocked"]).default("pending").notNull(),
+  isCritical: boolean("isCritical").default(false).notNull(),
+  reconciliationNotes: text("reconciliationNotes"),
+  lastObservedAt: timestamp("lastObservedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExecutiveContractMilestone = typeof executiveContractMilestones.$inferSelect;
+export type InsertExecutiveContractMilestone = typeof executiveContractMilestones.$inferInsert;
+
 // ==================== LINKED PROJECT DOCUMENTS (SoW y Gantt de proyectos vinculados) ====================
 export const linkedProjectDocuments = mysqlTable("linked_project_documents", {
   id: int("id").autoincrement().primaryKey(),

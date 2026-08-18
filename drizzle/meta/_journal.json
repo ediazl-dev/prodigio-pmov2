@@ -197,6 +197,13 @@
       "when": 1787000096290,
       "tag": "0027_chilly_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1787019448015,
+      "tag": "0028_yielding_rockslide",
+      "breakpoints": true
     }
   ]
 }

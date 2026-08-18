@@ -14,6 +14,7 @@ import RisksStage from "./pages/stages/RisksStage";
 import PlanningStage from "./pages/stages/PlanningStage";
 import AvanceStage from "./pages/stages/AvanceStage";
 import LinkedProjectDashboard from "./pages/stages/LinkedProjectDashboard";
+import ExecutiveDashboardV2 from "./pages/stages/ExecutiveDashboardV2";
 import ClosureStage from "./pages/stages/ClosureStage";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminFinance from "./pages/admin/AdminFinance";
@@ -68,6 +69,7 @@ function Router() {
             <Route path="/projects/:id/planning" component={PlanningStage} />
             <Route path="/projects/:id/design" component={AvanceStage} />
             <Route path="/projects/:id/linked-dashboard" component={LinkedProjectDashboard} />
+            <Route path="/projects/:id/executive-dashboard-v2" component={ExecutiveDashboardV2} />
             <Route path="/projects/:id/closure" component={ClosureStage} />
             {/* Admin-only routes */}
             <Route path="/admin/users">{() => <AdminGuard><AdminUsers /></AdminGuard>}</Route>

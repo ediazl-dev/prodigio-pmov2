@@ -53,6 +53,6 @@
 - [x] Elaborar y validar el backlog de implementación del Dashboard Ejecutivo v2, con SoW como fuente contractual, hitos leídos desde Jira y guardrails de sincronización de versiones.
 - [x] Verificar la preparación contractual, documental, Jira y financiera del proyecto Tanner como piloto del Dashboard Ejecutivo v2.
 - [x] Obtener y registrar la aprobación PMO de la auditoría F0 de KPIs, fuentes, denominadores y semáforo para el piloto Tanner antes de cambios de esquema o interfaz.
-- [ ] Persistir la aprobación F0 y crear el modelo versionado de fuente contractual, vínculo Deal-Jira y mapeo de hitos para Tanner.
-- [ ] Implementar el cálculo determinista de avance contractual, semáforo y evidencia trazable usando SoW y Jira.
-- [ ] Construir la experiencia Dashboard Ejecutivo v2 del piloto Tanner detrás de un feature flag y validarla sin alterar Jira.
+- [x] Persistir la aprobación F0 y crear el modelo versionado de fuente contractual, vínculo Deal-Jira y mapeo de hitos para Tanner.
+- [x] Implementar el cálculo determinista de avance contractual, semáforo y evidencia trazable usando SoW y Jira.
+- [x] Construir la experiencia Dashboard Ejecutivo v2 del piloto Tanner detrás de un feature flag y validarla sin alterar Jira.
