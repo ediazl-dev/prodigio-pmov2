@@ -32,10 +32,10 @@ describe("Dashboard Ejecutivo v2 — paridad estructural del piloto Tanner", () 
 
   it("expone los bloques ricos de recuperación, descargos y escalamiento sin declarar evidencia inexistente", () => {
     [
-      "Pauta del Plan de Recuperación y Descargo",
+      "Pauta del Plan de Recuperación y Descargo (PRD)",
       "Marcador del PRD",
       "Descargos requeridos al PM",
-      "Escalamiento para Delivery",
+      "Escalamiento — decisiones que requieren al Gerente de Delivery",
       "[POR CONFIRMAR]",
       "[PENDIENTE]",
     ].forEach((label) => expect(component).toContain(label));
