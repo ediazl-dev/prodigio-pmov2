@@ -45,7 +45,8 @@
 - [x] Eliminar de forma auditada los registros transitorios generados por las pruebas para conservar exclusivamente los datos migrados reales.
 - [x] Analizar el respaldo de continuidad de archivos, clasificar sus contenidos y determinar su relación con los proyectos migrados.
 - [x] Diagnosticar la falla de generación de riesgos IA para [PMO] CCLA SRP MVP1 Deal 4728 e identificar su causa raíz antes de aplicar correcciones.
-- [ ] Crear un checkpoint recuperable y un respaldo de los riesgos existentes de CCLA antes de modificar el generador IA.
-- [ ] Sustituir el formato `json_object` del generador de riesgos por un JSON Schema estricto y añadir una ruta de recuperación segura ante respuestas LLM incompletas.
-- [ ] Incorporar pruebas automatizadas para la respuesta estructurada, los reintentos y el error detallado de generación de riesgos.
-- [ ] Validar la generación corregida con el SoW formalizado de [PMO] CCLA SRP MVP1 Deal 4728 sin reemplazar riesgos existentes hasta obtener un resultado válido.
+- [x] Crear un checkpoint recuperable y un respaldo de los riesgos existentes de CCLA antes de modificar el generador IA.
+- [x] Sustituir el formato `json_object` del generador de riesgos por un JSON Schema estricto y añadir una ruta de recuperación segura ante respuestas LLM incompletas.
+- [x] Ejecutar y registrar evidencia explícita de las pruebas automatizadas para la respuesta estructurada, los reintentos y el error detallado de generación de riesgos.
+- [x] Validar la generación corregida con la versión de SoW que consume el flujo de [PMO] CCLA SRP MVP1 Deal 4728, sin reemplazar riesgos existentes hasta obtener un resultado válido.
+- [x] Añadir y ejecutar una prueba automatizada del flujo de generación que cubra explícitamente reintentos, recuperación posterior y agotamiento de los tres intentos.

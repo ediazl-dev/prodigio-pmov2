@@ -47,6 +47,7 @@ import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, tr
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
+import { runRiskGenerationAttempts } from "./riskGeneration";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -1310,93 +1311,47 @@ Genera entre 16 y 20 riesgos. La matriz DEBE incluir como mínimo un riesgo de c
       ];
     }
 
-    // Helper to parse LLM response into risk array
-    const parseRisksFromLLM = (responseObj: any): any[] => {
-      const rawContent = responseObj.choices?.[0]?.message?.content;
-      const contentStr = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent || "{}");
-      console.log(`[generateRisks] Received response (${contentStr.length} bytes)`);
-
-      let items: any[];
-      try {
-        const raw = JSON.parse(contentStr);
-        if (Array.isArray(raw)) {
-          items = raw;
-        } else if (typeof raw === "object" && raw !== null) {
-          items = raw.risks || raw.data || raw.riesgos || raw.risk_matrix || raw.matrix || raw.items || raw.results || [];
-          if (items.length === 0) {
-            const arrayValues = Object.values(raw).filter(v => Array.isArray(v));
-            if (arrayValues.length > 0) {
-              items = arrayValues[0] as any[];
-              console.log(`[generateRisks] Found risks under unexpected key, count: ${items.length}`);
-            }
-          }
-        } else {
-          items = [];
-        }
-      } catch (e) {
-        console.error(`[generateRisks] JSON parse error`, e);
-        items = [];
-      }
-
-      const validCategories = ["tecnico", "organizacional", "externo", "oculto"];
-      const validTypes = ["riesgo", "riesgo_oculto", "supuesto_no_validado", "dependencia_externa"];
-      const validProb = ["alta", "media", "baja"];
-      const validImpact = ["alto", "medio", "bajo"];
-
-      return items.filter((r: any) => {
-        if (!r || typeof r !== "object") return false;
-        if (!r.description || typeof r.description !== "string") return false;
-        return true;
-      }).map((r: any, idx: number) => ({
-        riskCode: r.riskCode || `R${String(idx + 1).padStart(3, "0")}`,
-        description: r.description,
-        category: validCategories.includes(r.category) ? r.category : "tecnico",
-        type: validTypes.includes(r.type) ? r.type : "riesgo",
-        probability: validProb.includes(r.probability) ? r.probability : "media",
-        impact: validImpact.includes(r.impact) ? r.impact : "medio",
-        mitigation: r.mitigation || "Pendiente de definir plan de mitigación.",
-        owner: r.owner || "Project Manager",
-      }));
-    };
-
     // Attempt 1: with PDF if available
     console.log(`[generateRisks] Attempt 1 for project ${input.projectId}, type=${projectType}, hasSoW=${!!sow}, hasPDF=${!!sowApproval?.fileUrl}`);
-    let llmStart = Date.now();
-    let response = await invokeLLM({ messages, response_format: { type: "json_object" } as any });
-    console.log(`[generateRisks] Attempt 1 LLM responded in ${Date.now() - llmStart}ms`);
-    let parsed = parseRisksFromLLM(response);
-    console.log(`[generateRisks] Attempt 1 parsed ${parsed.length} valid risks`);
+    const attempts = [{ attempt: "attempt-1", messages }];
 
-    // Attempt 2: If PDF mode returned empty, retry with text-only mode
-    if (parsed.length === 0 && sowApproval?.fileUrl) {
-      console.log(`[generateRisks] Attempt 1 failed with PDF, retrying text-only mode...`);
-      const textOnlyMessages = [
+    // Attempt 2: texto sin PDF, sólo cuando el primer intento incluye el SoW firmado.
+    if (sowApproval?.fileUrl) {
+      attempts.push({
+        attempt: "attempt-2-text",
+        messages: [
         { role: "system" as const, content: systemPrompt },
         { role: "user" as const, content: userPromptText },
-      ];
-      llmStart = Date.now();
-      response = await invokeLLM({ messages: textOnlyMessages, response_format: { type: "json_object" } as any });
-      console.log(`[generateRisks] Attempt 2 (text-only) LLM responded in ${Date.now() - llmStart}ms`);
-      parsed = parseRisksFromLLM(response);
-      console.log(`[generateRisks] Attempt 2 parsed ${parsed.length} valid risks`);
+        ],
+      });
     }
 
-    // Attempt 3: If still empty, try with json_schema response format for stricter output
-    if (parsed.length === 0) {
-      console.log(`[generateRisks] Attempt 2 also failed, trying Attempt 3 with simplified prompt...`);
-      const simplifiedMessages = [
+    // Attempt 3: prompt reducido, ejecutado sólo cuando los anteriores no producen riesgos.
+    attempts.push({
+      attempt: "attempt-3-simplified",
+      messages: [
         { role: "system" as const, content: `Eres un experto en gestión de riesgos de proyectos de tecnología. Genera una matriz de riesgos profesional para el proyecto descrito. Responde con un objeto JSON que contenga la key "risks" con un array de objetos de riesgo.` },
         { role: "user" as const, content: `Proyecto: ${project?.projectName || input.context}\nCliente: ${project?.clientName || "N/A"}\nTipo: ${projectType}\n\nDatos del SoW:\n${sowStructuredContext}\n\nGenera 14-18 riesgos con esta estructura:\n{ "risks": [{ "riskCode": "R001", "description": "...", "category": "tecnico|organizacional|externo|oculto", "type": "riesgo|riesgo_oculto|supuesto_no_validado|dependencia_externa", "probability": "alta|media|baja", "impact": "alto|medio|bajo", "mitigation": "...", "owner": "..." }] }` },
-      ];
-      llmStart = Date.now();
-      response = await invokeLLM({ messages: simplifiedMessages, response_format: { type: "json_object" } as any });
-      console.log(`[generateRisks] Attempt 3 (simplified) LLM responded in ${Date.now() - llmStart}ms`);
-      parsed = parseRisksFromLLM(response);
-      console.log(`[generateRisks] Attempt 3 parsed ${parsed.length} valid risks`);
+      ],
+    });
+    const { result: parsedResult, diagnostics: attemptDiagnostics } = await runRiskGenerationAttempts(
+      attempts,
+      async ({ messages: attemptMessages, response_format }) => response_format
+        ? invokeLLM({ messages: attemptMessages as any, response_format: response_format as any })
+        : invokeLLM({ messages: attemptMessages as any }),
+    );
+    for (const diagnostic of attemptDiagnostics) {
+      console.log(`[generateRisks] ${diagnostic.attempt} ${diagnostic.mode} response in ${diagnostic.durationMs}ms; risks=${diagnostic.risks}; failure=${diagnostic.failure ?? "none"}; finishReason=${diagnostic.finishReason ?? "none"}; contentLength=${diagnostic.contentLength}`);
     }
+    const parsed = parsedResult.risks;
 
     if (parsed.length === 0) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La IA no generó riesgos válidos después de 3 intentos. Verifica que el SoW tenga contenido suficiente e intenta nuevamente." });
+      const lastDiagnostic = attemptDiagnostics.at(-1);
+      console.error(`[generateRisks] Provider returned no usable risks for project ${input.projectId}; lastFailure=${lastDiagnostic?.failure ?? "unknown"}; finishReason=${lastDiagnostic?.finishReason ?? "unknown"}; contentLength=${lastDiagnostic?.contentLength ?? 0}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "La generación de riesgos no pudo completarse porque el proveedor IA devolvió una respuesta vacía o no estructurada. El SoW no fue modificado. Intenta nuevamente; si el problema persiste, informa a PMO.",
+      });
     }
 
     await bulkInsertRisks(input.projectId, parsed as any);
