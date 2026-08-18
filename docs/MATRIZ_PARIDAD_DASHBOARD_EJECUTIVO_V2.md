@@ -31,8 +31,8 @@
 | 03 · Exigencias | Lista de exigencias y formulario Admin/PMO con dueño, fecha, criterio y evidencia | I-01; router y T-01 de roles; E-01: estado sin exigencias persistidas | Verificado |
 | 03B · PRD, descargos y escalamiento | Rúbrica PRD, marcador/SLA, cuatro descargos al PM y tabla D-01 a D-03 | T-01: rúbrica, preguntas y tabla; E-01: tarjetas y filas visibles | Verificado |
 | 04 · Señales secundarias | Jira/backlog, riesgos/gatillos y capacity/stop-loss en detalles colapsados y desaturados | T-01: tres paneles y regla no-gobernante; E-01: 56%, 2 gatillos y capacidad pendiente | Verificado |
-| 05 · Minutas y compromisos | Evidencia de minutas, cobertura semanal, brecha, recibidas sin revisión, preclasificación y coherencia narrativa | I-01; T-01: rótulos y regla de revisión; E-01: bloque documental bajo señales | Verificación autenticada por subbloque pendiente |
-| 06 · Vistas derivadas | Pestañas CFO, Comercial y CTO con panel tabulado y restricciones de gobierno por audiencia | I-01; T-01: rótulos y roles ARIA; E-01: las tres pestañas fueron abiertas | Prueba de render pendiente |
+| 05 · Minutas y compromisos | Evidencia de minutas, cobertura semanal, brecha, recibidas sin revisión, preclasificación y coherencia narrativa | I-01; T-01: rótulos y regla de revisión; E-01: `0/1`, `0%`, W34 faltante y coherencia `[PENDIENTE]` | Verificado |
+| 06 · Vistas derivadas | Pestañas CFO, Comercial y CTO con panel tabulado y restricciones de gobierno por audiencia | I-01; T-01: rótulos y roles ARIA; prueba de render de los tres paneles; E-01: pestañas abiertas | Verificado |
 | 07 · Trazabilidad | Fuentes, procedencia, corte y guardrails de evidencia | I-01; E-01 | Verificado |
 
 ## Bloques funcionales enriquecidos
@@ -42,19 +42,17 @@
 | PRD | Rúbrica, regla de aprobación, SLA y sin puntaje inventado | Siete criterios, umbral de 75 puntos, marca de 72 h y estado pendiente | T-01 e inspección E-01 | Ninguno |
 | Descargos | Preguntas accionables asignadas al PM | Cuatro preguntas con numeración y respuesta escrita de Eduardo | T-01 e inspección E-01 | Ninguno |
 | Escalamiento | Decisiones, alternativas, impacto y fecha | Tabla D-01, D-02 y D-03; datos no disponibles en `[POR CONFIRMAR]` | T-01 e inspección E-01 | Ninguno |
-| Minutas y cobertura | Semanas exigibles, recibidas/revisadas, brecha y coherencia sin mejora automática | Motor de cobertura y tarjeta documental con datos reales/pending | I-01 y pruebas de cobertura | Captura autenticada de todos los subbloques |
-| Señales secundarias | Diagnóstico detallado, no gobernante y no jerárquico | Tres paneles colapsados que exponen Jira, riesgos y capacidad | T-01 e inspección E-01 | Comparación formal de equivalencia tabular |
+| Minutas y cobertura | Semanas exigibles, recibidas/revisadas, brecha y coherencia sin mejora automática | Motor de cobertura y tarjeta documental con datos reales/pending | I-01, pruebas de cobertura y E-01: `0/1`, `0%`, W34 y narrativa pendiente | Ninguno |
+| Señales secundarias | Diagnóstico detallado, no gobernante y no jerárquico | Tres paneles colapsados y matriz tabular de lectura, procedencia y límite | T-01, prueba de matriz enriquecida e inspección E-01 | Ninguno |
 
 ## Vistas derivadas
 
 | Vista | Contenido mínimo de implementación | Guardrail visible | Evidencia actual | Pendiente |
 |---|---|---|---|---|
-| CFO | CV, CPI-H, EAC en banda, daño/puente y exposición UF | No pronóstico puntual sin insumos financieros | Rótulo y pestaña inspeccionados; contrato estático | Prueba DOM del panel activo |
-| Comercial | Facturación aceptada, descalce, UF retenidas y decisión comercial | Pesos comerciales no acreditan avance | Rótulo y pestaña inspeccionados; contrato estático | Prueba DOM del panel activo |
-| CTO | Vínculos Jira, vencidos, backlog y riesgos técnicos | Jira no acredita aceptación ni mejora estado | Rótulo y pestaña inspeccionados; contrato estático | Prueba DOM del panel activo |
+| CFO | CV, CPI-H, EAC en banda, daño/puente y exposición UF | No pronóstico puntual sin insumos financieros | Panel compartido inspeccionado; prueba de render | Ninguno |
+| Comercial | Facturación aceptada, descalce, UF retenidas y decisión comercial | Pesos comerciales no acreditan avance | Panel compartido inspeccionado; prueba de render | Ninguno |
+| CTO | Vínculos Jira, vencidos, backlog y riesgos técnicos | Jira no acredita aceptación ni mejora estado | Panel compartido inspeccionado; prueba de render | Ninguno |
 
 ## Trazabilidad de las decisiones de paridad
 
-La estructura, los textos de guardrail y el orden de las zonas ya están asegurados en pruebas estáticas. La condición de cierre se separa en tres clases: **verificado** cuando existe prueba y observación directa; **pendiente de render** cuando el contenido depende del estado de una pestaña; y **pendiente de subbloque** cuando la vista autenticada aún debe capturar cada métrica documental o de señal enriquecida.
-
-La siguiente fase deberá resolver exclusivamente esos pendientes, sin modificar métricas reales de Tanner ni cambiar el motor cardinal.
+La estructura, los textos de guardrail y el orden de las zonas están asegurados por pruebas estáticas, pruebas de render y observación autenticada. La condición de cierre requiere que cada fila mantenga evidencia contractual, visual y de regresión sin modificar métricas reales de Tanner ni cambiar el motor cardinal.

@@ -81,23 +81,23 @@
 - [x] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR] en `DASHBOARD_EJECUTIVO_V2_AUDITORIA_FINANCIERA_TANNER.md`.
 - [x] Crear y validar un motor puro de gobierno cardinal que calcula CHC, exposición comercial aislada, impacto financiero, IGE, gatillos G-01 a G-07 y estado único sin usar pesos para avance.
 - [x] Habilitar desde el detalle del piloto Tanner el acceso visible al Dashboard Ejecutivo v2 y conservar un acceso explícito al dashboard heredado.
-- [ ] Completar la paridad estructural del Dashboard Ejecutivo v2 con el HTML de referencia, incluidas las vistas derivadas/tabuladas y los bloques ricos restantes de la jerarquía aprobada.
+- [x] Completar la paridad estructural del Dashboard Ejecutivo v2 con el HTML de referencia, incluidas las vistas derivadas/tabuladas y los bloques ricos restantes de la jerarquía aprobada.
 - [x] Ejecutar y documentar una validación específica de accesibilidad del Dashboard Ejecutivo v2: teclado, foco visible, navegación, semántica y contraste.
-- [ ] Completar la paridad funcional y visual del Dashboard Ejecutivo v2 con los bloques faltantes del HTML: PRD detallado, descargos, escalamiento, carga/cobertura/coherencia de minutas y tablas ricas de señales secundarias.
-- [ ] Expandir las vistas derivadas CFO, Comercial y CTO para reflejar la estructura y densidad informativa de la maqueta aprobada, sin fabricar datos ausentes.
+- [x] Completar la paridad funcional y visual del Dashboard Ejecutivo v2 con los bloques faltantes del HTML: PRD detallado, descargos, escalamiento, carga/cobertura/coherencia de minutas y tablas ricas de señales secundarias.
+- [x] Expandir las vistas derivadas CFO, Comercial y CTO para reflejar la estructura y densidad informativa de la maqueta aprobada, sin fabricar datos ausentes.
 - [x] Documentar una validación de accesibilidad real del Dashboard Ejecutivo v2: contraste, navegación por teclado, orden de foco, semántica y estados interactivos.
 - [x] Implementar la revisión formal del veredicto agéntico: observación persistida, validación por PMO/Admin, rechazo con motivo y prohibición de presentarlo como decisión ejecutiva antes de validarlo.
 - [x] Habilitar el registro versionado de un PRD real, su evidencia y su aprobación restringida al Gerente de Delivery, sin declarar vigente un plan no aprobado.
 - [x] Evitar que una consulta externa de Jira o finanzas bloquee la carga del Dashboard Ejecutivo v2; degradar a evidencia no disponible con procedencia explícita tras un límite de espera.
-- [ ] Ejecutar y registrar una comparación exhaustiva bloque a bloque entre la implementación y la maqueta HTML aprobada, dejando evidencia verificable de cada zona y vista derivada.
+- [x] Ejecutar y registrar una comparación exhaustiva bloque a bloque entre la implementación y la maqueta HTML aprobada, dejando evidencia verificable de cada zona y vista derivada.
 - [x] Completar una matriz formal de validación por rol (admin, pmo, pm y consulta) para visibilidad y acciones del Dashboard Ejecutivo v2.
 - [x] Realizar una auditoría de accesibilidad verificable del dashboard completo: teclado, orden de foco, semántica, estados interactivos y contraste.
-- [ ] Demostrar con evidencia específica la paridad de PRD, descargos, escalamiento, cobertura/coherencia de minutas y señales secundarias frente a la maqueta.
+- [x] Demostrar con evidencia específica la paridad de PRD, descargos, escalamiento, cobertura/coherencia de minutas y señales secundarias frente a la maqueta.
 - [x] Separar de forma estricta el fixture de validación del 17-ago-2026 de la consulta y rotulación productiva del Dashboard Ejecutivo v2 de Tanner.
-- [ ] Capturar evidencia verificable por bloque de PRD, descargos, escalamiento, cobertura/coherencia documental y señales secundarias en la sesión autenticada.
-- [ ] Fijar por prueba los bloques de descargos, escalamiento y la estructura detallada de señales secundarias frente a la maqueta aprobada.
-- [ ] Demostrar mediante pruebas de render o evidencia de interfaz la densidad informativa de las perspectivas CFO, Comercial y CTO.
-- [ ] Crear una matriz explícita en la documentación que compare, zona por zona y vista por vista, la maqueta HTML aprobada con la implementación y evidencia textual verificable.
-- [ ] Añadir pruebas de render/DOM para las perspectivas CFO, Comercial y CTO que fijen contenido mínimo, métricas y guardrails visibles.
-- [ ] Reforzar la evidencia autenticada del bloque documental (cobertura/coherencia) y de señales secundarias con extracciones verificables por subbloque.
-- [ ] Convertir las señales secundarias enriquecidas a una estructura tabular cuando la maqueta lo exija o documentar formalmente la equivalencia aprobada.
+- [x] Capturar evidencia verificable por bloque de PRD, descargos, escalamiento, cobertura/coherencia documental y señales secundarias en la sesión autenticada.
+- [x] Fijar por prueba los bloques de descargos, escalamiento y la estructura detallada de señales secundarias frente a la maqueta aprobada.
+- [x] Demostrar mediante pruebas de render o evidencia de interfaz la densidad informativa de las perspectivas CFO, Comercial y CTO.
+- [x] Crear una matriz explícita en la documentación que compare, zona por zona y vista por vista, la maqueta HTML aprobada con la implementación y evidencia textual verificable.
+- [x] Añadir pruebas de render/DOM para las perspectivas CFO, Comercial y CTO que fijen contenido mínimo, métricas y guardrails visibles.
+- [x] Reforzar la evidencia autenticada del bloque documental (cobertura/coherencia) y de señales secundarias con extracciones verificables por subbloque.
+- [x] Convertir las señales secundarias enriquecidas a una estructura tabular cuando la maqueta lo exija o documentar formalmente la equivalencia aprobada.
