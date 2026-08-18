@@ -538,11 +538,37 @@ export async function getLatestExecutiveRecoveryPlan(projectId: number, sourceId
   return rows[0];
 }
 
+export async function getExecutiveRecoveryPlans(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const filter = sourceId == null
+    ? eq(executiveRecoveryPlans.projectId, projectId)
+    : and(eq(executiveRecoveryPlans.projectId, projectId), eq(executiveRecoveryPlans.sourceId, sourceId));
+  return db.select().from(executiveRecoveryPlans).where(filter).orderBy(desc(executiveRecoveryPlans.createdAt));
+}
+
+export async function getExecutiveRecoveryPlanById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(executiveRecoveryPlans).where(eq(executiveRecoveryPlans.id, id)).limit(1);
+  return rows[0];
+}
+
 export async function createExecutiveRecoveryPlan(data: InsertExecutiveRecoveryPlan) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [result] = await db.insert(executiveRecoveryPlans).values(data);
   return Number((result as any).insertId);
+}
+
+export async function approveExecutiveRecoveryPlan(input: { id: number; projectId: number; sourceId: number | null; approvedBy: number; approvedByName: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const activeFilter = input.sourceId == null
+    ? and(eq(executiveRecoveryPlans.projectId, input.projectId), eq(executiveRecoveryPlans.recoveryStatus, "vigente"))
+    : and(eq(executiveRecoveryPlans.projectId, input.projectId), eq(executiveRecoveryPlans.sourceId, input.sourceId), eq(executiveRecoveryPlans.recoveryStatus, "vigente"));
+  await db.update(executiveRecoveryPlans).set({ recoveryStatus: "superseded" }).where(activeFilter);
+  await db.update(executiveRecoveryPlans).set({ recoveryStatus: "vigente", approvedAt: new Date(), approvedBy: input.approvedBy, approvedByName: input.approvedByName }).where(eq(executiveRecoveryPlans.id, input.id));
 }
 
 export async function getExecutiveGovernanceAssignments(projectId: number, sourceId?: number) {

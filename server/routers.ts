@@ -44,7 +44,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -53,6 +53,7 @@ import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
 import { isoWeekFromDate } from "./executiveMinutes";
+import { canApproveExecutiveRecoveryPlan } from "./executiveRecoveryPlanPolicy";
 import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
 import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
 
@@ -3598,6 +3599,38 @@ Responde SOLO con JSON:
       return { id: input.requirementId, status: "waived" as const };
     }),
 
+  /** El PRD queda en borrador hasta que el Gerente de Delivery asignado aprueba una versión evidenciada. */
+  recordExecutiveRecoveryPlan: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    version: z.string().trim().min(1).max(50),
+    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    fileName: z.string().trim().min(1).max(500),
+    fileUrl: z.string().url().max(1000),
+    fileSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+    summary: z.string().trim().min(3).max(10000),
+  })).mutation(async ({ input, ctx }) => {
+    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "El PRD v2 está habilitado sólo para el piloto Tanner" });
+    const source = await getExecutiveProjectSource(input.projectId);
+    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const id = await createExecutiveRecoveryPlan({ ...input, sourceId: source.id, recoveryStatus: "draft", fileSha256: input.fileSha256 ?? null });
+    await audit(ctx, "executive_recovery_plan_recorded", "executive_recovery_plan", id, `PRD ${input.version}`, { projectId: input.projectId, sourceId: source.id, dueDate: input.dueDate });
+    return { id, status: "draft" as const };
+  }),
+
+  approveExecutiveRecoveryPlan: protectedProcedure.input(z.object({ projectId: z.number(), planId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const plan = await getExecutiveRecoveryPlanById(input.planId);
+      if (!plan || plan.projectId !== input.projectId) throw new TRPCError({ code: "NOT_FOUND", message: "PRD no encontrado para este proyecto" });
+      const assignments = await getExecutiveGovernanceAssignments(input.projectId, plan.sourceId ?? undefined);
+      const isAssignedDeliveryManager = assignments.some((assignment) => assignment.active && assignment.governanceRole === "delivery_manager" && assignment.userId === ctx.user.id);
+      if (!canApproveExecutiveRecoveryPlan({ status: plan.recoveryStatus, isAssignedDeliveryManager, fileUrl: plan.fileUrl, dueDate: plan.dueDate })) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Sólo el Gerente de Delivery asignado puede aprobar un PRD en borrador con evidencia y fecha registradas" });
+      }
+      await approveExecutiveRecoveryPlan({ id: plan.id, projectId: input.projectId, sourceId: plan.sourceId, approvedBy: ctx.user.id, approvedByName: ctx.user.name ?? null });
+      await audit(ctx, "executive_recovery_plan_approved", "executive_recovery_plan", plan.id, `PRD ${plan.version}`, { projectId: input.projectId, sourceId: plan.sourceId });
+      return { id: plan.id, status: "vigente" as const };
+    }),
+
   /** Un análisis de IA permanece como observación hasta que PMO/Admin lo valide o rechace explícitamente. */
   reviewAgenticExecutiveVerdict: adminOrPmo.input(z.object({
     projectId: z.number(),
@@ -3650,12 +3683,13 @@ Responde SOLO con JSON:
       const source = await getExecutiveProjectSource(input.projectId);
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-      const [acceptances, minutes, commitments, requirements, recoveryPlan, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict] = await Promise.all([
+      const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict] = await Promise.all([
         getExecutiveMilestoneAcceptances(input.projectId, source.id),
         getExecutiveMeetingMinutes(input.projectId, source.id),
         getExecutiveCommitments(input.projectId),
         getExecutiveRequirements(input.projectId, source.id),
         getLatestExecutiveRecoveryPlan(input.projectId, source.id),
+        getExecutiveRecoveryPlans(input.projectId, source.id),
         getExecutiveGovernanceAssignments(input.projectId, source.id),
         getLatestExecutiveFinancialSnapshot(input.projectId, source.id),
         getLatestExecutiveProductionDashboardSnapshot(input.projectId, source.id),
@@ -3759,7 +3793,7 @@ Responde SOLO con JSON:
           syncedFinancial: financialSnapshot,
           impact: governance.financial,
         }),
-        governance: { ...governance.governance, assignments, recoveryPlan, requirements, commitments, minutes },
+        governance: { ...governance.governance, assignments, recoveryPlan, recoveryPlans, requirements, commitments, minutes },
         agenticVerdict,
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
