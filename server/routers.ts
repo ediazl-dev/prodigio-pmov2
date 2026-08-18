@@ -44,7 +44,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -52,6 +52,7 @@ import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
 import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
+import { isoWeekFromDate } from "./executiveMinutes";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3509,6 +3510,48 @@ Responde SOLO con JSON:
         platformStageData,
       };
     }),
+
+  /** Registro de una minuta real. Sólo PMO/Admin puede cargar la referencia y sus compromisos revisables. */
+  recordExecutiveMinute: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    meetingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    title: z.string().trim().min(3).max(500),
+    fileName: z.string().trim().min(1).max(500),
+    fileUrl: z.string().url().max(1000),
+    commitments: z.array(z.object({
+      title: z.string().trim().min(3).max(500),
+      ownerName: z.string().trim().max(200).optional(),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      notes: z.string().trim().max(5000).optional(),
+    })).max(50).default([]),
+  })).mutation(async ({ input, ctx }) => {
+    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "El registro documental v2 está habilitado sólo para el piloto Tanner" });
+    const source = await getExecutiveProjectSource(input.projectId);
+    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const minuteId = await createExecutiveMeetingMinute({
+      projectId: input.projectId,
+      sourceId: source.id,
+      meetingDate: input.meetingDate,
+      isoWeek: isoWeekFromDate(input.meetingDate),
+      title: input.title,
+      fileName: input.fileName,
+      fileUrl: input.fileUrl,
+      reviewStatus: "received",
+      uploadedBy: ctx.user.id,
+      uploadedByName: ctx.user.name ?? null,
+    });
+    const commitmentIds = await Promise.all(input.commitments.map((commitment) => createExecutiveCommitment({
+      projectId: input.projectId,
+      minuteId,
+      title: commitment.title,
+      ownerName: commitment.ownerName ?? null,
+      dueDate: commitment.dueDate ?? null,
+      notes: commitment.notes ?? null,
+      commitmentStatus: "open",
+    })));
+    await audit(ctx, "executive_minute_recorded", "executive_meeting_minute", minuteId, input.title, { projectId: input.projectId, sourceId: source.id, commitments: commitmentIds.length });
+    return { minuteId, commitmentIds, isoWeek: isoWeekFromDate(input.meetingDate) };
+  }),
 
   /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
   getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number(), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
