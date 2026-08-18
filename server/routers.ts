@@ -44,7 +44,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -54,6 +54,7 @@ import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
 import { isoWeekFromDate } from "./executiveMinutes";
 import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
+import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3597,6 +3598,47 @@ Responde SOLO con JSON:
       return { id: input.requirementId, status: "waived" as const };
     }),
 
+  /** Un análisis de IA permanece como observación hasta que PMO/Admin lo valide o rechace explícitamente. */
+  reviewAgenticExecutiveVerdict: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    verdictId: z.number(),
+    reviewStatus: z.enum(["VALIDATED", "REJECTED"]),
+    reviewNote: z.string().trim().min(3).max(10000),
+  })).mutation(async ({ input, ctx }) => {
+    const { analysis, review } = await getLatestPMAnalysisWithReview(input.projectId);
+    const eligibility = assessVerdictReviewEligibility({
+      pilotEnabled: isExecutiveDashboardV2PilotEnabled(input.projectId),
+      currentAnalysisId: analysis?.id,
+      requestedVerdictId: input.verdictId,
+      currentReviewStatus: review?.reviewStatus as "PENDING" | "VALIDATED" | "REJECTED" | undefined,
+    });
+    if (!eligibility.allowed) {
+      const errorMap = {
+        PILOT_DISABLED: { code: "FORBIDDEN" as const, message: "La revisión ejecutiva v2 está habilitada sólo para el piloto Tanner" },
+        STALE_VERDICT: { code: "NOT_FOUND" as const, message: "El veredicto agéntico indicado no corresponde a la observación vigente del proyecto" },
+        ALREADY_REVIEWED: { code: "BAD_REQUEST" as const, message: "El veredicto ya fue revisado y no puede modificarse" },
+      };
+      throw new TRPCError(errorMap[eligibility.code]);
+    }
+    if (!review) {
+      await createExecutiveVerdictReview({ projectId: input.projectId, verdictId: input.verdictId, reviewStatus: "PENDING" });
+    }
+    try {
+      const reviewed = await reviewExecutiveVerdict({
+        projectId: input.projectId,
+        verdictId: input.verdictId,
+        reviewStatus: input.reviewStatus,
+        reviewNote: input.reviewNote,
+        reviewedBy: ctx.user.id,
+        reviewedByName: ctx.user.name ?? null,
+      });
+      await audit(ctx, "executive_agentic_verdict_reviewed", "executive_verdict", input.verdictId, "Revisión de veredicto agéntico", { projectId: input.projectId, reviewStatus: input.reviewStatus });
+      return reviewed;
+    } catch (error) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "No fue posible revisar el veredicto" });
+    }
+  }),
+
   /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
   getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number(), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
     .query(async ({ input }) => {
@@ -3608,7 +3650,7 @@ Responde SOLO con JSON:
       const source = await getExecutiveProjectSource(input.projectId);
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-      const [acceptances, minutes, commitments, requirements, recoveryPlan, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot] = await Promise.all([
+      const [acceptances, minutes, commitments, requirements, recoveryPlan, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict] = await Promise.all([
         getExecutiveMilestoneAcceptances(input.projectId, source.id),
         getExecutiveMeetingMinutes(input.projectId, source.id),
         getExecutiveCommitments(input.projectId),
@@ -3617,6 +3659,7 @@ Responde SOLO con JSON:
         getExecutiveGovernanceAssignments(input.projectId, source.id),
         getLatestExecutiveFinancialSnapshot(input.projectId, source.id),
         getLatestExecutiveProductionDashboardSnapshot(input.projectId, source.id),
+        getLatestPMAnalysisWithReview(input.projectId),
       ]);
       const cutoff = resolveExecutiveDashboardCutoff({ projectId: input.projectId, requestedCutoffDate: input.cutoffDate, productionSnapshot: persistedDashboardSnapshot });
       const cutoffDate = cutoff.date;
@@ -3717,6 +3760,7 @@ Responde SOLO con JSON:
           impact: governance.financial,
         }),
         governance: { ...governance.governance, assignments, recoveryPlan, requirements, commitments, minutes },
+        agenticVerdict,
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
       };
@@ -4419,7 +4463,7 @@ Genera un análisis PM Senior con esta estructura JSON EXACTA:
 
       // Save as executive verdict for history
       try {
-        await saveExecutiveVerdict({
+        const verdictId = await saveExecutiveVerdict({
           projectId: input.projectId,
           generatedBy: ctx.user.id,
           generatedByName: ctx.user.name ?? "Unknown",
@@ -4445,6 +4489,13 @@ Genera un análisis PM Senior con esta estructura JSON EXACTA:
             fullAnalysis: parsed,
           },
         });
+        if (verdictId) {
+          await createExecutiveVerdictReview({
+            projectId: input.projectId,
+            verdictId,
+            reviewStatus: "PENDING",
+          });
+        }
       } catch (saveErr) {
         console.error("[PMAnalysis] Failed to save verdict:", saveErr);
       }

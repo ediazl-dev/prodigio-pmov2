@@ -211,6 +211,13 @@
       "when": 1787023241866,
       "tag": "0029_secret_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1787025612299,
+      "tag": "0030_loud_red_shift",
+      "breakpoints": true
     }
   ]
 }

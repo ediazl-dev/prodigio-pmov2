@@ -524,6 +524,23 @@ export const executiveVerdicts = mysqlTable("executive_verdicts", {
 export type ExecutiveVerdict = typeof executiveVerdicts.$inferSelect;
 export type InsertExecutiveVerdict = typeof executiveVerdicts.$inferInsert;
 
+// ==================== EXECUTIVE VERDICT REVIEWS ====================
+// Un veredicto generado por IA es una observación. Sólo una revisión explícita puede validarlo para uso ejecutivo.
+export const executiveVerdictReviews = mysqlTable("executive_verdict_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  verdictId: int("verdictId").notNull(),
+  reviewStatus: mysqlEnum("reviewStatus", ["PENDING", "VALIDATED", "REJECTED"]).notNull().default("PENDING"),
+  reviewNote: text("reviewNote"),
+  reviewedBy: int("reviewedBy"),
+  reviewedByName: varchar("reviewedByName", { length: 200 }),
+  reviewedAt: timestamp("reviewedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ExecutiveVerdictReview = typeof executiveVerdictReviews.$inferSelect;
+export type InsertExecutiveVerdictReview = typeof executiveVerdictReviews.$inferInsert;
+
 // ==================== EXECUTIVE DASHBOARD V2: SOURCES & CONTRACTUAL BASELINES ====================
 // El SoW fija el baseline contractual; Jira sólo aporta estado y fecha operativa.
 export const executiveProjectSources = mysqlTable("executive_project_sources", {

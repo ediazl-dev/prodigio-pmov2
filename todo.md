@@ -83,3 +83,4 @@
 - [ ] Completar la paridad funcional y visual del Dashboard Ejecutivo v2 con los bloques faltantes del HTML: PRD detallado, descargos, escalamiento, carga/cobertura/coherencia de minutas y tablas ricas de señales secundarias.
 - [ ] Expandir las vistas derivadas CFO, Comercial y CTO para reflejar la estructura y densidad informativa de la maqueta aprobada, sin fabricar datos ausentes.
 - [ ] Documentar una validación de accesibilidad real del Dashboard Ejecutivo v2: contraste, navegación por teclado, orden de foco, semántica y estados interactivos.
+- [x] Implementar la revisión formal del veredicto agéntico: observación persistida, validación por PMO/Admin, rechazo con motivo y prohibición de presentarlo como decisión ejecutiva antes de validarlo.

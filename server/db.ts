@@ -9,14 +9,14 @@ import {
   ganttUploads, financialData, executiveVerdicts, linkedProjectDocuments, recurringServices,
   executiveProjectSources, executiveContractMilestones, executiveMilestoneAcceptances, executiveMeetingMinutes,
   executiveCommitments, executiveRequirements, executiveRecoveryPlans, executiveGovernanceAssignments,
-  executiveFinancialSnapshots, executiveDashboardSnapshots,
+  executiveFinancialSnapshots, executiveDashboardSnapshots, executiveVerdictReviews,
   InsertUser, InsertProject, InsertSowDocument, InsertRisk, InsertWbsTask, InsertSowVersion,
   InsertStageDeadline, InsertStageOpening, InsertHoliday,
   InsertStageDeadlineExtension, InsertDeadlineNotification, InsertStageApproval, InsertStageClosure, InsertJiraSpace, InsertRiskVersion, InsertAuditLog,
   InsertGanttUpload, InsertFinancialData, InsertExecutiveVerdict, InsertLinkedProjectDocument,
   InsertExecutiveProjectSource, InsertExecutiveContractMilestone, InsertExecutiveMilestoneAcceptance,
   InsertExecutiveMeetingMinute, InsertExecutiveCommitment, InsertExecutiveRequirement, InsertExecutiveRecoveryPlan,
-  InsertExecutiveGovernanceAssignment, InsertExecutiveFinancialSnapshot, InsertExecutiveDashboardSnapshot,
+  InsertExecutiveGovernanceAssignment, InsertExecutiveFinancialSnapshot, InsertExecutiveDashboardSnapshot, InsertExecutiveVerdictReview,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1639,6 +1639,50 @@ export async function saveExecutiveVerdict(data: InsertExecutiveVerdict) {
   return result[0].insertId;
 }
 
+export async function createExecutiveVerdictReview(data: InsertExecutiveVerdictReview) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(executiveVerdictReviews).values(data);
+  return result.insertId;
+}
+
+export async function getExecutiveVerdictReview(verdictId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(executiveVerdictReviews)
+    .where(eq(executiveVerdictReviews.verdictId, verdictId))
+    .orderBy(desc(executiveVerdictReviews.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function reviewExecutiveVerdict(input: {
+  projectId: number;
+  verdictId: number;
+  reviewStatus: "VALIDATED" | "REJECTED";
+  reviewNote: string;
+  reviewedBy: number;
+  reviewedByName: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const current = await getExecutiveVerdictReview(input.verdictId);
+  if (!current || current.projectId !== input.projectId) throw new Error("Revisión de veredicto no encontrada");
+  if (current.reviewStatus !== "PENDING") throw new Error("El veredicto ya fue revisado y no puede modificarse");
+
+  await db.update(executiveVerdictReviews)
+    .set({
+      reviewStatus: input.reviewStatus,
+      reviewNote: input.reviewNote,
+      reviewedBy: input.reviewedBy,
+      reviewedByName: input.reviewedByName,
+      reviewedAt: new Date(),
+    })
+    .where(eq(executiveVerdictReviews.id, current.id));
+
+  return getExecutiveVerdictReview(input.verdictId);
+}
+
 export async function getLatestVerdict(projectId: number) {
   const db = await getDb();
   if (!db) return null;
@@ -1710,6 +1754,12 @@ export async function getLatestPMAnalysis(projectId: number) {
     .orderBy(desc(executiveVerdicts.createdAt))
     .limit(1);
   return rows[0] ?? null;
+}
+
+export async function getLatestPMAnalysisWithReview(projectId: number) {
+  const analysis = await getLatestPMAnalysis(projectId);
+  if (!analysis) return { analysis: null, review: null };
+  return { analysis, review: await getExecutiveVerdictReview(analysis.id) };
 }
 
 export async function getPMAnalysisHistory(projectId: number, limit = 10) {
