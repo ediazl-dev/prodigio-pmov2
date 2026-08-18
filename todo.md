@@ -72,7 +72,7 @@
 - [ ] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
 - [x] Configurar el fixture determinista del 17-ago-2026 separado de los datos productivos y conservar M01–M10 como nomenclatura contractual real de Tanner.
 - [x] Registrar a Eduardo como PM y a Ariel como Gerente de Delivery en las reglas de responsabilidades del piloto ejecutivo Tanner.
-- [ ] Incorporar actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
+- [x] Habilitar la incorporación de actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
 - [x] Habilitar para Admin/PMO el registro auditable de una minuta real, su URL de evidencia y compromisos manualmente revisados, sin extracción automática ni carga de datos ficticios.
 - [x] Habilitar la creación de exigencias aprobadas por comité y su cierre con evidencia para Admin/PMO; restringir la anulación al Gerente de Delivery asignado con motivo explícito.
 - [x] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR] en `DASHBOARD_EJECUTIVO_V2_AUDITORIA_FINANCIERA_TANNER.md`.

@@ -44,7 +44,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -56,6 +56,7 @@ import { isoWeekFromDate } from "./executiveMinutes";
 import { canApproveExecutiveRecoveryPlan } from "./executiveRecoveryPlanPolicy";
 import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
 import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
+import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAcceptancePolicy";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3554,6 +3555,42 @@ Responde SOLO con JSON:
     })));
     await audit(ctx, "executive_minute_recorded", "executive_meeting_minute", minuteId, input.title, { projectId: input.projectId, sourceId: source.id, commitments: commitmentIds.length });
     return { minuteId, commitmentIds, isoWeek: isoWeekFromDate(input.meetingDate) };
+  }),
+
+  /** El acta es la única evidencia que puede incorporar un hito al avance cardinal. */
+  recordExecutiveMilestoneAcceptance: adminOrPmo.input(z.object({
+    projectId: z.number(),
+    milestoneId: z.number(),
+    acceptedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    evidenceFileName: z.string().trim().min(1).max(500),
+    evidenceUrl: z.string().url().max(1000),
+    evidenceSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+    notes: z.string().trim().max(10000).optional(),
+  })).mutation(async ({ input, ctx }) => {
+    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "Las actas v2 están habilitadas sólo para el piloto Tanner" });
+    const source = await getExecutiveProjectSource(input.projectId);
+    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
+    const acceptances = await getExecutiveMilestoneAcceptances(input.projectId, source.id);
+    const milestone = milestones.find((item) => item.id === input.milestoneId);
+    const eligibility = assessMilestoneAcceptanceEligibility({
+      milestoneExists: Boolean(milestone),
+      alreadyAccepted: acceptances.some((acceptance) => acceptance.milestoneId === input.milestoneId && acceptance.acceptanceStatus === "accepted"),
+      evidenceUrl: input.evidenceUrl,
+      evidenceFileName: input.evidenceFileName,
+    });
+    if (!eligibility.allowed) throw new TRPCError({ code: "BAD_REQUEST", message: eligibility.reason });
+    const id = await createExecutiveMilestoneAcceptance({
+      ...input,
+      sourceId: source.id,
+      acceptanceStatus: "accepted",
+      evidenceSha256: input.evidenceSha256 ?? null,
+      notes: input.notes ?? null,
+      recordedBy: ctx.user.id,
+      recordedByName: ctx.user.name ?? null,
+    });
+    await audit(ctx, "executive_milestone_accepted", "executive_milestone_acceptance", id, milestone?.milestoneCode ?? null, { projectId: input.projectId, sourceId: source.id, milestoneId: input.milestoneId, acceptedAt: input.acceptedAt, evidenceUrl: input.evidenceUrl });
+    return { id, milestoneId: input.milestoneId, acceptanceStatus: "accepted" as const };
   }),
 
   /** Exigencias ejecutivas: sólo Admin/PMO crea y cierra con evidencia; Delivery asignado puede anular con motivo. */
