@@ -51,6 +51,7 @@ import { runRiskGenerationAttempts } from "./riskGeneration";
 import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
 import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
+import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3623,7 +3624,11 @@ Responde SOLO con JSON:
         },
         commercialExposure: governance.exposure,
         financial: latestFinancial,
-        financialEvidence: { source: persistedFinancialSnapshot ? "snapshot" : financialSnapshot ? "financial_sync" : "POR_CONFIRMAR", impact: governance.financial },
+        financialEvidence: buildExecutiveFinancialEvidence({
+          persistedSnapshot: persistedFinancialSnapshot,
+          syncedFinancial: financialSnapshot,
+          impact: governance.financial,
+        }),
         governance: { ...governance.governance, assignments, recoveryPlan, requirements, commitments, minutes },
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
