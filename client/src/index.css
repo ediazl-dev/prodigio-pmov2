@@ -389,3 +389,21 @@
   .edv2-root > .edv2-wrap:first-child { padding: 12px 14px; }
   .edv2-root > .edv2-wrap:first-child .edv2-list li { grid-template-columns: 1fr; }
 }
+
+
+/* Rail lateral del Dashboard Ejecutivo v2: navegación persistente en escritorio y flujo único en móvil. */
+.edv2-root .edv2-body-shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); align-items: start; max-width: 1560px; margin: 0 auto; }
+.edv2-root .edv2-side-nav { align-self: start; background: #F7F9FB; border-right: 1px solid #DDE3EA; display: grid; gap: 2px; min-height: calc(100vh - 60px); padding: 24px 14px; position: sticky; top: 60px; }
+.edv2-root .edv2-side-nav-title { color: #7E8896; font: 700 9px "JetBrains Mono", monospace; letter-spacing: .14em; margin: 0 8px 10px; text-transform: uppercase; }
+.edv2-root .edv2-side-nav a { border-left: 3px solid transparent; color: #5A6472; display: flex; font-size: 12px; gap: 8px; padding: 9px 8px; text-decoration: none; }
+.edv2-root .edv2-side-nav a:hover { background: #E8EDF1; border-left-color: #00B3A4; color: #0D1117; }
+.edv2-root .edv2-side-nav em { color: #7E8896; font: 9px "JetBrains Mono", monospace; font-style: normal; padding-top: 2px; }
+.edv2-root .edv2-side-nav .edv2-side-nav-return { border: 1px solid #DDE3EA; color: #0D1117; font-weight: 700; margin: 18px 4px 0; }
+.edv2-root .edv2-side-nav .edv2-side-nav-return:hover { border-left-color: #00B3A4; }
+.edv2-root .edv2-main-content { min-width: 0; }
+.edv2-root .edv2-timeline-dates { color: #5A6472; display: flex; flex-wrap: wrap; font-size: 10px; gap: 6px 14px; margin-top: 5px; }
+.edv2-root .edv2-timeline-dates b { color: #0D1117; font: 700 9px "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
+.edv2-root .edv2-dot.baseline { background: #F2F4F7; border-color: #7E8896; box-shadow: 0 0 0 1px #7E8896; top: 5px; }
+.edv2-root .edv2-dot.realized { top: 5px; transform: translateY(4px); }
+@media (max-width: 980px) { .edv2-root .edv2-body-shell { display: block; } .edv2-root .edv2-side-nav { border-bottom: 1px solid #DDE3EA; border-right: 0; display: flex; gap: 4px; min-height: auto; overflow-x: auto; padding: 8px 15px; position: sticky; top: 60px; z-index: 50; } .edv2-root .edv2-side-nav-title { display: none; } .edv2-root .edv2-side-nav a { white-space: nowrap; } .edv2-root .edv2-side-nav .edv2-side-nav-return { margin: 0 0 0 auto; } }
+@media (max-width: 640px) { .edv2-root .edv2-side-nav { top: 60px; } .edv2-root .edv2-side-nav a { font-size: 11px; padding: 8px 6px; } .edv2-root .edv2-side-nav em { display: none; } .edv2-root .edv2-side-nav .edv2-side-nav-return { display: none; } .edv2-root .edv2-timeline-dates { display: grid; gap: 3px; } }

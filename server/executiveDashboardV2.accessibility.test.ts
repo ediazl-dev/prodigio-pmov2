@@ -15,11 +15,15 @@ function contrastRatio(foreground: string, background: string) {
 }
 
 describe("Dashboard Ejecutivo v2 — accesibilidad de la navegación", () => {
-  it("expone una navegación con nombre accesible y enlaces hacia las siete secciones", () => {
-    expect(component).toContain('aria-label="Secciones del dashboard ejecutivo"');
-    ["#hitos", "#finanzas", "#exigencias", "#operacion", "#minutas", "#perspectivas", "#trazabilidad"].forEach((target) => {
+  it("expone un rail lateral con nombre accesible y enlaces hacia las zonas ejecutivas", () => {
+    expect(component).toContain('aria-label="Navegación lateral del dashboard ejecutivo"');
+    expect(component).toContain('className="edv2-side-nav"');
+    ["#veredicto", "#hitos", "#finanzas", "#exigencias", "#operacion", "#minutas", "#perspectivas", "#trazabilidad"].forEach((target) => {
       expect(component).toContain(`href="${target}"`);
     });
+    expect(component).toContain('className="edv2-side-nav-return"');
+    expect(component).toContain('href={`/projects/${projectId}`}');
+    expect(component).toContain("← Volver al proyecto");
   });
 
   it("usa pestañas con selección, controles y navegación por flechas", () => {

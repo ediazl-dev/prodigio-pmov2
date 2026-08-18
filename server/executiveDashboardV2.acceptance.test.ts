@@ -73,6 +73,25 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     expect(component).not.toContain('>N/A<');
   });
 
+  it("ofrece navegación lateral accesible y distingue baseline de fecha real acreditada", () => {
+    [
+      'className="edv2-side-nav"',
+      'aria-label="Navegación lateral del dashboard ejecutivo"',
+      'className="edv2-side-nav-return"',
+      'Baseline / real acreditado',
+      'className="edv2-dot baseline"',
+      'className={`edv2-dot realized',
+      '<b>Baseline</b>',
+      '<b>Real</b>',
+      'Compromiso:',
+      'style={{ left: `${baselinePosition}%` }}',
+      'style={{ left: `${realizedPosition}%` }}',
+    ].forEach((detail) => expect(component).toContain(detail));
+
+    expect(component).toContain('milestone.acceptedAt ?? milestone.committedDate');
+    expect(component).toContain('formatDate(milestone.baselineDate)');
+  });
+
   it("mantiene el eje operativo colapsado, desaturado y fuera de la cabecera ejecutiva", () => {
     const executiveHeader = component.slice(0, component.indexOf('id="operacion"'));
 

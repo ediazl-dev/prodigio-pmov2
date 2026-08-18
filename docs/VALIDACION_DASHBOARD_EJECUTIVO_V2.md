@@ -114,3 +114,11 @@ La navegación autenticada a **Minutas** hizo visible el subbloque completo de c
 La extracción directa del DOM autenticado registra los mismos valores de cobertura y además confirma el contrato de la matriz de señales: Jira/backlog `[SIN SNAPSHOT]` con procedencia `Jira PBTISD1 · [POR CONFIRMAR]` sólo penaliza y no acredita actas, CHC, IGE ni estado; los riesgos G-01/G-02 exigen análisis y dueño sin reemplazar evidencia contractual; y capacity/stop-loss queda `[POR CONFIRMAR]`, sin proyectar carry ni autorizar continuidad. En la misma extracción, la pestaña Comercial permaneció seleccionada mediante `aria-selected="true"`; CFO y CTO mantuvieron el contrato de pestañas accesible.
 
 La inspección autenticada de **Perspectiva CTO** mostró `10/10` hitos con issue Jira, `6` vencidos abiertos y backlog confiable `[POR CONFIRMAR]`. Su restricción visible declara que una issue, épica o sprint no cambia por sí sola el estado del hito contractual y que la aceptación documentada conserva el único gatillo de avance. Con ello, las tres perspectivas derivadas tienen evidencia de interfaz y prueba de render sobre el mismo panel compartido.
+
+## Navegación lateral y línea de tiempo contractual — 18-ago-2026
+
+La sesión autenticada del piloto Tanner verificó el rail lateral con las anclas `00` a `07` y el enlace visible **«Volver al proyecto»** hacia `/projects/180002`. La prueba `executiveDashboardV2.accessibility.test.ts` fija el nombre accesible del rail, sus anclas y el retorno al detalle del proyecto.
+
+La línea de tiempo **«baseline vs. real»** muestra los hitos `M01`–`M10`, sus fechas de compromiso y el estado real acreditado sólo cuando existe acta. En este corte, la fuente contractual no contiene fechas baseline persistidas para Tanner; por ello, cada baseline se mantiene como `[POR CONFIRMAR]` y no se sustituye con fixture ni se infiere desde Jira. Esta es una limitación de la fuente contractual, no una fecha omitida de la visualización.
+
+La activación autenticada del enlace lateral **«Volver al proyecto»** navegó correctamente a `/projects/180002` y cargó el detalle del proyecto Tanner, donde quedan visibles los accesos al Dashboard Ejecutivo v2 y al dashboard heredado. La comprobación confirma que el rail no crea un callejón de navegación.
