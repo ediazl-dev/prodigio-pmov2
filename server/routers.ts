@@ -59,6 +59,7 @@ import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
 import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAcceptancePolicy";
 import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
 import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
+import { buildExecutiveOperationalEvidence } from "./executiveOperationalEvidence";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3756,6 +3757,14 @@ Responde SOLO con JSON:
       const { getFinancialDataForDeal } = await import("./financialDataFetcher");
       let financial: any = null;
       try { financial = await getFinancialDataForDeal(source.dealId); } catch (error) { console.warn("No fue posible obtener finanzas para dashboard v2:", error); }
+      let jiraOperationalReport: Awaited<ReturnType<typeof getJiraAdvanceReport>> | null = null;
+      const jiraObservedAt = new Date().toISOString();
+      try {
+        if (source.jiraProjectKey) jiraOperationalReport = await getJiraAdvanceReport(source.jiraProjectKey);
+      } catch (error) {
+        console.warn("No fue posible obtener evidencia operativa de Jira para dashboard v2:", error);
+      }
+      const operationalEvidence = buildExecutiveOperationalEvidence(jiraOperationalReport, jiraOperationalReport ? jiraObservedAt : null);
       const financialSnapshot = financial?.projectFinancial ?? null;
       const latestFinancial = persistedFinancialSnapshot?.financialData ?? financialSnapshot;
       const cutoffMs = Date.parse(`${cutoffDate}T00:00:00Z`);
@@ -3816,7 +3825,8 @@ Responde SOLO con JSON:
           consecutiveRedVerdicts: 0,
         },
         operational: {
-          jiraProgressPct: null,
+          // Jira sólo revela sesgo y penalizaciones; nunca puede elevar el estado contractual.
+          jiraProgressPct: operationalEvidence.issueProgressPct,
           backlogConfidencePct: null,
         },
       });
@@ -3852,6 +3862,7 @@ Responde SOLO con JSON:
         }),
         governance: { ...governance.governance, assignments, recoveryPlan, recoveryPlans, requirements, commitments, minutes, minutesCoverage },
         agenticVerdict,
+        operationalEvidence,
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
       };

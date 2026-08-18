@@ -76,6 +76,7 @@
 - [x] Habilitar para Admin/PMO el registro auditable de una minuta real, su URL de evidencia y compromisos manualmente revisados, sin extracción automática ni carga de datos ficticios.
 - [x] Implementar una preclasificación determinista, no persistente y revisable de compromisos de minuta que nunca registra datos sin confirmación humana.
 - [x] Calcular cobertura y continuidad documental de minutas contra semanas exigibles del baseline, sin presentar una sola minuta como cobertura completa.
+- [x] Integrar la evidencia operativa de Jira con procedencia explícita y regla comprobable de no-mejora: sus métricas pueden generar penalizaciones, nunca elevar el avance contractual ni el estado ejecutivo.
 - [x] Habilitar la creación de exigencias aprobadas por comité y su cierre con evidencia para Admin/PMO; restringir la anulación al Gerente de Delivery asignado con motivo explícito.
 - [x] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR] en `DASHBOARD_EJECUTIVO_V2_AUDITORIA_FINANCIERA_TANNER.md`.
 - [x] Crear y validar un motor puro de gobierno cardinal que calcula CHC, exposición comercial aislada, impacto financiero, IGE, gatillos G-01 a G-07 y estado único sin usar pesos para avance.
