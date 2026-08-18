@@ -409,40 +409,49 @@
 @media (max-width: 640px) { .edv2-root .edv2-side-nav { top: 60px; } .edv2-root .edv2-side-nav a { font-size: 11px; padding: 8px 6px; } .edv2-root .edv2-side-nav em { display: none; } .edv2-root .edv2-side-nav .edv2-side-nav-return { display: none; } .edv2-root .edv2-timeline-dates { display: grid; gap: 3px; } }
 
 /* ===== Gantt contractual — Dashboard Ejecutivo v2 (Tanner) ===== */
-.edv2-root .edv2-gantt-wrap { position: relative; padding: 8px 16px 34px; }
-.edv2-root .edv2-gantt-header { display: grid; grid-template-columns: 240px minmax(0, 1fr); border-bottom: 1px solid #DDE3EA; padding-bottom: 6px; }
-.edv2-root .edv2-gantt-label-col { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-right: 12px; }
+.edv2-root .edv2-gantt-wrap { position: relative; padding: 10px 16px 40px; }
+.edv2-root .edv2-gantt-header { display: grid; grid-template-columns: 260px minmax(0, 1fr); border-bottom: 1px solid #DDE3EA; padding-bottom: 14px; }
+.edv2-root .edv2-gantt-label-col { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-right: 14px; }
 .edv2-root .edv2-gantt-header .edv2-gantt-label-col { color: #7E8896; font: 700 9px "JetBrains Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
-.edv2-root .edv2-gantt-timeline { position: relative; min-height: 18px; }
-.edv2-root .edv2-gantt-months { display: grid; grid-template-columns: repeat(9, 1fr); }
-.edv2-root .edv2-gantt-months span { color: #7E8896; font: 700 9px "JetBrains Mono", monospace; letter-spacing: .1em; text-align: center; }
-.edv2-root .edv2-gantt-row { display: grid; grid-template-columns: 240px minmax(0, 1fr); align-items: center; border-bottom: 1px solid #EDF1F5; min-height: 44px; }
+.edv2-root .edv2-gantt-timeline { position: relative; min-height: 20px; }
+.edv2-root .edv2-gantt-months-track { position: relative; height: 14px; }
+.edv2-root .edv2-gantt-month { color: #7E8896; font: 700 9px "JetBrains Mono", monospace; letter-spacing: .08em; position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.edv2-root .edv2-gantt-row { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: center; border-bottom: 1px solid #EDF1F5; min-height: 46px; }
 .edv2-root .edv2-gantt-row:hover { background: #F7F9FB; }
 .edv2-root .edv2-gantt-code { color: #0D1117; font: 800 11px "JetBrains Mono", monospace; }
-.edv2-root .edv2-gantt-name { color: #39424E; font-size: 11px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edv2-root .edv2-gantt-name { color: #39424E; font-size: 11px; line-height: 1.3; overflow-wrap: break-word; }
 .edv2-root .edv2-gantt-weight { color: #7E8896; font: 700 10px "JetBrains Mono", monospace; }
-.edv2-root .edv2-gantt-row .edv2-gantt-timeline { min-height: 44px; }
-.edv2-root .edv2-gantt-bar { align-items: center; border-radius: 4px; display: flex; height: 18px; justify-content: center; min-width: 26px; position: absolute; top: 13px; }
-.edv2-root .edv2-gantt-bar-label { color: #fff; font: 700 8px "JetBrains Mono", monospace; letter-spacing: .04em; overflow: hidden; padding: 0 4px; text-overflow: ellipsis; white-space: nowrap; }
-.edv2-root .edv2-gantt-bar.ok { background: #007A70; }
-.edv2-root .edv2-gantt-bar.atraso { background: #A8272B; }
-.edv2-root .edv2-gantt-bar.hoy { background: #B7791F; }
-.edv2-root .edv2-gantt-bar.plan { background: #8A94A3; }
-.edv2-root .edv2-gantt-deriva { background: repeating-linear-gradient(45deg, rgba(168,39,43,.35), rgba(168,39,43,.35) 4px, transparent 4px, transparent 8px); border-radius: 0 4px 4px 0; height: 18px; position: absolute; top: 13px; }
-.edv2-root .edv2-gantt-corte { border-left: 2px dashed #0D1117; bottom: 8px; position: absolute; top: 30px; }
-.edv2-root .edv2-gantt-corte span { background: #0D1117; border-radius: 3px; color: #F2F4F7; font: 700 8px "JetBrains Mono", monospace; left: -26px; letter-spacing: .05em; padding: 2px 5px; position: absolute; top: -22px; white-space: nowrap; }
+.edv2-root .edv2-gantt-row .edv2-gantt-timeline { min-height: 46px; }
+/* Rombo de línea base (carta Gantt) */
+.edv2-root .edv2-gantt-baseline { background: #0D1117; height: 10px; position: absolute; top: 18px; transform: translateX(-50%) rotate(45deg); width: 10px; }
+/* Franja de deriva entre baseline y comprometida Jira */
+.edv2-root .edv2-gantt-deriva-bar { height: 4px; position: absolute; top: 21px; }
+.edv2-root .edv2-gantt-deriva-bar.positiva { background: repeating-linear-gradient(45deg, rgba(168,39,43,.5), rgba(168,39,43,.5) 4px, transparent 4px, transparent 7px); }
+.edv2-root .edv2-gantt-deriva-bar.negativa { background: repeating-linear-gradient(45deg, rgba(0,122,112,.5), rgba(0,122,112,.5) 4px, transparent 4px, transparent 7px); }
+/* Marcador de fecha comprometida Jira con etiqueta */
+.edv2-root .edv2-gantt-marker { border-radius: 4px; min-height: 18px; min-width: 8px; padding: 0 6px; position: absolute; top: 14px; transform: translateX(-50%); }
+.edv2-root .edv2-gantt-marker.ok { background: #007A70; }
+.edv2-root .edv2-gantt-marker.atraso { background: #A8272B; }
+.edv2-root .edv2-gantt-marker.hoy { background: #B7791F; }
+.edv2-root .edv2-gantt-marker.plan { background: #8A94A3; }
+.edv2-root .edv2-gantt-marker-label { color: #fff; display: block; font: 700 8px "JetBrains Mono", monospace; letter-spacing: .03em; line-height: 18px; white-space: nowrap; }
+/* Línea de corte dinámica */
+.edv2-root .edv2-gantt-corte { border-left: 2px dashed #0D1117; bottom: 6px; position: absolute; top: 26px; }
+.edv2-root .edv2-gantt-corte span { background: #0D1117; border-radius: 3px; color: #F2F4F7; font: 700 8px "JetBrains Mono", monospace; left: 4px; letter-spacing: .04em; padding: 2px 5px; position: absolute; top: -20px; white-space: nowrap; }
+/* Leyenda */
 .edv2-root .edv2-gantt-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 16px 4px; }
 .edv2-root .edv2-gantt-legend span { align-items: center; color: #5A6472; display: inline-flex; font-size: 10px; gap: 6px; }
 .edv2-root .edv2-gantt-dot { border-radius: 50%; display: inline-block; height: 9px; width: 9px; }
+.edv2-root .edv2-gantt-dot.baseline { background: #0D1117; border-radius: 2px; transform: rotate(45deg); }
 .edv2-root .edv2-gantt-dot.ok { background: #007A70; }
 .edv2-root .edv2-gantt-dot.atraso { background: #A8272B; }
 .edv2-root .edv2-gantt-dot.hoy { background: #B7791F; }
 .edv2-root .edv2-gantt-dot.plan { background: #8A94A3; }
 .edv2-root .edv2-gantt-dot.corte { background: #0D1117; }
 @media (max-width: 980px) {
-  .edv2-root .edv2-gantt-header, .edv2-root .edv2-gantt-row { grid-template-columns: 150px minmax(0, 1fr); }
-  .edv2-root .edv2-gantt-name { white-space: normal; }
+  .edv2-root .edv2-gantt-header, .edv2-root .edv2-gantt-row { grid-template-columns: 170px minmax(0, 1fr); }
+  .edv2-root .edv2-gantt-marker-label { display: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .edv2-root .edv2-gantt-bar { transition: opacity .18s cubic-bezier(0.23, 1, 0.32, 1); }
+  .edv2-root .edv2-gantt-marker { transition: opacity .18s cubic-bezier(0.23, 1, 0.32, 1); }
 }

@@ -130,3 +130,15 @@
 - [x] Validar compilación TypeScript y pruebas focales del Gantt.
 - [x] Corregir tipos implícitos del bloque Gantt (getTime, Date | null) y añadir el sistema de clases edv2-gantt-* a index.css.
 - [x] Publicar checkpoint con el Gantt contractual implementado.
+
+## Línea base contractual desde carta Gantt Tanner (2026-08-18)
+- [x] Analizar la carta Gantt Excel de Tanner y extraer hitos baseline y hitos de pago.
+- [x] Mapear hitos BD (M01-M10) contra fechas baseline de la Gantt e identificar ambigüedades.
+- [x] Confirmar con el usuario el mapeo ambiguo de M07 (Iniciador de Pagos), M08 y M09 (desfase numeración sprints).
+- [x] Poblar `baselineDate` en `executive_contract_milestones` para los 10 hitos de Tanner desde la carta Gantt.
+- [x] Exponer doble fecha en el contrato de datos: baseline Gantt (línea base) vs. jiraDueDate (comprometida replanificada).
+- [x] Actualizar motor cardinal para clasificar contra baseline Gantt y reportar deriva vs. Jira replanificada.
+- [x] Rediseñar Gantt visual: doble marcador baseline/Jira por hito, línea de corte calculada desde fecha de análisis (no fija 65%).
+- [x] Corregir pérdida de textos en el Gantt (nombres de hitos y etiquetas de barras legibles, sin ellipsis cortante).
+- [x] Actualizar pruebas de aceptación y del motor cardinal para la doble fecha y línea de corte dinámica.
+- [x] Validar TypeScript, pruebas focales y publicar checkpoint con la línea base contractual.

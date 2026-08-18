@@ -258,80 +258,115 @@ export default function ExecutiveDashboardV2() {
           <span>10 hitos · el % indica facturación, no avance</span>
         </div>
         <div className="edv2-gantt-wrap">
-          <div className="edv2-gantt-header">
-            <div className="edv2-gantt-label-col">Hito</div>
-            <div className="edv2-gantt-timeline">
-              <div className="edv2-gantt-months">
-                <span>FEB</span><span>MAR</span><span>ABR</span><span>MAY</span><span>JUN</span><span>JUL</span><span>AGO</span><span>SEP</span><span>OCT</span>
-              </div>
-            </div>
-          </div>
-          {milestones.map((milestone) => {
-            const timeline = milestone.timeline;
-            const status = timeline?.status ?? "COMPROMETIDO";
-            const varianceDays = timeline?.varianceDays ?? 0;
-            const jiraDue = milestone.jiraDueDate ? new Date(milestone.jiraDueDate) : null;
-            const jiraClosed = milestone.jiraClosedDate ? new Date(milestone.jiraClosedDate) : null;
-            const acceptedAt = milestone.acceptedAt ? new Date(milestone.acceptedAt) : null;
-            
-            // Calcular posición y ancho de la barra (simplificado para Tanner: FEB-OCT 2026)
-            const yearStart = new Date(2026, 1, 1); // 1 feb 2026
-            const yearEnd = new Date(2026, 9, 31); // 31 oct 2026
-            const totalDays = (yearEnd.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24);
-            
-            const getPosition = (date: Date | null) => {
-              if (!date) return 0;
-              const days = (date.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24);
-              return Math.max(0, Math.min(100, (days / totalDays) * 100));
+          {(() => {
+            // Eje temporal dinámico: desde la menor fecha baseline hasta la mayor fecha comprometida/corte
+            const DAY = 1000 * 60 * 60 * 24;
+            const parseDay = (value: unknown): number | null => {
+              const ts = Date.parse(`${String(value ?? "").slice(0, 10)}T00:00:00Z`);
+              return Number.isFinite(ts) ? ts : null;
             };
-            
-            const getWidth = (start: Date | null, end: Date | null) => {
-              if (!start || !end) return 5;
-              const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-              return Math.max(2, Math.min(15, (days / totalDays) * 100));
+            const cutoffTs = parseDay(cutoff.date) ?? Date.now();
+            const allDates: number[] = [];
+            milestones.forEach((milestone) => {
+              [milestone.baselineDate, milestone.jiraDueDate, milestone.jiraClosedDate, milestone.acceptedAt].forEach((value) => {
+                const ts = parseDay(value);
+                if (ts != null) allDates.push(ts);
+              });
+            });
+            allDates.push(cutoffTs);
+            const axisStart = allDates.length ? Math.min(...allDates) : cutoffTs;
+            const axisEnd = allDates.length ? Math.max(...allDates) : cutoffTs + 90 * DAY;
+            const spanDays = Math.max((axisEnd - axisStart) / DAY, 30);
+            const pos = (value: unknown): number | null => {
+              const ts = parseDay(value);
+              if (ts == null) return null;
+              return Math.min(98, Math.max(1, ((ts - axisStart) / (spanDays * DAY)) * 96 + 1));
             };
-            
-            const barLeft = getPosition(jiraDue);
-            const barWidth = getWidth(jiraDue, jiraClosed || jiraDue);
-            
-            let barClass = "edv2-gantt-bar plan";
-            let statusLabel = "Planificado";
-            if (status === "ACEPTADO") { barClass = "edv2-gantt-bar ok"; statusLabel = "Aceptado"; }
-            else if (status === "VENCIDO_SIN_ACTA") { barClass = "edv2-gantt-bar atraso"; statusLabel = "Vencido"; }
-            else if (status === "PENDIENTE_ACTA") { barClass = "edv2-gantt-bar hoy"; statusLabel = "Pendiente acta"; }
-            else if (status === "EN_RIESGO") { barClass = "edv2-gantt-bar atraso"; statusLabel = "En riesgo"; }
-            
+            const cortePos = pos(cutoff.date) ?? 50;
+            // Meses del eje: generar etiquetas entre axisStart y axisEnd
+            const monthLabels: { label: string; left: number }[] = [];
+            const cursor = new Date(axisStart);
+            cursor.setUTCDate(1);
+            while (cursor.getTime() <= axisEnd) {
+              const ts = cursor.getTime();
+              if (ts >= axisStart) {
+                monthLabels.push({
+                  label: new Intl.DateTimeFormat("es-CL", { month: "short", timeZone: "UTC" }).format(cursor).toUpperCase().replace(".", ""),
+                  left: Math.min(96, Math.max(1, ((ts - axisStart) / (spanDays * DAY)) * 96 + 1)),
+                });
+              }
+              cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+            }
             return (
-              <div key={milestone.milestoneCode} className="edv2-gantt-row">
-                <div className="edv2-gantt-label-col">
-                  <div className="edv2-gantt-code">{milestone.milestoneCode}</div>
-                  <div className="edv2-gantt-name">{milestone.title}</div>
-                  <div className="edv2-gantt-weight">{milestone.billingWeight ?? 0}%</div>
-                </div>
-                <div className="edv2-gantt-timeline">
-                  <div className={barClass} style={{ left: `${barLeft}%`, width: `${barWidth}%` }}>
-                    <span className="edv2-gantt-bar-label">{statusLabel}</span>
+              <>
+                <div className="edv2-gantt-header">
+                  <div className="edv2-gantt-label-col">Hito</div>
+                  <div className="edv2-gantt-timeline">
+                    <div className="edv2-gantt-months-track">
+                      {monthLabels.map((month) => (
+                        <span key={`${month.label}-${month.left}`} className="edv2-gantt-month" style={{ left: `${month.left}%` }}>{month.label}</span>
+                      ))}
+                    </div>
                   </div>
-                  {varianceDays > 0 && status !== "ACEPTADO" && (
-                    <div className="edv2-gantt-deriva" style={{ left: `${barLeft + barWidth}%`, width: `${Math.min(10, varianceDays / 3)}%` }} />
-                  )}
                 </div>
-              </div>
+                {milestones.map((milestone) => {
+                  const timeline = milestone.timeline;
+                  const status = timeline?.status ?? "COMPROMETIDO";
+                  const baselineTs = parseDay(milestone.baselineDate);
+                  const jiraTs = parseDay(milestone.jiraDueDate);
+                  const derivaDias = baselineTs != null && jiraTs != null ? Math.round((jiraTs - baselineTs) / DAY) : null;
+                  const baselinePos = pos(milestone.baselineDate);
+                  const jiraPos = pos(milestone.jiraDueDate);
+                  let barClass = "edv2-gantt-marker plan";
+                  let statusLabel = "Planificado";
+                  if (status === "ACEPTADO") { barClass = "edv2-gantt-marker ok"; statusLabel = "Aceptado"; }
+                  else if (status === "VENCIDO_SIN_ACTA") { barClass = "edv2-gantt-marker atraso"; statusLabel = "Vencido"; }
+                  else if (status === "PENDIENTE_ACTA") { barClass = "edv2-gantt-marker hoy"; statusLabel = "Pend. acta"; }
+                  else if (status === "EN_RIESGO") { barClass = "edv2-gantt-marker atraso"; statusLabel = "En riesgo"; }
+                  return (
+                    <div key={milestone.milestoneCode} className="edv2-gantt-row">
+                      <div className="edv2-gantt-label-col">
+                        <div className="edv2-gantt-code">{milestone.milestoneCode}</div>
+                        <div className="edv2-gantt-name" title={milestone.title}>{milestone.title}</div>
+                        <div className="edv2-gantt-weight">{milestone.billingWeight ?? 0}%</div>
+                      </div>
+                      <div className="edv2-gantt-timeline">
+                        {baselinePos != null && (
+                          <div className="edv2-gantt-baseline" style={{ left: `${baselinePos}%` }} title={`Baseline Gantt: ${formatDate(milestone.baselineDate)}`} />
+                        )}
+                        {baselinePos != null && jiraPos != null && derivaDias != null && derivaDias !== 0 && (
+                          <div
+                            className={`edv2-gantt-deriva-bar ${derivaDias > 0 ? "positiva" : "negativa"}`}
+                            style={{ left: `${Math.min(baselinePos, jiraPos)}%`, width: `${Math.max(Math.abs(jiraPos - baselinePos), 1.5)}%` }}
+                            title={`Deriva: ${derivaDias > 0 ? "+" : ""}${derivaDias} días vs. baseline`}
+                          />
+                        )}
+                        {jiraPos != null && (
+                          <div className={barClass} style={{ left: `${jiraPos}%` }} title={`Comprometida Jira: ${formatDate(milestone.jiraDueDate)} · ${statusLabel}`}>
+                            <span className="edv2-gantt-marker-label">{statusLabel}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="edv2-gantt-corte" style={{ left: `${cortePos}%` }}>
+                  <span>Corte {formatDate(cutoff.date)}</span>
+                </div>
+              </>
             );
-          })}
-          <div className="edv2-gantt-corte" style={{ left: "65%" }}>
-            <span>Corte 18-ago</span>
-          </div>
+          })()}
         </div>
         <div className="edv2-gantt-legend">
+          <span><i className="edv2-gantt-dot baseline" /> Línea base (carta Gantt)</span>
           <span><i className="edv2-gantt-dot ok" /> Aceptado por el cliente</span>
-          <span><i className="edv2-gantt-dot atraso" /> Vencido sin aceptación</span>
-          <span><i className="edv2-gantt-dot hoy" /> Vence en el periodo</span>
-          <span><i className="edv2-gantt-dot plan" /> Baseline pendiente</span>
+          <span><i className="edv2-gantt-dot atraso" /> Vencido / en riesgo</span>
+          <span><i className="edv2-gantt-dot hoy" /> Pendiente de acta</span>
+          <span><i className="edv2-gantt-dot plan" /> Comprometido Jira</span>
           <span><i className="edv2-gantt-dot corte" /> Fecha de corte</span>
         </div>
         <p className="edv2-note" style={{ margin: "12px 16px 16px" }}>
-          <b>Regla de gobierno:</b> Jira planificado es la fecha comprometida contractual. Un cierre Jira inicia la ventana de cinco días para acta; no suma avance ni acredita aceptación sin documento, fecha y vínculo verificable.
+          <b>Regla de gobierno:</b> la línea base (rombo) es la fecha contractual de la carta Gantt; el marcador de color es la fecha comprometida en Jira, que puede reflejar replanificaciones. La franja entre ambas es la deriva en días. Un cierre Jira inicia la ventana de cinco días para acta; no suma avance ni acredita aceptación sin documento, fecha y vínculo verificable.
         </p>
       </div>
        <div className="edv2-card" style={{ marginTop: 16 }}><div className="edv2-card-head"><h3>Hitos vencidos sin aceptación y evidencia por hito</h3><span>SoW / acta / Jira</span></div><div className="edv2-table-wrap"><table className="edv2-table"><thead><tr><th>Hito</th><th>Fecha efectiva</th><th>Aceptación</th><th>Acta</th><th>Jira operativo</th></tr></thead><tbody>{milestones.map((milestone) => <tr key={milestone.id}><td><b>{milestone.milestoneCode}</b><br /><span>{milestone.title}</span></td><td>{formatDate(milestone.committedDate ?? milestone.baselineDate)}</td><td><span className={`edv2-chip ${milestone.acceptanceStatus === "accepted" ? "ok" : "warn"}`}>{milestone.acceptanceStatus === "accepted" ? `ACEPTADO · ${formatDate(milestone.acceptedAt)}` : "SIN ACTA"}</span></td><td>{milestone.acceptanceEvidenceUrl ? <a href={milestone.acceptanceEvidenceUrl} target="_blank" rel="noreferrer">{milestone.acceptanceFileName ?? "Abrir evidencia"}</a> : "[PENDIENTE]"}</td><td><span className="edv2-chip muted">{milestone.jiraIssueKey || "[POR CONFIRMAR]"} · no gobierna</span></td></tr>)}</tbody></table></div>{canManageRequirements ? <details open={acceptanceFormOpen} onToggle={(event) => setAcceptanceFormOpen((event.currentTarget as HTMLDetailsElement).open)} style={{ margin: 16 }}><summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#0D1117" }}>Registrar acta real de aceptación</summary><form onSubmit={(event) => { event.preventDefault(); recordAcceptance.mutate({ projectId, milestoneId: Number(acceptanceForm.milestoneId), acceptedAt: acceptanceForm.acceptedAt, evidenceFileName: acceptanceForm.evidenceFileName, evidenceUrl: acceptanceForm.evidenceUrl, notes: acceptanceForm.notes || undefined }); }} style={{ display: "grid", gap: 8, marginTop: 12 }}><label>Hito contractual<select required value={acceptanceForm.milestoneId} onChange={(event) => setAcceptanceForm({ ...acceptanceForm, milestoneId: event.target.value })}><option value="">Seleccionar hito sin acta</option>{milestones.filter((milestone) => milestone.acceptanceStatus !== "accepted").map((milestone) => <option key={milestone.id} value={String(milestone.id)}>{milestone.milestoneCode} · {milestone.title}</option>)}</select></label><label>Fecha de aceptación<input required type="date" value={acceptanceForm.acceptedAt} onChange={(event) => setAcceptanceForm({ ...acceptanceForm, acceptedAt: event.target.value })} /></label><label>Nombre del acta<input required value={acceptanceForm.evidenceFileName} onChange={(event) => setAcceptanceForm({ ...acceptanceForm, evidenceFileName: event.target.value })} placeholder="Acta-Aceptacion-M01.pdf" /></label><label>Acta de aceptación (PDF, máx. 25 MB)<input required type="file" accept={executiveEvidenceAccept.acceptance} onChange={(event) => void uploadSelectedEvidence("acceptance", event.target.files?.[0], (uploaded) => setAcceptanceForm({ ...acceptanceForm, evidenceFileName: uploaded.fileName, evidenceUrl: uploaded.fileUrl }))} /></label>{acceptanceForm.evidenceUrl ? <p className="edv2-note"><b>Archivo validado:</b> {acceptanceForm.evidenceFileName}. El acta aún debe registrarse con fecha y hito.</p> : <p className="edv2-note">Selecciona el acta real. La carga por sí sola no acredita el hito.</p>}{evidenceUploadError ? <p role="alert" className="edv2-note" style={{ color: "#A8272B" }}>{evidenceUploadError}</p> : null}{evidenceUploadNotice ? <p className="edv2-note" style={{ color: "#007A70" }}>{evidenceUploadNotice}</p> : null}<label>Notas de recepción (opcional)<textarea value={acceptanceForm.notes} onChange={(event) => setAcceptanceForm({ ...acceptanceForm, notes: event.target.value })} placeholder="Contraparte, alcance aceptado u observaciones." /></label><button type="submit" disabled={!acceptanceForm.milestoneId || recordAcceptance.isPending} style={{ background: "#00B3A4", color: "#0D1117", border: 0, borderRadius: 6, padding: "9px 12px", cursor: "pointer", fontWeight: 800 }}>{recordAcceptance.isPending ? "Registrando…" : "Registrar acta y aceptar hito"}</button>{recordAcceptance.error ? <p role="alert" style={{ color: "#A8272B", fontSize: 11, margin: 0 }}>{recordAcceptance.error.message}</p> : null}</form></details> : <p className="edv2-note" style={{ margin: "12px 16px 16px" }}><b>Acción restringida:</b> sólo Admin/PMO puede registrar un acta real. Sin URL y fecha de aceptación, el hito permanece fuera del avance cardinal.</p>}</div></section>
