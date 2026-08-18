@@ -56,3 +56,5 @@
 - [x] Persistir la aprobación F0 y crear el modelo versionado de fuente contractual, vínculo Deal-Jira y mapeo de hitos para Tanner.
 - [x] Implementar el cálculo determinista de avance contractual, semáforo y evidencia trazable usando SoW y Jira.
 - [x] Construir la experiencia Dashboard Ejecutivo v2 del piloto Tanner detrás de un feature flag y validarla sin alterar Jira.
+- [x] Eliminar los registros transitorios restantes de la suite de pruebas y confirmar que el dashboard raíz conserva únicamente proyectos operativos.
+- [x] Documentar con una consulta trazable el conjunto final de proyectos que alimenta el dashboard raíz tras la limpieza de datos de prueba.
