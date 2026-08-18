@@ -594,6 +594,20 @@ export async function getLatestExecutiveDashboardSnapshot(projectId: number, sou
   return row ? { ...row, metrics: safeParseJson(row.metrics) ?? {} } : undefined;
 }
 
+/** Nunca usar un fixture como si fuera el corte oficial del dashboard. */
+export async function getLatestExecutiveProductionDashboardSnapshot(projectId: number, sourceId?: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const projectFilter = sourceId == null
+    ? eq(executiveDashboardSnapshots.projectId, projectId)
+    : and(eq(executiveDashboardSnapshots.projectId, projectId), eq(executiveDashboardSnapshots.sourceId, sourceId));
+  const rows = await db.select().from(executiveDashboardSnapshots)
+    .where(and(projectFilter, eq(executiveDashboardSnapshots.snapshotKind, "production")))
+    .orderBy(desc(executiveDashboardSnapshots.createdAt)).limit(1);
+  const row = rows[0];
+  return row ? { ...row, metrics: safeParseJson(row.metrics) ?? {} } : undefined;
+}
+
 export async function getBillingByProject(projectId: number) {
   const db = await getDb();
   if (!db) return [];

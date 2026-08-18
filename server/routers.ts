@@ -44,12 +44,13 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveDashboardSnapshot } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
 import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
 import { calculateExecutiveGovernance } from "./executiveGovernanceEngine";
+import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3519,7 +3520,6 @@ Responde SOLO con JSON:
       const source = await getExecutiveProjectSource(input.projectId);
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-      const cutoffDate = input.cutoffDate ?? "2026-08-17";
       const [acceptances, minutes, commitments, requirements, recoveryPlan, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot] = await Promise.all([
         getExecutiveMilestoneAcceptances(input.projectId, source.id),
         getExecutiveMeetingMinutes(input.projectId, source.id),
@@ -3528,8 +3528,10 @@ Responde SOLO con JSON:
         getLatestExecutiveRecoveryPlan(input.projectId, source.id),
         getExecutiveGovernanceAssignments(input.projectId, source.id),
         getLatestExecutiveFinancialSnapshot(input.projectId, source.id),
-        getLatestExecutiveDashboardSnapshot(input.projectId, source.id),
+        getLatestExecutiveProductionDashboardSnapshot(input.projectId, source.id),
       ]);
+      const cutoff = resolveExecutiveDashboardCutoff({ projectId: input.projectId, requestedCutoffDate: input.cutoffDate, productionSnapshot: persistedDashboardSnapshot });
+      const cutoffDate = cutoff.date;
       const acceptanceByMilestone = new Map<number, (typeof acceptances)[number]>();
       for (const acceptance of acceptances) {
         if (!acceptanceByMilestone.has(acceptance.milestoneId)) acceptanceByMilestone.set(acceptance.milestoneId, acceptance);
@@ -3603,7 +3605,7 @@ Responde SOLO con JSON:
           contractFileName: source.contractFileName, contractFileUrl: source.contractFileUrl,
           sourceStatus: source.sourceStatus, approvedAt: source.approvedAt,
         },
-        cutoff: { date: cutoffDate, kind: input.cutoffDate ? "requested" : "fixture", productionSnapshotId: persistedDashboardSnapshot?.id ?? null },
+        cutoff,
         contractual: {
           ...governance.contractual,
           // Compatibilidad temporal: estos campos ya se derivan de cardinalidad, no de pesos comerciales.
