@@ -58,6 +58,7 @@ import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./ex
 import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
 import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAcceptancePolicy";
 import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
+import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -3763,6 +3764,11 @@ Responde SOLO con JSON:
       ).length;
       const closedCommitments = commitments.filter((commitment) => commitment.commitmentStatus === "fulfilled").length;
       const commitmentCompliancePct = commitments.length ? (closedCommitments / commitments.length) * 100 : null;
+      const minutesCoverage = calculateExecutiveMinutesCoverage({
+        baselineApprovedAt: source.approvedAt,
+        cutoffDate,
+        minutes: minutes.map((minute) => ({ isoWeek: minute.isoWeek, reviewStatus: minute.reviewStatus })),
+      });
       const milestoneEvidence = milestones.map((milestone) => {
         const acceptance = acceptanceByMilestone.get(milestone.id);
         return {
@@ -3800,10 +3806,10 @@ Responde SOLO con JSON:
           penaltyUf: latestFinancial?.penaltyUf ?? null,
         },
         governance: {
-          minutesCoveragePct: minutes.length ? 100 : null,
+          minutesCoveragePct: minutesCoverage.coveragePct,
           commitmentCompliancePct,
           hasValidRecoveryPlan: recoveryPlan ? Boolean(recoveryPlan.approvedAt && recoveryPlan.fileUrl) : null,
-          consecutiveMinutesGap: minutes.length ? 0 : null,
+          consecutiveMinutesGap: minutesCoverage.consecutiveGapWeeks,
           overdueP0Requirements,
           recoveryPlanRequired: false,
           recoveryPlanOverdue: false,
@@ -3844,7 +3850,7 @@ Responde SOLO con JSON:
           syncedFinancial: financialSnapshot,
           impact: governance.financial,
         }),
-        governance: { ...governance.governance, assignments, recoveryPlan, recoveryPlans, requirements, commitments, minutes },
+        governance: { ...governance.governance, assignments, recoveryPlan, recoveryPlans, requirements, commitments, minutes, minutesCoverage },
         agenticVerdict,
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
