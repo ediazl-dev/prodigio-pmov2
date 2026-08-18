@@ -116,4 +116,72 @@ describe("Executive Governance Engine — cardinalidad contractual", () => {
     expect(result.governance).toMatchObject({ jiraBiasPp: 22.67, ige: 14.67, state: "CRITICO" });
     expect(result.governance.activeTriggers).toEqual(["G-01", "G-02", "G-03", "G-04", "G-05", "G-06", "G-07"]);
   });
+
+  it("R-01 y R-02: Jira puede reducir una penalización de calidad, pero nunca mejora un estado contractual crítico", () => {
+    const input = {
+      cutoffDate: cutoff,
+      milestones: [
+        milestone("M01", "2026-01-10", { acceptedAt: "2026-01-11", acceptanceEvidenceUrl: "s3://m01", billingWeight: 40 }),
+        milestone("M02", "2026-02-10", { acceptedAt: "2026-02-11", acceptanceEvidenceUrl: "s3://m02", billingWeight: 5 }),
+        milestone("M03", "2026-07-27", { isCritical: true, billingWeight: 5 }),
+        milestone("M04", "2026-06-10", { billingWeight: 10 }),
+        milestone("M05", "2026-05-10", { billingWeight: 10 }),
+        milestone("M06", "2026-04-10", { billingWeight: 10 }),
+        milestone("M07", cutoff, { billingWeight: 5 }),
+        milestone("M08", "2026-10-10", { billingWeight: 5 }),
+        milestone("M09", "2026-11-10", { billingWeight: 5 }),
+        milestone("M10", "2026-12-10", { billingWeight: 5 }),
+      ],
+      financial: { budgetCostUf: 2050, executedCostUf: 3114, saleValueUf: 8200, targetMarginUf: 4000, projectedMarginUf: 1000 },
+      governance: { minutesCoveragePct: 40, commitmentCompliancePct: 0, hasValidRecoveryPlan: false, consecutiveMinutesGap: 3, recoveryPlanRequired: true, recoveryPlanOverdue: true, consecutiveRedVerdicts: 2 },
+    };
+    const lowJiraConfidence = calculateExecutiveGovernance({ ...input, operational: { jiraProgressPct: 56, backlogConfidencePct: 34 } });
+    const highJiraConfidence = calculateExecutiveGovernance({ ...input, operational: { jiraProgressPct: 92, backlogConfidencePct: 85 } });
+
+    expect(highJiraConfidence.contractual).toMatchObject(lowJiraConfidence.contractual);
+    expect(highJiraConfidence.governance.penalties).toBeLessThan(lowJiraConfidence.governance.penalties);
+    expect(highJiraConfidence.governance.state).toBe("CRITICO");
+    expect(highJiraConfidence.governance.activeTriggers).toContain("G-01");
+  });
+
+  it("R-05 y R-06: entregar sin acta no suma avance; registrar acta sí recalcula el contrato y la exposición", () => {
+    const milestones = [
+      milestone("M01", "2026-01-10", { acceptedAt: "2026-01-11", acceptanceEvidenceUrl: "s3://m01", billingWeight: 40, valueUf: 0 }),
+      milestone("M02", "2026-02-10", { acceptedAt: "2026-02-11", acceptanceEvidenceUrl: "s3://m02", billingWeight: 5, valueUf: 0 }),
+      milestone("M03", "2026-03-10", { billingWeight: 5, valueUf: 100 }),
+      milestone("M04", "2026-04-10", { billingWeight: 10, valueUf: 100 }),
+      milestone("M05", "2026-05-10", { billingWeight: 10, valueUf: 100 }),
+      milestone("M06", "2026-06-10", { billingWeight: 10, valueUf: 100 }),
+      milestone("M07", "2026-10-10", { billingWeight: 5, valueUf: 0 }),
+      milestone("M08", "2026-10-10", { billingWeight: 5, valueUf: 0 }),
+      milestone("M09", "2026-10-10", { billingWeight: 5, valueUf: 0 }),
+      milestone("M10", "2026-10-10", { billingWeight: 5, valueUf: 0 }),
+    ];
+    const deliveredWithoutAct = milestones.map((item) => item.code === "M04" ? { ...item, acceptedAt: "2026-04-12" } : item);
+    const acceptedWithAct = milestones.map((item) => item.code === "M04" ? { ...item, acceptedAt: "2026-04-12", acceptanceEvidenceUrl: "s3://acta-m04" } : item);
+    const before = calculateExecutiveGovernance({ cutoffDate: cutoff, milestones: deliveredWithoutAct });
+    const after = calculateExecutiveGovernance({ cutoffDate: cutoff, milestones: acceptedWithAct });
+
+    expect(before.contractual).toMatchObject({ acceptedCount: 2, chcT: 33.33, chcG: 20 });
+    expect(after.contractual).toMatchObject({ acceptedCount: 3, chcT: 50, chcG: 30 });
+    expect(after.exposure.retainedUf).toBeLessThan(before.exposure.retainedUf ?? Number.POSITIVE_INFINITY);
+  });
+
+  it("R-11 a R-13: la curva comercial altera sólo exposición y no activa G-07 cuando el cumplimiento es total", () => {
+    const healthy = [
+      milestone("M01", "2026-01-10", { acceptedAt: "2026-01-11", acceptanceEvidenceUrl: "s3://m01", billingWeight: 90, valueUf: 0 }),
+      ...Array.from({ length: 9 }, (_, index) => milestone(`M${String(index + 2).padStart(2, "0")}`, "2026-01-10", { acceptedAt: "2026-01-11", acceptanceEvidenceUrl: `s3://m${index + 2}`, billingWeight: 10 / 9, valueUf: 0 })),
+    ];
+    const result = calculateExecutiveGovernance({
+      cutoffDate: cutoff,
+      milestones: healthy,
+      financial: { budgetCostUf: 100, executedCostUf: 100, saleValueUf: 200, targetMarginUf: 100, projectedMarginUf: 100 },
+      governance: { minutesCoveragePct: 100, commitmentCompliancePct: 100, hasValidRecoveryPlan: true },
+      operational: { jiraProgressPct: 100, backlogConfidencePct: 100 },
+    });
+
+    expect(result.contractual.chcG).toBe(100);
+    expect(result.exposure.acceptedBillingPct).toBe(100);
+    expect(result.governance.activeTriggers).not.toContain("G-07");
+  });
 });

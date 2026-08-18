@@ -16,8 +16,9 @@ Este documento concentra la evidencia de cierre del piloto Tanner en la ruta `/p
 | Ámbito | Evidencia | Resultado |
 | --- | --- | --- |
 | Compilación estática | `pnpm exec tsc --noEmit` ejecutado el 18-ago-2026 después del último ajuste de interfaz | Sin errores de TypeScript |
-| Regresión completa | `pnpm test` ejecutado el 18-ago-2026 después de la matriz formal del motor | 51 archivos aprobados, 455 pruebas aprobadas y 3 pruebas live omitidas explícitamente |
+| Regresión completa | `pnpm test` ejecutado el 18-ago-2026 después de ampliar las reglas formales de gobierno | 51 archivos aprobados, 458 pruebas aprobadas y 3 pruebas live omitidas explícitamente |
 | Motor y datos cardinales | Suites `executiveGovernanceEngine`, `executiveDashboardFixture`, `executiveMilestoneAcceptancePolicy` y `executiveFinancialEvidence` | Cubren cardinalidad, fixture Tanner, actas obligatorias y separación entre avance, exposición e impacto financiero |
+| Reglas formales de gobierno | Casos R-01, R-02, R-05, R-06 y R-11 a R-13 en `executiveGovernanceEngine.test.ts` | Jira no mejora un crítico; una entrega sin acta no acredita avance; el acta recalcula contrato/exposición; la curva comercial queda aislada y G-07 no aplica con cumplimiento total |
 | Gobierno documental y permisos | Suites `executiveMinutes`, `executiveMinutesCoverage`, `executiveRequirements`, `executiveRecoveryPlanPolicy` y `executiveVerdictReviewPolicy` | Cubren minuta revisable, cobertura semanal, exigencias evidenciadas, PRD versionado y revisión humana del veredicto |
 | Señales Jira | Suite `executiveOperationalEvidence` y regla `secondary_penalty_only` | Jira conserva procedencia y sólo puede penalizar; no acredita aceptación ni mejora el estado |
 | Accesibilidad estática | `pnpm vitest run server/executiveDashboardV2.accessibility.test.ts` | 7 de 7 pruebas aprobadas: navegación nombrada, pestañas con ARIA y flechas, foco visible, señales secundarias inicialmente colapsadas/desaturadas, reducción de movimiento, reglas adaptativas y contraste |
