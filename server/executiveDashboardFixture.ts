@@ -7,10 +7,17 @@ export const TANNER_EXECUTIVE_FIXTURE = {
 
 type ProductionSnapshot = { id: number; cutoffDate: string } | null | undefined;
 
+function toIsoDate(value: Date | string) {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.valueOf())) throw new Error("La fecha de corte observada no es válida");
+  return parsed.toISOString().slice(0, 10);
+}
+
 export function resolveExecutiveDashboardCutoff(input: {
   projectId: number;
   requestedCutoffDate?: string;
   productionSnapshot?: ProductionSnapshot;
+  observedAt?: Date | string;
 }) {
   if (input.requestedCutoffDate) {
     return { date: input.requestedCutoffDate, kind: "requested" as const, productionSnapshotId: input.productionSnapshot?.id ?? null };
@@ -20,9 +27,5 @@ export function resolveExecutiveDashboardCutoff(input: {
     return { date: input.productionSnapshot.cutoffDate, kind: "production" as const, productionSnapshotId: input.productionSnapshot.id };
   }
 
-  if (input.projectId === TANNER_EXECUTIVE_FIXTURE.projectId) {
-    return { date: TANNER_EXECUTIVE_FIXTURE.cutoffDate, kind: TANNER_EXECUTIVE_FIXTURE.kind, productionSnapshotId: null };
-  }
-
-  throw new Error("No existe un corte productivo ni fixture aprobado para este proyecto ejecutivo");
+  return { date: toIsoDate(input.observedAt ?? new Date()), kind: "observed" as const, productionSnapshotId: null };
 }

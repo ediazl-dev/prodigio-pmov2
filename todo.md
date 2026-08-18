@@ -93,3 +93,4 @@
 - [x] Completar una matriz formal de validación por rol (admin, pmo, pm y consulta) para visibilidad y acciones del Dashboard Ejecutivo v2.
 - [x] Realizar una auditoría de accesibilidad verificable del dashboard completo: teclado, orden de foco, semántica, estados interactivos y contraste.
 - [ ] Demostrar con evidencia específica la paridad de PRD, descargos, escalamiento, cobertura/coherencia de minutas y señales secundarias frente a la maqueta.
+- [x] Separar de forma estricta el fixture de validación del 17-ago-2026 de la consulta y rotulación productiva del Dashboard Ejecutivo v2 de Tanner.

@@ -140,7 +140,11 @@ export default function ExecutiveDashboardV2() {
   const dictamen = contractual.acceptedCount === 0
     ? "La evidencia contractual disponible no acredita hitos aceptados al corte. El avance cardinal se mantiene en cero hasta registrar acta y fecha de aceptación."
     : `Hay ${contractual.acceptedCount} hito(s) aceptado(s) con evidencia al corte; los hitos sin acta no se incorporan al cumplimiento.`;
-  const cutoffLabel = cutoff.kind === "fixture" ? `Fixture de validación · ${formatDate(cutoff.date)}` : `Corte solicitado · ${formatDate(cutoff.date)}`;
+  const cutoffLabel = cutoff.kind === "production"
+    ? `Corte productivo · ${formatDate(cutoff.date)}`
+    : cutoff.kind === "requested"
+      ? `Corte solicitado · ${formatDate(cutoff.date)}`
+      : `Corte observado · ${formatDate(cutoff.date)}`;
   const auditBase = `Corte: ${cutoff.date}. Fuente contractual: SoW ${source.baselineVersion}; evidencia de aceptación persistida.`;
 
   return <main className="edv2-root">
