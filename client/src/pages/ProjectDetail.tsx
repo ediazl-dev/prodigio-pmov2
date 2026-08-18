@@ -289,10 +289,16 @@ export default function ProjectDetail() {
                 Este proyecto fue vinculado desde JIRA. Accede al dashboard ejecutivo que integra datos JIRA y financieros en tiempo real.
               </p>
             </div>
-            <Button size="sm" onClick={() => setLocation(`/projects/${projectId}/linked-dashboard`)}
-              style={{ background: "linear-gradient(135deg, #7c3aed, #06b6d4)", color: "#fff", border: "none", fontWeight: 600, fontSize: 12, padding: "8px 18px", borderRadius: 8 }}>
-              Ver Dashboard Ejecutivo
-            </Button>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
+              {projectId === 180002 && <Button size="sm" onClick={() => setLocation(`/projects/${projectId}/executive-dashboard-v2`)}
+                style={{ background: "#e91e8c", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, padding: "8px 18px", borderRadius: 8 }}>
+                Dashboard Ejecutivo v2
+              </Button>}
+              <Button size="sm" variant="outline" onClick={() => setLocation(`/projects/${projectId}/linked-dashboard`)}
+                style={{ color: "#4b5563", borderColor: C.border, fontWeight: 600, fontSize: 12, padding: "8px 14px", borderRadius: 8 }}>
+                Dashboard heredado
+              </Button>
+            </div>
           </div>
 
           {/* Documents */}

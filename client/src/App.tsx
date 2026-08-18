@@ -56,6 +56,8 @@ function Router() {
     <Switch>
       {/* Public routes - no sidebar */}
       <Route path="/invite/:token" component={InviteAccept} />
+      {/* Vista ejecutiva autónoma: conserva autenticación propia y no hereda el sidebar operativo. */}
+      <Route path="/projects/:id/executive-dashboard-v2" component={ExecutiveDashboardV2} />
       {/* Dashboard routes - with sidebar */}
       <Route>
         <DashboardLayout>
@@ -69,7 +71,6 @@ function Router() {
             <Route path="/projects/:id/planning" component={PlanningStage} />
             <Route path="/projects/:id/design" component={AvanceStage} />
             <Route path="/projects/:id/linked-dashboard" component={LinkedProjectDashboard} />
-            <Route path="/projects/:id/executive-dashboard-v2" component={ExecutiveDashboardV2} />
             <Route path="/projects/:id/closure" component={ClosureStage} />
             {/* Admin-only routes */}
             <Route path="/admin/users">{() => <AdminGuard><AdminUsers /></AdminGuard>}</Route>

@@ -202,6 +202,59 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* Dashboard Ejecutivo v2: vistas derivadas auditables y alcanzables por teclado. */
+.edv2-root :is(a, button, [role="tab"]):focus-visible {
+  outline: 3px solid #e91e8c;
+  outline-offset: 3px;
+}
+
+.edv2-root .edv2-derived { overflow: hidden; }
+.edv2-root .edv2-tablist { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid #E3E7EC; overflow-x: auto; }
+.edv2-root .edv2-tablist button { border: 0; border-bottom: 3px solid transparent; background: transparent; color: #5A6472; font: 700 11px "JetBrains Mono", monospace; letter-spacing: .06em; padding: 11px 14px; white-space: nowrap; }
+.edv2-root .edv2-tablist button:hover { background: #F4F6F8; color: #0D1117; }
+.edv2-root .edv2-tablist button.active { border-bottom-color: #e91e8c; color: #0D1117; }
+.edv2-root .edv2-derived-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .95fr); gap: 24px; padding: 23px 20px; align-items: start; }
+.edv2-root .edv2-derived-panel h3 { font: 400 31px/1 "Instrument Serif", Georgia, serif; margin: 6px 0 10px; color: #0D1117; }
+.edv2-root .edv2-derived-panel > div > p:not(.edv2-eyebrow) { color: #5A6472; font-size: 12.5px; line-height: 1.55; margin: 0; max-width: 63ch; }
+.edv2-root .edv2-derived-metrics { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.edv2-root .edv2-derived-metrics span { border-left: 3px solid #00B3A4; background: #F6F8FA; padding: 10px 12px; }
+.edv2-root .edv2-derived-metrics i { color: #7E8896; display: block; font: 9px "JetBrains Mono", monospace; font-style: normal; letter-spacing: .11em; text-transform: uppercase; }
+.edv2-root .edv2-derived-metrics b { color: #0D1117; display: block; font: 700 16px "JetBrains Mono", monospace; margin-top: 4px; }
+.edv2-root .edv2-derived-callout { grid-column: 1 / -1; border-top: 1px dashed #DDE3EA; color: #5A6472; font-size: 11.5px; line-height: 1.5; margin: 0; padding-top: 13px; }
+.edv2-root .edv2-derived-callout b { color: #0D1117; }
+.edv2-root .edv2-operational-panels { display: grid; gap: 10px; }
+.edv2-root .edv2-operational-panels details { overflow: hidden; }
+.edv2-root .edv2-operational-panels summary { align-items: center; cursor: pointer; display: grid; gap: 10px; grid-template-columns: minmax(170px, .8fr) minmax(130px, .5fr) minmax(0, 1.3fr); list-style: none; padding: 14px 18px; }
+.edv2-root .edv2-operational-panels summary::-webkit-details-marker { display: none; }
+.edv2-root .edv2-operational-panels summary span { color: #0D1117; font: 700 11px "JetBrains Mono", monospace; letter-spacing: .09em; text-transform: uppercase; }
+.edv2-root .edv2-operational-panels summary b { color: #0D1117; font: 700 12px "JetBrains Mono", monospace; }
+.edv2-root .edv2-operational-panels summary i { color: #7E8896; font-size: 11px; font-style: normal; text-align: right; }
+.edv2-root .edv2-trigger-list-light { margin: 0; }
+.edv2-root .edv2-trigger-list-light li { color: #5A6472; }
+.edv2-root .edv2-trigger-list-light code { color: #E71F71; border-color: #F5C9D9; }
+.edv2-root .edv2-remediation-grid { display: grid; gap: 16px; grid-template-columns: 1.45fr .8fr; }
+.edv2-root .edv2-remediation-second { margin-top: 16px; grid-template-columns: 1fr 1fr; }
+.edv2-root .edv2-rubric, .edv2-root .edv2-questions { list-style: none; margin: 0; padding: 0; }
+.edv2-root .edv2-rubric li { align-items: start; border-bottom: 1px solid #F0F2F5; display: grid; gap: 11px; grid-template-columns: 28px 1fr auto; padding: 11px 16px; }
+.edv2-root .edv2-rubric li:last-child, .edv2-root .edv2-questions li:last-child { border-bottom: 0; }
+.edv2-root .edv2-rubric code, .edv2-root .edv2-questions code { color: #7E8896; font: 10px "JetBrains Mono", monospace; }
+.edv2-root .edv2-rubric h4 { font-size: 12px; margin: 0 0 3px; }
+.edv2-root .edv2-rubric p { color: #5A6472; font-size: 10.5px; line-height: 1.4; margin: 0; }
+.edv2-root .edv2-rubric li > b { color: #0D1117; font: 700 11px "JetBrains Mono", monospace; text-align: right; white-space: nowrap; }
+.edv2-root .edv2-rubric small { color: #7E8896; font: 9px "JetBrains Mono", monospace; }
+.edv2-root .edv2-remediation-note { border-top: 1px dashed #DDE3EA; color: #5A6472; font-size: 11px; line-height: 1.5; margin: 0; padding: 13px 16px; }
+.edv2-root .edv2-remediation-note b { color: #0D1117; }
+.edv2-root .edv2-questions li { border-bottom: 1px solid #F0F2F5; display: grid; gap: 10px; grid-template-columns: 28px 1fr; padding: 13px 16px; }
+.edv2-root .edv2-questions p { color: #3F4854; font-size: 11.5px; line-height: 1.48; margin: 0; }
+
+@media (max-width: 760px) {
+  .edv2-root .edv2-derived-panel { grid-template-columns: 1fr; padding: 18px 15px; }
+  .edv2-root .edv2-tablist { padding-left: 8px; }
+  .edv2-root .edv2-operational-panels summary { grid-template-columns: 1fr; gap: 5px; }
+  .edv2-root .edv2-operational-panels summary i { text-align: left; }
+  .edv2-root .edv2-remediation-grid, .edv2-root .edv2-remediation-second { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 640px) {
   .prodigio-dashboard {
     width: 100%;

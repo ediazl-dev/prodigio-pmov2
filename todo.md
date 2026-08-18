@@ -75,3 +75,9 @@
 - [ ] Incorporar actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
 - [ ] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR].
 - [x] Crear y validar un motor puro de gobierno cardinal que calcula CHC, exposición comercial aislada, impacto financiero, IGE, gatillos G-01 a G-07 y estado único sin usar pesos para avance.
+- [x] Habilitar desde el detalle del piloto Tanner el acceso visible al Dashboard Ejecutivo v2 y conservar un acceso explícito al dashboard heredado.
+- [ ] Completar la paridad estructural del Dashboard Ejecutivo v2 con el HTML de referencia, incluidas las vistas derivadas/tabuladas y los bloques ricos restantes de la jerarquía aprobada.
+- [ ] Ejecutar y documentar una validación específica de accesibilidad del Dashboard Ejecutivo v2: teclado, foco visible, navegación, semántica y contraste.
+- [ ] Completar la paridad funcional y visual del Dashboard Ejecutivo v2 con los bloques faltantes del HTML: PRD detallado, descargos, escalamiento, carga/cobertura/coherencia de minutas y tablas ricas de señales secundarias.
+- [ ] Expandir las vistas derivadas CFO, Comercial y CTO para reflejar la estructura y densidad informativa de la maqueta aprobada, sin fabricar datos ausentes.
+- [ ] Documentar una validación de accesibilidad real del Dashboard Ejecutivo v2: contraste, navegación por teclado, orden de foco, semántica y estados interactivos.
