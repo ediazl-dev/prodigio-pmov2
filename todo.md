@@ -58,3 +58,18 @@
 - [x] Construir la experiencia Dashboard Ejecutivo v2 del piloto Tanner detrás de un feature flag y validarla sin alterar Jira.
 - [x] Eliminar los registros transitorios restantes de la suite de pruebas y confirmar que el dashboard raíz conserva únicamente proyectos operativos.
 - [x] Documentar con una consulta trazable el conjunto final de proyectos que alimenta el dashboard raíz tras la limpieza de datos de prueba.
+- [x] Diagnosticar por qué la publicación muestra el dashboard heredado y no el Dashboard Ejecutivo v2 de Tanner, antes de modificar rutas o navegación.
+- [ ] Auditar y documentar todos los KPI actualmente renderizados, sus fórmulas, fuentes, denominadores y fechas de actualización antes de rediseñar el Dashboard Ejecutivo.
+- [ ] Validar el modelo de gobierno v2: avance cardinal por hitos aceptados, jerarquía contractual-documental-operativa, semáforo único y prohibición de ponderación comercial en métricas de avance.
+- [ ] Diseñar el esquema versionado de hitos, evidencias de aceptación, minutas, compromisos, exigencias, planes de recuperación y veredictos inmutables.
+- [ ] Reemplazar el motor actual de avance ponderado por un motor determinista cardinal, auditable y cubierto por pruebas de borde.
+- [ ] Construir el flujo documental de minutas, extracción revisable de compromisos y cobertura de evidencia sin fabricar valores faltantes.
+- [ ] Implementar exigencias ejecutivas, responsables, plazos, criterios de aceptación, consecuencias y evidencia obligatoria de cierre.
+- [ ] Rediseñar la ruta del Dashboard Ejecutivo para reproducir las seis zonas y la jerarquía visual del HTML de referencia, sin degradar la marca Prodigio ni la accesibilidad.
+- [ ] Integrar los ejes financiero y operativo como evidencia secundaria, incluyendo descalce de facturación, impacto en UF, confiabilidad del backlog y reglas de no-mejora por Jira.
+- [ ] Ejecutar el preflight de sincronización, validar base recuperable y guardar checkpoints por cada incremento antes de cualquier publicación.
+- [ ] Ejecutar la batería de validación funcional, de datos, de permisos, visual y de no-regresión definida para el rediseño v2.
+- [ ] Configurar el fixture determinista del 17-ago-2026 separado de los datos productivos y conservar M01–M10 como nomenclatura contractual real de Tanner.
+- [ ] Registrar a Eduardo como PM y a Ariel como Gerente de Delivery en las reglas de responsabilidades del piloto ejecutivo Tanner.
+- [ ] Incorporar actas de aceptación de Tanner sólo cuando sean adjuntadas y mantener los hitos sin evidencia como no aceptados.
+- [ ] Verificar la sincronización financiera de Tanner y determinar si provee WACC, headcount bloqueado, tarifa diaria UF y cláusula de penalidad; rotular los valores ausentes como [POR CONFIRMAR].
