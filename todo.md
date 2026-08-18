@@ -84,3 +84,4 @@
 - [ ] Expandir las vistas derivadas CFO, Comercial y CTO para reflejar la estructura y densidad informativa de la maqueta aprobada, sin fabricar datos ausentes.
 - [ ] Documentar una validación de accesibilidad real del Dashboard Ejecutivo v2: contraste, navegación por teclado, orden de foco, semántica y estados interactivos.
 - [x] Implementar la revisión formal del veredicto agéntico: observación persistida, validación por PMO/Admin, rechazo con motivo y prohibición de presentarlo como decisión ejecutiva antes de validarlo.
+- [ ] Habilitar el registro versionado de un PRD real, su evidencia y su aprobación restringida al Gerente de Delivery, sin declarar vigente un plan no aprobado.
