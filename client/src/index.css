@@ -478,3 +478,85 @@
 .edv2-gantt-tooltip-grid b.neg{color:#F4878E}
 .edv2-gantt-tooltip-grid b.pos{color:#4FD8C9}
 @media(max-width:640px){.edv2-gantt-tooltip{min-width:190px;left:0;transform:none}.edv2-gantt-tooltip::after{left:24px}}
+
+/* ── Gantt: marcador de fecha real (acta) ─────────────────────── */
+.edv2-gantt-acta {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 3;
+  pointer-events: none;
+}
+.edv2-gantt-acta-star {
+  font-size: 14px;
+  color: #00B3A4;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(0,179,164,.4);
+}
+.edv2-gantt-date-tag.acta {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
+  color: #00B3A4;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  margin-bottom: 1px;
+}
+/* Franja de deriva real (baseline → acta) */
+.edv2-gantt-deriva-bar.real {
+  top: calc(50% + 5px);
+  height: 2px;
+  opacity: .55;
+}
+.edv2-gantt-deriva-tag.real {
+  font-size: 7.5px;
+  color: #00B3A4;
+  font-style: italic;
+}
+/* Leyenda: punto de fecha real */
+.edv2-gantt-dot.acta {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00B3A4;
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+/* Botón de carga de acta mejorado */
+.edv2-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #007A70;
+  border: 1.5px dashed #007A70;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background .15s, border-color .15s;
+  width: 100%;
+  justify-content: center;
+}
+.edv2-upload-btn:hover {
+  background: rgba(0,179,164,.07);
+  border-color: #00B3A4;
+}
+.edv2-upload-btn input[type="file"] {
+  display: none;
+}
+.edv2-upload-filename {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: #007A70;
+  margin-top: 4px;
+  word-break: break-all;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .edv2-gantt-acta-star { transition: transform .15s ease-out; }
+  .edv2-gantt-row:hover .edv2-gantt-acta-star { transform: scale(1.2); }
+}

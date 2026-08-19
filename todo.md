@@ -152,3 +152,22 @@
 - [x] Implementar carga de acta de aceptación por hito individual: botón "Registrar acta" en cada fila sin acta que preselecciona y bloquea el hito en el formulario (con opción "cambiar"), eliminando el riesgo de asociar el acta al hito equivocado.
 - [x] Actualizar pruebas del motor cardinal y de aceptación para la nueva clasificación y carga por hito. Motor: 12/12; suite focal: 42/42 en 6 archivos.
 - [x] Validar TypeScript, pruebas focales y publicar checkpoint. TypeScript limpio; 42/42 pruebas focales aprobadas.
+
+## Sincronización financiera (2026-08-19)
+
+- [x] Analizar guía de sincronización financiera y skill pmo-financial-sync.
+- [ ] Instalar dependencia pymysql y copiar script sync_financial_data.py al proyecto.
+- [ ] Exportar planilla Google Sheets (Artefactos_proyectos) a XLSX.
+- [ ] Ejecutar dry-run de validación y revisar resultado (insert/update/duplicados/rechazados).
+- [ ] Aplicar sincronización con --apply tras aprobar dry-run.
+- [ ] Verificar resultado en BD (status=applied, 0 rechazados, Deal conocido con syncedAt actualizado).
+
+## Regla de tres fechas en Gantt + botón acta (2026-08-19)
+
+- [x] Analizar caso M02 y confirmar regla de tres fechas con el usuario.
+- [x] Implementar tercer marcador (estrella teal=acta) y doble franja de deriva en el Gantt.
+- [x] Actualizar tooltip con tres fechas (base, Jira, real) y doble deriva (planificación, real).
+- [x] Actualizar leyenda del Gantt con el marcador de fecha real.
+- [x] Mejorar botón de carga de acta con estilo visual intuitivo (icono, texto claro, nombre de archivo).
+- [x] Añadir clases CSS para el marcador estrella, doble deriva y botón de carga.
+- [x] Validar TypeScript, pruebas focales y publicar checkpoint.
