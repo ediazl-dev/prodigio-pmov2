@@ -330,6 +330,192 @@ export default function ConsolaGobierno() {
           )}
         </div>
       </div>
+
+      {/* ========== ZONA 3 y 4: Grid inferior ========== */}
+      <div className="cg-grid2">
+        {/* Zona 3: Decisiones que te esperan */}
+        <div className="cg-card">
+          <div className="cg-card-cab">
+            <h3>Decisiones que te esperan</h3>
+            <div className="cg-tag">
+              {data?.decisiones?.totalPendientes ?? 0} pendientes · {data?.decisiones?.totalVencidas ?? 0} vencidas
+            </div>
+          </div>
+          <div className="cg-card-cuerpo">
+            {data?.decisiones?.items?.length === 0 ? (
+              <div className="cg-pend">
+                <span className="cg-txt">
+                  <b>No hay decisiones pendientes</b>
+                  <span>El portafolio no requiere decisiones en este momento</span>
+                </span>
+              </div>
+            ) : (
+              data?.decisiones?.items?.map((decision) => (
+                <a key={decision.id} href="#" className="cg-pend" onClick={(e) => e.preventDefault()}>
+                  <span className={`cg-ind cg-ind-${decision.colorIndicador}`}></span>
+                  <span className="cg-txt">
+                    <b>{decision.titulo}</b>
+                    <span>
+                      {decision.proyecto} · {decision.codigo}
+                      {decision.impactoUf != null && ` · impacto ${decision.impactoUf.toLocaleString("es-CL")} UF`}
+                    </span>
+                  </span>
+                  <span className={`cg-plazo cg-plazo-${decision.estadoPlazo}`}>
+                    {decision.plazo}
+                  </span>
+                </a>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Zona 4: Dónde se repite el daño */}
+        <div className="cg-card">
+          <div className="cg-card-cab">
+            <h3>Dónde se repite el daño</h3>
+            <div className="cg-tag">Causa raíz agregada · {data?.causas?.totalProyectosAnalizados ?? 0} proyectos</div>
+          </div>
+          <div className="cg-card-cuerpo">
+            {data?.causas?.items?.length === 0 ? (
+              <div className="cg-causa">
+                <div className="cg-top">
+                  <b>No se detectaron causas repetidas</b>
+                  <span className="cg-n">0</span>
+                </div>
+                <div className="cg-det">
+                  <span>El portafolio no muestra patrones de daño agregados</span>
+                </div>
+              </div>
+            ) : (
+              data?.causas?.items?.map((causa, idx) => (
+                <div key={idx} className="cg-causa">
+                  <div className="cg-top">
+                    <b>{causa.nombre}</b>
+                    <span className="cg-n">{causa.contador}</span>
+                  </div>
+                  <div className="cg-barra">
+                    <i style={{ width: `${causa.porcentaje}%`, background: `var(--cg-${causa.colorBarra})` }}></i>
+                  </div>
+                  <div className="cg-det">
+                    {causa.metricas.map((metrica, midx) => (
+                      <span key={midx}>{metrica}</span>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+            {data?.causas?.items && data.causas.items.length > 0 && (
+              <div className="cg-causa-insight">
+                La primera causa concentra el {data.causas.items[0]?.porcentaje ?? 0}% de la exposición del portafolio y se resuelve una vez, no {data.causas.items[0]?.contador ?? 0}: un estándar de habilitación de ambientes exigido en la etapa de contrato.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ========== ZONA 5: Higiene de gobierno ========== */}
+      <div className="cg-card" style={{ marginTop: "16px" }}>
+        <div className="cg-card-cab">
+          <h3>Higiene de gobierno del portafolio</h3>
+          <div className="cg-tag">Condiciones que invalidan cualquier reporte</div>
+        </div>
+        <div className="cg-hig">
+          <div>
+            <div className={`cg-n ${data?.higiene?.sinMinuta3Semanas && data.higiene.sinMinuta3Semanas > 0 ? "cg-mal" : ""}`}>
+              {data?.higiene?.sinMinuta3Semanas ?? 0}
+            </div>
+            <div className="cg-et">Proyectos con 3 o más semanas sin minuta cargada</div>
+            <a href="#" className="cg-accion" onClick={(e) => e.preventDefault()}>
+              Notificar a los PM responsables →
+            </a>
+          </div>
+          <div>
+            <div className={`cg-n ${data?.higiene?.sinBaseline && data.higiene.sinBaseline > 0 ? "cg-mal" : ""}`}>
+              {data?.higiene?.sinBaseline ?? 0}
+            </div>
+            <div className="cg-et">Proyectos en ejecución sin baseline de hitos firmada</div>
+            <a href="#" className="cg-accion" onClick={(e) => e.preventDefault()}>
+              Ver proyectos sin línea base →
+            </a>
+          </div>
+          <div>
+            <div className={`cg-n ${data?.higiene?.sinActaCierre && data.higiene.sinActaCierre > 0 ? "cg-tibio" : ""}`}>
+              {data?.higiene?.sinActaCierre ?? 0}
+            </div>
+            <div className="cg-et">Proyectos pasados de su fecha de término sin acta de cierre</div>
+            <a href="#" className="cg-accion" onClick={(e) => e.preventDefault()}>
+              Abrir proceso de cierre →
+            </a>
+          </div>
+          <div>
+            <div className={`cg-n ${data?.higiene?.bajaConfiabilidad && data.higiene.bajaConfiabilidad > 0 ? "cg-tibio" : ""}`}>
+              {data?.higiene?.bajaConfiabilidad ?? 0}
+            </div>
+            <div className="cg-et">Proyectos con confiabilidad de backlog bajo 70/100</div>
+            <a href="#" className="cg-accion" onClick={(e) => e.preventDefault()}>
+              Ver diagnóstico de trazabilidad →
+            </a>
+          </div>
+        </div>
+        <div className="cg-hallazgo">
+          <b>{data?.higiene?.hallazgo?.titulo ?? "Sin hallazgos estructurales."}</b>{" "}
+          {data?.higiene?.hallazgo?.descripcion ?? "El portafolio no presenta condiciones que invaliden los reportes."}
+        </div>
+      </div>
+
+      {/* ========== ZONA 6: Resto del portafolio ========== */}
+      <details className="cg-resto">
+        <summary>
+          <span className="cg-chip cg-c-verde">Estables</span>
+          <b style={{ fontWeight: 500 }}>{data?.estables?.total ?? 0} proyectos sin acción requerida</b>
+          <span style={{ fontSize: "12px", color: "var(--cg-texto-3)" }}>
+            {data?.estables?.criterio ?? "IGE ≥ 85 · sin hitos vencidos · evidencia al día"}
+          </span>
+        </summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>Cliente</th>
+              <th className="cg-num">IGE</th>
+              <th className="cg-num">Δ</th>
+              <th>Próximo hito</th>
+              <th>PM</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.estables?.items?.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ color: "var(--cg-texto-3)", fontSize: "11.5px" }}>
+                  No hay proyectos estables en este momento.
+                </td>
+              </tr>
+            ) : (
+              <>
+                {data?.estables?.items?.map((estable, idx) => (
+                  <tr key={idx}>
+                    <td>{estable.proyecto}</td>
+                    <td>{estable.cliente}</td>
+                    <td className="cg-num">{estable.ige ?? "—"}</td>
+                    <td className="cg-num" style={{ color: estable.delta > 0 ? "var(--cg-rojo)" : estable.delta < 0 ? "var(--cg-verde)" : "var(--cg-texto-3)" }}>
+                      {estable.delta > 0 ? `▼${estable.delta}` : estable.delta < 0 ? `▲${Math.abs(estable.delta)}` : "—"}
+                    </td>
+                    <td className="cg-mono">{estable.proximoHito}</td>
+                    <td>{estable.pm}</td>
+                  </tr>
+                ))}
+                {(data?.estables?.total ?? 0) > 4 && (
+                  <tr>
+                    <td colSpan={6} style={{ color: "var(--cg-texto-3)", fontSize: "11.5px" }}>
+                      …y {(data?.estables?.total ?? 0) - 4} proyectos más en la misma condición.
+                    </td>
+                  </tr>
+                )}
+              </>
+            )}
+          </tbody>
+        </table>
+      </details>
     </div>
   );
 }

@@ -230,3 +230,13 @@
 - [x] Mejorar Zona 2: motivo ejecutivo con cifra en negrita, señales de mora, tooltip PA con desglose de fórmula
 - [x] Corregir contraste de texto invisible (texto-3 sobre fondo oscuro)
 - [x] Validar TypeScript y pruebas (473 aprobadas)
+
+## Fase B — Consola de Gobierno PMO (Zonas 3-6)
+
+- [x] Zona 3: Decisiones que te esperan (bandeja por rol con plazo e impacto UF)
+- [x] Zona 4: Dónde se repite el daño (causa raíz agregada con top 4)
+- [x] Zona 5: Higiene de gobierno (4 contadores accionables + hallazgo estructural)
+- [x] Zona 6: Resto del portafolio (tabla colapsable de proyectos estables)
+- [x] Procedure portfolioConsole extendido con datos de Zonas 3-6
+- [x] Estilos CSS cg-* para Zonas 3-6 (grid2, cards, hig, resto)
+- [x] Validación TypeScript y pruebas Vitest

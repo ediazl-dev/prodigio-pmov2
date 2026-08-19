@@ -6315,6 +6315,147 @@ const portfolioConsoleRouter = router({
     const totalProyectos = projects.length;
     const requierenAtencion = projects.filter((p) => p.requiereAtencion).length;
 
+    // ========== ZONA 3: Decisiones que te esperan ==========
+    // Generar decisiones basadas en gatillos y estado de proyectos
+    const decisiones: Array<{
+      id: string;
+      titulo: string;
+      proyecto: string;
+      codigo: string;
+      impactoUf: number | null;
+      plazo: string;
+      estadoPlazo: "vencido" | "hoy" | "proximo" | "sin_plazo";
+      colorIndicador: "rojo" | "ambar" | "azul";
+    }> = [];
+    
+    // Decisión 1: Proyectos críticos con UF en riesgo alta → stop-loss o continuidad
+    const proyectosCriticos = projects.filter((p) => p.estado === "CRITICO" && (p.ufEnRiesgo ?? 0) > 0);
+    proyectosCriticos.forEach((p, idx) => {
+      decisiones.push({
+        id: `D-${String(idx + 1).padStart(2, "0")}`,
+        titulo: "Autorizar stop-loss o financiar continuidad",
+        proyecto: p.projectName,
+        codigo: `D-${String(idx + 1).padStart(2, "0")}`,
+        impactoUf: p.ufEnRiesgo,
+        plazo: "Venció 19 ago",
+        estadoPlazo: "vencido",
+        colorIndicador: "rojo",
+      });
+    });
+    
+    // Decisión 2: Proyectos con plan de recuperación pendiente de evaluación
+    const conPlanPendiente = projects.filter((p) => p.gatillos.includes("G-07"));
+    conPlanPendiente.forEach((p, idx) => {
+      decisiones.push({
+        id: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
+        titulo: "Evaluar plan de recuperación",
+        proyecto: p.projectName,
+        codigo: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
+        impactoUf: null,
+        plazo: "Vence hoy",
+        estadoPlazo: "hoy",
+        colorIndicador: "rojo",
+      });
+    });
+    
+    // Decisión 3: Proyectos con hitos vencidos sin acta → re-baseline
+    const conHitosVencidos = projects.filter((p) => p.hitosVencidos > 0 && p.estado !== "CRITICO");
+    conHitosVencidos.slice(0, 2).forEach((p) => {
+      decisiones.push({
+        id: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
+        titulo: "Aprobar re-baseline formal",
+        proyecto: p.projectName,
+        codigo: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
+        impactoUf: p.ufEnRiesgo,
+        plazo: "22 ago",
+        estadoPlazo: "proximo",
+        colorIndicador: "ambar",
+      });
+    });
+    
+    // Decisión 4: Proyectos sin baseline firmada
+    const sinBaseline = projects.filter((p) => p.gatillos.includes("G-01"));
+    sinBaseline.slice(0, 1).forEach((p) => {
+      decisiones.push({
+        id: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
+        titulo: "Firmar baseline inicial",
+        proyecto: p.projectName,
+        codigo: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
+        impactoUf: null,
+        plazo: "Sin plazo",
+        estadoPlazo: "sin_plazo",
+        colorIndicador: "azul",
+      });
+    });
+    
+    const totalPendientes = decisiones.length;
+    const totalVencidas = decisiones.filter((d) => d.estadoPlazo === "vencido").length;
+    
+    // ========== ZONA 4: Dónde se repite el daño ==========
+    // Agrupar proyectos por causa raíz (basado en gatillos)
+    const causasMap = new Map<string, { count: number; ufExpuesta: number; proyectos: string[] }>();
+    
+    projects.forEach((p) => {
+      p.gatillos.forEach((gatillo) => {
+        let causa = "";
+        if (gatillo === "G-01") causa = "Sin baseline de hitos firmada";
+        else if (gatillo === "G-02") causa = "Aceptaciones entregadas sin acta formal";
+        else if (gatillo === "G-03") causa = "Backlog sin trazabilidad a hitos";
+        else if (gatillo === "G-04") causa = "Dependencias de infraestructura del cliente";
+        else if (gatillo === "G-05") causa = "Alcance no congelado";
+        else if (gatillo === "G-06") causa = "Exigencias P0 vencidas";
+        else if (gatillo === "G-07") causa = "Plan de recuperación vencido";
+        else causa = "Otras causas";
+        
+        if (!causasMap.has(causa)) {
+          causasMap.set(causa, { count: 0, ufExpuesta: 0, proyectos: [] });
+        }
+        const entry = causasMap.get(causa)!;
+        entry.count += 1;
+        entry.ufExpuesta += p.ufEnRiesgo ?? 0;
+        if (entry.proyectos.length < 3 && !entry.proyectos.includes(p.projectName)) {
+          entry.proyectos.push(p.projectName);
+        }
+      });
+    });
+    
+    const causas = Array.from(causasMap.entries())
+      .map(([nombre, data]) => ({
+        nombre,
+        contador: data.count,
+        porcentaje: Math.round((data.count / totalProyectos) * 100),
+        colorBarra: data.count >= 5 ? "rojo" : data.count >= 3 ? "ambar" : "azul",
+        metricas: [
+          `${Math.round(data.ufExpuesta)} UF expuestas`,
+          data.proyectos.slice(0, 2).join(" · ") + (data.proyectos.length > 2 ? ` + ${data.proyectos.length - 2}` : ""),
+        ],
+      }))
+      .sort((a, b) => b.contador - a.contador)
+      .slice(0, 4);
+    
+    // ========== ZONA 5: Higiene de gobierno ==========
+    const sinMinuta3Semanas = projects.filter((p) => p.gatillos.includes("G-04")).length;
+    const sinBaselineCount = projects.filter((p) => p.gatillos.includes("G-01")).length;
+    const sinActaCierre = projects.filter((p) => p.hitosVencidos > 0).length;
+    const bajaConfiabilidad = projects.filter((p) => p.gatillos.includes("G-03")).length;
+    
+    const proyectosAbiertos = projects.filter((p) => p.estado !== "VERDE").length;
+    const proyectosCerrados = 0; // No hay datos de cierre en Fase A
+    
+    // ========== ZONA 6: Resto del portafolio (estables) ==========
+    const estables = projects
+      .filter((p) => p.estado === "VERDE" && p.hitosVencidos === 0)
+      .map((p) => ({
+        proyecto: p.projectName,
+        cliente: p.clientName,
+        ige: p.ige,
+        delta: p.deterioro,
+        proximoHito: "[PENDIENTE]", // No hay datos de próximo hito en Fase A
+        pm: p.pmName ?? "[PENDIENTE]",
+      }));
+    
+    const totalEstables = estables.length;
+    
     return {
       projects,
       triage: {
@@ -6326,6 +6467,30 @@ const portfolioConsoleRouter = router({
         mejoraron,
         totalProyectos,
         requierenAtencion,
+      },
+      decisiones: {
+        items: decisiones,
+        totalPendientes,
+        totalVencidas,
+      },
+      causas: {
+        items: causas,
+        totalProyectosAnalizados: totalProyectos,
+      },
+      higiene: {
+        sinMinuta3Semanas,
+        sinBaseline: sinBaselineCount,
+        sinActaCierre,
+        bajaConfiabilidad,
+        hallazgo: {
+          titulo: proyectosAbiertos > 0 ? "El portafolio no tiene salida." : "Portafolio en observación.",
+          descripcion: `${proyectosAbiertos} proyectos abiertos y ${proyectosCerrados} cerrados formalmente en los últimos 12 meses. ${sinActaCierre} superaron su fecha de término y siguen consumiendo capacity sin acta de cierre ni facturación final.`,
+        },
+      },
+      estables: {
+        items: estables.slice(0, 4), // Mostrar solo 4 en la tabla
+        total: totalEstables,
+        criterio: "IGE ≥ 85 · sin hitos vencidos · evidencia al día",
       },
       cutoffDate,
     };

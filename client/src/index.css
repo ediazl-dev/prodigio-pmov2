@@ -1140,3 +1140,348 @@
     transition: none !important;
   }
 }
+
+/* ========== Consola de Gobierno — Zonas 3-6 ========== */
+.cg-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.cg-card {
+  background: var(--cg-panel);
+  border: 1px solid var(--cg-linea);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cg-card-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--cg-linea-suave);
+}
+
+.cg-card-cab h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cg-texto);
+  margin: 0;
+}
+
+.cg-tag {
+  font-size: 11px;
+  color: var(--cg-texto-3);
+  background: var(--cg-panel-2);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.cg-card-cuerpo {
+  padding: 0;
+}
+
+/* Zona 3: Decisiones */
+.cg-pend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--cg-linea-suave);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.cg-pend:hover {
+  background: var(--cg-panel-2);
+}
+
+.cg-pend:last-child {
+  border-bottom: none;
+}
+
+.cg-ind {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cg-ind-rojo { background: var(--cg-rojo); }
+.cg-ind-ambar { background: var(--cg-ambar); }
+.cg-ind-azul { background: var(--cg-azul); }
+
+.cg-txt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cg-txt b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cg-texto);
+}
+
+.cg-txt span {
+  font-size: 11px;
+  color: var(--cg-texto-3);
+}
+
+.cg-plazo {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.cg-plazo-vencido {
+  color: var(--cg-rojo);
+  background: rgba(255, 77, 87, 0.1);
+}
+
+.cg-plazo-hoy {
+  color: var(--cg-ambar);
+  background: rgba(255, 176, 32, 0.1);
+}
+
+.cg-plazo-proximo {
+  color: var(--cg-texto-2);
+  background: var(--cg-panel-2);
+}
+
+.cg-plazo-sin_plazo {
+  color: var(--cg-texto-3);
+  background: var(--cg-panel-2);
+}
+
+/* Zona 4: Causa raíz */
+.cg-causa {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--cg-linea-suave);
+}
+
+.cg-causa:last-child {
+  border-bottom: none;
+}
+
+.cg-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cg-top b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cg-texto);
+}
+
+.cg-n {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-texto-2);
+  background: var(--cg-panel-2);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.cg-barra {
+  height: 6px;
+  background: var(--cg-panel-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.cg-barra i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.cg-det {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--cg-texto-3);
+}
+
+.cg-causa-insight {
+  padding: 13px 18px;
+  font-size: 11.5px;
+  color: var(--cg-texto-3);
+  line-height: 1.55;
+  border-top: 1px solid var(--cg-linea-suave);
+}
+
+/* Zona 5: Higiene */
+.cg-hig {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+.cg-hig > div {
+  padding: 16px 18px;
+  border-right: 1px solid var(--cg-linea-suave);
+}
+
+.cg-hig > div:last-child {
+  border-right: none;
+}
+
+.cg-n {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--cg-texto);
+  margin-bottom: 6px;
+}
+
+.cg-n.cg-mal {
+  color: var(--cg-rojo);
+}
+
+.cg-n.cg-tibio {
+  color: var(--cg-ambar);
+}
+
+.cg-et {
+  font-size: 11px;
+  color: var(--cg-texto-2);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.cg-accion {
+  font-size: 11px;
+  color: var(--cg-cyan);
+  text-decoration: none;
+}
+
+.cg-accion:hover {
+  text-decoration: underline;
+}
+
+.cg-hallazgo {
+  padding: 14px 18px;
+  border-top: 1px solid var(--cg-linea-suave);
+  font-size: 12px;
+  color: var(--cg-texto-2);
+  line-height: 1.55;
+}
+
+.cg-hallazgo b {
+  color: var(--cg-texto);
+  font-weight: 500;
+}
+
+/* Zona 6: Resto del portafolio */
+.cg-resto {
+  margin-top: 16px;
+  background: var(--cg-panel);
+  border: 1px solid var(--cg-linea);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cg-resto summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.cg-resto summary::-webkit-details-marker {
+  display: none;
+}
+
+.cg-resto summary::before {
+  content: "▸";
+  color: var(--cg-texto-3);
+  transition: transform 0.2s;
+}
+
+.cg-resto[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.cg-resto table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cg-resto th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cg-texto-3);
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--cg-linea-suave);
+  background: var(--cg-panel-2);
+}
+
+.cg-resto td {
+  padding: 12px 18px;
+  font-size: 12px;
+  color: var(--cg-texto);
+  border-bottom: 1px solid var(--cg-linea-suave);
+}
+
+.cg-resto tr:last-child td {
+  border-bottom: none;
+}
+
+.cg-num {
+  text-align: right;
+  font-family: var(--cg-mono);
+}
+
+.cg-mono {
+  font-family: var(--cg-mono);
+  font-size: 11px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .cg-grid2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .cg-hig {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .cg-hig > div:nth-child(2) {
+    border-right: none;
+  }
+  
+  .cg-hig > div:nth-child(1),
+  .cg-hig > div:nth-child(2) {
+    border-bottom: 1px solid var(--cg-linea-suave);
+  }
+}
+
+@media (max-width: 860px) {
+  .cg-hig {
+    grid-template-columns: 1fr;
+  }
+  
+  .cg-hig > div {
+    border-right: none;
+    border-bottom: 1px solid var(--cg-linea-suave);
+  }
+  
+  .cg-hig > div:last-child {
+    border-bottom: none;
+  }
+}
