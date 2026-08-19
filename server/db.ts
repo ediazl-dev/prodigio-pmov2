@@ -1891,3 +1891,30 @@ export async function getMyProfileData(userId: number) {
     recentActivity,
   };
 }
+
+/* ─── Financial sync log helpers ─── */
+
+/** Devuelve el historial de sincronizaciones financieras, más reciente primero. */
+export async function getFinancialSyncLogs(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  const { financialSyncLogs } = await import("../drizzle/schema");
+  return db
+    .select()
+    .from(financialSyncLogs)
+    .orderBy(desc(financialSyncLogs.createdAt))
+    .limit(Math.max(1, Math.min(200, limit)));
+}
+
+/** Devuelve la sincronización financiera más reciente (cualquier estado), o undefined. */
+export async function getLatestFinancialSync() {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { financialSyncLogs } = await import("../drizzle/schema");
+  const rows = await db
+    .select()
+    .from(financialSyncLogs)
+    .orderBy(desc(financialSyncLogs.createdAt))
+    .limit(1);
+  return rows[0];
+}

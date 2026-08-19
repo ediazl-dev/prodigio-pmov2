@@ -25,6 +25,7 @@ import ComplianceReport from "./pages/admin/ComplianceReport";
 import AdminAuditLog from "./pages/admin/AdminAuditLog";
 import JiraSpacesPage from "./pages/admin/JiraSpaces";
 import AdminJiraToken from "./pages/admin/AdminJiraToken";
+import AdminFinancialSync from "./pages/admin/AdminFinancialSync";
 import JiraReport from "./pages/reports/JiraReport";
 import JiraProjectDashboard from "./pages/reports/JiraProjectDashboard";
 import RecurringServicesList from "./pages/RecurringServicesList";
@@ -81,6 +82,7 @@ function Router() {
             <Route path="/admin/audit">{() => <AdminGuard><AdminAuditLog /></AdminGuard>}</Route>
             <Route path="/admin/jira-spaces">{() => <AdminGuard><JiraSpacesPage /></AdminGuard>}</Route>
             <Route path="/admin/jira-token">{() => <AdminGuard><AdminJiraToken /></AdminGuard>}</Route>
+            <Route path="/admin/financial-sync">{() => <AdminGuard><AdminFinancialSync /></AdminGuard>}</Route>
             <Route path="/recurring-services" component={RecurringServicesList} />
             <Route path="/recurring-services/new" component={RecurringServiceCreate} />
             <Route path="/recurring-services/:id" component={RecurringServiceDetail} />

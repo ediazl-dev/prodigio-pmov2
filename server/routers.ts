@@ -45,7 +45,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -6083,6 +6083,15 @@ const financialRouter = router({
     const count = await bulkUpsertFinancialData(input.rows as any[]);
     await audit(ctx, "sync_financial_data", "financial_data", null, null, { rowCount: count });
     return { synced: count };
+  }),
+  /** Historial de ejecuciones de la sincronización financiera (cron/manual), más reciente primero */
+  syncLogs: adminOnly.input(z.object({ limit: z.number().int().min(1).max(200).optional() }).optional()).query(async ({ input }) => {
+    return getFinancialSyncLogs(input?.limit ?? 50);
+  }),
+  /** Última sincronización financiera registrada (cualquier estado), para mostrar frescura de datos */
+  latestSync: protectedProcedure.query(async () => {
+    const row = await getLatestFinancialSync();
+    return row ?? null;
   }),
 });
 

@@ -225,6 +225,13 @@
       "when": 1787064564132,
       "tag": "0031_broken_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1787146103611,
+      "tag": "0032_slow_paladin",
+      "breakpoints": true
     }
   ]
 }

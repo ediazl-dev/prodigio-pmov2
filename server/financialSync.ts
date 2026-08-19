@@ -154,7 +154,7 @@ function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
  * Ejecuta la sincronización completa: descarga, parsea y aplica UPSERT.
  * Devuelve el resultado con conteos de inserciones y actualizaciones.
  */
-export async function runFinancialSync(): Promise<FinancialSyncOutcome> {
+async function runFinancialSyncInternal(): Promise<FinancialSyncOutcome> {
   const buffer = await downloadWorkbook();
   const records = parseWorkbook(buffer);
 
@@ -186,4 +186,59 @@ export async function runFinancialSync(): Promise<FinancialSyncOutcome> {
     update: records.filter((r) => existing.has(r.dealId)).length,
     status: "applied",
   };
+}
+
+
+/**
+ * Registra una ejecución de la sincronización en la tabla financial_sync_log.
+ * Nunca lanza: si el registro falla, sólo se reporta por consola para no
+ * interrumpir el resultado de la sincronización principal.
+ */
+async function logSyncExecution(entry: {
+  status: "applied" | "error";
+  inputDeals?: number;
+  insertCount?: number;
+  updateCount?: number;
+  errorMessage?: string | null;
+  triggeredBy?: string;
+}): Promise<void> {
+  try {
+    const { getDb } = await import("./db");
+    const db = await getDb();
+    if (!db) return;
+    const { financialSyncLogs } = await import("../drizzle/schema");
+    await db.insert(financialSyncLogs).values({
+      status: entry.status,
+      inputDeals: entry.inputDeals ?? 0,
+      insertCount: entry.insertCount ?? 0,
+      updateCount: entry.updateCount ?? 0,
+      errorMessage: entry.errorMessage ?? null,
+      triggeredBy: entry.triggeredBy ?? "cron",
+    });
+  } catch (logError) {
+    console.error("[FinancialSync] No se pudo registrar el log de sincronización:", logError);
+  }
+}
+
+/**
+ * Ejecuta la sincronización financiera y registra el resultado (éxito o error)
+ * en el historial auditable. El error se re-lanza tras registrarlo para que el
+ * endpoint responda 500 y el cron lo marque como fallido.
+ */
+export async function runFinancialSync(): Promise<FinancialSyncOutcome> {
+  try {
+    const outcome = await runFinancialSyncInternal();
+    await logSyncExecution({
+      status: "applied",
+      inputDeals: outcome.inputDeals,
+      insertCount: outcome.insert,
+      updateCount: outcome.update,
+      triggeredBy: "cron",
+    });
+    return outcome;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await logSyncExecution({ status: "error", errorMessage: message, triggeredBy: "cron" });
+    throw error;
+  }
 }

@@ -183,3 +183,13 @@
 - [x] Montar handler POST /api/scheduled/syncFinancial en server/_core/index.ts y validar TypeScript.
 - [x] Inyectar secret GOOGLE_DRIVE_TOKEN a producción (usa token del conector Google Workspace) y guardar checkpoint (deploy).
 - [x] Crear cron diario 03:00 UTC con manus-heartbeat (task_uid koZvKFb8FE7TZ6hy8GAnvM; primera ejecución programada mañana 03:00 UTC).
+
+## Historial de sincronización financiera y fecha en Dashboard v2 (2026-08-19)
+
+- [x] Crear tabla financial_sync_log en el esquema Drizzle y aplicar migración (0032, con registro histórico de la sync de hoy).
+- [x] Registrar cada ejecución de sincronización (éxito y error) en el log desde financialSync.ts.
+- [x] Exponer procedure tRPC de historial de sincronizaciones (admin) y última sincronización (protegido).
+- [x] Crear vista de administración con el historial de sincronizaciones (tabla con fecha, estado, deals, mensaje).
+- [x] Registrar la ruta admin en App.tsx y entrada en el menú de administración.
+- [x] Mostrar fecha/hora de la última sincronización en el Dashboard Ejecutivo v2.
+- [x] Validar TypeScript y pruebas; guardar checkpoint.

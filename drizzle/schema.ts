@@ -950,3 +950,22 @@ export const recurringServiceAiAnalyses = mysqlTable("recurring_service_ai_analy
 });
 export type RecurringServiceAiAnalysis = typeof recurringServiceAiAnalyses.$inferSelect;
 export type InsertRecurringServiceAiAnalysis = typeof recurringServiceAiAnalyses.$inferInsert;
+
+/**
+ * Registro de ejecuciones de la sincronización financiera (cron diario o manual).
+ * Cada corrida del endpoint /api/scheduled/syncFinancial deja una fila con el
+ * resultado: estado, cantidad de Deals leídos/insertados/actualizados y el error
+ * si falló. Permite auditar el historial desde la vista de administración.
+ */
+export const financialSyncLogs = mysqlTable("financial_sync_log", {
+  id: int("id").autoincrement().primaryKey(),
+  status: mysqlEnum("status", ["applied", "error"]).notNull(),
+  inputDeals: int("inputDeals").notNull().default(0),
+  insertCount: int("insertCount").notNull().default(0),
+  updateCount: int("updateCount").notNull().default(0),
+  errorMessage: text("errorMessage"),
+  triggeredBy: varchar("triggeredBy", { length: 20 }).notNull().default("cron"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FinancialSyncLog = typeof financialSyncLogs.$inferSelect;
+export type InsertFinancialSyncLog = typeof financialSyncLogs.$inferInsert;
