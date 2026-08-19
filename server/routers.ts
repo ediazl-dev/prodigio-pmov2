@@ -47,6 +47,7 @@ import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
+import { getActiveFinancialData } from "./db";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
 import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
@@ -6109,6 +6110,229 @@ const profileRouter = router({
     return data;
   }),
 });
+// ==================== PORTFOLIO CONSOLE ROUTER ====================
+const portfolioConsoleRouter = router({
+  /** Consola de Gobierno PMO: agrega salud y prioridad por proyecto para la cola de atención */
+  getPortfolioConsole: protectedProcedure.query(async ({ ctx }) => {
+    const cutoffDate = new Date().toISOString().slice(0, 10);
+    const cutoffMs = Date.parse(`${cutoffDate}T00:00:00Z`);
+
+    // 1. Obtener todos los proyectos activos
+    const allProjects = await getAllProjects();
+    const activeProjects = allProjects.filter((p) => p.status === "activo");
+
+    // 2. Obtener datos financieros activos en lote
+    const activeFinancialData = await getActiveFinancialData();
+    const financialByDealId = new Map(activeFinancialData.map((f: any) => [f.dealId, f]));
+
+    // 3. Para cada proyecto activo, construir inputs del motor de gobernanza
+    const projectResults = await Promise.all(
+      activeProjects.map(async (project) => {
+        try {
+          const source = await getExecutiveProjectSource(project.id);
+          if (!source) return null; // Sin baseline ejecutivo, no se puede evaluar
+
+          const milestones = await getExecutiveContractMilestones(project.id, source.id);
+          const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot] = await Promise.all([
+            getExecutiveMilestoneAcceptances(project.id, source.id),
+            getExecutiveMeetingMinutes(project.id, source.id),
+            getExecutiveCommitments(project.id),
+            getExecutiveRequirements(project.id, source.id),
+            getLatestExecutiveRecoveryPlan(project.id, source.id),
+            getExecutiveRecoveryPlans(project.id, source.id),
+            getExecutiveGovernanceAssignments(project.id, source.id),
+            getLatestExecutiveFinancialSnapshot(project.id),
+            getLatestExecutiveProductionDashboardSnapshot(project.id),
+          ]);
+
+          // Obtener datos financieros del Deal
+          const dealFinancial = financialByDealId.get(source.dealId);
+          const latestFinancial: any = persistedFinancialSnapshot?.financialData ?? dealFinancial ?? null;
+
+          // Construir evidencia de hitos (sin Jira en vivo para rendimiento)
+          const acceptanceByMilestone = new Map(acceptances.map((a) => [a.milestoneId, a]));
+          const milestoneEvidence = milestones.map((milestone) => {
+            const acceptance = acceptanceByMilestone.get(milestone.id);
+            const acceptedAt = acceptance?.acceptanceStatus === "accepted" ? acceptance.acceptedAt : null;
+            const acceptanceEvidenceUrl = acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceUrl : null;
+            return {
+              id: milestone.id,
+              code: milestone.milestoneCode,
+              milestoneCode: milestone.milestoneCode,
+              title: milestone.title,
+              baselineDate: milestone.baselineDate,
+              committedDate: milestone.jiraDueDate,
+              jiraIssueKey: milestone.jiraIssueKey,
+              jiraDueDate: milestone.jiraDueDate,
+              jiraClosedDate: milestone.jiraClosedDate,
+              jiraStatusName: milestone.jiraStatusName,
+              semanticStatus: milestone.semanticStatus,
+              isCritical: milestone.isCritical,
+              billingWeight: milestone.billingWeight,
+              acceptedAt,
+              acceptanceEvidenceUrl,
+              acceptanceFileName: acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceFileName : null,
+              acceptanceStatus: acceptance?.acceptanceStatus ?? "unverified",
+              timeline: classifyMilestoneTimeline({
+                jiraDueDate: milestone.jiraDueDate,
+                jiraClosedDate: milestone.jiraClosedDate,
+                acceptanceDate: acceptedAt,
+                acceptanceEvidenceUrl,
+                baselineDate: milestone.baselineDate,
+                today: cutoffDate,
+              }),
+            };
+          });
+
+          // Calcular métricas de gobernanza
+          const overdueP0Requirements = requirements.filter((r) =>
+            r.priority === "P0" && r.requirementStatus !== "closed" && r.requirementStatus !== "waived" && Date.parse(`${r.dueDate}T00:00:00Z`) < cutoffMs
+          ).length;
+          const closedCommitments = commitments.filter((c) => c.commitmentStatus === "fulfilled").length;
+          const commitmentCompliancePct = commitments.length ? (closedCommitments / commitments.length) * 100 : null;
+          const minutesCoverage = calculateExecutiveMinutesCoverage({
+            baselineApprovedAt: source.approvedAt,
+            cutoffDate,
+            minutes: minutes.map((m) => ({ isoWeek: m.isoWeek, reviewStatus: m.reviewStatus })),
+          });
+
+          // Invocar motor de gobernanza
+          const governance = calculateExecutiveGovernance({
+            cutoffDate,
+            milestones: milestoneEvidence,
+            financial: {
+              budgetCostUf: latestFinancial?.presupuestoUF ?? null,
+              executedCostUf: latestFinancial?.utilizadoUF ?? null,
+              saleValueUf: latestFinancial?.valorVentaUF ?? null,
+              targetMarginUf: latestFinancial?.margenBrutoNotaVentaUF ?? null,
+              projectedMarginUf: latestFinancial?.margenProyectadoUF ?? null,
+              annualWacc: latestFinancial?.annualWacc ?? null,
+              blockedHeadcount: latestFinancial?.blockedHeadcount ?? null,
+              dailyRateUf: latestFinancial?.dailyRateUf ?? null,
+              blockedDays: latestFinancial?.blockedDays ?? null,
+              penaltyUf: latestFinancial?.penaltyUf ?? null,
+            },
+            governance: {
+              minutesCoveragePct: minutesCoverage.coveragePct,
+              commitmentCompliancePct,
+              hasValidRecoveryPlan: recoveryPlan ? Boolean(recoveryPlan.approvedAt && recoveryPlan.fileUrl) : null,
+              consecutiveMinutesGap: minutesCoverage.consecutiveGapWeeks,
+              overdueP0Requirements,
+              recoveryPlanRequired: false,
+              recoveryPlanOverdue: false,
+              consecutiveRedVerdicts: 0,
+            },
+            operational: {
+              jiraProgressPct: null,
+              backlogConfidencePct: null,
+            },
+          });
+
+          // Calcular UF en riesgo (retainedUf desde exposure, o calcular desde billingWeight × valorVentaUF / 100)
+          let ufEnRiesgo = governance.exposure.retainedUf;
+          if (ufEnRiesgo == null && latestFinancial?.valorVentaUF != null) {
+            const overdueMilestones = milestoneEvidence.filter((m) => {
+              const effective = m.jiraDueDate ?? m.baselineDate;
+              return effective != null && Date.parse(`${effective}T00:00:00Z`) < cutoffMs && m.acceptedAt == null;
+            });
+            ufEnRiesgo = overdueMilestones.reduce((total, m) => {
+              const weight = Number(m.billingWeight) || 0;
+              return total + (weight * (latestFinancial.valorVentaUF as number)) / 100;
+            }, 0);
+          }
+
+          // Obtener nombre del PM
+          const pmAssignment = assignments.find((a) => a.active && a.governanceRole === "pm");
+          const pmName = pmAssignment?.personName ?? latestFinancial?.pm ?? null;
+
+          // Calcular PA (Prioridad de Atención)
+          const severidadMap: Record<string, number> = {
+            CRITICO: 100,
+            ROJO: 75,
+            NARANJO: 50,
+            AMARILLO: 25,
+            VERDE: 0,
+          };
+          const severidad = severidadMap[governance.governance.state] ?? 0;
+          const deterioro = 0; // Fase A: sin snapshot previo
+          const exposicion = ufEnRiesgo != null && latestFinancial?.valorVentaUF != null && latestFinancial.valorVentaUF > 0
+            ? Math.min(100, (ufEnRiesgo / latestFinancial.valorVentaUF) * 100)
+            : 0;
+          const hitosVencidos = milestoneEvidence.filter((m) => {
+            const effective = m.jiraDueDate ?? m.baselineDate;
+            return effective != null && Date.parse(`${effective}T00:00:00Z`) < cutoffMs && m.acceptedAt == null;
+          }).length;
+          const totalHitosExigibles = milestoneEvidence.filter((m) => {
+            const effective = m.jiraDueDate ?? m.baselineDate;
+            return effective != null && Date.parse(`${effective}T00:00:00Z`) <= cutoffMs;
+          }).length;
+          const mora = totalHitosExigibles > 0 ? (hitosVencidos / totalHitosExigibles) * 100 : 0;
+          const pa = Math.round((severidad * 0.4) + (deterioro * 0.25) + (exposicion * 0.2) + (mora * 0.15));
+
+          // Determinar si requiere atención (estado no VERDE o gatillos activos)
+          const requiereAtencion = governance.governance.state !== "VERDE" || governance.governance.activeTriggers.length > 0;
+
+          return {
+            projectId: project.id,
+            projectName: project.projectName,
+            clientName: project.clientName,
+            dealId: source.dealId,
+            jiraProjectKey: source.jiraProjectKey,
+            estado: governance.governance.state,
+            ige: governance.governance.ige,
+            pa,
+            ufEnRiesgo: ufEnRiesgo != null ? Math.round(ufEnRiesgo * 100) / 100 : null,
+            pmName,
+            gatillos: governance.governance.activeTriggers,
+            hitosVencidos,
+            totalHitos: milestoneEvidence.length,
+            requiereAtencion,
+            deterioro: 0, // Fase A
+          };
+        } catch (error) {
+          console.error(`[PortfolioConsole] Error procesando proyecto ${project.id}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filtrar nulos y ordenar por PA descendente
+    const projects = projectResults.filter((p): p is NonNullable<typeof p> => p != null).sort((a, b) => b.pa - a.pa);
+
+    // Calcular métricas globales del portafolio
+    const estadoCounts = {
+      CRITICO: projects.filter((p) => p.estado === "CRITICO").length,
+      ROJO: projects.filter((p) => p.estado === "ROJO").length,
+      NARANJO: projects.filter((p) => p.estado === "NARANJO").length,
+      AMARILLO: projects.filter((p) => p.estado === "AMARILLO").length,
+      VERDE: projects.filter((p) => p.estado === "VERDE").length,
+    };
+    const totalUfEnRiesgo = projects.reduce((total, p) => total + (p.ufEnRiesgo ?? 0), 0);
+    const totalP0Vencidas = projects.reduce((total, p) => total + (p.gatillos.includes("G-06") ? 1 : 0), 0);
+    const planesRecuperacionVencidos = projects.filter((p) => p.gatillos.includes("G-07")).length;
+    const deteriorados = 0; // Fase A
+    const mejoraron = 0; // Fase A
+    const totalProyectos = projects.length;
+    const requierenAtencion = projects.filter((p) => p.requiereAtencion).length;
+
+    return {
+      projects,
+      triage: {
+        estadoCounts,
+        totalUfEnRiesgo: Math.round(totalUfEnRiesgo * 100) / 100,
+        totalP0Vencidas,
+        planesRecuperacionVencidos,
+        deteriorados,
+        mejoraron,
+        totalProyectos,
+        requierenAtencion,
+      },
+      cutoffDate,
+    };
+  }),
+});
+
+
 // ==================== APP ROUTER ====================
 export const appRouter = router({
   system: systemRouter,
@@ -6132,6 +6356,7 @@ export const appRouter = router({
   audit: auditRouter,
   financial: financialRouter,
   recurringServices: recurringServicesRouter,
+  portfolioConsole: portfolioConsoleRouter,
 });
 
 export type AppRouter = typeof appRouter;

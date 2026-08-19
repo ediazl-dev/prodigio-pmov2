@@ -198,3 +198,27 @@
 - [x] Crear procedure tRPC syncNow (admin) que ejecuta runFinancialSync manualmente.
 - [x] Agregar botón Sincronizar ahora en AdminFinancialSync con estados de carga, resultado y refresco del historial.
 - [x] Validar TypeScript y pruebas; guardar checkpoint.
+
+## Cierre de proyectos finalizados y limpieza de prueba (2026-08-19)
+- [x] Identificar proyectos MaxAgro (Deal 4532), Ruta Pass (Deal 1996) y proyectos de prueba.
+- [x] Crear respaldo previo auditable de los datos afectados.
+- [x] Marcar como cerrados los proyectos MaxAgro y Ruta Pass.
+- [x] Eliminar proyectos de prueba en cascada con verificación.
+- [x] Verificar resultado final y reportar.
+
+## Cierre de pipeline de etapas — MaxAgro y Ruta Pass
+- [x] Analizar modelo de etapas (project_stages, stage_closures, currentStage) y lógica de cierre
+- [x] Diagnosticar estado real de las etapas de MaxAgro (210001) y Ruta Pass (300001)
+- [x] Presentar plan de cierre de pipeline al usuario
+
+## Ejecución del cierre de pipeline — MaxAgro y Ruta Pass
+- [x] Crear respaldo previo de las filas de project_stages afectadas
+- [x] Ejecutar cierre del pipeline en transacción (design + closure + currentStage + auditoría)
+- [x] Verificar resultado final en BD y reportar
+
+## Consola de Gobierno PMO — Fase A (nueva página de inicio /consola)
+- [ ] Releer HTML de referencia y extraer especificación visual de Zonas 0-2
+- [ ] Crear procedure tRPC portfolioConsole (agrega salud y prioridad por proyecto activo)
+- [ ] Construir página /consola con Zona 0 (barra de corte), Zona 1 (KPIs), Zona 2 (cola priorizada)
+- [x] Registrar ruta /consola y entrada de navegación visible para todos los roles
+- [x] Validar TypeScript, pruebas y publicar checkpoint

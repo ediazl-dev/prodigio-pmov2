@@ -68,6 +68,7 @@ const ROLE_LABELS: Record<string, { label: string; cls: string }> = {
 
 /* ── Menu structure ── */
 const mainMenuItems = [
+  { icon: LayoutDashboard, label: "Consola", path: "/consola" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "PMO Proyectos", path: "/projects" },
   { icon: RefreshCw, label: "Servicios Recurrentes", path: "/recurring-services" },

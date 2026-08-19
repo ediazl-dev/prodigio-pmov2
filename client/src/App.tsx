@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
+import ConsolaGobierno from "./pages/ConsolaGobierno";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import SowStage from "./pages/stages/SowStage";
@@ -63,7 +64,8 @@ function Router() {
       <Route>
         <DashboardLayout>
           <Switch>
-            <Route path="/" component={Home} />
+            <Route path="/consola" component={ConsolaGobierno} />
+        <Route path="/" component={Home} />
             <Route path="/projects" component={Projects} />
             <Route path="/projects/:id" component={ProjectDetail} />
             <Route path="/projects/:id/sow" component={SowStage} />
