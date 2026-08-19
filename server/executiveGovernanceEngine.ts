@@ -162,14 +162,18 @@ export function classifyMilestoneTimeline(input: {
   jiraClosedDate?: string | null;
   acceptanceDate?: string | null;
   acceptanceEvidenceUrl?: string | null;
+  baselineDate?: string | null;
   today: string;
   acceptanceToleranceDays?: number;
+  riskWindowDays?: number;
 }): MilestoneTimelineClassification {
   const due = dayStamp(input.jiraDueDate);
   const closed = dayStamp(input.jiraClosedDate);
   const acceptance = dayStamp(input.acceptanceDate);
+  const baseline = dayStamp(input.baselineDate);
   const today = dayStamp(input.today);
   const tolerance = input.acceptanceToleranceDays ?? 5;
+  const riskWindow = input.riskWindowDays ?? 7;
   const hasValidAcceptance = acceptance != null && Boolean(input.acceptanceEvidenceUrl?.trim());
   const acceptanceWindowDays = hasValidAcceptance && closed != null ? Math.floor((acceptance - closed) / DAY_MS) : null;
   const acceptanceWithinTolerance = acceptanceWindowDays == null ? null : acceptanceWindowDays >= 0 && acceptanceWindowDays <= tolerance;
@@ -189,8 +193,21 @@ export function classifyMilestoneTimeline(input: {
     };
   }
 
+  // Sin cierre Jira ni acta: la fecha comprometida ya venció -> VENCIDO_SIN_ACTA.
+  if (today != null && due < today) {
+    return {
+      status: "VENCIDO_SIN_ACTA",
+      varianceDays: null,
+      acceptanceWindowDays: null,
+      acceptanceWithinTolerance: null,
+    };
+  }
+  // Fecha futura: EN_RIESGO si está próxima a vencer (<= riskWindow) o si Jira replanificó más allá del baseline.
+  const daysUntilDue = today != null ? Math.floor((due - today) / DAY_MS) : null;
+  const nearDue = daysUntilDue != null && daysUntilDue <= riskWindow;
+  const positiveDrift = baseline != null && due > baseline;
   return {
-    status: today != null && due < today ? "EN_RIESGO" : "COMPROMETIDO",
+    status: nearDue || positiveDrift ? "EN_RIESGO" : "COMPROMETIDO",
     varianceDays: null,
     acceptanceWindowDays: null,
     acceptanceWithinTolerance: null,

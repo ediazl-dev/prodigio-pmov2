@@ -3900,7 +3900,7 @@ Responde SOLO con JSON:
           acceptanceEvidenceUrl,
           acceptanceFileName: acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceFileName : null,
           acceptanceStatus: acceptance?.acceptanceStatus ?? "unverified",
-          timeline: classifyMilestoneTimeline({ jiraDueDate, jiraClosedDate, acceptanceDate: acceptedAt, acceptanceEvidenceUrl, today: cutoffDate }),
+          timeline: classifyMilestoneTimeline({ jiraDueDate, jiraClosedDate, acceptanceDate: acceptedAt, acceptanceEvidenceUrl, baselineDate: milestone.baselineDate, today: cutoffDate }),
         };
       });
       const governance = calculateExecutiveGovernance({

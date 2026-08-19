@@ -33,8 +33,14 @@ describe("Executive Governance Engine — cardinalidad contractual", () => {
   });
 
   it("clasifica la línea de tiempo con Jira como compromiso contractual y sólo acredita aceptación con acta", () => {
-    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-20", today: "2026-08-18" })).toMatchObject({ status: "COMPROMETIDO", varianceDays: null });
-    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", today: "2026-08-18" })).toMatchObject({ status: "EN_RIESGO", varianceDays: null });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-12-20", today: "2026-08-18" })).toMatchObject({ status: "COMPROMETIDO", varianceDays: null });
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", today: "2026-08-18" })).toMatchObject({ status: "VENCIDO_SIN_ACTA", varianceDays: null });
+    // EN_RIESGO: fecha futura próxima a vencer (<=7 días) sin cierre
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-22", today: "2026-08-18" })).toMatchObject({ status: "EN_RIESGO" });
+    // EN_RIESGO: fecha futura pero con deriva positiva vs. baseline (Jira replanificó más allá)
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-10-02", baselineDate: "2026-04-10", today: "2026-08-18" })).toMatchObject({ status: "EN_RIESGO" });
+    // COMPROMETIDO: fecha futura lejana sin deriva
+    expect(classifyMilestoneTimeline({ jiraDueDate: "2026-09-11", baselineDate: "2026-09-11", today: "2026-08-18" })).toMatchObject({ status: "COMPROMETIDO" });
     expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-13", today: "2026-08-18" })).toMatchObject({ status: "PENDIENTE_ACTA", acceptanceWindowDays: 5 });
     expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-12", today: "2026-08-18" })).toMatchObject({ status: "VENCIDO_SIN_ACTA", acceptanceWindowDays: 6 });
     expect(classifyMilestoneTimeline({ jiraDueDate: "2026-08-10", jiraClosedDate: "2026-08-12", acceptanceDate: "2026-08-17", acceptanceEvidenceUrl: "s3://acta.pdf", today: "2026-08-18" })).toMatchObject({ status: "ACEPTADO", varianceDays: 7, acceptanceWindowDays: 5 });

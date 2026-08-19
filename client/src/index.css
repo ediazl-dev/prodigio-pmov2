@@ -455,3 +455,26 @@
 @media (prefers-reduced-motion: no-preference) {
   .edv2-root .edv2-gantt-marker { transition: opacity .18s cubic-bezier(0.23, 1, 0.32, 1); }
 }
+
+/* === Gantt contractual: tooltips ricos, etiquetas de fecha y marcador de riesgo === */
+.edv2-gantt-timeline{position:relative;cursor:pointer}
+.edv2-gantt-timeline:focus-visible{outline:2px solid var(--teal,#00B3A4);outline-offset:2px;border-radius:4px}
+.edv2-gantt-date-tag{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.02em;white-space:nowrap;pointer-events:none}
+.edv2-gantt-date-tag.base{color:var(--t60,#5B6470)}
+.edv2-gantt-date-tag.prog{color:var(--g,#0D1117);font-weight:700;top:auto;bottom:-16px}
+.edv2-gantt-deriva-tag{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;white-space:nowrap;pointer-events:none}
+.edv2-gantt-deriva-bar.positiva .edv2-gantt-deriva-tag{color:#A8272B}
+.edv2-gantt-deriva-bar.negativa .edv2-gantt-deriva-tag{color:#007A70}
+.edv2-gantt-marker.riesgo{background:#E8A13A;box-shadow:0 0 0 1px #E8A13A}
+.edv2-gantt-dot.riesgo{background:#E8A13A}
+.edv2-gantt-tooltip{position:absolute;z-index:30;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);min-width:230px;background:var(--g,#0D1117);color:#F2F4F7;border-radius:8px;padding:11px 13px;box-shadow:0 8px 24px rgba(13,17,23,.28);pointer-events:none;font-size:11px;line-height:1.45}
+.edv2-gantt-tooltip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--g,#0D1117)}
+.edv2-gantt-tooltip-head{display:flex;gap:8px;align-items:baseline;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid rgba(242,244,247,.16)}
+.edv2-gantt-tooltip-head b{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--teal,#00B3A4)}
+.edv2-gantt-tooltip-head span{font-size:11px;font-weight:600}
+.edv2-gantt-tooltip-grid{display:grid;grid-template-columns:auto 1fr;gap:3px 12px}
+.edv2-gantt-tooltip-grid span{color:#9AA5B4;font-size:10px}
+.edv2-gantt-tooltip-grid b{font-family:"JetBrains Mono",monospace;font-size:10.5px;text-align:right;font-weight:600}
+.edv2-gantt-tooltip-grid b.neg{color:#F4878E}
+.edv2-gantt-tooltip-grid b.pos{color:#4FD8C9}
+@media(max-width:640px){.edv2-gantt-tooltip{min-width:190px;left:0;transform:none}.edv2-gantt-tooltip::after{left:24px}}

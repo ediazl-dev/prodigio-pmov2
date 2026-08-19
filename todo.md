@@ -142,3 +142,13 @@
 - [x] Corregir pérdida de textos en el Gantt (nombres de hitos y etiquetas de barras legibles, sin ellipsis cortante).
 - [x] Actualizar pruebas de aceptación y del motor cardinal para la doble fecha y línea de corte dinámica.
 - [x] Validar TypeScript, pruebas focales y publicar checkpoint con la línea base contractual.
+
+## Mejora Gantt contractual — tooltips, estados y acta por hito (2026-08-19)
+- [x] Analizar captura FireShot del dashboard en producción e identificar problemas del Gantt.
+- [x] Confirmar con el usuario la regla de clasificación: VENCIDO (fecha pasada sin acta) vs. EN_RIESGO (futuro probable incumplimiento). Opción C: próximo a vencer O con deriva positiva.
+- [x] Corregir `classifyMilestoneTimeline` en el motor cardinal: fecha Jira vencida sin acta → VENCIDO, no EN_RIESGO. EN_RIESGO = próximo a vencer (<=7d) O deriva positiva vs. baseline.
+- [x] Implementar tooltips ricos por hito en el Gantt (fechas exactas, deriva en días, estado, peso, acta) con componente accesible. Tooltip grafito con grid de 6 campos, accesible por teclado (tabIndex, focus/blur, aria-label).
+- [x] Añadir etiquetas de fecha visibles: "Base contractual" (rombo) y "Programada" (marcador Jira) en el Gantt. Etiquetas dd-mmm sobre el rombo y bajo el marcador, más tag de deriva en días sobre la franja.
+- [x] Implementar carga de acta de aceptación por hito individual: botón "Registrar acta" en cada fila sin acta que preselecciona y bloquea el hito en el formulario (con opción "cambiar"), eliminando el riesgo de asociar el acta al hito equivocado.
+- [x] Actualizar pruebas del motor cardinal y de aceptación para la nueva clasificación y carga por hito. Motor: 12/12; suite focal: 42/42 en 6 archivos.
+- [x] Validar TypeScript, pruebas focales y publicar checkpoint. TypeScript limpio; 42/42 pruebas focales aprobadas.
