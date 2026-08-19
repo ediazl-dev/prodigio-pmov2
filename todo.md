@@ -174,12 +174,12 @@
 
 ## Ejecución de los 3 puntos aprobados (2026-08-19)
 - [x] Verificar dashboard financiero de Tanner con datos sincronizados (KPIs actualizados).
-- [ ] Leer skills de automatización y programar sincronización financiera recurrente.
-- [ ] Limpiar directorio temporal tmp_sync y cerrar todo.md.
+- [x] Leer skills de automatización y programar sincronización financiera recurrente (Heartbeat diario 03:00 UTC).
+- [x] Limpiar directorio temporal tmp_sync (XLSX respaldado en webdev-static-assets) y cerrar todo.md.
 
 ## Automatización de la sincronización financiera (Opción B — Heartbeat en el servidor)
 - [x] Aplicar parche legacy del SDK (manusTypes.ts taskUid + sdk.ts cron short-circuit).
 - [x] Crear módulo server/financialSync.ts (descarga Drive API + parseo XLSX + UPSERT por Deal ID).
 - [x] Montar handler POST /api/scheduled/syncFinancial en server/_core/index.ts y validar TypeScript.
 - [x] Inyectar secret GOOGLE_DRIVE_TOKEN a producción (usa token del conector Google Workspace) y guardar checkpoint (deploy).
-- [ ] Crear cron diario 03:00 UTC con manus-heartbeat y verificar primera ejecución.
+- [x] Crear cron diario 03:00 UTC con manus-heartbeat (task_uid koZvKFb8FE7TZ6hy8GAnvM; primera ejecución programada mañana 03:00 UTC).
