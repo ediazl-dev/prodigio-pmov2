@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, CheckCircle2, XCircle, Clock, Database } from "lucide-react";
@@ -35,7 +36,22 @@ function originLabel(triggeredBy: string | null | undefined): string {
 }
 
 export default function AdminFinancialSync() {
+  const utils = trpc.useUtils();
   const { data: logs, isLoading } = trpc.financial.syncLogs.useQuery({ limit: 100 });
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const syncNow = trpc.financial.syncNow.useMutation({
+    onSuccess: (outcome) => {
+      setFeedback({
+        kind: "success",
+        text: `Sincronización aplicada: ${outcome.inputDeals} Deals leídos, ${outcome.insert} insertados, ${outcome.update} actualizados.`,
+      });
+      utils.financial.syncLogs.invalidate();
+    },
+    onError: (error) => {
+      setFeedback({ kind: "error", text: `La sincronización falló: ${error.message}` });
+      utils.financial.syncLogs.invalidate();
+    },
+  });
 
   const total = logs?.length ?? 0;
   const successCount = logs?.filter((l: any) => l.status === "applied").length ?? 0;
@@ -58,6 +74,22 @@ export default function AdminFinancialSync() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 10, fontWeight: 700, padding: "4px 12px", borderRadius: 10, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.6)", border: "1px solid rgba(255,255,255,.15)" }}>{total} registros</span>
+            <button
+              type="button"
+              onClick={() => { setFeedback(null); syncNow.mutate(); }}
+              disabled={syncNow.isPending}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                fontSize: 12, fontWeight: 700, padding: "9px 18px", borderRadius: 10,
+                background: syncNow.isPending ? "rgba(233,30,140,.4)" : C.accent,
+                color: "#fff", border: "none", cursor: syncNow.isPending ? "not-allowed" : "pointer",
+                transition: "transform .15s ease-out, opacity .15s",
+                opacity: syncNow.isPending ? 0.7 : 1,
+              }}
+            >
+              <RefreshCw className={`h-4 w-4 ${syncNow.isPending ? "animate-spin" : ""}`} />
+              {syncNow.isPending ? "Sincronizando..." : "Sincronizar ahora"}
+            </button>
           </div>
         </div>
         {/* KPI cards */}
@@ -78,6 +110,21 @@ export default function AdminFinancialSync() {
             <div style={{ fontSize: 18, fontWeight: 800, color: errorCount > 0 ? "#F87171" : "rgba(255,255,255,.4)", marginTop: 2 }}>{errorCount}</div>
           </div>
         </div>
+        {feedback && (
+          <div
+            role="status"
+            style={{
+              marginTop: 16, padding: "10px 16px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 8,
+              background: feedback.kind === "success" ? "rgba(74,222,128,.12)" : "rgba(248,113,113,.12)",
+              border: `1px solid ${feedback.kind === "success" ? "rgba(74,222,128,.4)" : "rgba(248,113,113,.4)"}`,
+              color: feedback.kind === "success" ? "#4ADE80" : "#F87171",
+            }}
+          >
+            {feedback.kind === "success" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+            {feedback.text}
+          </div>
+        )}
       </div>
 
       {/* ── BODY ── */}

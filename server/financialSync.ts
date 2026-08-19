@@ -225,7 +225,7 @@ async function logSyncExecution(entry: {
  * en el historial auditable. El error se re-lanza tras registrarlo para que el
  * endpoint responda 500 y el cron lo marque como fallido.
  */
-export async function runFinancialSync(): Promise<FinancialSyncOutcome> {
+export async function runFinancialSync(triggeredBy: "cron" | "manual" = "cron"): Promise<FinancialSyncOutcome> {
   try {
     const outcome = await runFinancialSyncInternal();
     await logSyncExecution({
@@ -233,12 +233,12 @@ export async function runFinancialSync(): Promise<FinancialSyncOutcome> {
       inputDeals: outcome.inputDeals,
       insertCount: outcome.insert,
       updateCount: outcome.update,
-      triggeredBy: "cron",
+      triggeredBy,
     });
     return outcome;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await logSyncExecution({ status: "error", errorMessage: message, triggeredBy: "cron" });
+    await logSyncExecution({ status: "error", errorMessage: message, triggeredBy });
     throw error;
   }
 }

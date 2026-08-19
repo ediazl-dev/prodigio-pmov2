@@ -193,3 +193,8 @@
 - [x] Registrar la ruta admin en App.tsx y entrada en el menú de administración.
 - [x] Mostrar fecha/hora de la última sincronización en el Dashboard Ejecutivo v2.
 - [x] Validar TypeScript y pruebas; guardar checkpoint.
+
+## Botón Sincronizar ahora en historial de sincronizaciones
+- [x] Crear procedure tRPC syncNow (admin) que ejecuta runFinancialSync manualmente.
+- [x] Agregar botón Sincronizar ahora en AdminFinancialSync con estados de carga, resultado y refresco del historial.
+- [x] Validar TypeScript y pruebas; guardar checkpoint.

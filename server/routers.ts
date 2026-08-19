@@ -6093,6 +6093,11 @@ const financialRouter = router({
     const row = await getLatestFinancialSync();
     return row ?? null;
   }),
+  /** Ejecuta la sincronización financiera manualmente bajo demanda (sólo admin) */
+  syncNow: adminOnly.mutation(async () => {
+    const { runFinancialSync } = await import("./financialSync");
+    return runFinancialSync("manual");
+  }),
 });
 
 // ==================== PROFILE ROUTER ====================
