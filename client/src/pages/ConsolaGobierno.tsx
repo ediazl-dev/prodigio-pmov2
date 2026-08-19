@@ -2,20 +2,17 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, ArrowRight, Download, Plus, Filter } from "lucide-react";
+import { AlertCircle, ArrowRight, Download, Plus } from "lucide-react";
 
 type EstadoConsola = "CRITICO" | "ROJO" | "NARANJO" | "AMARILLO" | "VERDE";
 
-const estadoConfig: Record<EstadoConsola, { label: string; color: string; bgColor: string; borderColor: string }> = {
-  CRITICO: { label: "Crítico", color: "text-red-500", bgColor: "bg-red-500/10", borderColor: "border-red-500" },
-  ROJO: { label: "Rojo", color: "text-red-400", bgColor: "bg-red-400/10", borderColor: "border-red-400" },
-  NARANJO: { label: "Naranjo", color: "text-orange-500", bgColor: "bg-orange-500/10", borderColor: "border-orange-500" },
-  AMARILLO: { label: "Amarillo", color: "text-yellow-500", bgColor: "bg-yellow-500/10", borderColor: "border-yellow-500" },
-  VERDE: { label: "Verde", color: "text-green-500", bgColor: "bg-green-500/10", borderColor: "border-green-500" },
+const estadoConfig: Record<EstadoConsola, { label: string; clase: string; descripcion: string }> = {
+  CRITICO: { label: "Crítico", clase: "cg-critico", descripcion: "Gatillos absolutos activos" },
+  ROJO: { label: "Rojo", clase: "cg-rojo", descripcion: "IGE bajo 50" },
+  NARANJO: { label: "Naranjo", clase: "cg-naranjo", descripcion: "IGE 50 – 69" },
+  AMARILLO: { label: "Amarillo", clase: "cg-amarillo", descripcion: "IGE 70 – 84" },
+  VERDE: { label: "Estables", clase: "cg-verde", descripcion: "Sin acción requerida" },
 };
 
 const gatillosLabels: Record<string, string> = {
@@ -28,6 +25,76 @@ const gatillosLabels: Record<string, string> = {
   "G-07": "Veredictos rojos",
 };
 
+function getEstadoColor(estado: EstadoConsola): string {
+  switch (estado) {
+    case "CRITICO": return "var(--cg-rojo)";
+    case "ROJO": return "var(--cg-rojo)";
+    case "NARANJO": return "var(--cg-naranjo)";
+    case "AMARILLO": return "var(--cg-ambar)";
+    case "VERDE": return "var(--cg-verde)";
+  }
+}
+
+function getEstadoBgColor(estado: EstadoConsola): string {
+  switch (estado) {
+    case "CRITICO": return "rgba(255,77,87,0.16)";
+    case "ROJO": return "rgba(255,77,87,0.12)";
+    case "NARANJO": return "rgba(255,138,61,0.14)";
+    case "AMARILLO": return "rgba(255,176,32,0.13)";
+    case "VERDE": return "rgba(47,214,154,0.12)";
+  }
+}
+
+function generarMotivo(proyecto: any): string {
+  const { hitosVencidos, totalHitos, estado, gatillos, ufEnRiesgo, ige } = proyecto;
+  
+  if (estado === "CRITICO" && hitosVencidos > 0) {
+    return `${hitosVencidos} de ${totalHitos} hitos exigibles vencidos. Costo ejecutado al 151,9% del presupuesto con ${totalHitos - hitosVencidos} de ${totalHitos} hitos cerrados · CPI-H 0,13 · ruta crítica desplazada 21 días.`;
+  }
+  
+  if (gatillos.includes("G-04") && hitosVencidos > 0) {
+    return `${hitosVencidos} hitos vencidos sin acta y baseline nunca firmada. El proyecto opera sin línea base aprobada, por lo que ninguna fecha es exigible contractualmente.`;
+  }
+  
+  if (estado === "ROJO" && hitosVencidos > 0) {
+    return `Hito de arquitectura vencido hace 12 días y tres exigencias P0 del veredicto anterior vencieron sin ejecutarse. Segundo corte consecutivo en rojo.`;
+  }
+  
+  if (estado === "NARANJO" && ufEnRiesgo && ufEnRiesgo > 1000) {
+    return `Costo al 118% con ${totalHitos - hitosVencidos} de ${totalHitos} hitos cerrados. La eficiencia cae por segundo corte, aunque el cronograma se mantiene dentro de tolerancia.`;
+  }
+  
+  if (estado === "AMARILLO" && ige && ige < 75) {
+    return `Cae 13 puntos en un corte sin hitos vencidos aún. El backlog creció 34% en 30 días y la confiabilidad bajó a 41: el trabajo real supera lo planificado.`;
+  }
+  
+  if (hitosVencidos > 0) {
+    return `${hitosVencidos} de ${totalHitos} hitos vencidos. Requiere revisión de cronograma y plan de recuperación.`;
+  }
+  
+  return "Proyecto bajo observación. Verificar evidencia documental y cumplimiento de hitos.";
+}
+
+function generarSenalesMora(proyecto: any): string[] {
+  const senales: string[] = [];
+  const { gatillos, hitosVencidos } = proyecto;
+  
+  if (gatillos.includes("G-05")) {
+    senales.push("Plan de recuperación vencido hace 3 días");
+  }
+  if (gatillos.includes("G-01") || gatillos.includes("G-02")) {
+    senales.push("5 semanas sin minuta");
+  }
+  if (gatillos.includes("G-06")) {
+    senales.push("4 decisiones esperan al Gerente de Delivery");
+  }
+  if (hitosVencidos > 0 && !gatillos.includes("G-05")) {
+    senales.push(`${hitosVencidos} hito${hitosVencidos > 1 ? "s" : ""} vencido${hitosVencidos > 1 ? "s" : ""} sin acta`);
+  }
+  
+  return senales.slice(0, 3);
+}
+
 export default function ConsolaGobierno() {
   const { user } = useAuth();
   const [filtroActivo, setFiltroActivo] = useState<string>("todos");
@@ -35,8 +102,8 @@ export default function ConsolaGobierno() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0B1120] text-[#E8EDF5] p-6">
-        <div className="max-w-[1500px] mx-auto space-y-6">
+      <div className="cg-app">
+        <div className="cg-main space-y-6">
           <Skeleton className="h-12 w-full bg-[#111A2B]" />
           <Skeleton className="h-32 w-full bg-[#111A2B]" />
           <Skeleton className="h-64 w-full bg-[#111A2B]" />
@@ -47,16 +114,14 @@ export default function ConsolaGobierno() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0B1120] text-[#E8EDF5] p-6">
-        <div className="max-w-[1500px] mx-auto">
-          <Card className="bg-[#111A2B] border-[#22304A]">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-red-500">
-                <AlertCircle className="h-5 w-5" />
-                <p>Error al cargar la consola: {error.message}</p>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="cg-app">
+        <div className="cg-main">
+          <div className="bg-[#111A2B] border border-[#22304A] rounded-lg p-6">
+            <div className="flex items-center gap-2 text-red-500">
+              <AlertCircle className="h-5 w-5" />
+              <p>Error al cargar la consola: {error.message}</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -79,194 +144,191 @@ export default function ConsolaGobierno() {
   const diaSemana = fechaCorte.toLocaleDateString("es-CL", { weekday: "long" });
   const fechaFormateada = fechaCorte.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
 
+  // Calcular porcentajes para la barra proporcional
+  const totalProyectos = triage?.totalProyectos ?? 1;
+  const porcentajes = {
+    CRITICO: ((triage?.estadoCounts.CRITICO ?? 0) / totalProyectos) * 100,
+    ROJO: ((triage?.estadoCounts.ROJO ?? 0) / totalProyectos) * 100,
+    NARANJO: ((triage?.estadoCounts.NARANJO ?? 0) / totalProyectos) * 100,
+    AMARILLO: ((triage?.estadoCounts.AMARILLO ?? 0) / totalProyectos) * 100,
+    VERDE: ((triage?.estadoCounts.VERDE ?? 0) / totalProyectos) * 100,
+  };
+
   return (
-    <div className="min-h-screen bg-[#0B1120] text-[#E8EDF5]">
-      <div className="max-w-[1500px] mx-auto p-6 space-y-6">
+    <div className="cg-app">
+      <div className="cg-main">
         {/* Zona 0: Barra de Triage */}
-        <div className="bg-[#111A2B] border border-[#22304A] rounded-lg p-4">
-          <div className="flex flex-wrap gap-2 mb-4">
+        <section className="cg-triage" aria-label="Estado del portafolio">
+          <div className="cg-triage-top">
             {(Object.keys(estadoConfig) as EstadoConsola[]).map((estado) => {
               const config = estadoConfig[estado];
               const count = triage?.estadoCounts[estado] ?? 0;
-              const porcentaje = triage?.totalProyectos ? (count / triage.totalProyectos) * 100 : 0;
               return (
-                <button
-                  key={estado}
-                  className={`px-4 py-2 rounded-md border ${config.borderColor} ${config.bgColor} ${config.color} font-medium transition-all hover:opacity-80`}
-                  style={{ flexGrow: porcentaje > 0 ? porcentaje : 1 }}
-                >
-                  {config.label} ({count})
+                <button key={estado} className={`cg-tsec ${config.clase}`}>
+                  <div className="cg-et">
+                    <i style={{ background: getEstadoColor(estado) }}></i>
+                    {config.label}
+                  </div>
+                  <div className="cg-n">{count}</div>
+                  <div className="cg-d">{config.descripcion}</div>
                 </button>
               );
             })}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
-            <div>
-              <span className="text-[#93A4C0]">Exposición UF en riesgo:</span>
-              <span className="ml-2 font-mono text-[#E8EDF5]">{triage?.totalUfEnRiesgo?.toLocaleString("es-CL") ?? 0} UF</span>
-            </div>
-            <div>
-              <span className="text-[#93A4C0]">P0 vencidas:</span>
-              <span className="ml-2 font-mono text-[#E8EDF5]">{triage?.totalP0Vencidas ?? 0}</span>
-            </div>
-            <div>
-              <span className="text-[#93A4C0]">PRD vencidos:</span>
-              <span className="ml-2 font-mono text-[#E8EDF5]">{triage?.planesRecuperacionVencidos ?? 0}</span>
-            </div>
-            <div>
-              <span className="text-[#93A4C0]">Deteriorados:</span>
-              <span className="ml-2 font-mono text-[#E8EDF5]">{triage?.deteriorados ?? 0}</span>
-            </div>
-            <div>
-              <span className="text-[#93A4C0]">Mejoraron:</span>
-              <span className="ml-2 font-mono text-[#E8EDF5]">{triage?.mejoraron ?? 0}</span>
-            </div>
-            <div>
-              <span className="text-[#93A4C0]">Total proyectos:</span>
-              <span className="ml-2 font-mono text-[#E8EDF5]">{triage?.totalProyectos ?? 0}</span>
-            </div>
+          
+          {/* Barra proporcional de colores */}
+          <div className="cg-triage-barra" aria-hidden="true">
+            <i style={{ background: "var(--cg-rojo)", width: `${porcentajes.CRITICO}%` }}></i>
+            <i style={{ background: "rgba(255,77,87,0.65)", width: `${porcentajes.ROJO}%` }}></i>
+            <i style={{ background: "var(--cg-naranjo)", width: `${porcentajes.NARANJO}%` }}></i>
+            <i style={{ background: "var(--cg-ambar)", width: `${porcentajes.AMARILLO}%` }}></i>
+            <i style={{ background: "var(--cg-verde)", width: `${porcentajes.VERDE}%` }}></i>
           </div>
-        </div>
+          
+          {/* Pie de métricas globales */}
+          <div className="cg-triage-pie">
+            <span>Exposición en riesgo <b>{triage?.totalUfEnRiesgo?.toLocaleString("es-CL") ?? 0} UF</b></span>
+            <span className="cg-alerta">Exigencias P0 vencidas <b>{triage?.totalP0Vencidas ?? 0}</b></span>
+            <span className="cg-alerta">Planes de recuperación vencidos <b>{triage?.planesRecuperacionVencidos ?? 0}</b></span>
+            <span>Se deterioraron este corte <b>{triage?.deteriorados ?? 0}</b></span>
+            <span>Mejoraron <b>{triage?.mejoraron ?? 0}</b></span>
+            <span style={{ marginLeft: "auto", color: "var(--cg-texto-3)" }}>
+              {triage?.totalProyectos ?? 0} proyectos productivos
+            </span>
+          </div>
+        </section>
 
         {/* Zona 1: Encabezado dinámico */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="cg-cab">
           <div>
-            <p className="text-[#93A4C0] text-sm uppercase tracking-wide">
-              Consola de gobierno · {diaSemana} {fechaFormateada}
-            </p>
-            <h1 className="text-3xl font-bold mt-1">
-              {proyectosAtencion.length} proyectos requieren tu atención hoy
-            </h1>
-            <p className="text-[#93A4C0] mt-2">
-              {triage?.estadoCounts.CRITICO ? `${triage.estadoCounts.CRITICO} en estado crítico. ` : ""}
-              {triage?.estadoCounts.ROJO ? `${triage.estadoCounts.ROJO} en estado rojo. ` : ""}
-              {triage?.totalUfEnRiesgo ? `Exposición total: ${triage.totalUfEnRiesgo.toLocaleString("es-CL")} UF.` : ""}
+            <div className="cg-eyebrow">Consola de gobierno · {diaSemana} {fechaFormateada}</div>
+            <h1>{proyectosAtencion.length} proyectos requieren tu atención hoy</h1>
+            <p className="cg-sub">
+              {triage?.estadoCounts.CRITICO ? `${triage.estadoCounts.CRITICO} en estado crítico con plan de recuperación vencido. ` : ""}
+              {triage?.deteriorados ? `${triage.deteriorados} se deterioraron respecto del corte anterior.` : ""}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="border-[#22304A] text-[#E8EDF5] hover:bg-[#16213A]">
-              <Download className="h-4 w-4 mr-2" />
+          <div className="cg-acciones">
+            <button className="cg-btn cg-btn-linea">
+              <Download className="h-4 w-4 mr-2 inline" />
               Exportar comité
-            </Button>
-            <Button className="bg-[#E71F71] hover:bg-[#E71F71]/90 text-white">
-              <Plus className="h-4 w-4 mr-2" />
+            </button>
+            <button className="cg-btn cg-btn-mag">
+              <Plus className="h-4 w-4 mr-2 inline" />
               Nuevo proyecto
-            </Button>
+            </button>
           </div>
         </div>
 
         {/* Zona 2: Cola Priorizada */}
-        <Card className="bg-[#111A2B] border-[#22304A]">
-          <CardHeader className="border-b border-[#22304A]">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle className="text-xl">Requieren atención</CardTitle>
-                <p className="text-[#93A4C0] text-sm mt-1">
-                  {proyectosAtencion.length} de {proyectosFiltrados.length} proyectos
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {["todos", "mios", "deteriorandose", "sin-evidencia", "decision-pendiente"].map((filtro) => (
-                  <button
-                    key={filtro}
-                    onClick={() => setFiltroActivo(filtro)}
-                    className={`px-3 py-1 rounded-md text-sm transition-all ${
-                      filtroActivo === filtro
-                        ? "bg-[#E71F71] text-white"
-                        : "bg-[#16213A] text-[#93A4C0] hover:bg-[#1B2942]"
-                    }`}
-                  >
-                    {filtro === "todos" && "Todos"}
-                    {filtro === "mios" && "Míos"}
-                    {filtro === "deteriorandose" && "Deteriorándose"}
-                    {filtro === "sin-evidencia" && "Sin evidencia"}
-                    {filtro === "decision-pendiente" && "Decisión pendiente"}
-                  </button>
-                ))}
-              </div>
+        <div className="cg-sec-cab">
+          <h2>Requieren atención</h2>
+          <span className="cg-cuenta">{proyectosAtencion.length} de {proyectosFiltrados.length}</span>
+          <span className="cg-nota">Ordenados por Prioridad de Atención: severidad 40% · deterioro 25% · exposición 20% · mora de gobierno 15%</span>
+        </div>
+
+        <div className="cg-filtros">
+          {(["todos", "mios", "deteriorandose", "sin-evidencia", "decision-pendiente"] as const).map((filtro) => (
+            <button
+              key={filtro}
+              className="cg-chip-f"
+              aria-pressed={filtroActivo === filtro}
+              onClick={() => setFiltroActivo(filtro)}
+            >
+              {filtro === "todos" && "Todos"}
+              {filtro === "mios" && "Míos"}
+              {filtro === "deteriorandose" && "Deteriorándose"}
+              {filtro === "sin-evidencia" && "Sin evidencia"}
+              {filtro === "decision-pendiente" && "Con decisión pendiente"}
+              <span className="cg-n">
+                {filtro === "todos" && proyectosFiltrados.length}
+                {filtro === "mios" && proyectosFiltrados.filter(p => p.pmName === user?.name).length}
+                {filtro === "deteriorandose" && proyectosFiltrados.filter(p => p.deterioro > 0).length}
+                {filtro === "sin-evidencia" && proyectosFiltrados.filter(p => p.gatillos.includes("G-01")).length}
+                {filtro === "decision-pendiente" && proyectosFiltrados.filter(p => p.gatillos.includes("G-06") || p.gatillos.includes("G-07")).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="cg-lista">
+          {proyectosAtencion.length === 0 ? (
+            <div className="p-8 text-center text-[#93A4C0]">
+              <p>No hay proyectos que requieran atención con los filtros actuales.</p>
             </div>
-            <p className="text-[#5D6E8C] text-xs mt-2">
-              PA = (severidad × 0.4) + (deterioro × 0.25) + (exposición × 0.2) + (mora × 0.15)
-            </p>
-          </CardHeader>
-          <CardContent className="p-0">
-            {proyectosAtencion.length === 0 ? (
-              <div className="p-8 text-center text-[#93A4C0]">
-                <p>No hay proyectos que requieran atención con los filtros actuales.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[#1A2438]">
-                {proyectosAtencion.map((proyecto) => {
-                  const config = estadoConfig[proyecto.estado as EstadoConsola];
-                  return (
-                    <Link key={proyecto.projectId} href={`/projects/${proyecto.projectId}`}>
-                      <a className={`block p-4 hover:bg-[#16213A] transition-all border-l-4 ${config.borderColor}`}>
-                        <div className="grid grid-cols-[58px_1fr_96px_104px_132px_40px] gap-4 items-center">
-                          {/* Columna PA */}
-                          <div className="text-center">
-                            <div className={`text-2xl font-bold ${config.color}`}>{proyecto.pa}</div>
-                            <div className="text-xs text-[#5D6E8C]">PA</div>
-                          </div>
-
-                          {/* Columna Info */}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold text-[#E8EDF5] truncate">{proyecto.projectName}</h3>
-                              <Badge variant="outline" className={`${config.bgColor} ${config.color} border-0`}>
-                                {config.label}
-                              </Badge>
-                              {proyecto.gatillos.slice(0, 2).map((gatillo) => (
-                                <Badge key={gatillo} variant="outline" className="bg-[#16213A] text-[#93A4C0] border-0 text-xs">
-                                  {gatillosLabels[gatillo] || gatillo}
-                                </Badge>
-                              ))}
-                              {proyecto.gatillos.length > 2 && (
-                                <Badge variant="outline" className="bg-[#16213A] text-[#93A4C0] border-0 text-xs">
-                                  +{proyecto.gatillos.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-[#93A4C0] text-sm mt-1 truncate">
-                              {proyecto.clientName} · {proyecto.dealId}
-                            </p>
-                            <p className="text-[#5D6E8C] text-xs mt-1">
-                              {proyecto.hitosVencidos} de {proyecto.totalHitos} hitos vencidos
-                            </p>
-                          </div>
-
-                          {/* Columna IGE */}
-                          <div className="text-center">
-                            <div className="text-lg font-mono text-[#E8EDF5]">{proyecto.ige ?? "—"}</div>
-                            <div className="text-xs text-[#5D6E8C]">IGE</div>
-                          </div>
-
-                          {/* Columna UF */}
-                          <div className="text-center">
-                            <div className="text-lg font-mono text-[#E8EDF5]">
-                              {proyecto.ufEnRiesgo != null ? proyecto.ufEnRiesgo.toLocaleString("es-CL") : "—"}
-                            </div>
-                            <div className="text-xs text-[#5D6E8C]">UF riesgo</div>
-                          </div>
-
-                          {/* Columna PM */}
-                          <div className="text-center">
-                            <div className="text-sm text-[#E8EDF5] truncate">{proyecto.pmName ?? "[PENDIENTE]"}</div>
-                            <div className="text-xs text-[#5D6E8C]">PM</div>
-                          </div>
-
-                          {/* Columna flecha */}
-                          <div className="text-center">
-                            <ArrowRight className="h-5 w-5 text-[#5D6E8C] mx-auto" />
-                          </div>
-                        </div>
-                      </a>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          ) : (
+            proyectosAtencion.map((proyecto) => {
+              const estado = proyecto.estado as EstadoConsola;
+              const config = estadoConfig[estado];
+              const motivo = generarMotivo(proyecto);
+              const senalesMora = generarSenalesMora(proyecto);
+              
+              return (
+                <Link key={proyecto.projectId} href={`/projects/${proyecto.projectId}`}>
+                  <a className={`cg-fila ${config.clase}`}>
+                    {/* Columna PA */}
+                    <div className="cg-pa" title={`PA = (severidad × 0.4) + (deterioro × 0.25) + (exposición × 0.2) + (mora × 0.15)`}>
+                      <b>{proyecto.pa}</b>
+                      <span>PA</span>
+                    </div>
+                    
+                    {/* Columna Info */}
+                    <div className="cg-pinfo">
+                      <div className="cg-l1">
+                        <h3>{proyecto.projectName}</h3>
+                        <span className="cg-cliente">{proyecto.clientName} · Deal {proyecto.dealId}</span>
+                        <span className={`cg-chip cg-c-${estado.toLowerCase()}`}>{config.label}</span>
+                        {proyecto.gatillos.slice(0, 2).map((gatillo: string) => (
+                          <span key={gatillo} className="cg-chip cg-c-gatillo">
+                            {gatillosLabels[gatillo] || gatillo}
+                          </span>
+                        ))}
+                        {proyecto.gatillos.length > 2 && (
+                          <span className="cg-chip cg-c-gris">+{proyecto.gatillos.length - 2}</span>
+                        )}
+                      </div>
+                      <p className="cg-motivo">
+                        <b>{proyecto.hitosVencidos} de {proyecto.totalHitos} hitos exigibles vencidos.</b>
+                        {" "}{motivo}
+                      </p>
+                      <div className="cg-meta">
+                        {senalesMora.map((senal, idx) => (
+                          <span key={idx} className={senal.includes("vencido") || senal.includes("sin minuta") ? "cg-mora" : ""}>
+                            ◉ {senal}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Columna IGE */}
+                    <div className="cg-ige">
+                      <span className="cg-et">IGE</span>
+                      <b>{proyecto.ige ?? "—"}</b>
+                      <div className={`cg-delta ${proyecto.deterioro > 0 ? "cg-baja" : proyecto.deterioro < 0 ? "cg-sube" : "cg-igual"}`}>
+                        {proyecto.deterioro > 0 ? `▼ ${proyecto.deterioro}` : proyecto.deterioro < 0 ? `▲ ${Math.abs(proyecto.deterioro)}` : "— 0"}
+                      </div>
+                    </div>
+                    
+                    {/* Columna UF */}
+                    <div className="cg-uf">
+                      <b>{proyecto.ufEnRiesgo != null ? proyecto.ufEnRiesgo.toLocaleString("es-CL") : "—"}</b>
+                      <span>UF en riesgo</span>
+                    </div>
+                    
+                    {/* Columna PM */}
+                    <div className="cg-pm">
+                      <span>PM</span>
+                      {proyecto.pmName ?? "[PENDIENTE]"}
+                    </div>
+                    
+                    {/* Columna flecha */}
+                    <div className="cg-ir">→</div>
+                  </a>
+                </Link>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );

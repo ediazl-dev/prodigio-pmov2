@@ -217,8 +217,16 @@
 - [x] Verificar resultado final en BD y reportar
 
 ## Consola de Gobierno PMO — Fase A (nueva página de inicio /consola)
-- [ ] Releer HTML de referencia y extraer especificación visual de Zonas 0-2
-- [ ] Crear procedure tRPC portfolioConsole (agrega salud y prioridad por proyecto activo)
-- [ ] Construir página /consola con Zona 0 (barra de corte), Zona 1 (KPIs), Zona 2 (cola priorizada)
+- [x] Releer HTML de referencia y extraer especificación visual de Zonas 0-2
+- [x] Crear procedure tRPC portfolioConsole (agrega salud y prioridad por proyecto activo)
+- [x] Construir página /consola con Zona 0 (barra de corte), Zona 1 (KPIs), Zona 2 (cola priorizada)
 - [x] Registrar ruta /consola y entrada de navegación visible para todos los roles
 - [x] Validar TypeScript, pruebas y publicar checkpoint
+
+## Consola de Gobierno PMO — Fase A mejorada (fidelidad visual total)
+
+- [x] Crear sistema CSS cg-* con variables del HTML de referencia (paleta oscura, tipografía DM Sans/JetBrains Mono)
+- [x] Mejorar Zona 0: barra proporcional de colores + pie de métricas globales (exposición UF, P0 vencidas, PRD vencidos, deteriorados, mejorados)
+- [x] Mejorar Zona 2: motivo ejecutivo con cifra en negrita, señales de mora, tooltip PA con desglose de fórmula
+- [x] Corregir contraste de texto invisible (texto-3 sobre fondo oscuro)
+- [x] Validar TypeScript y pruebas (473 aprobadas)
