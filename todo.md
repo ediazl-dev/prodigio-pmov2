@@ -156,11 +156,11 @@
 ## Sincronización financiera (2026-08-19)
 
 - [x] Analizar guía de sincronización financiera y skill pmo-financial-sync.
-- [ ] Instalar dependencia pymysql y copiar script sync_financial_data.py al proyecto.
-- [ ] Exportar planilla Google Sheets (Artefactos_proyectos) a XLSX.
-- [ ] Ejecutar dry-run de validación y revisar resultado (insert/update/duplicados/rechazados).
-- [ ] Aplicar sincronización con --apply tras aprobar dry-run.
-- [ ] Verificar resultado en BD (status=applied, 0 rechazados, Deal conocido con syncedAt actualizado).
+- [x] Instalar dependencia pymysql y copiar script sync_financial_data.py al proyecto.
+- [x] Exportar planilla Google Sheets (Artefactos_proyectos) a XLSX.
+- [x] Ejecutar dry-run de validación y revisar resultado (insert/update/duplicados/rechazados).
+- [x] Aplicar sincronización con --apply tras aprobar dry-run.
+- [x] Verificar resultado en BD (status=applied, 0 rechazados, Deal conocido con syncedAt actualizado).
 
 ## Regla de tres fechas en Gantt + botón acta (2026-08-19)
 
@@ -171,3 +171,15 @@
 - [x] Mejorar botón de carga de acta con estilo visual intuitivo (icono, texto claro, nombre de archivo).
 - [x] Añadir clases CSS para el marcador estrella, doble deriva y botón de carga.
 - [x] Validar TypeScript, pruebas focales y publicar checkpoint.
+
+## Ejecución de los 3 puntos aprobados (2026-08-19)
+- [x] Verificar dashboard financiero de Tanner con datos sincronizados (KPIs actualizados).
+- [ ] Leer skills de automatización y programar sincronización financiera recurrente.
+- [ ] Limpiar directorio temporal tmp_sync y cerrar todo.md.
+
+## Automatización de la sincronización financiera (Opción B — Heartbeat en el servidor)
+- [x] Aplicar parche legacy del SDK (manusTypes.ts taskUid + sdk.ts cron short-circuit).
+- [x] Crear módulo server/financialSync.ts (descarga Drive API + parseo XLSX + UPSERT por Deal ID).
+- [x] Montar handler POST /api/scheduled/syncFinancial en server/_core/index.ts y validar TypeScript.
+- [x] Inyectar secret GOOGLE_DRIVE_TOKEN a producción (usa token del conector Google Workspace) y guardar checkpoint (deploy).
+- [ ] Crear cron diario 03:00 UTC con manus-heartbeat y verificar primera ejecución.

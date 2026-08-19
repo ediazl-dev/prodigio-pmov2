@@ -7,6 +7,8 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { sdk } from "./sdk";
+import { runFinancialSync } from "../financialSync";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,6 +45,25 @@ async function startServer() {
       createContext,
     })
   );
+  // Heartbeat: sincronización financiera programada (sólo cron autenticado)
+  app.post("/api/scheduled/syncFinancial", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user.isCron) {
+        res.status(403).json({ status: "error", error: "Sólo tareas programadas pueden invocar este endpoint" });
+        return;
+      }
+      const outcome = await runFinancialSync();
+      console.log(
+        `[FinancialSync] applied: ${outcome.inputDeals} deals (${outcome.insert} insert, ${outcome.update} update)`
+      );
+      res.status(200).json(outcome);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[FinancialSync] error:", message);
+      res.status(500).json({ status: "error", error: message });
+    }
+  });
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
