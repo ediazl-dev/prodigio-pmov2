@@ -146,6 +146,7 @@ export default function ProjectDetail() {
   const { user } = useAuth();
   const role = (user as any)?.role ?? "consulta";
   const canManage = ["admin", "pmo"].includes(role);
+  const canManageBaseline = ["admin", "pmo", "pm"].includes(role);
 
   const { data, isLoading } = trpc.projects.get.useQuery({ id: projectId });
   const { data: timeData, refetch: refetchTime } = trpc.stageOpenings.timeRemaining.useQuery({ projectId });
@@ -303,7 +304,7 @@ export default function ProjectDetail() {
           </div>
 
           {/* Baseline Ejecutivo */}
-          <BaselineExecutiveCard projectId={projectId} canManage={canManage} />
+          <BaselineExecutiveCard projectId={projectId} canManage={canManageBaseline} />
           {/* Documents */}
           <LinkedProjectDocuments projectId={projectId} canManage={canManage} />
 
