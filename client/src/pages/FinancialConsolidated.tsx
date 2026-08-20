@@ -18,15 +18,6 @@ export default function FinancialConsolidated() {
   if (isLoading) {
     return (
       <div className="df-app">
-        <aside className="df-side">
-          <div className="df-logo">
-            <div className="df-mark">P</div>
-            <div>
-              <b>Prodigio</b>
-              <span>Plataforma PMO</span>
-            </div>
-          </div>
-        </aside>
         <main className="df-main">
           <Skeleton className="h-8 w-64 mb-4" />
           <Skeleton className="h-4 w-96 mb-8" />
@@ -43,15 +34,6 @@ export default function FinancialConsolidated() {
   if (error) {
     return (
       <div className="df-app">
-        <aside className="df-side">
-          <div className="df-logo">
-            <div className="df-mark">P</div>
-            <div>
-              <b>Prodigio</b>
-              <span>Plataforma PMO</span>
-            </div>
-          </div>
-        </aside>
         <main className="df-main">
           <div className="df-card">
             <div className="df-card-cuerpo">

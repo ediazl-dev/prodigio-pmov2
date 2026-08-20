@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, ArrowRight, Download, Plus } from "lucide-react";
 
-type EstadoConsola = "CRITICO" | "ROJO" | "NARANJO" | "AMARILLO" | "VERDE";
+type EstadoConsola = "CRITICO" | "ROJO" | "NARANJO" | "AMARILLO" | "VERDE" | "POR_CONFIRMAR";
 
 const estadoConfig: Record<EstadoConsola, { label: string; clase: string; descripcion: string }> = {
   CRITICO: { label: "Crítico", clase: "cg-critico", descripcion: "Gatillos absolutos activos" },
@@ -13,6 +13,7 @@ const estadoConfig: Record<EstadoConsola, { label: string; clase: string; descri
   NARANJO: { label: "Naranjo", clase: "cg-naranjo", descripcion: "IGE 50 – 69" },
   AMARILLO: { label: "Amarillo", clase: "cg-amarillo", descripcion: "IGE 70 – 84" },
   VERDE: { label: "Estables", clase: "cg-verde", descripcion: "Sin acción requerida" },
+  POR_CONFIRMAR: { label: "Por confirmar", clase: "cg-porconfirmar", descripcion: "Sin datos suficientes" },
 };
 
 const gatillosLabels: Record<string, string> = {
@@ -32,6 +33,8 @@ function getEstadoColor(estado: EstadoConsola): string {
     case "NARANJO": return "var(--cg-naranjo)";
     case "AMARILLO": return "var(--cg-ambar)";
     case "VERDE": return "var(--cg-verde)";
+    case "POR_CONFIRMAR": return "var(--cg-texto-3)";
+    default: return "var(--cg-texto-3)";
   }
 }
 
@@ -42,6 +45,8 @@ function getEstadoBgColor(estado: EstadoConsola): string {
     case "NARANJO": return "rgba(255,138,61,0.14)";
     case "AMARILLO": return "rgba(255,176,32,0.13)";
     case "VERDE": return "rgba(47,214,154,0.12)";
+    case "POR_CONFIRMAR": return "rgba(93,110,140,0.15)";
+    default: return "rgba(93,110,140,0.15)";
   }
 }
 
@@ -170,6 +175,7 @@ export default function ConsolaGobierno() {
     NARANJO: ((triage?.estadoCounts.NARANJO ?? 0) / totalProyectos) * 100,
     AMARILLO: ((triage?.estadoCounts.AMARILLO ?? 0) / totalProyectos) * 100,
     VERDE: ((triage?.estadoCounts.VERDE ?? 0) / totalProyectos) * 100,
+    POR_CONFIRMAR: ((triage?.estadoCounts.POR_CONFIRMAR ?? 0) / totalProyectos) * 100,
   };
 
   return (

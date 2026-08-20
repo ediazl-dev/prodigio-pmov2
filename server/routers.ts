@@ -6372,6 +6372,7 @@ const portfolioConsoleRouter = router({
       NARANJO: projects.filter((p) => p.estado === "NARANJO").length,
       AMARILLO: projects.filter((p) => p.estado === "AMARILLO").length,
       VERDE: projects.filter((p) => p.estado === "VERDE").length,
+      POR_CONFIRMAR: projects.filter((p) => p.estado === "POR_CONFIRMAR").length,
     };
     const totalUfEnRiesgo = projects.reduce((total, p) => total + (p.ufEnRiesgo ?? 0), 0);
     const totalP0Vencidas = projects.reduce((total, p) => total + (p.gatillos.includes("G-06") ? 1 : 0), 0);
