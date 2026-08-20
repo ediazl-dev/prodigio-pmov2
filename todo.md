@@ -304,3 +304,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Cambiar sistema CSS df-* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
 - [x] Verificar tabla detalle por contrato y todos los cuerpos/zonas con el nuevo tema
 - [x] Checkpoint publicado
+## Consola de Gobierno — Tema claro (2026-08-20)
+- [x] Cambiar sistema CSS cg-* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
+- [x] Verificar contraste de fonts en todas las zonas (triage, cola priorizada, decisiones, causa raíz, higiene, estables, cerrados)
+- [x] Checkpoint publicado

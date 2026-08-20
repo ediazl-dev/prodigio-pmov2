@@ -567,22 +567,22 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --cg-fondo: #0B1120;
-  --cg-panel: #111A2B;
-  --cg-panel-2: #16213A;
-  --cg-panel-3: #1B2942;
-  --cg-linea: #22304A;
-  --cg-linea-suave: #1A2438;
-  --cg-texto: #E8EDF5;
-  --cg-texto-2: #93A4C0;
-  --cg-texto-3: #5D6E8C;
-  --cg-magenta: #E71F71;
-  --cg-cyan: #00BFFF;
-  --cg-rojo: #FF4D57;
-  --cg-ambar: #FFB020;
-  --cg-verde: #2FD69A;
-  --cg-azul: #5B8DEF;
-  --cg-naranjo: #FF8A3D;
+  --cg-fondo: #F5F6FA;
+  --cg-panel: #FFFFFF;
+  --cg-panel-2: #F0F2F8;
+  --cg-panel-3: #E6EAF3;
+  --cg-linea: #D9DEE9;
+  --cg-linea-suave: #E8ECF4;
+  --cg-texto: #1A2332;
+  --cg-texto-2: #4A5568;
+  --cg-texto-3: #718096;
+  --cg-magenta: #C2185B;
+  --cg-cyan: #0277BD;
+  --cg-rojo: #C62828;
+  --cg-ambar: #B26A00;
+  --cg-verde: #1B7A54;
+  --cg-azul: #2B5CB8;
+  --cg-naranjo: #C05621;
   --cg-sans: "DM Sans", system-ui, -apple-system, sans-serif;
   --cg-mono: "JetBrains Mono", ui-monospace, monospace;
   --cg-radius: 12px;
@@ -897,7 +897,7 @@
 
 .cg-fila.cg-critico {
   border-left-color: var(--cg-rojo);
-  background: linear-gradient(90deg, rgba(255, 77, 87, 0.07), var(--cg-panel) 42%);
+  background: linear-gradient(90deg, rgba(198, 40, 40, 0.05), var(--cg-panel) 42%);
 }
 
 .cg-fila.cg-rojo { border-left-color: var(--cg-rojo); }
@@ -990,18 +990,18 @@
 }
 
 .cg-chip.cg-c-critico {
-  background: rgba(255, 77, 87, 0.16);
+  background: rgba(198, 40, 40, 0.08);
   color: var(--cg-rojo);
-  border: 1px solid rgba(255, 77, 87, 0.4);
+  border: 1px solid rgba(198, 40, 40, 0.35);
 }
 
 .cg-chip.cg-c-rojo {
-  background: rgba(255, 77, 87, 0.12);
+  background: rgba(198, 40, 40, 0.07);
   color: var(--cg-rojo);
 }
 
 .cg-chip.cg-c-naranjo {
-  background: rgba(255, 138, 61, 0.14);
+  background: rgba(192, 86, 33, 0.08);
   color: var(--cg-naranjo);
 }
 
@@ -1023,17 +1023,17 @@
 .cg-chip.cg-c-gatillo {
   background: transparent;
   color: var(--cg-rojo);
-  border: 1px solid rgba(255, 77, 87, 0.35);
+  border: 1px solid rgba(198, 40, 40, 0.3);
 }
 .cg-chip.cg-c-sinbaseline {
-  background: rgba(255, 176, 32, 0.12);
+  background: rgba(178, 106, 0, 0.08);
   color: var(--cg-ambar);
-  border: 1px solid rgba(255, 176, 32, 0.4);
+  border: 1px solid rgba(178, 106, 0, 0.35);
 }
 .cg-chip.cg-c-cerrado {
-  background: rgba(91, 141, 239, 0.12);
+  background: rgba(43, 92, 184, 0.08);
   color: var(--cg-azul);
-  border: 1px solid rgba(91, 141, 239, 0.4);
+  border: 1px solid rgba(43, 92, 184, 0.3);
 }
 
 /* Columna IGE */
@@ -1251,12 +1251,12 @@
 
 .cg-plazo-vencido {
   color: var(--cg-rojo);
-  background: rgba(255, 77, 87, 0.1);
+  background: rgba(198, 40, 40, 0.07);
 }
 
 .cg-plazo-hoy {
   color: var(--cg-ambar);
-  background: rgba(255, 176, 32, 0.1);
+  background: rgba(178, 106, 0, 0.08);
 }
 
 .cg-plazo-proximo {
@@ -2659,12 +2659,12 @@
 }
 
 .df-tabla-mejorada .chip-pendiente {
-  background: rgba(255, 176, 32, 0.1);
+  background: rgba(178, 106, 0, 0.08);
   color: var(--df-ambar);
 }
 
 .df-tabla-mejorada .chip-vencido {
-  background: rgba(255, 77, 87, 0.1);
+  background: rgba(198, 40, 40, 0.07);
   color: var(--df-rojo);
 }
 
