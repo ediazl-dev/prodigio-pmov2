@@ -262,3 +262,20 @@
 - [x] Motivo ejecutivo con cifra en negrita y texto secundario
 - [x] Señales de mora mejoradas (chips con ◉ y color rojo para mora)
 - [x] Grid de fila exacto (6 columnas: 58px PA | 1fr info | 96px IGE | 104px UF | 132px PM | 40px →)
+
+## Backlog: Fallback Consola + Editor de Baseline (2026-08-20)
+
+- [ ] Helper db.ts: updateExecutiveMilestoneBaseline (actualiza baselineDate con auditoría)
+- [ ] Helper db.ts: createExecutiveBaselineWithMilestones (source aprobado + hitos desde Jira)
+- [ ] Fallback portfolioConsole: proyectos sin baseline usan executive_verdict + jira_spaces + financial_data
+- [ ] PA alternativo para proyectos sin baseline (severidad×0.5 + exposición×0.3 + (100-avanceJira)×0.2)
+- [ ] Procedure executive.getBaseline (source + hitos del proyecto)
+- [ ] Procedure executive.updateMilestoneBaseline (admin/pmo, con auditoría)
+- [ ] Procedure executive.createBaselineFromJira (admin/pmo, importa hitos Jira con duedates)
+- [ ] Consola: chip ámbar "Sin baseline" en filas con sinBaseline=true
+- [ ] Consola: motivo específico para proyectos sin baseline
+- [ ] ProjectDetail: card "Baseline Ejecutivo" entre Proyecto Vinculado y Documentos
+- [ ] Card: vista sin baseline con botón "Crear baseline desde Jira"
+- [ ] Card: tabla de hitos con baselineDate editable + guardar cambios
+- [ ] Tests Vitest: fallback portfolioConsole + procedures executive
+- [ ] Validación: TypeScript limpio + suite completa + 7 proyectos visibles en consola
