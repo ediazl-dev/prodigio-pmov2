@@ -49,7 +49,7 @@ import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJ
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { getActiveFinancialData } from "./db";
 import { getDb } from "./db";
-import { projectHealthSnapshots } from "../drizzle/schema";
+import { projectHealthSnapshots, contracts, paymentScheduleItems, revenueEvents, invoices, payments } from "../drizzle/schema";
 import { eq, desc, and, lt } from "drizzle-orm";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
@@ -6626,6 +6626,33 @@ const portfolioConsoleRouter = router({
       });
       await audit(ctx, "create_baseline", "executive_project_source", sourceId ?? 0, null, { projectId: input.projectId, jiraProjectKey: jiraSpace.jiraProjectKey, hitos: jiraMilestones.length });
       return { success: true, sourceId, hitosImportados: jiraMilestones.length };
+    }),
+
+  // ─── Consolidado de Facturación ────────────────────────────────────────────
+  getFinancialConsolidated: protectedProcedure
+    .input(z.object({ fechaCorte: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const fechaCorte = input?.fechaCorte ?? new Date().toISOString().split("T")[0];
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB no disponible" });
+
+      const allContracts = await db.select().from(contracts);
+      const allScheduleItems = await db.select().from(paymentScheduleItems);
+      const allRevenueEvents = await db.select().from(revenueEvents);
+      const allInvoices = await db.select().from(invoices);
+      const allPayments = await db.select().from(payments);
+
+      const { calculatePortfolioFunnel } = await import("./financialEngine");
+      const result = calculatePortfolioFunnel(
+        allContracts,
+        allScheduleItems,
+        allRevenueEvents,
+        allInvoices,
+        allPayments,
+        fechaCorte,
+      );
+
+      return result;
     }),
 });
 

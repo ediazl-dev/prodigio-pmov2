@@ -991,3 +991,124 @@ export const projectHealthSnapshots = mysqlTable("project_health_snapshot", {
 });
 export type ProjectHealthSnapshot = typeof projectHealthSnapshots.$inferSelect;
 export type InsertProjectHealthSnapshot = typeof projectHealthSnapshots.$inferInsert;
+
+// ==================== CONSOLIDADO DE FACTURACIÓN (F1) ====================
+// Modelo de datos del ciclo completo: contrato → devengado → facturado → cobrado
+// Regla anti-fabricación: campos sin evidencia = NULL (se muestran como [POR CONFIRMAR])
+
+/** Contrato comercial asociado a un proyecto (o Deal sin proyecto) */
+export const contracts = mysqlTable("contract", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId"),
+  dealId: varchar("dealId", { length: 50 }),
+  clientName: varchar("clientName", { length: 255 }).notNull(),
+  contractName: varchar("contractName", { length: 500 }).notNull(),
+  valorContratadoUF: decimal("valorContratadoUF", { precision: 14, scale: 4 }),
+  moneda: varchar("moneda", { length: 10 }).default("UF"),
+  fechaInicio: date("fechaInicio", { mode: "string" }),
+  fechaTermino: date("fechaTermino", { mode: "string" }),
+  esInversionInterna: boolean("esInversionInterna").default(false),
+  estado: mysqlEnum("estado", ["activo", "cerrado", "pausado"]).default("activo"),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Contract = typeof contracts.$inferSelect;
+export type InsertContract = typeof contracts.$inferInsert;
+
+/** Item de la curva de pago (payment schedule) — linea base congelada */
+export const paymentScheduleItems = mysqlTable("payment_schedule_item", {
+  id: int("id").autoincrement().primaryKey(),
+  contractId: int("contractId").notNull(),
+  milestoneCode: varchar("milestoneCode", { length: 20 }),
+  descripcion: varchar("descripcion", { length: 500 }),
+  pesoPct: decimal("pesoPct", { precision: 5, scale: 2 }),
+  valorUF: decimal("valorUF", { precision: 14, scale: 4 }),
+  fechaPlanificada: date("fechaPlanificada", { mode: "string" }),
+  version: int("version").default(1),
+  esLineaBase: boolean("esLineaBase").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PaymentScheduleItem = typeof paymentScheduleItems.$inferSelect;
+export type InsertPaymentScheduleItem = typeof paymentScheduleItems.$inferInsert;
+
+/** Evento de devengo (revenue recognition) — hito aceptado con acta */
+export const revenueEvents = mysqlTable("revenue_event", {
+  id: int("id").autoincrement().primaryKey(),
+  contractId: int("contractId").notNull(),
+  milestoneCode: varchar("milestoneCode", { length: 20 }),
+  descripcion: varchar("descripcion", { length: 500 }),
+  valorUF: decimal("valorUF", { precision: 14, scale: 4 }),
+  fechaDevengo: date("fechaDevengo", { mode: "string" }),
+  actaUrl: varchar("actaUrl", { length: 1000 }),
+  executiveMilestoneId: int("executiveMilestoneId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RevenueEvent = typeof revenueEvents.$inferSelect;
+export type InsertRevenueEvent = typeof revenueEvents.$inferInsert;
+
+/** Factura emitida — stub [POR CONFIRMAR] sin integracion SII */
+export const invoices = mysqlTable("invoice", {
+  id: int("id").autoincrement().primaryKey(),
+  contractId: int("contractId").notNull(),
+  numeroFactura: varchar("numeroFactura", { length: 50 }),
+  valorUF: decimal("valorUF", { precision: 14, scale: 4 }),
+  fechaEmision: date("fechaEmision", { mode: "string" }),
+  fechaVencimiento: date("fechaVencimiento", { mode: "string" }),
+  estadoSII: mysqlEnum("estadoSII", ["emitida", "aceptada", "rechazada", "anulada", "por_confirmar"]).default("por_confirmar"),
+  diasPago: int("diasPago"),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = typeof invoices.$inferInsert;
+
+/** Nota de credito — stub [POR CONFIRMAR] */
+export const creditNotes = mysqlTable("credit_note", {
+  id: int("id").autoincrement().primaryKey(),
+  invoiceId: int("invoiceId").notNull(),
+  valorUF: decimal("valorUF", { precision: 14, scale: 4 }),
+  motivo: varchar("motivo", { length: 500 }),
+  fecha: date("fecha", { mode: "string" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CreditNote = typeof creditNotes.$inferSelect;
+export type InsertCreditNote = typeof creditNotes.$inferInsert;
+
+/** Pago recibido — stub [POR CONFIRMAR] sin integracion bancaria */
+export const payments = mysqlTable("payment", {
+  id: int("id").autoincrement().primaryKey(),
+  invoiceId: int("invoiceId").notNull(),
+  valorUF: decimal("valorUF", { precision: 14, scale: 4 }),
+  fechaPago: date("fechaPago", { mode: "string" }),
+  metodoPago: varchar("metodoPago", { length: 100 }),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = typeof payments.$inferInsert;
+
+/** Valor UF por fecha — stub [POR CONFIRMAR] sin integracion Banco Central */
+export const ufValues = mysqlTable("uf_value", {
+  id: int("id").autoincrement().primaryKey(),
+  fecha: date("fecha", { mode: "string" }).notNull(),
+  valorCLP: decimal("valorCLP", { precision: 12, scale: 2 }).notNull(),
+  fuente: varchar("fuente", { length: 100 }).default("manual"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type UfValue = typeof ufValues.$inferSelect;
+export type InsertUfValue = typeof ufValues.$inferInsert;
+
+/** Inversion interna — proyectos Prodigio Tech que no son cartera comercial */
+export const internalInvestments = mysqlTable("internal_investment", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  descripcion: varchar("descripcion", { length: 500 }),
+  valorUF: decimal("valorUF", { precision: 14, scale: 4 }),
+  periodo: varchar("periodo", { length: 7 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InternalInvestment = typeof internalInvestments.$inferSelect;
+export type InsertInternalInvestment = typeof internalInvestments.$inferInsert;

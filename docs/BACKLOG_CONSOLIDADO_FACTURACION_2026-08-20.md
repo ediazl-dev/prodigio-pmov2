@@ -57,3 +57,32 @@ RF-07 suscripción sin conciliar (Adm, 10d) | RF-08 factura +90d (Cobranza+Comer
 
 ## Proyectos inversión interna (excluir de ratios cartera): 360001 Nexos SFA, 390001 Producto Apigee Impl, 450001 Producto Apigee
 ## Reglas duras: dato ausente=[POR CONFIRMAR] nunca 0 | UF sin símbolo $ | DSO nunca sin LAG_EMISION | plan congelado | entregado sin acta no devenga | pago no conciliado no es cobrado
+
+## HALLAZGOS F0 — Auditoría de origen (2026-08-20)
+
+### financial_data (40 Deals totales, 8 relevantes para proyectos activos)
+| Deal | Proyecto | Cliente | valorVentaUF | presupuestoUF | utilizadoUF | estado |
+|---|---|---|---|---|---|---|
+| Deal1934 | Tanner Framework SFA | Tanner | 8.200 | 2.050 | 2.113,57 | EN EJECUCION |
+| Deal2207 | Vida Cámara Implementacion APIGEE | Vida Camara | 397 | 218 | 0 | EN EJECUCION |
+| Deal4529 | Consalud Habilitación Apigee X | Consalud | 1.100 | 580 | 41,84 | EN EJECUCION |
+| Deal4669 | Banco BCI Nexos SFA | Banco BCI | NULL | NULL | 0 | EN EJECUCION |
+| Deal4687 | CloudOps Consalud Staffing | Consalud | (no encontrado en financial_data) | — | — | — |
+| — | Producto Apigee (450001) | Prodigio Tech | — | — | — | inversión interna |
+| — | Producto Apigee Impl (390001) | Prodigio Tech | — | — | — | inversión interna |
+
+### billing_milestones de Tanner (180002)
+Tabla existe pero la consulta retornó 0 filas visibles (posiblemente vacía o con datos en otra estructura). Columnas: milestoneNumber, description, amount, percentage, currency, dueDate, status, invoiceNumber, paidAt, responsableName, dateSource, jiraIssueKey.
+
+### Reclasificación inversión interna (excluir de ratios cartera)
+- 360001 Nexos SFA (Prodigio Tech) — aunque tiene Deal4669 en financial_data, es proyecto interno
+- 390001 Producto Apigee Implementación/Migración (Prodigio Tech)
+- 450001 Producto Apigee (Prodigio Tech)
+
+### Datos ausentes que se mostrarán como [POR CONFIRMAR]
+- Deal4669 (Nexos SFA): valorVentaUF y presupuestoUF son NULL
+- Deal4687 (CloudOps): no existe en financial_data
+- Producto Apigee ×2: sin financial_data (son inversión interna, correcto)
+- billing_milestones de Tanner: vacío o sin datos accesibles
+- UF value: sin integración Banco Central (stub)
+- Invoice/payment: sin integración SII/banco (stub)
