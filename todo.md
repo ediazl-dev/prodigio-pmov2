@@ -308,3 +308,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Cambiar sistema CSS cg-* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
 - [x] Verificar contraste de fonts en todas las zonas (triage, cola priorizada, decisiones, causa raíz, higiene, estables, cerrados)
 - [x] Checkpoint publicado
+## Fix permisos baseline ejecutivo para PM (2026-08-20)
+- [x] Corregir status de Eduardo Mercado de invitado a activo en BD
+- [x] Cambiar updateMilestoneBaseline y createBaselineFromJira de adminOrPmo a adminOrPmoOrPm
+- [x] Agregar middleware adminOrPmoOrPm en routers.ts
+- [x] Verificar que Eduardo puede editar baseline desde la UI
+- [x] Checkpoint publicado

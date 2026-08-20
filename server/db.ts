@@ -1,4 +1,4 @@
-import { and, eq, ne, desc, sql, isNull, isNotNull, gte, lte, like, count, inArray, or } from "drizzle-orm";
+import { and, eq, ne, desc, sql, isNull, isNotNull, gte, lte, like, notLike, count, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
@@ -73,6 +73,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
   await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  // Bug fix: si el usuario existente tiene status "invitado" pero ya tiene openId real
+  // (no invite_), significa que ya hizo login con OAuth — actualizar status a "activo"
+  if (user.email) {
+    await db.update(users)
+      .set({ status: "activo" })
+      .where(and(eq(users.email, user.email), eq(users.status, "invitado"), notLike(users.openId, "invite_%")));
+  }
 }
 
 export async function getUserByOpenId(openId: string) {

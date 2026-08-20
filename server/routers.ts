@@ -76,6 +76,10 @@ const adminOnly = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Requiere rol Admin" });
   return next({ ctx });
 });
+const adminOrPmoOrPm = protectedProcedure.use(({ ctx, next }) => {
+  if (!["admin", "pmo", "pm"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Requiere rol Admin, PMO o PM" });
+  return next({ ctx });
+});
 
 /** Helper to create audit log with user context */
 function audit(ctx: { user: { id: number; name: string | null; role: string } }, action: string, entity: string, entityId?: string | number | null, entityName?: string | null, details?: Record<string, any> | null) {
@@ -6583,7 +6587,7 @@ const portfolioConsoleRouter = router({
     return { source, milestones };
   }),
   /** Actualiza la fecha baseline contractual de un hito (admin/pmo, con auditoría) */
-  updateMilestoneBaseline: adminOrPmo
+  updateMilestoneBaseline: adminOrPmoOrPm
     .input(z.object({ milestoneId: z.number(), baselineDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .mutation(async ({ ctx, input }) => {
       await updateExecutiveMilestoneBaseline(input.milestoneId, input.baselineDate);
@@ -6591,7 +6595,7 @@ const portfolioConsoleRouter = router({
       return { success: true };
     }),
   /** Crea un baseline ejecutivo aprobado importando los hitos del tablero Jira del proyecto (admin/pmo) */
-  createBaselineFromJira: adminOrPmo
+  createBaselineFromJira: adminOrPmoOrPm
     .input(z.object({ projectId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const project = await getProjectById(input.projectId);
