@@ -284,4 +284,16 @@
 - [x] Backend: portfolioConsole retorna también proyectos completados con estado final
 - [x] Frontend: filtro/pestaña "Cerrados" en la cola priorizada con lista de proyectos cerrados
 - [x] Tests + validación TypeScript + suite completa
+- [x] Checkpoint publicado (383f1de4)
+
+## Consolidado de Facturación — Primera iteración (F0+F1+F3+F4) (2026-08-20)
+Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONFIRMAR]) / curvas de pago como línea base desde billing_milestones / roles actuales (admin/pmo/pm/consulta)
+- [ ] F0: Auditoría de origen documentada + reclasificación inversión interna (360001, 390001, 450001)
+- [ ] F1: Migración 0034 — tablas contract, payment_schedule_item, revenue_event, invoice, credit_note, payment, uf_value, internal_investment
+- [ ] F1: Migración de datos — contratos desde financial_data, curvas de pago desde billing_milestones (línea base)
+- [ ] F3: Motor determinista server/financialEngine.ts (agregados ciclo, invariante, DSO/LAG, descalce, proyección, concentración, RF-01..08)
+- [ ] F3: Tests batería 12.1 (T-01..T-12) y 12.2 (R-01..R-12)
+- [ ] F4: Procedure tRPC financialConsolidated + página AdminFinanceConsolidado.tsx reemplazando /admin/finance
+- [ ] F4: Zonas 0-4 — cabecera, barra unidad UF, lectura periodo, embudo, 4 tarjetas brecha
+- [ ] Validación: TypeScript limpio + suite completa + invariante en producción
 - [ ] Checkpoint publicado
