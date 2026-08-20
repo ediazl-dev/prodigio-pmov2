@@ -77,6 +77,11 @@ export default function FinancialConsolidated() {
     backlog,
     descalce,
     contratos: detalleContratos,
+    proyeccionCobranza,
+    agingAR,
+    cicloFacturacion,
+    modelosNegocio,
+    concentracionCartera,
   } = data || {};
 
   const pctDevengado = (contratado ?? 0) > 0 ? ((devengado ?? 0) / (contratado ?? 1)) * 100 : 0;
@@ -385,7 +390,163 @@ export default function FinancialConsolidated() {
             </table>
           </div>
         </div>
+
+        {/* ═══ ZONA 7: Proyección de cobranza + Aging de AR ═══ */}
+        <div className="df-grid2">
+          {/* Proyección de cobranza */}
+          <div className="df-card">
+            <div className="df-card-header">
+              <h3 className="df-card-title">Proyección de cobranza</h3>
+              <span className="df-card-badge">Próximos 10 pagos</span>
+            </div>
+            <div className="df-proyeccion-lista">
+              {(proyeccionCobranza || []).length > 0 ? (
+                (proyeccionCobranza || []).map((p: any, i: number) => (
+                  <div key={i} className={`df-proyeccion-item ${p.estado}`}>
+                    <div className="df-proyeccion-fecha">{p.fecha}</div>
+                    <div className="df-proyeccion-concepto">
+                      {p.concepto} — {p.cliente}
+                    </div>
+                    <div className="df-proyeccion-monto">UF {(p.monto || 0).toLocaleString("es-CL")}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="df-proyeccion-item">
+                  <div className="df-proyeccion-concepto">[POR CONFIRMAR] No hay pagos planificados</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Aging de AR */}
+          <div className="df-card">
+            <div className="df-card-header">
+              <h3 className="df-card-title">Aging de AR</h3>
+              <span className="df-card-badge">Facturas pendientes</span>
+            </div>
+            <div className="df-aging-lista">
+              {(agingAR || []).map((a: any, i: number) => (
+                <div key={i} className="df-aging-item">
+                  <div className="df-aging-rango">{a.rango}</div>
+                  <div className="df-aging-monto">UF {(a.monto || 0).toLocaleString("es-CL")}</div>
+                  <div className="df-aging-pct">{(a.porcentaje || 0).toFixed(1)}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ ZONA 8: Ciclo de facturación + Modelos de negocio + Concentración ═══ */}
+        <div className="df-grid2">
+          {/* Ciclo de facturación */}
+          <div className="df-card">
+            <div className="df-card-header">
+              <h3 className="df-card-title">Ciclo de facturación</h3>
+              <span className="df-card-badge">4 etapas</span>
+            </div>
+            <div className="df-ciclo-lista">
+              {(cicloFacturacion || []).map((c: any) => (
+                <div key={c.numero} className="df-ciclo-item">
+                  <div className="df-ciclo-numero">{c.numero}</div>
+                  <div className="df-ciclo-contenido">
+                    <div className="df-ciclo-titulo">{c.titulo}</div>
+                    <div className="df-ciclo-descripcion">{c.descripcion}</div>
+                    <div className="df-ciclo-metrica">{c.metrica}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Modelos de negocio */}
+          <div className="df-card">
+            <div className="df-card-header">
+              <h3 className="df-card-title">Modelos de negocio</h3>
+              <span className="df-card-badge">Distribución de cartera</span>
+            </div>
+            <div className="df-modelos-lista">
+              {(modelosNegocio || []).map((m: any, i: number) => (
+                <div key={i} className="df-modelo-item">
+                  <div>
+                    <div className="df-modelo-nombre">{m.nombre}</div>
+                    <div className="df-modelo-descripcion">{m.descripcion}</div>
+                  </div>
+                  <div className="df-modelo-monto">
+                    UF {(m.monto || 0).toLocaleString("es-CL")}
+                    <div className="df-modelo-pct">{(m.porcentaje || 0).toFixed(0)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Concentración de cartera */}
+        <div className="df-card" style={{ marginBottom: 32 }}>
+          <div className="df-card-header">
+            <h3 className="df-card-title">Concentración de cartera</h3>
+            <span className="df-card-badge">Top 5 clientes</span>
+          </div>
+          <div className="df-concentracion-lista">
+            {(concentracionCartera || []).map((c: any, i: number) => (
+              <div key={i}>
+                <div className="df-concentracion-item">
+                  <div className="df-concentracion-cliente">{c.cliente}</div>
+                  <div className="df-concentracion-monto">UF {(c.monto || 0).toLocaleString("es-CL")}</div>
+                  <div className="df-concentracion-pct">{(c.porcentaje || 0).toFixed(1)}%</div>
+                </div>
+                <div className="df-concentracion-barra">
+                  <div className="df-concentracion-barra-fill" style={{ width: `${c.porcentaje}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
-    </div>
+    
+      {/* Zona 9: Supuestos */}
+      <div className="df-supuestos">
+        <div className="df-supuestos-titulo">Supuestos y Limitaciones</div>
+        <div className="df-supuestos-lista">
+          <div className="df-supuesto-item">
+            <div className="df-supuesto-icono">1</div>
+            <div className="df-supuesto-texto">
+              <strong>UF del día:</strong> No disponible — requiere integración con Banco Central de Chile. 
+              Las cifras se muestran en UF sin conversión a CLP.
+            </div>
+          </div>
+          <div className="df-supuesto-item">
+            <div className="df-supuesto-icono">2</div>
+            <div className="df-supuesto-texto">
+              <strong>Facturación y Cobranza:</strong> No hay integración con SII ni bancos. 
+              Los valores de Facturado y Cobrado se muestran en 0 hasta que se implementen las integraciones.
+            </div>
+          </div>
+          <div className="df-supuesto-item">
+            <div className="df-supuesto-icono">3</div>
+            <div className="df-supuesto-texto">
+              <strong>Proyección de cobranza:</strong> Basada en la curva de pago de Tanner (10 hitos). 
+              Los demás contratos no tienen curva de pago definida.
+            </div>
+          </div>
+          <div className="df-supuesto-item">
+            <div className="df-supuesto-icono">4</div>
+            <div className="df-supuesto-texto">
+              <strong>Aging de AR:</strong> No hay facturas emitidas en el sistema. 
+              Esta sección mostrará datos cuando se implemente la integración con SII.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Zona 10: Pie nota */}
+      <div className="df-pie-nota">
+        <div className="df-pie-nota-texto">
+          <strong>Nota:</strong> Este consolidado se genera automáticamente desde la planilla financiera corporativa 
+          (Google Sheets) y los hitos contractuales de Jira. La sincronización se ejecuta diariamente a las 03:00 UTC. 
+          Para consultas o correcciones, contactar al equipo de Administración.
+        </div>
+      </div>
+</div>
   );
 }

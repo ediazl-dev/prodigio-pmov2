@@ -2235,3 +2235,442 @@
     transition: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONSOLIDADO DE FACTURACIÓN — Zonas 7-8 (F7)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Zona 7: Proyección de cobranza + Aging de AR */
+.df-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.df-card {
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.df-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.df-card-title {
+  font-family: var(--df-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+}
+
+.df-card-badge {
+  font-family: var(--df-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--df-panel-2);
+  color: var(--df-texto-2);
+}
+
+/* Proyección de cobranza */
+.df-proyeccion-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.df-proyeccion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--df-panel-2);
+  border-radius: 8px;
+  border-left: 3px solid var(--df-cyan);
+}
+
+.df-proyeccion-item.vencido {
+  border-left-color: var(--df-rojo);
+}
+
+.df-proyeccion-item.proximo {
+  border-left-color: var(--df-ambar);
+}
+
+.df-proyeccion-fecha {
+  font-family: var(--df-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--df-texto);
+}
+
+.df-proyeccion-concepto {
+  font-size: 13px;
+  color: var(--df-texto-2);
+  flex: 1;
+  margin-left: 16px;
+}
+
+.df-proyeccion-monto {
+  font-family: var(--df-font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--df-texto);
+}
+
+/* Aging de AR */
+.df-aging-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.df-aging-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--df-panel-2);
+  border-radius: 6px;
+}
+
+.df-aging-rango {
+  font-family: var(--df-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--df-texto-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.df-aging-monto {
+  font-family: var(--df-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--df-texto);
+}
+
+.df-aging-pct {
+  font-family: var(--df-font-mono);
+  font-size: 11px;
+  color: var(--df-texto-3);
+  margin-left: 12px;
+}
+
+/* Zona 8: Ciclo de facturación + Modelos de negocio */
+.df-ciclo-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.df-ciclo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.df-ciclo-numero {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--df-panel-2);
+  border: 2px solid var(--df-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--df-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--df-cyan);
+  flex-shrink: 0;
+}
+
+.df-ciclo-contenido {
+  flex: 1;
+}
+
+.df-ciclo-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--df-texto);
+  margin-bottom: 4px;
+}
+
+.df-ciclo-descripcion {
+  font-size: 13px;
+  color: var(--df-texto-2);
+  line-height: 1.5;
+}
+
+.df-ciclo-metrica {
+  font-family: var(--df-font-mono);
+  font-size: 12px;
+  color: var(--df-texto-3);
+  margin-top: 8px;
+}
+
+/* Modelos de negocio */
+.df-modelos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.df-modelo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--df-panel-2);
+  border-radius: 8px;
+  border: 1px solid var(--df-linea);
+}
+
+.df-modelo-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--df-texto);
+}
+
+.df-modelo-descripcion {
+  font-size: 12px;
+  color: var(--df-texto-3);
+  margin-top: 2px;
+}
+
+.df-modelo-monto {
+  font-family: var(--df-font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--df-texto);
+  text-align: right;
+}
+
+.df-modelo-pct {
+  font-family: var(--df-font-mono);
+  font-size: 11px;
+  color: var(--df-texto-3);
+  margin-top: 2px;
+}
+
+/* Concentración de cartera */
+.df-concentracion-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.df-concentracion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--df-panel-2);
+  border-radius: 6px;
+}
+
+.df-concentracion-cliente {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--df-texto);
+}
+
+.df-concentracion-monto {
+  font-family: var(--df-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--df-texto);
+}
+
+.df-concentracion-pct {
+  font-family: var(--df-font-mono);
+  font-size: 11px;
+  color: var(--df-texto-3);
+  margin-left: 12px;
+}
+
+.df-concentracion-barra {
+  height: 4px;
+  background: var(--df-linea);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.df-concentracion-barra-fill {
+  height: 100%;
+  background: var(--df-cyan);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Responsive */
+@media (max-width: 1280px) {
+  .df-grid2 {
+    grid-template-columns: 1fr;
+  }
+
+/* Zona 9: Supuestos */
+.df-supuestos {
+  background: var(--df-panel);
+  border: 1px dashed var(--df-linea);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.df-supuestos-titulo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--df-texto-3);
+  margin-bottom: 16px;
+}
+
+.df-supuestos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.df-supuesto-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--df-panel-2);
+  border-radius: 6px;
+  border-left: 3px solid var(--df-ambar);
+}
+
+.df-supuesto-icono {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--df-ambar);
+  color: var(--df-fondo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.df-supuesto-texto {
+  font-size: 13px;
+  color: var(--df-texto-2);
+  line-height: 1.5;
+}
+
+.df-supuesto-texto strong {
+  color: var(--df-texto);
+  font-weight: 600;
+}
+
+/* Zona 10: Pie nota */
+.df-pie-nota {
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.df-pie-nota-texto {
+  font-size: 12px;
+  color: var(--df-texto-3);
+  line-height: 1.6;
+}
+
+.df-pie-nota-texto strong {
+  color: var(--df-texto-2);
+  font-weight: 600;
+}
+
+/* Tabla mejorada */
+.df-tabla-mejorada {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.df-tabla-mejorada thead {
+  background: var(--df-panel-2);
+  border-bottom: 1px solid var(--df-linea);
+}
+
+.df-tabla-mejorada th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--df-texto-3);
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.df-tabla-mejorada td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--df-linea);
+  color: var(--df-texto);
+}
+
+.df-tabla-mejorada tbody tr:hover {
+  background: var(--df-panel-2);
+}
+
+.df-tabla-mejorada .numero {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  text-align: right;
+}
+
+.df-tabla-mejorada .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.df-tabla-mejorada .chip-activo {
+  background: rgba(47, 214, 154, 0.1);
+  color: var(--df-verde);
+}
+
+.df-tabla-mejorada .chip-pendiente {
+  background: rgba(255, 176, 32, 0.1);
+  color: var(--df-ambar);
+}
+
+.df-tabla-mejorada .chip-vencido {
+  background: rgba(255, 77, 87, 0.1);
+  color: var(--df-rojo);
+}
+
+.df-tabla-mejorada .chip-cerrado {
+  background: rgba(91, 141, 239, 0.1);
+  color: var(--df-azul);
+}
+
+}
