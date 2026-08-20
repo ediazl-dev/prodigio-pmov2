@@ -1495,3 +1495,743 @@
     border-bottom: none;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SISTEMA DE DISEÑO DF-* — Dashboard Financiero Consolidado
+   Réplica fidedigna del HTML de referencia dashboard-financiero-consolidado.html
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --df-fondo: #0B1120;
+  --df-panel: #111A2B;
+  --df-panel-2: #16213A;
+  --df-panel-3: #1B2942;
+  --df-linea: #22304A;
+  --df-linea-suave: #1A2438;
+  --df-texto: #E8EDF5;
+  --df-texto-2: #93A4C0;
+  --df-texto-3: #5D6E8C;
+  --df-magenta: #E71F71;
+  --df-cyan: #00BFFF;
+  --df-rojo: #FF4D57;
+  --df-ambar: #FFB020;
+  --df-verde: #2FD69A;
+  --df-azul: #5B8DEF;
+  --df-violeta: #A78BFA;
+  --df-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+  --df-mono: "JetBrains Mono", ui-monospace, monospace;
+  --df-r: 12px;
+}
+
+/* ── Layout principal ── */
+.df-app {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  min-height: 100vh;
+  background: var(--df-fondo);
+  color: var(--df-texto);
+  font-family: var(--df-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.df-main {
+  padding: 26px 30px 60px;
+  max-width: 1520px;
+}
+
+/* ── Sidebar ── */
+.df-side {
+  background: #0D1524;
+  border-right: 1px solid var(--df-linea);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.df-logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 2px 6px;
+}
+
+.df-logo .df-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--df-magenta), #8B0F47);
+  display: grid;
+  place-items: center;
+  font-family: var(--df-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+
+.df-logo b {
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.df-logo span {
+  font-size: 11px;
+  color: var(--df-texto-3);
+}
+
+.df-nav-grupo > .df-tit {
+  font-family: var(--df-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+  padding: 0 8px 8px;
+}
+
+.df-nav a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--df-texto-2);
+  text-decoration: none;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.df-nav a:hover {
+  background: var(--df-panel-2);
+  color: var(--df-texto);
+}
+
+.df-nav a.df-on {
+  background: linear-gradient(90deg, rgba(231, 31, 113, 0.16), transparent);
+  color: #fff;
+  box-shadow: inset 2px 0 0 var(--df-magenta);
+}
+
+.df-nav a .df-ic {
+  width: 16px;
+  text-align: center;
+  opacity: 0.8;
+  font-size: 13px;
+}
+
+.df-nav a .df-badge {
+  margin-left: auto;
+  font-family: var(--df-mono);
+  font-size: 10px;
+  background: var(--df-rojo);
+  color: #2A0508;
+  border-radius: 20px;
+  padding: 1px 6px;
+  font-weight: 700;
+}
+
+.df-side-pie {
+  margin-top: auto;
+  border-top: 1px solid var(--df-linea);
+  padding-top: 14px;
+  font-size: 11px;
+  color: var(--df-texto-3);
+}
+
+/* ── Cabecera ── */
+.df-cab {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.df-cab .df-eyebrow {
+  font-family: var(--df-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--df-magenta);
+}
+
+.df-cab h1 {
+  font-size: 26px;
+  margin: 6px 0 3px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.df-cab .df-sub {
+  font-size: 13px;
+  color: var(--df-texto-2);
+}
+
+.df-cab .df-acciones {
+  margin-left: auto;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+
+.df-btn {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 15px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.df-btn-mag {
+  background: var(--df-magenta);
+  color: #fff;
+}
+
+.df-btn-linea {
+  background: transparent;
+  color: var(--df-texto);
+  border: 1px solid var(--df-linea);
+}
+
+.df-btn-linea:hover {
+  background: var(--df-panel-2);
+}
+
+.df-selector {
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-radius: 9px;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--df-texto-2);
+  font-family: inherit;
+}
+
+/* ── Barra unidad ── */
+.df-unidad {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-left: 3px solid var(--df-ambar);
+  border-radius: var(--df-r);
+  padding: 12px 18px;
+  margin-bottom: 20px;
+  font-size: 12.5px;
+  color: var(--df-texto-2);
+}
+
+.df-unidad b {
+  font-family: var(--df-mono);
+  color: var(--df-texto);
+}
+
+.df-unidad .df-alerta {
+  color: var(--df-ambar);
+}
+
+.df-unidad .df-der {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--df-texto-3);
+}
+
+/* ── Lectura del periodo ── */
+.df-lectura {
+  background: linear-gradient(135deg, rgba(0, 191, 255, 0.06), transparent 55%), var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-radius: var(--df-r);
+  padding: 22px 24px;
+  margin-bottom: 20px;
+}
+
+.df-lectura > .df-lbl {
+  font-family: var(--df-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--df-cyan);
+}
+
+.df-lectura h2 {
+  font-size: 19px;
+  margin: 9px 0 16px;
+  max-width: 88ch;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.df-lectura h2 em {
+  font-style: normal;
+  color: var(--df-rojo);
+}
+
+.df-lectura-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--df-linea);
+  border: 1px solid var(--df-linea);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.df-lectura-cols > div {
+  background: var(--df-panel);
+  padding: 16px 18px;
+}
+
+.df-lectura-cols h4 {
+  font-family: var(--df-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+  margin-bottom: 9px;
+  font-weight: 500;
+}
+
+.df-lectura-cols p {
+  font-size: 12.5px;
+  color: var(--df-texto-2);
+  line-height: 1.6;
+}
+
+.df-lectura-cols b {
+  color: var(--df-texto);
+  font-weight: 500;
+}
+
+/* ── Embudo ── */
+.df-embudo {
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-radius: var(--df-r);
+  padding: 22px 24px 20px;
+  margin-bottom: 16px;
+}
+
+.df-embudo-cab {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.df-embudo-cab h2 {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.df-embudo-cab .df-nota {
+  font-size: 11.5px;
+  color: var(--df-texto-3);
+  margin-left: auto;
+}
+
+.df-etapa-top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.df-etapa-top .df-nom {
+  font-size: 13px;
+  font-weight: 500;
+  width: 180px;
+  flex: none;
+}
+
+.df-etapa-top .df-def {
+  font-size: 11px;
+  color: var(--df-texto-3);
+  flex: 1;
+  min-width: 180px;
+}
+
+.df-etapa-top .df-val {
+  font-family: var(--df-mono);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.df-etapa-top .df-pct {
+  font-family: var(--df-mono);
+  font-size: 11px;
+  color: var(--df-texto-3);
+  width: 52px;
+  text-align: right;
+}
+
+.df-etapa-barra {
+  height: 26px;
+  border-radius: 5px;
+  background: var(--df-panel-3);
+  overflow: hidden;
+}
+
+.df-etapa-barra i {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+
+/* ── Brechas entre etapas ── */
+.df-brecha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 9px 0 14px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: var(--df-panel-2);
+  border-left: 2px solid var(--df-texto-3);
+}
+
+.df-brecha.df-mala {
+  border-left-color: var(--df-rojo);
+  background: rgba(255, 77, 87, 0.07);
+}
+
+.df-brecha.df-tibia {
+  border-left-color: var(--df-ambar);
+  background: rgba(255, 176, 32, 0.06);
+}
+
+.df-brecha .df-flecha {
+  color: var(--df-texto-3);
+  font-family: var(--df-mono);
+  font-size: 13px;
+}
+
+.df-brecha .df-t {
+  font-size: 12.5px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.df-brecha .df-t span {
+  color: var(--df-texto-3);
+  font-size: 11.5px;
+  display: block;
+  margin-top: 2px;
+}
+
+.df-brecha .df-conv {
+  font-family: var(--df-mono);
+  font-size: 10px;
+  color: var(--df-texto-3);
+  border: 1px solid var(--df-linea);
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.df-brecha .df-m {
+  font-family: var(--df-mono);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.df-brecha.df-mala .df-m {
+  color: var(--df-rojo);
+}
+
+.df-brecha.df-tibia .df-m {
+  color: var(--df-ambar);
+}
+
+.df-brecha .df-dueno {
+  font-size: 10.5px;
+  font-family: var(--df-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+  border: 1px solid var(--df-linea);
+  border-radius: 20px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+/* ── Tarjetas de brecha ── */
+.df-brechas {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 26px;
+}
+
+.df-bcard {
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-top: 3px solid var(--df-texto-3);
+  border-radius: var(--df-r);
+  padding: 17px 18px;
+}
+
+.df-bcard.df-mala {
+  border-top-color: var(--df-rojo);
+}
+
+.df-bcard.df-tibia {
+  border-top-color: var(--df-ambar);
+}
+
+.df-bcard .df-et {
+  font-family: var(--df-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+}
+
+.df-bcard .df-v {
+  font-family: var(--df-mono);
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 8px 0 2px;
+}
+
+.df-bcard.df-mala .df-v {
+  color: var(--df-rojo);
+}
+
+.df-bcard.df-tibia .df-v {
+  color: var(--df-ambar);
+}
+
+.df-bcard .df-d {
+  font-size: 11.5px;
+  color: var(--df-texto-2);
+  line-height: 1.45;
+}
+
+.df-bcard .df-d b {
+  color: var(--df-texto);
+  font-weight: 500;
+}
+
+.df-bcard .df-pie {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--df-linea);
+  font-size: 11px;
+  font-family: var(--df-mono);
+  color: var(--df-texto-3);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.df-bcard .df-pie b {
+  color: var(--df-texto-2);
+}
+
+/* ── Cards genéricas ── */
+.df-grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.df-card {
+  background: var(--df-panel);
+  border: 1px solid var(--df-linea);
+  border-radius: var(--df-r);
+  margin-bottom: 16px;
+}
+
+.df-card-cab {
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--df-linea-suave);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.df-card-cab h3 {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.df-card-cab .df-tag {
+  margin-left: auto;
+  font-family: var(--df-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+}
+
+.df-card-cuerpo {
+  padding: 18px;
+}
+
+.df-grid2 > .df-card {
+  margin-bottom: 0;
+}
+
+/* ── Tabla ── */
+.df-tabla-scroll {
+  overflow-x: auto;
+}
+
+.df-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.df-tabla th {
+  text-align: left;
+  font-family: var(--df-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--df-texto-3);
+  font-weight: 500;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--df-linea);
+  white-space: nowrap;
+}
+
+.df-tabla td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--df-linea-suave);
+  vertical-align: middle;
+}
+
+.df-tabla tbody tr:hover {
+  background: var(--df-panel-2);
+}
+
+.df-tabla td.df-num,
+.df-tabla th.df-num {
+  text-align: right;
+  font-family: var(--df-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.df-tabla tfoot td {
+  border-bottom: 0;
+  border-top: 1px solid var(--df-linea);
+  font-weight: 700;
+  background: var(--df-panel-2);
+}
+
+/* ── Chips ── */
+.df-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--df-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.df-chip.df-rojo {
+  background: rgba(255, 77, 87, 0.14);
+  color: var(--df-rojo);
+}
+
+.df-chip.df-ambar {
+  background: rgba(255, 176, 32, 0.13);
+  color: var(--df-ambar);
+}
+
+.df-chip.df-verde {
+  background: rgba(47, 214, 154, 0.12);
+  color: var(--df-verde);
+}
+
+.df-chip.df-gris {
+  background: var(--df-panel-3);
+  color: var(--df-texto-2);
+}
+
+.df-chip.df-azul {
+  background: rgba(91, 141, 239, 0.14);
+  color: var(--df-azul);
+}
+
+.df-chip.df-violeta {
+  background: rgba(167, 139, 250, 0.14);
+  color: var(--df-violeta);
+}
+
+/* ── Utilidades ── */
+.df-mono {
+  font-family: var(--df-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.df-mini {
+  font-size: 11px;
+  color: var(--df-texto-3);
+  display: block;
+}
+
+.df-cero {
+  color: var(--df-texto-3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1280px) {
+  .df-brechas {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .df-grid2 {
+    grid-template-columns: 1fr;
+  }
+  .df-lectura-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .df-app {
+    grid-template-columns: 1fr;
+  }
+  .df-side {
+    display: none;
+  }
+  .df-main {
+    padding: 20px 16px 50px;
+  }
+  .df-brechas {
+    grid-template-columns: 1fr;
+  }
+  .df-etapa-top .df-nom {
+    width: auto;
+  }
+  .df-tabla-scroll {
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

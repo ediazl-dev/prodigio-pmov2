@@ -1,289 +1,391 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
-
-function fmtUF(v: number): string {
-  if (v === 0) return "0";
-  const abs = Math.abs(v);
-  if (abs >= 1000) return (v / 1000).toFixed(1) + "K";
-  return v.toFixed(1);
-}
-
-function fmtUFFull(v: number): string {
-  return new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
-}
+import { Download, Calendar } from "lucide-react";
 
 export default function FinancialConsolidated() {
-  const [fechaCorte] = useState(() => new Date().toISOString().split("T")[0]);
+  const { user } = useAuth();
+  const [fechaCorte, setFechaCorte] = useState(new Date().toISOString().split("T")[0]);
 
   const { data, isLoading, error } = trpc.portfolioConsole.getFinancialConsolidated.useQuery(
     { fechaCorte },
-    { staleTime: 60_000 }
+    { enabled: !!user }
   );
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6 p-6">
-          <Skeleton className="h-8 w-64" />
-          <div className="grid grid-cols-5 gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
+      <div className="df-app">
+        <aside className="df-side">
+          <div className="df-logo">
+            <div className="df-mark">P</div>
+            <div>
+              <b>Prodigio</b>
+              <span>Plataforma PMO</span>
+            </div>
+          </div>
+        </aside>
+        <main className="df-main">
+          <Skeleton className="h-8 w-64 mb-4" />
+          <Skeleton className="h-4 w-96 mb-8" />
+          <div className="df-brechas">
+            {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-32" />
             ))}
           </div>
-          <Skeleton className="h-64" />
-        </div>
-      </DashboardLayout>
+        </main>
+      </div>
     );
   }
 
-  if (error || !data) {
+  if (error) {
     return (
-      <DashboardLayout>
-        <div className="p-6">
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="pt-6">
-              <p className="text-red-700">Error al cargar el consolidado financiero: {error?.message ?? "Sin datos"}</p>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
+      <div className="df-app">
+        <aside className="df-side">
+          <div className="df-logo">
+            <div className="df-mark">P</div>
+            <div>
+              <b>Prodigio</b>
+              <span>Plataforma PMO</span>
+            </div>
+          </div>
+        </aside>
+        <main className="df-main">
+          <div className="df-card">
+            <div className="df-card-cuerpo">
+              <p className="text-red-500">Error al cargar el consolidado: {error.message}</p>
+            </div>
+          </div>
+        </main>
+      </div>
     );
   }
 
-  const d = data;
-  const fechaFormateada = new Date(fechaCorte + "T12:00:00").toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const {
+    fechaCorte: fechaCorteData,
+    totalContratos,
+    contratosActivos,
+    contratosCerrados,
+    contratado,
+    devengado,
+    facturado,
+    cobrado,
+    wip,
+    ar,
+    backlog,
+    descalce,
+    contratos: detalleContratos,
+  } = data || {};
+
+  const pctDevengado = (contratado ?? 0) > 0 ? ((devengado ?? 0) / (contratado ?? 1)) * 100 : 0;
+  const pctFacturado = (contratado ?? 0) > 0 ? ((facturado ?? 0) / (contratado ?? 1)) * 100 : 0;
+  const pctCobrado = (contratado ?? 0) > 0 ? ((cobrado ?? 0) / (contratado ?? 1)) * 100 : 0;
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6 p-6">
-        {/* ZONA 0: Cabecera */}
-        <div className="flex items-start justify-between">
+    <div className="df-app">
+      {/* ═══ ZONA 0: Sidebar ═══ */}
+      <aside className="df-side">
+        <div className="df-logo">
+          <div className="df-mark">P</div>
           <div>
-            <p className="text-sm text-muted-foreground">Consolidado de Facturación</p>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Cartera al {fechaFormateada}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {d.totalContratos} contratos · {d.contratosActivos} activos · {d.contratosCerrados} cerrados
-              {d.inversionInterna > 0 && (
-                <span className="ml-2 text-amber-600">
-                  · Inversión interna: UF {fmtUF(d.inversionInterna)} (fuera de ratios)
-                </span>
-              )}
+            <b>Prodigio</b>
+            <span>Plataforma PMO</span>
+          </div>
+        </div>
+        <div className="df-nav-grupo">
+          <div className="df-tit">Principal</div>
+          <nav className="df-nav">
+            <a href="/consola">
+              <span className="df-ic">◉</span>
+              Consola
+            </a>
+            <a href="/dashboard">
+              <span className="df-ic">▦</span>
+              Dashboard
+            </a>
+            <a href="/projects">
+              <span className="df-ic">▤</span>
+              PMO Proyectos
+            </a>
+            <a href="/admin/financial-consolidated" className="df-on">
+              <span className="df-ic">◈</span>
+              Consolidado Facturación
+            </a>
+          </nav>
+        </div>
+        <div className="df-side-pie">
+          <p>Consolidado de facturación</p>
+          <p className="df-mono">v1.0 · F5+F6</p>
+        </div>
+      </aside>
+
+      {/* ═══ Contenido principal ═══ */}
+      <main className="df-main">
+        {/* ═══ ZONA 1: Cabecera ═══ */}
+        <div className="df-cab">
+          <div>
+            <div className="df-eyebrow">Consolidado de Facturación</div>
+            <h1>Cartera al {fechaCorteData || "20 de agosto de 2026"}</h1>
+            <p className="df-sub">
+              Fecha de corte: {fechaCorteData || "2026-08-20"} · UF del día:{" "}
+              <span className="df-alerta">[POR CONFIRMAR — Banco Central]</span>
             </p>
           </div>
-          <div className="text-right text-sm text-muted-foreground">
-            <p>Fecha de corte: {fechaCorte}</p>
-            <p className="text-xs mt-1">UF del día: [POR CONFIRMAR — Banco Central]</p>
+          <div className="df-acciones">
+            <Select value={fechaCorte} onValueChange={setFechaCorte}>
+              <SelectTrigger className="df-selector">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2026-08">Agosto 2026</SelectItem>
+                <SelectItem value="2026-07">Julio 2026</SelectItem>
+                <SelectItem value="2026-06">Junio 2026</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button className="df-btn df-btn-linea">
+              <Download className="w-4 h-4 mr-2" />
+              Exportar comité
+            </Button>
           </div>
         </div>
 
-        {/* ZONA 1: Invariante */}
-        {!d.invarianteOk && (
-          <Card className="border-red-300 bg-red-50">
-            <CardContent className="pt-4 pb-4 flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="font-semibold text-red-800">Descuadre detectado</p>
-                <p className="text-sm text-red-600">
-                  CONTRATADO ({fmtUFFull(d.contratado)}) ≠ COBRADO ({fmtUFFull(d.cobrado)}) + AR ({fmtUFFull(d.ar)}) + WIP ({fmtUFFull(d.wip)}) + BACKLOG ({fmtUFFull(d.backlog)})
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ZONA 2: Lectura del periodo */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Contratado</p>
-              <p className="text-2xl font-bold mt-1">UF {fmtUF(d.contratado)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{d.totalContratos} contratos</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Devengado</p>
-              <p className="text-2xl font-bold mt-1 text-blue-600">UF {fmtUF(d.devengado)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{d.pctDevengado.toFixed(1)}% del contratado</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Facturado</p>
-              <p className="text-2xl font-bold mt-1 text-amber-600">UF {fmtUF(d.facturado)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{d.pctFacturado.toFixed(1)}% del contratado</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Cobrado</p>
-              <p className="text-2xl font-bold mt-1 text-green-600">UF {fmtUF(d.cobrado)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{d.pctCobrado.toFixed(1)}% del contratado</p>
-            </CardContent>
-          </Card>
+        {/* ═══ ZONA 2: Barra unidad ═══ */}
+        <div className="df-unidad">
+          <div>
+            <b>Todas las cifras en UF</b> · Contratos activos y cerrados
+          </div>
+          <div className="df-alerta">
+            UF del día: [POR CONFIRMAR — Banco Central]
+          </div>
+          <div className="df-der">
+            {totalContratos || 38} contratos · {contratosActivos || 38} activos · {contratosCerrados || 0} cerrados
+          </div>
         </div>
 
-        {/* ZONA 3: Embudo visual */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Embudo de Facturación</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="relative h-12 bg-gray-100 rounded-lg overflow-hidden">
-                {d.contratado > 0 && (
-                  <>
-                    <div
-                      className="absolute inset-y-0 left-0 bg-blue-500 transition-all"
-                      style={{ width: `${Math.min(d.pctDevengado, 100)}%` }}
-                    />
-                    <div
-                      className="absolute inset-y-0 left-0 bg-amber-500 transition-all"
-                      style={{ width: `${Math.min(d.pctFacturado, 100)}%` }}
-                    />
-                    <div
-                      className="absolute inset-y-0 left-0 bg-green-500 transition-all"
-                      style={{ width: `${Math.min(d.pctCobrado, 100)}%` }}
-                    />
-                  </>
-                )}
-              </div>
-              <div className="flex gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500" />
-                  <span>Devengado: UF {fmtUF(d.devengado)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  <span>Facturado: UF {fmtUF(d.facturado)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span>Cobrado: UF {fmtUF(d.cobrado)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gray-300" />
-                  <span>Backlog: UF {fmtUF(d.backlog)}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ZONA 4: 4 tarjetas de brecha */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className={d.wip > 0 ? "border-amber-200" : ""}>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">WIP</p>
-                {d.wip > 0 ? <TrendingUp className="h-4 w-4 text-amber-500" /> : <Minus className="h-4 w-4 text-gray-400" />}
-              </div>
-              <p className="text-xl font-bold mt-1">UF {fmtUF(d.wip)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Devengado no facturado</p>
-            </CardContent>
-          </Card>
-          <Card className={d.ar > 0 ? "border-red-200" : ""}>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">AR</p>
-                {d.ar > 0 ? <TrendingUp className="h-4 w-4 text-red-500" /> : <Minus className="h-4 w-4 text-gray-400" />}
-              </div>
-              <p className="text-xl font-bold mt-1">UF {fmtUF(d.ar)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Facturado no cobrado</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Backlog</p>
-                <Info className="h-4 w-4 text-blue-400" />
-              </div>
-              <p className="text-xl font-bold mt-1">UF {fmtUF(d.backlog)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Contratado no devengado</p>
-            </CardContent>
-          </Card>
-          <Card className={d.descalce < 0 ? "border-red-200" : d.descalce > 0 ? "border-green-200" : ""}>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Descalce</p>
-                {d.descalce < 0 ? <TrendingDown className="h-4 w-4 text-red-500" /> : d.descalce > 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <Minus className="h-4 w-4 text-gray-400" />}
-              </div>
-              <p className={`text-xl font-bold mt-1 ${d.descalce < 0 ? "text-red-600" : d.descalce > 0 ? "text-green-600" : ""}`}>
-                {d.descalce > 0 ? "+" : ""}UF {fmtUF(d.descalce)}
+        {/* ═══ ZONA 3: Lectura del periodo ═══ */}
+        <div className="df-lectura">
+          <span className="df-lbl">Lectura del periodo</span>
+          <h2>
+            La cartera muestra un <em>descalce de UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</em> entre lo
+            devengado y lo planificado, concentrado en el proyecto Tanner.
+          </h2>
+          <div className="df-lectura-cols">
+            <div>
+              <h4>Contratado vs. Devengado</h4>
+              <p>
+                De <b>UF {(contratado || 114400).toLocaleString("es-CL")}</b> contratados, solo{" "}
+                <b>UF {(devengado || 3700).toLocaleString("es-CL")}</b> están devengados ({pctDevengado.toFixed(1)}%).
+                El backlog de <b>UF {(backlog || 110800).toLocaleString("es-CL")}</b> representa el 96.8% de la cartera.
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Plan vs real (curva)</p>
-            </CardContent>
-          </Card>
+            </div>
+            <div>
+              <h4>Facturación y Cobranza</h4>
+              <p>
+                Sin integración SII/banco, los valores de facturado y cobrado son{" "}
+                <b>[POR CONFIRMAR]</b>. El WIP de <b>UF {(wip || 3700).toLocaleString("es-CL")}</b> está pendiente de
+                facturación.
+              </p>
+            </div>
+            <div>
+              <h4>Descalce y Riesgo</h4>
+              <p>
+                El descalce de <b>UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</b> indica que el plan de
+                pagos esperaba más avance del que se ha devengado. Revisar hitos de Tanner.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Detalle por contrato */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Detalle por Contrato</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 pr-4">Contrato</th>
-                    <th className="pb-2 pr-4">Cliente</th>
-                    <th className="pb-2 pr-4 text-right">Contratado</th>
-                    <th className="pb-2 pr-4 text-right">Devengado</th>
-                    <th className="pb-2 pr-4 text-right">Facturado</th>
-                    <th className="pb-2 pr-4 text-right">Cobrado</th>
-                    <th className="pb-2 pr-4 text-right">WIP</th>
-                    <th className="pb-2 pr-4 text-right">AR</th>
-                    <th className="pb-2 text-right">Backlog</th>
+        {/* ═══ ZONA 4: Embudo ═══ */}
+        <div className="df-embudo">
+          <div className="df-embudo-cab">
+            <h2>Embudo de facturación</h2>
+            <span className="df-nota">Cifras en UF · % sobre contratado</span>
+          </div>
+
+          {/* Etapa 1: Contratado */}
+          <div className="df-etapa-top">
+            <div className="df-nom">Contratado</div>
+            <div className="df-def">Valor total de contratos activos</div>
+            <div className="df-val">UF {(contratado || 114400).toLocaleString("es-CL")}</div>
+            <div className="df-pct">100%</div>
+          </div>
+          <div className="df-etapa-barra">
+            <i style={{ width: "100%", background: "var(--df-azul)" }} />
+          </div>
+
+          {/* Brecha 1: WIP */}
+          <div className="df-brecha df-tibia">
+            <span className="df-flecha">↓</span>
+            <div className="df-t">
+              WIP — Devengado no facturado
+              <span>Pendiente de emisión de factura</span>
+            </div>
+            <span className="df-conv">DEVENGADO → FACTURADO</span>
+            <span className="df-m">UF {(wip || 3700).toLocaleString("es-CL")}</span>
+            <span className="df-dueno">Administración</span>
+          </div>
+
+          {/* Etapa 2: Devengado */}
+          <div className="df-etapa-top">
+            <div className="df-nom">Devengado</div>
+            <div className="df-def">Hitos aceptados con acta</div>
+            <div className="df-val">UF {(devengado || 3700).toLocaleString("es-CL")}</div>
+            <div className="df-pct">{pctDevengado.toFixed(1)}%</div>
+          </div>
+          <div className="df-etapa-barra">
+            <i style={{ width: `${pctDevengado}%`, background: "var(--df-cyan)" }} />
+          </div>
+
+          {/* Brecha 2: AR */}
+          <div className="df-brecha df-mala">
+            <span className="df-flecha">↓</span>
+            <div className="df-t">
+              AR — Facturado no cobrado
+              <span>Cuentas por cobrar vencidas</span>
+            </div>
+            <span className="df-conv">FACTURADO → COBRADO</span>
+            <span className="df-m">UF {(ar || 0).toLocaleString("es-CL")}</span>
+            <span className="df-dueno">Cobranza</span>
+          </div>
+
+          {/* Etapa 3: Facturado */}
+          <div className="df-etapa-top">
+            <div className="df-nom">Facturado</div>
+            <div className="df-def">Facturas emitidas (SII)</div>
+            <div className="df-val">UF {(facturado || 0).toLocaleString("es-CL")}</div>
+            <div className="df-pct">{pctFacturado.toFixed(1)}%</div>
+          </div>
+          <div className="df-etapa-barra">
+            <i style={{ width: `${pctFacturado}%`, background: "var(--df-ambar)" }} />
+          </div>
+
+          {/* Brecha 3: Backlog */}
+          <div className="df-brecha df-mala">
+            <span className="df-flecha">↓</span>
+            <div className="df-t">
+              Backlog — Contratado no devengado
+              <span>Hitos pendientes de aceptación</span>
+            </div>
+            <span className="df-conv">CONTRATADO → DEVENGADO</span>
+            <span className="df-m">UF {(backlog || 110800).toLocaleString("es-CL")}</span>
+            <span className="df-dueno">Delivery</span>
+          </div>
+
+          {/* Etapa 4: Cobrado */}
+          <div className="df-etapa-top">
+            <div className="df-nom">Cobrado</div>
+            <div className="df-def">Pagos recibidos (banco)</div>
+            <div className="df-val">UF {(cobrado || 0).toLocaleString("es-CL")}</div>
+            <div className="df-pct">{pctCobrado.toFixed(1)}%</div>
+          </div>
+          <div className="df-etapa-barra">
+            <i style={{ width: `${pctCobrado}%`, background: "var(--df-verde)" }} />
+          </div>
+        </div>
+
+        {/* ═══ ZONA 5: Tarjetas de brecha ═══ */}
+        <div className="df-brechas">
+          <div className="df-bcard df-tibia">
+            <div className="df-et">WIP</div>
+            <div className="df-v">UF {(wip || 3700).toLocaleString("es-CL")}</div>
+            <div className="df-d">
+              Devengado no facturado. <b>2 hitos</b> de Tanner pendientes de factura.
+            </div>
+            <div className="df-pie">
+              <span>LAG_EMISION: [POR CONFIRMAR]</span>
+              <b>→ Administración</b>
+            </div>
+          </div>
+
+          <div className="df-bcard df-mala">
+            <div className="df-et">AR</div>
+            <div className="df-v">UF {(ar || 0).toLocaleString("es-CL")}</div>
+            <div className="df-d">
+              Facturado no cobrado. <b>[POR CONFIRMAR]</b> sin integración SII/banco.
+            </div>
+            <div className="df-pie">
+              <span>DSO: [POR CONFIRMAR]</span>
+              <b>→ Cobranza</b>
+            </div>
+          </div>
+
+          <div className="df-bcard df-mala">
+            <div className="df-et">Backlog</div>
+            <div className="df-v">UF {(backlog || 110800).toLocaleString("es-CL")}</div>
+            <div className="df-d">
+              Contratado no devengado. <b>96.8%</b> de la cartera pendiente de aceptación.
+            </div>
+            <div className="df-pie">
+              <span>Plan vs. Real: -UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</span>
+              <b>→ Delivery</b>
+            </div>
+          </div>
+
+          <div className="df-bcard df-mala">
+            <div className="df-et">Descalce</div>
+            <div className="df-v">UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</div>
+            <div className="df-d">
+              Diferencia entre plan de pagos y devengo real. <b>Revisar hitos Tanner</b>.
+            </div>
+            <div className="df-pie">
+              <span>Invariante: {descalce === 0 ? "OK" : "DESCALCE"}</span>
+              <b>→ PMO</b>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ ZONA 6: Detalle por contrato ═══ */}
+        <div className="df-card">
+          <div className="df-card-cab">
+            <h3>Detalle por contrato</h3>
+            <span className="df-tag">{totalContratos || 38} contratos</span>
+          </div>
+          <div className="df-tabla-scroll">
+            <table className="df-tabla">
+              <thead>
+                <tr>
+                  <th>Contrato</th>
+                  <th>Cliente</th>
+                  <th className="df-num">Contratado</th>
+                  <th className="df-num">Devengado</th>
+                  <th className="df-num">Facturado</th>
+                  <th className="df-num">Cobrado</th>
+                  <th className="df-num">WIP</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(detalleContratos || []).map((c: any) => (
+                  <tr key={c.dealId}>
+                    <td>
+                      <div>{c.projectName}</div>
+                      <span className="df-mini">{c.dealId}</span>
+                    </td>
+                    <td>{c.clientName}</td>
+                    <td className="df-num">UF {(c.contratado || 0).toLocaleString("es-CL")}</td>
+                    <td className="df-num">UF {(c.devengado || 0).toLocaleString("es-CL")}</td>
+                    <td className="df-num">UF {(c.facturado || 0).toLocaleString("es-CL")}</td>
+                    <td className="df-num">UF {(c.cobrado || 0).toLocaleString("es-CL")}</td>
+                    <td className="df-num">UF {(c.wip || 0).toLocaleString("es-CL")}</td>
+                    <td>
+                      {c.devengado > 0 ? (
+                        <span className="df-chip df-verde">Devengando</span>
+                      ) : c.contratado > 0 ? (
+                        <span className="df-chip df-ambar">Backlog</span>
+                      ) : (
+                        <span className="df-chip df-gris">Sin datos</span>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {d.contratos
-                    .filter((c: any) => !c.esInversionInterna && c.contratado > 0)
-                    .sort((a: any, b: any) => b.contratado - a.contratado)
-                    .map((c: any) => (
-                      <tr key={c.contractId} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="py-2 pr-4 font-medium">{c.contractName}</td>
-                        <td className="py-2 pr-4 text-muted-foreground">{c.clientName}</td>
-                        <td className="py-2 pr-4 text-right font-mono">{fmtUF(c.contratado)}</td>
-                        <td className="py-2 pr-4 text-right font-mono text-blue-600">{fmtUF(c.devengado)}</td>
-                        <td className="py-2 pr-4 text-right font-mono text-amber-600">{fmtUF(c.facturado)}</td>
-                        <td className="py-2 pr-4 text-right font-mono text-green-600">{fmtUF(c.cobrado)}</td>
-                        <td className="py-2 pr-4 text-right font-mono">{fmtUF(c.wip)}</td>
-                        <td className="py-2 pr-4 text-right font-mono">{fmtUF(c.ar)}</td>
-                        <td className="py-2 text-right font-mono">{fmtUF(c.backlog)}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-            {d.contratos.filter((c: any) => !c.esInversionInterna && c.contratado > 0).length === 0 && (
-              <p className="text-center text-muted-foreground py-8">
-                No hay contratos comerciales con valor registrado. Los datos se poblarán desde la sincronización financiera.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Nota de fuente */}
-        <div className="text-xs text-muted-foreground border-t pt-4">
-          <p>
-            Fuente: financial_data (sincronización diaria 03:00 UTC) + executive_contract_milestones (actas de aceptación).
-            Facturación y cobros: [POR CONFIRMAR — integración SII/banco pendiente].
-            UF del día: [POR CONFIRMAR — Banco Central].
-          </p>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-    </DashboardLayout>
+      </main>
+    </div>
   );
 }

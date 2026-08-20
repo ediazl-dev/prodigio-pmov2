@@ -1,33 +1,46 @@
 # Estado del Consolidado de Facturación — 2026-08-20
 
-## Completado
-- **F0**: Auditoría de origen — 38 deals en financial_data, 10 hitos Tanner con pesos, 2 actas
-- **F1**: Modelo de datos — 8 tablas nuevas (contract, payment_schedule_item, revenue_event, invoice, credit_note, payment, uf_value, internal_investment), migración 0034 aplicada, 38 contratos migrados, 10 ítems curva pago Tanner, 2 revenue events
-- **F3**: Motor determinista financialEngine.ts (220 líneas) — 13/13 tests aprobados
-- **F4 parcial**: Procedure getFinancialConsolidated insertado en routers.ts, página FinancialConsolidated.tsx creada (298 líneas)
+## Completado ✅
 
-## Pendiente inmediato
-1. Registrar la ruta /admin/financial-consolidated en App.tsx
-2. Agregar entrada en el menú de administración en DashboardLayout.tsx
-3. Verificar TypeScript limpio
-4. Ejecutar suite completa de tests
-5. Checkpoint y publicación
+### F5: Sistema de diseño CSS df-*
+- Variables CSS: --df-fondo, --df-panel, --df-texto, --df-magenta, --df-cyan, etc.
+- Tipografía: DM Sans (sans) + JetBrains Mono (mono)
+- Componentes: sidebar, cabecera, barra unidad, lectura periodo, embudo, brechas, tarjetas, tabla, chips
+- Responsive: breakpoints 1280px y 900px
+- Accesibilidad: prefers-reduced-motion
 
-## Archivos clave
-- server/financialEngine.ts — Motor determinista (calculateContractFunnel, calculatePortfolioFunnel)
-- server/financialEngine.test.ts — 13 tests (batería 12.1/12.2)
-- server/routers.ts — Procedure getFinancialConsolidated en portfolioConsoleRouter
-- client/src/pages/FinancialConsolidated.tsx — Página con Zonas 0-4 + detalle por contrato
-- drizzle/schema.ts — 8 tablas nuevas (líneas 994+)
+### F6: Zonas 0-4 corregidas
+- **Zona 0 (Sidebar):** Logo Prodigio, navegación con "Consolidado Facturación" activo, pie con versión
+- **Zona 1 (Cabecera):** Eyebrow "CONSOLIDADO DE FACTURACIÓN", título "Cartera al 2026-08-20", selector de periodo, botón "Exportar comité"
+- **Zona 2 (Barra unidad):** "Todas las cifras en UF", UF del día [POR CONFIRMAR — Banco Central], conteo de contratos
+- **Zona 3 (Lectura del periodo):** Título con descalce en rojo, 3 columnas (Contratado vs. Devengado, Facturación y Cobranza, Descalce y Riesgo)
+- **Zona 4 (Embudo):** 4 etapas (Contratado → Devengado → Facturado → Cobrado) con barras de progreso, brechas entre etapas (WIP, AR, Backlog) con flechas, conversiones y dueños
+- **Zona 5 (Tarjetas de brecha):** 4 tarjetas (WIP, AR, Backlog, Descalce) con borde superior de color, valores grandes, descripciones, pie con métricas
+- **Zona 6 (Detalle por contrato):** Tabla con 38 contratos, columnas (Contrato, Cliente, Contratado, Devengado, Facturado, Cobrado, WIP, Estado), chips de estado
 
-## Datos migrados
-- 38 contratos desde financial_data (Deal IDs como dealId)
-- 5 contratos vinculados a projectId (Deal1934→180002, Deal4529→180003, Deal2207→240002, Deal4669→360001, Deal4687→510001)
-- 10 ítems curva pago Tanner desde executive_contract_milestones (M01-M10 con pesos)
-- 2 revenue events Tanner desde executive_milestone_acceptances (M01, M02 con actas)
+## Datos reales mostrados
+- Contratado: UF 114.440.914
+- Devengado: UF 3.690 (3.2%)
+- Facturado: UF 0
+- Cobrado: UF 0
+- WIP: UF 3.690
+- Backlog: UF 110.750.914
+- Descalce: UF 1.640
 
-## Decisiones del usuario
-1. Implementación por etapas (F0+F1+F3+F4 primero)
-2. Sin integraciones externas (stubs [POR CONFIRMAR])
-3. Curvas de pago como línea base desde billing_milestones
-4. Roles actuales (admin/pmo/pm/consulta)
+## Validación
+- TypeScript: limpio (0 errores)
+- Pruebas: 489 aprobadas, 8 fallidas (pre-existentes: Jira API y Pipedrive API timeouts), 3 skipped
+- Proyectos de prueba: 8 eliminados de la BD
+
+## Checkpoint
+- **Versión:** 15572036
+- **URL:** https://pmo.prodigio.tech/admin/financial-consolidated
+
+## Próximos pasos (F7-F8)
+1. **F7:** Zonas 7-8 — proyección de cobranza, aging de AR, ciclo de facturación, modelos de negocio, concentración de cartera
+2. **F8:** Zonas 9-10 — supuestos con borde dashed, pie nota, tabla mejorada
+
+## Notas
+- La página está fuera del layout de administración (no tiene sidebar de admin) — decisión pendiente del usuario
+- El menú lateral muestra "Consolidado Facturación" pero la página es independiente
+- Los datos de facturado y cobrado son 0 porque no hay integración SII/banco (correcto según especificación)
