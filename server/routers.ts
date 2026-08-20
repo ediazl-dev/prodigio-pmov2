@@ -48,6 +48,9 @@ import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, tr
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { getActiveFinancialData } from "./db";
+import { getDb } from "./db";
+import { projectHealthSnapshots } from "../drizzle/schema";
+import { eq, desc, and, lt } from "drizzle-orm";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
 import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
@@ -6254,7 +6257,31 @@ const portfolioConsoleRouter = router({
             VERDE: 0,
           };
           const severidad = severidadMap[governance.governance.state] ?? 0;
-          const deterioro = 0; // Fase A: sin snapshot previo
+          // Fase C: Calcular deterioro real (ΔIGE) desde project_health_snapshot
+          let deterioro = 0;
+          try {
+            const db = await getDb();
+            if (db) {
+              const previousSnapshot = await db
+                .select()
+                .from(projectHealthSnapshots)
+                .where(
+                  and(
+                    eq(projectHealthSnapshots.projectId, project.id),
+                    lt(projectHealthSnapshots.cutoffDate, new Date(cutoffDate))
+                  )
+                )
+                .orderBy(desc(projectHealthSnapshots.cutoffDate))
+                .limit(1);
+              if (previousSnapshot.length > 0 && previousSnapshot[0].ige != null && governance.governance.ige != null) {
+                const deltaIge = governance.governance.ige - previousSnapshot[0].ige;
+                // Convertir ΔIGE a escala 0-100: -20 puntos o más = 100, 0 puntos = 0, +20 puntos o más = 0
+                deterioro = Math.max(0, Math.min(100, Math.round((-deltaIge / 20) * 100)));
+              }
+            }
+          } catch (error) {
+            console.warn(`[PortfolioConsole] Error obteniendo snapshot previo para proyecto ${project.id}:`, error);
+          }
           const exposicion = ufEnRiesgo != null && latestFinancial?.valorVentaUF != null && latestFinancial.valorVentaUF > 0
             ? Math.min(100, (ufEnRiesgo / latestFinancial.valorVentaUF) * 100)
             : 0;
@@ -6287,7 +6314,7 @@ const portfolioConsoleRouter = router({
             hitosVencidos,
             totalHitos: milestoneEvidence.length,
             requiereAtencion,
-            deterioro: 0, // Fase A
+            deterioro,
           };
         } catch (error) {
           console.error(`[PortfolioConsole] Error procesando proyecto ${project.id}:`, error);
@@ -6310,8 +6337,8 @@ const portfolioConsoleRouter = router({
     const totalUfEnRiesgo = projects.reduce((total, p) => total + (p.ufEnRiesgo ?? 0), 0);
     const totalP0Vencidas = projects.reduce((total, p) => total + (p.gatillos.includes("G-06") ? 1 : 0), 0);
     const planesRecuperacionVencidos = projects.filter((p) => p.gatillos.includes("G-07")).length;
-    const deteriorados = 0; // Fase A
-    const mejoraron = 0; // Fase A
+    const deteriorados = projects.filter((p) => p.deterioro > 0).length;
+    const mejoraron = projects.filter((p) => p.deterioro < 0).length;
     const totalProyectos = projects.length;
     const requierenAtencion = projects.filter((p) => p.requiereAtencion).length;
 

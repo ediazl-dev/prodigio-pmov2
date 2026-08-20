@@ -45,6 +45,24 @@ function getEstadoBgColor(estado: EstadoConsola): string {
   }
 }
 
+// Calcular desglose del PA para tooltip
+function calcularDesglosePA(proyecto: any): { severidad: number; deterioro: number; exposicion: number; mora: number } {
+  const severidadMap: Record<string, number> = {
+    CRITICO: 100,
+    ROJO: 75,
+    NARANJO: 50,
+    AMARILLO: 25,
+    VERDE: 0,
+  };
+  const severidad = severidadMap[proyecto.estado] ?? 0;
+  const deterioro = proyecto.deterioro;
+  const exposicion = proyecto.ufEnRiesgo != null && proyecto.ufEnRiesgo > 0
+    ? Math.min(100, (proyecto.ufEnRiesgo / 10000) * 100) // Aproximación: 10000 UF = 100%
+    : 0;
+  const mora = proyecto.totalHitos > 0 ? (proyecto.hitosVencidos / proyecto.totalHitos) * 100 : 0;
+  return { severidad, deterioro, exposicion, mora };
+}
+
 function generarMotivo(proyecto: any): string {
   const { hitosVencidos, totalHitos, estado, gatillos, ufEnRiesgo, ige } = proyecto;
   
@@ -267,7 +285,11 @@ export default function ConsolaGobierno() {
                 <Link key={proyecto.projectId} href={`/projects/${proyecto.projectId}`}>
                   <a className={`cg-fila ${config.clase}`}>
                     {/* Columna PA */}
-                    <div className="cg-pa" title={`PA = (severidad × 0.4) + (deterioro × 0.25) + (exposición × 0.2) + (mora × 0.15)`}>
+                    <div className="cg-pa" title={`PA = ${proyecto.pa}
+Severidad: ${calcularDesglosePA(proyecto).severidad} × 0.4 = ${Math.round(calcularDesglosePA(proyecto).severidad * 0.4)}
+Deterioro: ${calcularDesglosePA(proyecto).deterioro} × 0.25 = ${Math.round(calcularDesglosePA(proyecto).deterioro * 0.25)}
+Exposición: ${Math.round(calcularDesglosePA(proyecto).exposicion)} × 0.2 = ${Math.round(calcularDesglosePA(proyecto).exposicion * 0.2)}
+Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(calcularDesglosePA(proyecto).mora * 0.15)}`}>
                       <b>{proyecto.pa}</b>
                       <span>PA</span>
                     </div>

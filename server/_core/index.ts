@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { runFinancialSync } from "../financialSync";
+import { captureHealthSnapshot } from "../healthSnapshot";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,6 +52,25 @@ async function startServer() {
       const user = await sdk.authenticateRequest(req);
       if (!user.isCron) {
         res.status(403).json({ status: "error", error: "Sólo tareas programadas pueden invocar este endpoint" });
+  // Heartbeat: captura diaria de snapshot de salud por proyecto (sólo cron autenticado)
+  app.post("/api/scheduled/captureHealthSnapshot", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user.isCron) {
+        res.status(403).json({ status: "error", error: "Sólo tareas programadas pueden invocar este endpoint" });
+        return;
+      }
+      const outcome = await captureHealthSnapshot();
+      console.log(
+        `[HealthSnapshot] captured: ${outcome.projects} projects, ${outcome.snapshots} snapshots`
+      );
+      res.status(200).json(outcome);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[HealthSnapshot] error:", message);
+      res.status(500).json({ status: "error", error: message });
+    }
+  });
         return;
       }
       const outcome = await runFinancialSync();

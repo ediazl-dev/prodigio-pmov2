@@ -240,3 +240,17 @@
 - [x] Procedure portfolioConsole extendido con datos de Zonas 3-6
 - [x] Estilos CSS cg-* para Zonas 3-6 (grid2, cards, hig, resto)
 - [x] Validación TypeScript y pruebas Vitest
+
+## Fase C+D — Consola de Gobierno PMO (Motor + Datos)
+
+- [ ] Migración SQL para tabla project_health_snapshot
+- [ ] Job/cron para capturar snapshot diario de salud por proyecto
+- [ ] Cálculo de deterioro real (ΔIGE vs corte anterior) en portfolioConsole
+- [ ] Tooltip de PA con desglose de fórmula en página /consola
+- [ ] Validación TypeScript y pruebas Vitest
+
+## Fase C+D — Motor PA completo + snapshot de salud (COMPLETADA)
+- [x] Tabla `project_health_snapshot` creada (migración 0033)
+- [x] Job/cron para capturar snapshot diario de salud por proyecto (módulo healthSnapshot.ts)
+- [x] Cálculo de deterioro real (ΔIGE vs corte anterior) en procedure portfolioConsole
+- [x] Tooltip de PA con desglose de fórmula (severidad 40%, deterioro 25%, exposición 20%, mora 15%)

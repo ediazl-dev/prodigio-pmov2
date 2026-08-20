@@ -969,3 +969,25 @@ export const financialSyncLogs = mysqlTable("financial_sync_log", {
 });
 export type FinancialSyncLog = typeof financialSyncLogs.$inferSelect;
 export type InsertFinancialSyncLog = typeof financialSyncLogs.$inferInsert;
+
+/**
+ * Snapshot diario de salud por proyecto para la Consola de Gobierno PMO.
+ * Persiste el IGE, estado, gatillos activos y métricas clave en cada corte
+ * para calcular el deterioro (ΔIGE) entre cortes consecutivos.
+ */
+export const projectHealthSnapshots = mysqlTable("project_health_snapshot", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  cutoffDate: timestamp("cutoffDate").notNull(),
+  ige: int("ige"),
+  estado: varchar("estado", { length: 20 }),
+  gatillos: text("gatillos"), // JSON array de gatillos activos
+  ufEnRiesgo: int("ufEnRiesgo"),
+  hitosVencidos: int("hitosVencidos"),
+  hitosExigibles: int("hitosExigibles"),
+  p0Vencidas: int("p0Vencidas"),
+  planesRecuperacionVencidos: int("planesRecuperacionVencidos"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ProjectHealthSnapshot = typeof projectHealthSnapshots.$inferSelect;
+export type InsertProjectHealthSnapshot = typeof projectHealthSnapshots.$inferInsert;
