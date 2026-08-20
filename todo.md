@@ -299,4 +299,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Checkpoint publicado
 
 ## Corrección: Eliminar sidebar propio del Consolidado de Facturación
-- [ ] Eliminar el sidebar propio (df-side) de FinancialConsolidated.tsx para que solo use el sidebar del layout de administración
+- [x] Eliminar el sidebar propio (df-side) de FinancialConsolidated.tsx para que solo use el sidebar del layout de administración
+## Consolidado de Facturación — Tema claro (2026-08-20)
+- [x] Cambiar sistema CSS df-* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
+- [x] Verificar tabla detalle por contrato y todos los cuerpos/zonas con el nuevo tema
+- [x] Checkpoint publicado

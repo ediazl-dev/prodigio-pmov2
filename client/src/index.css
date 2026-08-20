@@ -1006,12 +1006,12 @@
 }
 
 .cg-chip.cg-c-amarillo {
-  background: rgba(255, 176, 32, 0.13);
+  background: rgba(178, 106, 0, 0.10);
   color: var(--cg-ambar);
 }
 
 .cg-chip.cg-c-verde {
-  background: rgba(47, 214, 154, 0.12);
+  background: rgba(27, 122, 84, 0.10);
   color: var(--cg-verde);
 }
 
@@ -1503,22 +1503,22 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --df-fondo: #0B1120;
-  --df-panel: #111A2B;
-  --df-panel-2: #16213A;
-  --df-panel-3: #1B2942;
-  --df-linea: #22304A;
-  --df-linea-suave: #1A2438;
-  --df-texto: #E8EDF5;
-  --df-texto-2: #93A4C0;
-  --df-texto-3: #5D6E8C;
-  --df-magenta: #E71F71;
-  --df-cyan: #00BFFF;
-  --df-rojo: #FF4D57;
-  --df-ambar: #FFB020;
-  --df-verde: #2FD69A;
-  --df-azul: #5B8DEF;
-  --df-violeta: #A78BFA;
+  --df-fondo: #F5F6FA;
+  --df-panel: #FFFFFF;
+  --df-panel-2: #F0F2F8;
+  --df-panel-3: #E6EAF3;
+  --df-linea: #D9DEE9;
+  --df-linea-suave: #E8ECF4;
+  --df-texto: #1A2332;
+  --df-texto-2: #4A5568;
+  --df-texto-3: #718096;
+  --df-magenta: #C2185B;
+  --df-cyan: #0277BD;
+  --df-rojo: #C62828;
+  --df-ambar: #B26A00;
+  --df-verde: #1B7A54;
+  --df-azul: #2B5CB8;
+  --df-violeta: #6D28D9;
   --df-sans: "DM Sans", system-ui, -apple-system, sans-serif;
   --df-mono: "JetBrains Mono", ui-monospace, monospace;
   --df-r: 12px;
@@ -1544,7 +1544,7 @@
 
 /* ── Sidebar ── */
 .df-side {
-  background: #0D1524;
+  background: #FFFFFF;
   border-right: 1px solid var(--df-linea);
   padding: 18px 14px;
   display: flex;
@@ -1563,7 +1563,7 @@
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--df-magenta), #8B0F47);
+  background: linear-gradient(135deg, var(--df-magenta), #E91E8C);
   display: grid;
   place-items: center;
   font-family: var(--df-mono);
@@ -1610,8 +1610,8 @@
 }
 
 .df-nav a.df-on {
-  background: linear-gradient(90deg, rgba(231, 31, 113, 0.16), transparent);
-  color: #fff;
+  background: linear-gradient(90deg, rgba(194, 24, 91, 0.10), transparent);
+  color: var(--df-magenta);
   box-shadow: inset 2px 0 0 var(--df-magenta);
 }
 
@@ -1627,7 +1627,7 @@
   font-family: var(--df-mono);
   font-size: 10px;
   background: var(--df-rojo);
-  color: #2A0508;
+  color: #FFFFFF;
   border-radius: 20px;
   padding: 1px 6px;
   font-weight: 700;
@@ -1745,7 +1745,7 @@
 
 /* ── Lectura del periodo ── */
 .df-lectura {
-  background: linear-gradient(135deg, rgba(0, 191, 255, 0.06), transparent 55%), var(--df-panel);
+  background: linear-gradient(135deg, rgba(2, 119, 189, 0.05), transparent 55%), var(--df-panel);
   border: 1px solid var(--df-linea);
   border-radius: var(--df-r);
   padding: 22px 24px;
@@ -1902,12 +1902,12 @@
 
 .df-brecha.df-mala {
   border-left-color: var(--df-rojo);
-  background: rgba(255, 77, 87, 0.07);
+  background: rgba(198, 40, 40, 0.06);
 }
 
 .df-brecha.df-tibia {
   border-left-color: var(--df-ambar);
-  background: rgba(255, 176, 32, 0.06);
+  background: rgba(178, 106, 0, 0.06);
 }
 
 .df-brecha .df-flecha {
@@ -2151,17 +2151,17 @@
 }
 
 .df-chip.df-rojo {
-  background: rgba(255, 77, 87, 0.14);
+  background: rgba(198, 40, 40, 0.10);
   color: var(--df-rojo);
 }
 
 .df-chip.df-ambar {
-  background: rgba(255, 176, 32, 0.13);
+  background: rgba(178, 106, 0, 0.10);
   color: var(--df-ambar);
 }
 
 .df-chip.df-verde {
-  background: rgba(47, 214, 154, 0.12);
+  background: rgba(27, 122, 84, 0.10);
   color: var(--df-verde);
 }
 
@@ -2171,12 +2171,12 @@
 }
 
 .df-chip.df-azul {
-  background: rgba(91, 141, 239, 0.14);
+  background: rgba(43, 92, 184, 0.10);
   color: var(--df-azul);
 }
 
 .df-chip.df-violeta {
-  background: rgba(167, 139, 250, 0.14);
+  background: rgba(109, 40, 217, 0.10);
   color: var(--df-violeta);
 }
 
