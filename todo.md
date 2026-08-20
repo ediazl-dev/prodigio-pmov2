@@ -297,3 +297,6 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F4: Zonas 0-4 — cabecera, barra unidad UF, lectura periodo, embudo, 4 tarjetas brecha
 - [x] Validación: TypeScript limpio + suite completa + invariante en producción
 - [x] Checkpoint publicado
+
+## Corrección: Eliminar sidebar propio del Consolidado de Facturación
+- [ ] Eliminar el sidebar propio (df-side) de FinancialConsolidated.tsx para que solo use el sidebar del layout de administración

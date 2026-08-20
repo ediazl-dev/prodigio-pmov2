@@ -1,24 +1,22 @@
 # Estado Actual del Trabajo — 2026-08-20
 
-## Correcciones completadas
+## Corrección en progreso: Eliminar sidebar propio del Consolidado de Facturación
 
-### 1. Error POR_CONFIRMAR en Consola de Gobierno
-- **Problema:** TypeError: Cannot read properties of undefined (reading 'clase')
-- **Causa:** El estado "POR_CONFIRMAR" no estaba en el tipo EstadoConsola ni en estadoConfig
-- **Solución:** Agregado POR_CONFIRMAR al tipo, estadoConfig, funciones de color, y conteo de estados en backend
-- **Archivos:** client/src/pages/ConsolaGobierno.tsx, client/src/index.css, server/routers.ts
+### Problema
+La página del Consolidado de Facturación tiene su propio sidebar (df-side) además del sidebar del layout de administración, causando una doble barra lateral.
 
-### 2. Doble barra lateral en Consolidado de Facturación
-- **Problema:** La página tenía su propio sidebar (df-side) además del sidebar del layout de administración
-- **Solución:** Removido el sidebar propio de FinancialConsolidated.tsx
-- **Archivos:** client/src/pages/FinancialConsolidated.tsx
+### Solución
+Eliminar completamente el sidebar propio del componente FinancialConsolidated.tsx para que solo use el sidebar del layout de administración.
 
-## Validación
-- TypeScript: limpio (solo error pre-existente en línea 305 de invitaciones)
-- Suite de tests: 489 aprobadas, 8 fallidas pre-existentes (Jira API y Pipedrive API timeouts)
-- Proyectos de prueba: 5 eliminados de la BD
-- Checkpoint: pendiente
+### Estado
+- El script anterior no eliminó el sidebar correctamente (el patrón regex no coincidió)
+- El sidebar está en las líneas 76-105 del archivo
+- Necesito usar un método más directo: leer el archivo, eliminar las líneas 76-105, y escribir el resultado
 
-## Checkpoints previos
-- F5+F6: a73e6d6f
-- F7+F8: 0bf0e360
+### Archivos afectados
+- client/src/pages/FinancialConsolidated.tsx
+
+### Próximos pasos
+1. Eliminar las líneas 76-105 del archivo (el sidebar propio)
+2. Verificar que TypeScript compila limpio
+3. Guardar checkpoint

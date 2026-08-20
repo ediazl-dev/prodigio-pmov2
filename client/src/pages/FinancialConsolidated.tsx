@@ -72,41 +72,6 @@ export default function FinancialConsolidated() {
 
   return (
     <div className="df-app">
-      {/* ═══ ZONA 0: Sidebar ═══ */}
-      <aside className="df-side">
-        <div className="df-logo">
-          <div className="df-mark">P</div>
-          <div>
-            <b>Prodigio</b>
-            <span>Plataforma PMO</span>
-          </div>
-        </div>
-        <div className="df-nav-grupo">
-          <div className="df-tit">Principal</div>
-          <nav className="df-nav">
-            <a href="/consola">
-              <span className="df-ic">◉</span>
-              Consola
-            </a>
-            <a href="/dashboard">
-              <span className="df-ic">▦</span>
-              Dashboard
-            </a>
-            <a href="/projects">
-              <span className="df-ic">▤</span>
-              PMO Proyectos
-            </a>
-            <a href="/admin/financial-consolidated" className="df-on">
-              <span className="df-ic">◈</span>
-              Consolidado Facturación
-            </a>
-          </nav>
-        </div>
-        <div className="df-side-pie">
-          <p>Consolidado de facturación</p>
-          <p className="df-mono">v1.0 · F5+F6</p>
-        </div>
-      </aside>
 
       {/* ═══ Contenido principal ═══ */}
       <main className="df-main">

@@ -1527,7 +1527,7 @@
 /* ── Layout principal ── */
 .df-app {
   display: grid;
-  grid-template-columns: 236px 1fr;
+  grid-template-columns: 1fr;
   min-height: 100vh;
   background: var(--df-fondo);
   color: var(--df-texto);
