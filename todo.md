@@ -265,17 +265,17 @@
 
 ## Backlog: Fallback Consola + Editor de Baseline (2026-08-20)
 
-- [ ] Helper db.ts: updateExecutiveMilestoneBaseline (actualiza baselineDate con auditoría)
-- [ ] Helper db.ts: createExecutiveBaselineWithMilestones (source aprobado + hitos desde Jira)
-- [ ] Fallback portfolioConsole: proyectos sin baseline usan executive_verdict + jira_spaces + financial_data
-- [ ] PA alternativo para proyectos sin baseline (severidad×0.5 + exposición×0.3 + (100-avanceJira)×0.2)
-- [ ] Procedure executive.getBaseline (source + hitos del proyecto)
-- [ ] Procedure executive.updateMilestoneBaseline (admin/pmo, con auditoría)
-- [ ] Procedure executive.createBaselineFromJira (admin/pmo, importa hitos Jira con duedates)
-- [ ] Consola: chip ámbar "Sin baseline" en filas con sinBaseline=true
-- [ ] Consola: motivo específico para proyectos sin baseline
-- [ ] ProjectDetail: card "Baseline Ejecutivo" entre Proyecto Vinculado y Documentos
-- [ ] Card: vista sin baseline con botón "Crear baseline desde Jira"
-- [ ] Card: tabla de hitos con baselineDate editable + guardar cambios
-- [ ] Tests Vitest: fallback portfolioConsole + procedures executive
-- [ ] Validación: TypeScript limpio + suite completa + 7 proyectos visibles en consola
+- [x] Helper db.ts: updateExecutiveMilestoneBaseline (actualiza baselineDate con auditoría)
+- [x] Helper db.ts: createExecutiveBaselineWithMilestones (source aprobado + hitos desde Jira)
+- [x] Fallback portfolioConsole: proyectos sin baseline usan executive_verdict + jira_spaces + financial_data
+- [x] PA alternativo para proyectos sin baseline (severidad×0.5 + exposición×0.3 + (100-avanceJira)×0.2)
+- [x] Procedure executive.getBaseline (source + hitos del proyecto)
+- [x] Procedure executive.updateMilestoneBaseline (admin/pmo, con auditoría)
+- [x] Procedure executive.createBaselineFromJira (admin/pmo, importa hitos Jira con duedates)
+- [x] Consola: chip ámbar "Sin baseline" en filas con sinBaseline=true
+- [x] Consola: motivo específico para proyectos sin baseline
+- [x] ProjectDetail: card "Baseline Ejecutivo" entre Proyecto Vinculado y Documentos
+- [x] Card: vista sin baseline con botón "Crear baseline desde Jira"
+- [x] Card: tabla de hitos con baselineDate editable + guardar cambios
+- [x] Tests Vitest: fallback portfolioConsole + procedures executive
+- [x] Validación: TypeScript limpio + suite completa + 7 proyectos visibles en consola

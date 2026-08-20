@@ -1025,6 +1025,11 @@
   color: var(--cg-rojo);
   border: 1px solid rgba(255, 77, 87, 0.35);
 }
+.cg-chip.cg-c-sinbaseline {
+  background: rgba(255, 176, 32, 0.12);
+  color: var(--cg-ambar);
+  border: 1px solid rgba(255, 176, 32, 0.4);
+}
 
 /* Columna IGE */
 .cg-ige {

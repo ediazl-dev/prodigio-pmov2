@@ -300,6 +300,9 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                         <h3>{proyecto.projectName}</h3>
                         <span className="cg-cliente">{proyecto.clientName} · Deal {proyecto.dealId}</span>
                         <span className={`cg-chip cg-c-${estado.toLowerCase()}`}>{config.label}</span>
+                        {proyecto.sinBaseline && (
+                          <span className="cg-chip cg-c-sinbaseline" title="Proyecto sin baseline ejecutivo aprobado. Se evalúa con veredicto IA y datos Jira/financieros.">Sin baseline</span>
+                        )}
                         {proyecto.gatillos.slice(0, 2).map((gatillo: string) => (
                           <span key={gatillo} className="cg-chip cg-c-gatillo">
                             {gatillosLabels[gatillo] || gatillo}
@@ -310,8 +313,17 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                         )}
                       </div>
                       <p className="cg-motivo">
-                        <b>{proyecto.hitosVencidos} de {proyecto.totalHitos} hitos exigibles vencidos.</b>
-                        {" "}{motivo}
+                        {proyecto.sinBaseline ? (
+                          <>
+                            <b>Sin baseline ejecutivo aprobado.</b>
+                            {" "}Se evalúa con veredicto IA y datos Jira/financieros. Crea el baseline desde la página del proyecto para habilitar el motor de gobernanza completo.
+                          </>
+                        ) : (
+                          <>
+                            <b>{proyecto.hitosVencidos} de {proyecto.totalHitos} hitos exigibles vencidos.</b>
+                            {" "}{motivo}
+                          </>
+                        )}
                       </p>
                       <div className="cg-meta">
                         {senalesMora.map((senal, idx) => (

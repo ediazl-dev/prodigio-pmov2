@@ -1,4 +1,5 @@
 import AppBreadcrumb from "@/components/AppBreadcrumb";
+import { BaselineExecutiveCard } from "@/components/BaselineExecutiveCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -301,6 +302,8 @@ export default function ProjectDetail() {
             </div>
           </div>
 
+          {/* Baseline Ejecutivo */}
+          <BaselineExecutiveCard projectId={projectId} canManage={canManage} />
           {/* Documents */}
           <LinkedProjectDocuments projectId={projectId} canManage={canManage} />
 

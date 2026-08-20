@@ -45,7 +45,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateExecutiveMilestoneBaseline, createExecutiveBaselineWithMilestones } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { getActiveFinancialData } from "./db";
 import { getDb } from "./db";
@@ -6133,7 +6133,46 @@ const portfolioConsoleRouter = router({
       activeProjects.map(async (project) => {
         try {
           const source = await getExecutiveProjectSource(project.id);
-          if (!source) return null; // Sin baseline ejecutivo, no se puede evaluar
+          if (!source) {
+            // ========== FALLBACK: Proyecto sin baseline ejecutivo aprobado ==========
+            // Se evalúa con datos reales disponibles: veredicto IA, Jira space y financial_data
+            const [verdict, jiraSpace] = await Promise.all([
+              getLatestPMAnalysis(project.id),
+              getJiraSpaceByProject(project.id),
+            ]);
+            const dealMatch = project.projectName.match(/Deal\s*(\d+)/i);
+            const dealId = dealMatch ? `Deal${dealMatch[1]}` : null;
+            const fin = dealId ? financialByDealId.get(dealId) : null;
+            const ms = verdict?.metricsSnapshot ? (typeof verdict.metricsSnapshot === "string" ? JSON.parse(verdict.metricsSnapshot) : verdict.metricsSnapshot) : null;
+            const jiraAdvance = typeof ms?.jiraAdvance === "number" ? ms.jiraAdvance : null;
+            const estadoRaw = verdict?.semaphore?.toUpperCase() ?? null;
+            const estadoValido = ["CRITICO", "ROJO", "NARANJO", "AMARILLO", "VERDE"].includes(estadoRaw ?? "") ? estadoRaw! : "AMARILLO";
+            const severidadMap: Record<string, number> = { CRITICO: 100, ROJO: 75, NARANJO: 50, AMARILLO: 25, VERDE: 0 };
+            const severidad = severidadMap[estadoValido] ?? 25;
+            const exposicionUf = fin?.valorVentaUF != null ? Number(fin.valorVentaUF) : null;
+            // Exposición normalizada 0-100: 2000+ UF = 100
+            const exposicionNorm = exposicionUf != null ? Math.min(100, Math.round((exposicionUf / 2000) * 100)) : 0;
+            const riesgoOperativo = jiraAdvance != null ? Math.max(0, Math.min(100, 100 - jiraAdvance)) : 50;
+            const pa = Math.round(severidad * 0.5 + exposicionNorm * 0.3 + riesgoOperativo * 0.2);
+            return {
+              projectId: project.id,
+              projectName: project.projectName,
+              clientName: project.clientName,
+              dealId,
+              jiraProjectKey: jiraSpace?.jiraProjectKey ?? null,
+              estado: estadoValido,
+              ige: jiraAdvance,
+              pa,
+              ufEnRiesgo: exposicionUf,
+              pmName: fin?.pm ?? null,
+              gatillos: [] as string[],
+              hitosVencidos: 0,
+              totalHitos: 0,
+              requiereAtencion: estadoValido !== "VERDE",
+              deterioro: 0,
+              sinBaseline: true,
+            };
+          }
 
           const milestones = await getExecutiveContractMilestones(project.id, source.id);
           const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot] = await Promise.all([
@@ -6522,6 +6561,59 @@ const portfolioConsoleRouter = router({
       cutoffDate,
     };
   }),
+  /** Baseline ejecutivo del proyecto: source aprobado + hitos contractuales (o null si no tiene) */
+  getBaseline: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input }) => {
+    const source = await getExecutiveProjectSource(input.projectId);
+    if (!source) return null;
+    const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
+    return { source, milestones };
+  }),
+  /** Actualiza la fecha baseline contractual de un hito (admin/pmo, con auditoría) */
+  updateMilestoneBaseline: adminOrPmo
+    .input(z.object({ milestoneId: z.number(), baselineDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .mutation(async ({ ctx, input }) => {
+      await updateExecutiveMilestoneBaseline(input.milestoneId, input.baselineDate);
+      await audit(ctx, "update_baseline", "executive_contract_milestone", input.milestoneId, null, { baselineDate: input.baselineDate });
+      return { success: true };
+    }),
+  /** Crea un baseline ejecutivo aprobado importando los hitos del tablero Jira del proyecto (admin/pmo) */
+  createBaselineFromJira: adminOrPmo
+    .input(z.object({ projectId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await getProjectById(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
+      const existing = await getExecutiveProjectSource(input.projectId);
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "El proyecto ya tiene un baseline ejecutivo aprobado" });
+      const jiraSpace = await getJiraSpaceByProject(input.projectId);
+      if (!jiraSpace?.jiraProjectKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no tiene un Space Jira vinculado" });
+      const report = await getJiraAdvanceReport(jiraSpace.jiraProjectKey);
+      const jiraMilestones = report?.milestones ?? [];
+      if (jiraMilestones.length === 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El tablero Jira no tiene hitos (issues tipo Hito/Milestone) para importar" });
+      const dealMatch = project.projectName.match(/Deal\s*(\d+)/i);
+      const dealId = dealMatch ? `Deal${dealMatch[1]}` : `PROJ-${input.projectId}`;
+      const weight = (100 / jiraMilestones.length).toFixed(2);
+      const sourceId = await createExecutiveBaselineWithMilestones({
+        projectId: input.projectId,
+        dealId,
+        jiraProjectKey: jiraSpace.jiraProjectKey,
+        baselineVersion: "jira-v1",
+        approvedBy: ctx.user.id,
+        approvedByName: ctx.user.name ?? null,
+        approvalNotes: "Baseline creado desde hitos del tablero Jira. Las fechas duedate de Jira quedan como línea base contractual inicial editable.",
+        milestones: jiraMilestones.map((m: any, idx: number) => ({
+          milestoneCode: `M${String(idx + 1).padStart(2, "0")}`,
+          title: m.summary ?? m.key,
+          billingWeight: weight,
+          baselineDate: m.duedate ?? null,
+          jiraIssueKey: m.key,
+          jiraStatusName: m.status ?? null,
+          jiraDueDate: m.duedate ?? null,
+          semanticStatus: m.statusCategory === "Done" ? "fulfilled" : "pending",
+        })),
+      });
+      await audit(ctx, "create_baseline", "executive_project_source", sourceId ?? 0, null, { projectId: input.projectId, jiraProjectKey: jiraSpace.jiraProjectKey, hitos: jiraMilestones.length });
+      return { success: true, sourceId, hitosImportados: jiraMilestones.length };
+    }),
 });
 
 

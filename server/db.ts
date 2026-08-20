@@ -1918,3 +1918,58 @@ export async function getLatestFinancialSync() {
     .limit(1);
   return rows[0];
 }
+
+// ==================== BASELINE EJECUTIVO: EDICIÓN Y CREACIÓN DESDE JIRA ====================
+/** Actualiza la fecha baseline contractual de un hito ejecutivo. */
+export async function updateExecutiveMilestoneBaseline(milestoneId: number, baselineDate: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(executiveContractMilestones)
+    .set({ baselineDate })
+    .where(eq(executiveContractMilestones.id, milestoneId));
+}
+/** Crea un baseline ejecutivo aprobado junto con sus hitos contractuales (origen Jira). */
+export async function createExecutiveBaselineWithMilestones(input: {
+  projectId: number;
+  dealId: string;
+  jiraProjectKey: string;
+  baselineVersion: string;
+  approvedBy: number;
+  approvedByName: string | null;
+  approvalNotes?: string;
+  milestones: { milestoneCode: string; title: string; billingWeight: string; baselineDate: string | null; jiraIssueKey: string; jiraStatusName?: string | null; jiraDueDate?: string | null; semanticStatus?: "pending" | "fulfilled" | "delayed" | "blocked" }[];
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [result] = await db.insert(executiveProjectSources).values({
+    projectId: input.projectId,
+    dealId: input.dealId,
+    jiraProjectKey: input.jiraProjectKey,
+    baselineVersion: input.baselineVersion,
+    contractFileName: `baseline-jira-${input.jiraProjectKey}`,
+    contractFileUrl: `jira://${input.jiraProjectKey}`,
+    sourceStatus: "approved",
+    approvedAt: new Date(),
+    approvedBy: input.approvedBy,
+    approvedByName: input.approvedByName,
+    approvalNotes: input.approvalNotes ?? null,
+  });
+  const sourceId = Number((result as any).insertId);
+  if (input.milestones.length) {
+    await db.insert(executiveContractMilestones).values(
+      input.milestones.map((m) => ({
+        projectId: input.projectId,
+        sourceId,
+        milestoneCode: m.milestoneCode,
+        title: m.title,
+        billingWeight: m.billingWeight,
+        baselineDate: m.baselineDate,
+        jiraIssueKey: m.jiraIssueKey,
+        jiraStatusName: m.jiraStatusName ?? null,
+        jiraDueDate: m.jiraDueDate ?? null,
+        semanticStatus: m.semanticStatus ?? "pending",
+      }))
+    );
+  }
+  return sourceId;
+}
