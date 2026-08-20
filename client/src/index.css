@@ -1030,6 +1030,11 @@
   color: var(--cg-ambar);
   border: 1px solid rgba(255, 176, 32, 0.4);
 }
+.cg-chip.cg-c-cerrado {
+  background: rgba(91, 141, 239, 0.12);
+  color: var(--cg-azul);
+  border: 1px solid rgba(91, 141, 239, 0.4);
+}
 
 /* Columna IGE */
 .cg-ige {

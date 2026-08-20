@@ -6558,6 +6558,19 @@ const portfolioConsoleRouter = router({
         total: totalEstables,
         criterio: "IGE ≥ 85 · sin hitos vencidos · evidencia al día",
       },
+      cerrados: {
+        items: allProjects
+          .filter((p) => p.status === "completado")
+          .map((p) => ({
+            projectId: p.id,
+            projectName: p.projectName,
+            clientName: p.clientName,
+            currentStage: p.currentStage,
+            updatedAt: p.updatedAt,
+          }))
+          .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()),
+        total: allProjects.filter((p) => p.status === "completado").length,
+      },
       cutoffDate,
     };
   }),

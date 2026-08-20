@@ -550,6 +550,46 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
           </tbody>
         </table>
       </details>
+      {/* ========== ZONA 7: Proyectos cerrados ========== */}
+      <details className="cg-resto">
+        <summary>
+          <span className="cg-chip cg-c-cerrado">Cerrados</span>
+          <b style={{ fontWeight: 500 }}>{data?.cerrados?.total ?? 0} proyectos finalizados</b>
+          <span style={{ fontSize: "12px", color: "var(--cg-texto-3)" }}>
+            Cierre administrativo completado · 6/6 etapas
+          </span>
+        </summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>Cliente</th>
+              <th>Etapa final</th>
+              <th className="cg-num">Estado final</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data?.cerrados?.items?.length ?? 0) === 0 ? (
+              <tr>
+                <td colSpan={4} style={{ color: "var(--cg-texto-3)", fontSize: "11.5px" }}>
+                  No hay proyectos cerrados en este momento.
+                </td>
+              </tr>
+            ) : (
+              data?.cerrados?.items?.map((cerrado) => (
+                <tr key={cerrado.projectId}>
+                  <td>{cerrado.projectName}</td>
+                  <td>{cerrado.clientName}</td>
+                  <td className="cg-mono">{cerrado.currentStage === "closure" ? "Cierre" : cerrado.currentStage}</td>
+                  <td className="cg-num">
+                    <span className="cg-chip cg-c-cerrado" style={{ fontSize: "10px" }}>Completado</span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </details>
     </div>
   );
 }

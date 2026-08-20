@@ -279,3 +279,9 @@
 - [x] Card: tabla de hitos con baselineDate editable + guardar cambios
 - [x] Tests Vitest: fallback portfolioConsole + procedures executive
 - [x] Validación: TypeScript limpio + suite completa + 7 proyectos visibles en consola
+
+## Consola: filtro de proyectos cerrados (2026-08-20)
+- [x] Backend: portfolioConsole retorna también proyectos completados con estado final
+- [x] Frontend: filtro/pestaña "Cerrados" en la cola priorizada con lista de proyectos cerrados
+- [x] Tests + validación TypeScript + suite completa
+- [ ] Checkpoint publicado
