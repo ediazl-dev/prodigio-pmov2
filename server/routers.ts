@@ -6798,6 +6798,14 @@ const portfolioConsoleRouter = router({
         concentracionCartera,
       };
     }),
+  // ─── UF del día ─────────────────────────────────────────────────────────
+  ufDelDia: protectedProcedure
+    .query(async () => {
+      const { getUfDelDia } = await import("./ufService");
+      const uf = await getUfDelDia();
+      if (!uf) return { fecha: null, valorCLP: null, fuente: null };
+      return uf;
+    }),
 });
 
 

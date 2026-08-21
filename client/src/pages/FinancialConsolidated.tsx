@@ -14,6 +14,10 @@ export default function FinancialConsolidated() {
     { fechaCorte },
     { enabled: !!user }
   );
+  const { data: ufDelDia } = trpc.portfolioConsole.ufDelDia.useQuery(undefined, { enabled: !!user });
+  const ufTexto = ufDelDia?.valorCLP
+    ? `$${Number(ufDelDia.valorCLP).toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : null;
 
   if (isLoading) {
     return (
@@ -82,7 +86,11 @@ export default function FinancialConsolidated() {
             <h1>Cartera al {fechaCorteData || "20 de agosto de 2026"}</h1>
             <p className="df-sub">
               Fecha de corte: {fechaCorteData || "2026-08-20"} · UF del día:{" "}
-              <span className="df-alerta">[POR CONFIRMAR — Banco Central]</span>
+              {ufTexto ? (
+                <span className="df-uf-valor">{ufTexto}</span>
+              ) : (
+                <span className="df-alerta">[POR CONFIRMAR — Banco Central]</span>
+              )}
             </p>
           </div>
           <div className="df-acciones">
@@ -109,7 +117,7 @@ export default function FinancialConsolidated() {
             <b>Todas las cifras en UF</b> · Contratos activos y cerrados
           </div>
           <div className="df-alerta">
-            UF del día: [POR CONFIRMAR — Banco Central]
+            UF del día: {ufTexto || "[POR CONFIRMAR — Banco Central]"}
           </div>
           <div className="df-der">
             {totalContratos || 38} contratos · {contratosActivos || 38} activos · {contratosCerrados || 0} cerrados
@@ -458,8 +466,11 @@ export default function FinancialConsolidated() {
           <div className="df-supuesto-item">
             <div className="df-supuesto-icono">1</div>
             <div className="df-supuesto-texto">
-              <strong>UF del día:</strong> No disponible — requiere integración con Banco Central de Chile. 
-              Las cifras se muestran en UF sin conversión a CLP.
+              <strong>UF del día:</strong> {ufTexto ? (
+                <>Disponible desde {ufDelDia?.fuente === "cache" ? "caché local" : ufDelDia?.fuente || "findic.cl"}: {ufTexto} CLP.</>
+              ) : (
+                <>No disponible — requiere integración con Banco Central de Chile. Las cifras se muestran en UF sin conversión a CLP.</>
+              )}
             </div>
           </div>
           <div className="df-supuesto-item">

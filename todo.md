@@ -314,3 +314,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Agregar middleware adminOrPmoOrPm en routers.ts
 - [x] Verificar que Eduardo puede editar baseline desde la UI
 - [x] Checkpoint publicado
+
+## F2: Integración UF del día (2026-08-20)
+- [ ] Guardar secreto BCCH_API_TOKEN en el proyecto
+- [ ] Crear server/ufService.ts — fetch findic.cl (principal) + BCCh (fallback) + caché en uf_value
+- [ ] Agregar procedure tRPC financial.ufDelDia
+- [ ] Reemplazar stubs [POR CONFIRMAR — Banco Central] en FinancialConsolidated.tsx con valor real
+- [ ] Test vitest del servicio UF (parsing de respuesta, fallback, caché)
+- [ ] Checkpoint publicado
