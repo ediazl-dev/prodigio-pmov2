@@ -405,7 +405,7 @@ export default function ExecutiveDashboardV2() {
                   );
                 })}
 
-                <div className="edv2-gantt-corte" style={{ left: `${cortePos}%` }}>
+                <div className="edv2-gantt-corte" style={{ left: `calc(260px + (100% - 260px - 32px) * ${cortePos} / 100 + 16px)` }}>
                   <span>Corte {formatDate(cutoff.date)}</span>
                 </div>
               </>

@@ -322,3 +322,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [ ] Reemplazar stubs [POR CONFIRMAR — Banco Central] en FinancialConsolidated.tsx con valor real
 - [ ] Test vitest del servicio UF (parsing de respuesta, fallback, caché)
 - [ ] Checkpoint publicado
+- [ ] Gantt Dashboard v2: hitos vencidos aparecen pintados posterior a la línea de corte (caso Tanner) — corregir precisión para que la posición sea consistente con la fecha real del hito
