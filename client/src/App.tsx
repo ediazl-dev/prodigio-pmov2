@@ -66,7 +66,8 @@ function Router() {
         <DashboardLayout>
           <Switch>
             <Route path="/consola" component={ConsolaGobierno} />
-        <Route path="/" component={Home} />
+        <Route path="/" component={ConsolaGobierno} />
+            <Route path="/dashboard" component={Home} />
             <Route path="/projects" component={Projects} />
             <Route path="/projects/:id" component={ProjectDetail} />
             <Route path="/projects/:id/sow" component={SowStage} />

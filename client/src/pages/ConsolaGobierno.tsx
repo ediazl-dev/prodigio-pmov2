@@ -583,8 +583,8 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
               </tr>
             ) : (
               data?.cerrados?.items?.map((cerrado) => (
-                <tr key={cerrado.projectId}>
-                  <td>{cerrado.projectName}</td>
+                <tr key={cerrado.projectId} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/projects/${cerrado.projectId}`}>
+                  <td><a href={`/projects/${cerrado.projectId}`} style={{ color: "var(--cg-azul)", textDecoration: "none", fontWeight: 500 }} onClick={(e) => e.stopPropagation()}>{cerrado.projectName}</a></td>
                   <td>{cerrado.clientName}</td>
                   <td className="cg-mono">{cerrado.currentStage === "closure" ? "Cierre" : cerrado.currentStage}</td>
                   <td className="cg-num">

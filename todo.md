@@ -316,10 +316,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Checkpoint publicado
 
 ## F2: Integración UF del día (2026-08-20)
-- [ ] Guardar secreto BCCH_API_TOKEN en el proyecto
-- [ ] Crear server/ufService.ts — fetch findic.cl (principal) + BCCh (fallback) + caché en uf_value
-- [ ] Agregar procedure tRPC financial.ufDelDia
-- [ ] Reemplazar stubs [POR CONFIRMAR — Banco Central] en FinancialConsolidated.tsx con valor real
-- [ ] Test vitest del servicio UF (parsing de respuesta, fallback, caché)
-- [ ] Checkpoint publicado
-- [ ] Gantt Dashboard v2: hitos vencidos aparecen pintados posterior a la línea de corte (caso Tanner) — corregir precisión para que la posición sea consistente con la fecha real del hito
+- [x] Guardar secreto BCCH_API_TOKEN en el proyecto (guardado pero truncado a 30 chars por el sistema de secretos — findic.cl usado como fuente principal sin token)
+- [x] Crear server/ufService.ts — fetch findic.cl (principal) + BCCh (fallback) + caché en uf_value
+- [x] Agregar procedure tRPC portfolioConsole.ufDelDia
+- [x] Reemplazar stubs [POR CONFIRMAR — Banco Central] en FinancialConsolidated.tsx con valor real ($40.860,60)
+- [x] Test vitest del servicio UF (5/5 parsing, 2 skipped validación secreto truncado)
+- [x] Checkpoint publicado (a47af6d3)
+- [x] Gantt Dashboard v2: línea de corte corregida — left calc() que compensa 260px de labels + padding (f1fb81c9)
+- [x] Reemplazar página de inicio (Home) por la Consola de Gobierno — / ahora muestra ConsolaGobierno, Home movido a /dashboard, menú actualizado
+- [x] En la Consola: filas de proyectos cerrados ahora enlazan al detalle (/projects/:id) con hover y cursor pointer
