@@ -325,3 +325,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Gantt Dashboard v2: línea de corte corregida — left calc() que compensa 260px de labels + padding (f1fb81c9)
 - [x] Reemplazar página de inicio (Home) por la Consola de Gobierno — / ahora muestra ConsolaGobierno, Home movido a /dashboard, menú actualizado
 - [x] En la Consola: filas de proyectos cerrados ahora enlazan al detalle (/projects/:id) con hover y cursor pointer
+- [x] Dashboard Ejecutivo v2 disponible para todos los proyectos — restricción piloto eliminada, fallback auto-baseline desde Jira, botón visible en todos los proyectos

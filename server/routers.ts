@@ -3813,13 +3813,49 @@ Responde SOLO con JSON:
   /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
   getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number(), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
     .query(async ({ input }) => {
-      if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Dashboard Ejecutivo v2 disponible sólo para el piloto Tanner aprobado" });
-      }
+      // Dashboard Ejecutivo v2 disponible para todos los proyectos (antes: solo piloto Tanner)
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
-      const source = await getExecutiveProjectSource(input.projectId);
-      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+      let source = await getExecutiveProjectSource(input.projectId);
+      if (!source) {
+        // Fallback: auto-crear baseline desde Jira si el proyecto tiene Space vinculado
+        const jiraSpace = await getJiraSpaceByProject(input.projectId);
+        if (jiraSpace?.jiraProjectKey) {
+          try {
+            const report = await getJiraAdvanceReport(jiraSpace.jiraProjectKey);
+            const jiraMilestones = report?.milestones ?? [];
+            if (jiraMilestones.length > 0) {
+              const project = await getProjectById(input.projectId);
+              const dealMatch = project?.projectName?.match(/Deal\s*(\d+)/i);
+              const dealId = dealMatch ? `Deal${dealMatch[1]}` : `PROJ-${input.projectId}`;
+              const weight = (100 / jiraMilestones.length).toFixed(2);
+              await createExecutiveBaselineWithMilestones({
+                projectId: input.projectId,
+                dealId,
+                jiraProjectKey: jiraSpace.jiraProjectKey,
+                baselineVersion: "jira-auto-v1",
+                approvedBy: 1,
+                approvedByName: "Sistema (auto)",
+                approvalNotes: "Baseline auto-generado desde hitos Jira al abrir el Dashboard Ejecutivo v2.",
+                milestones: jiraMilestones.map((m: any, idx: number) => ({
+                  milestoneCode: `M${String(idx + 1).padStart(2, "0")}`,
+                  title: m.summary ?? m.key,
+                  billingWeight: weight,
+                  baselineDate: m.duedate ?? null,
+                  jiraIssueKey: m.key,
+                  jiraStatusName: m.status ?? null,
+                  jiraDueDate: m.duedate ?? null,
+                  semanticStatus: m.statusCategory === "Done" ? "fulfilled" : "pending",
+                })),
+              });
+              source = await getExecutiveProjectSource(input.projectId);
+            }
+          } catch (e) {
+            console.warn(`[DashboardV2] No se pudo auto-crear baseline para proyecto ${input.projectId}:`, e);
+          }
+        }
+      }
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado ni un Space Jira vinculado para generarlo" });
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
       const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict] = await Promise.all([
         getExecutiveMilestoneAcceptances(input.projectId, source.id),
