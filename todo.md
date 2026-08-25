@@ -326,3 +326,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Reemplazar página de inicio (Home) por la Consola de Gobierno — / ahora muestra ConsolaGobierno, Home movido a /dashboard, menú actualizado
 - [x] En la Consola: filas de proyectos cerrados ahora enlazan al detalle (/projects/:id) con hover y cursor pointer
 - [x] Dashboard Ejecutivo v2 disponible para todos los proyectos — restricción piloto eliminada, fallback auto-baseline desde Jira, botón visible en todos los proyectos
+- [ ] Sincronizar datos financieros desde Google Sheets (financial_data) — última sync manual 2026-08-20
+- [ ] Sincronizar estados de hitos desde Jira — actualizar jiraStatusName, jiraDueDate, jiraClosedDate en executive_contract_milestones

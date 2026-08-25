@@ -83,20 +83,31 @@ function cleanNumber(value: unknown): string | null {
 
 async function downloadWorkbook(): Promise<Buffer> {
   const token = process.env.GOOGLE_DRIVE_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_TOKEN no está configurado en el entorno del servidor");
+  if (token) {
+    const response = await fetch(DRIVE_EXPORT_URL, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Drive API respondió HTTP ${response.status} al exportar la planilla`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length === 0) {
+      throw new Error("La planilla descargada está vacía");
+    }
+    return buffer;
   }
-  const response = await fetch(DRIVE_EXPORT_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) {
-    throw new Error(`Drive API respondió HTTP ${response.status} al exportar la planilla`);
+  // Fallback: leer archivo local descargado manualmente via gws
+  const { readFileSync, existsSync } = await import("fs");
+  const localPath = process.env.FINANCIAL_SYNC_LOCAL_FILE ?? "./financial_sync.xlsx";
+  if (!existsSync(localPath)) {
+    throw new Error("GOOGLE_DRIVE_TOKEN no configurado y no se encontró archivo local: " + localPath);
   }
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const buffer = readFileSync(localPath);
   if (buffer.length === 0) {
-    throw new Error("La planilla descargada está vacía");
+    throw new Error("El archivo local de sincronización está vacío");
   }
+  console.log(`[FinancialSync] Usando archivo local: ${localPath} (${buffer.length} bytes)`);
   return buffer;
 }
 
