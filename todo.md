@@ -1,5 +1,9 @@
 # Prodigio PMO Platform — Restauración desde respaldo
 
+- [ ] Ejecutar una nueva sincronización financiera desde Google Sheets y verificar los registros aplicados.
+- [ ] Sincronizar nuevamente los estados, fechas planificadas y fechas reales de cierre de los hitos desde Jira.
+- [ ] Validar por proyecto la consistencia de los hitos sincronizados y registrar incidencias sin fabricar datos.
+
 - [x] Reemplazar el esqueleto inicial por el código fuente restaurado del respaldo `prodigio-pmo-main.zip`.
 - [x] Restaurar el esquema completo de Drizzle y las 27 migraciones de base de datos para las entidades PMO requeridas.
 - [x] Validar aceptación de invitaciones y vinculación OAuth para cada rol: `admin`, `pmo`, `pm` y `consulta`.
@@ -326,5 +330,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Reemplazar página de inicio (Home) por la Consola de Gobierno — / ahora muestra ConsolaGobierno, Home movido a /dashboard, menú actualizado
 - [x] En la Consola: filas de proyectos cerrados ahora enlazan al detalle (/projects/:id) con hover y cursor pointer
 - [x] Dashboard Ejecutivo v2 disponible para todos los proyectos — restricción piloto eliminada, fallback auto-baseline desde Jira, botón visible en todos los proyectos
-- [ ] Sincronizar datos financieros desde Google Sheets (financial_data) — última sync manual 2026-08-20
-- [ ] Sincronizar estados de hitos desde Jira — actualizar jiraStatusName, jiraDueDate, jiraClosedDate en executive_contract_milestones
+- [x] Sincronizar datos financieros desde Google Sheets (financial_data) — 43 registros UPSERT via gws 2026-08-25
+- [x] Sincronizar estados de hitos desde Jira — 22 hitos actualizados en executive_contract_milestones 2026-08-25
