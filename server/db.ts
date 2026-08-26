@@ -448,7 +448,12 @@ export async function getExecutiveContractMilestones(projectId: number, sourceId
 
 export async function updateExecutiveContractMilestoneJiraObservation(
   milestoneId: number,
-  observation: { jiraDueDate?: string | null; jiraClosedDate?: string | null; jiraStatusName?: string | null }
+  observation: {
+    jiraDueDate?: string | null;
+    jiraClosedDate?: string | null;
+    jiraStatusName?: string | null;
+    semanticStatus?: "pending" | "fulfilled" | "delayed" | "blocked";
+  }
 ) {
   const db = await getDb();
   if (!db) return;

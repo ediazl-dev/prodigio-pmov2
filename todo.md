@@ -1,8 +1,9 @@
 # Prodigio PMO Platform — Restauración desde respaldo
 
-- [ ] Ejecutar una nueva sincronización financiera desde Google Sheets y verificar los registros aplicados.
-- [ ] Sincronizar nuevamente los estados, fechas planificadas y fechas reales de cierre de los hitos desde Jira.
-- [ ] Validar por proyecto la consistencia de los hitos sincronizados y registrar incidencias sin fabricar datos.
+- [x] Ejecutar una nueva sincronización financiera desde Google Sheets y verificar los registros aplicados.
+- [x] Sincronizar nuevamente los estados, fechas planificadas y fechas reales de cierre de los hitos desde Jira.
+- [x] Validar por proyecto la consistencia de los hitos sincronizados y registrar incidencias sin fabricar datos.
+- [ ] Completar en Jira las fechas planificadas de `PCIAD4-11`, `PCIAD4-12` y `PCIAD4-13`, y volver a sincronizar el proyecto 180003.
 
 - [x] Reemplazar el esqueleto inicial por el código fuente restaurado del respaldo `prodigio-pmo-main.zip`.
 - [x] Restaurar el esquema completo de Drizzle y las 27 migraciones de base de datos para las entidades PMO requeridas.
