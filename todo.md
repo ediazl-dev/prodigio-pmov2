@@ -1,7 +1,7 @@
 # Prodigio PMO Platform — Restauración desde respaldo
 
 - [x] H0: crear salvaguarda, caracterizar el flujo actual y fijar invariantes de homologación con pruebas.
-- [ ] H1: incorporar persistencia para onboarding Jira, mapeos, ejecuciones y excepciones auditables.
+- [x] H1: incorporar persistencia para onboarding Jira, mapeos, ejecuciones y excepciones auditables.
 - [ ] H1: implementar servicios idempotentes y pruebas focales de onboarding y trazabilidad.
 - [ ] H2: implementar preflight Jira de solo lectura con calidad de fechas, tipos, estados y duplicados.
 - [ ] H3: implementar asistente de identidad PMO y mapeo Jira revisable y reanudable.

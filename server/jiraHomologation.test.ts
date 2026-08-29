@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { getTableName } from "drizzle-orm";
+import {
+  jiraEntityMappings,
+  jiraImportExceptions,
+  jiraProjectOnboardings,
+  jiraSyncLogs,
+} from "../drizzle/schema";
 import { SANITIZED_JIRA_ONBOARDING_FIXTURE } from "./fixtures/jiraOnboarding.fixture";
 import {
   CANONICAL_HOMOLOGATION_CONTRACT,
@@ -67,5 +74,33 @@ describe("fixture Jira sanitizado", () => {
     expect(SANITIZED_JIRA_ONBOARDING_FIXTURE.issues.some(issue => issue.dueDate === null)).toBe(true);
     expect(SANITIZED_JIRA_ONBOARDING_FIXTURE.issues.some(issue => issue.assigneeAccountId === null)).toBe(true);
     expect(JSON.stringify(SANITIZED_JIRA_ONBOARDING_FIXTURE)).not.toMatch(/@|atlassian\.net|prodigio\.tech/i);
+  });
+});
+
+describe("persistencia H1 de onboarding y trazabilidad", () => {
+  it("expone las cuatro tablas físicas aprobadas", () => {
+    expect([
+      getTableName(jiraProjectOnboardings),
+      getTableName(jiraEntityMappings),
+      getTableName(jiraSyncLogs),
+      getTableName(jiraImportExceptions),
+    ]).toEqual([
+      "jira_project_onboarding",
+      "jira_entity_mapping",
+      "jira_sync_log",
+      "jira_import_exception",
+    ]);
+  });
+
+  it("incluye claves de idempotencia, versión, snapshot y resolución explícita", () => {
+    expect(jiraProjectOnboardings.jiraProjectKey).toBeDefined();
+    expect(jiraProjectOnboardings.sourceSnapshot).toBeDefined();
+    expect(jiraProjectOnboardings.mappingVersion).toBeDefined();
+    expect(jiraEntityMappings.mappingKey).toBeDefined();
+    expect(jiraEntityMappings.syncDirection).toBeDefined();
+    expect(jiraSyncLogs.runId).toBeDefined();
+    expect(jiraSyncLogs.errorCount).toBeDefined();
+    expect(jiraImportExceptions.resolution).toBeDefined();
+    expect(jiraImportExceptions.resolvedAt).toBeDefined();
   });
 });

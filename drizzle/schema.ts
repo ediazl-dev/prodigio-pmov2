@@ -425,6 +425,102 @@ export const jiraSpaces = mysqlTable("jira_spaces", {
 export type JiraSpace = typeof jiraSpaces.$inferSelect;
 export type InsertJiraSpace = typeof jiraSpaces.$inferInsert;
 
+// ==================== JIRA PROJECT ONBOARDING (Homologación de proyectos existentes) ====================
+// Estas tablas orquestan la incorporación. Las entidades de negocio homologadas
+// continúan viviendo en las tablas canónicas de Prodigio PMO.
+export const jiraProjectOnboardings = mysqlTable("jira_project_onboarding", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId"),
+  jiraSpaceId: int("jiraSpaceId"),
+  jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull().unique(),
+  jiraProjectId: varchar("jiraProjectId", { length: 50 }),
+  jiraProjectName: varchar("jiraProjectName", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["draft", "preflight", "mapping", "reconciliation", "ready", "failed"]).default("draft").notNull(),
+  currentStep: int("currentStep").default(1).notNull(),
+  sourceSnapshot: json("sourceSnapshot"),
+  sourceFingerprint: varchar("sourceFingerprint", { length: 64 }),
+  identitySnapshot: json("identitySnapshot"),
+  mappingVersion: int("mappingVersion").default(1).notNull(),
+  lastError: text("lastError"),
+  initiatedBy: int("initiatedBy").notNull(),
+  initiatedByName: varchar("initiatedByName", { length: 200 }),
+  activatedAt: timestamp("activatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type JiraProjectOnboarding = typeof jiraProjectOnboardings.$inferSelect;
+export type InsertJiraProjectOnboarding = typeof jiraProjectOnboardings.$inferInsert;
+
+export const jiraEntityMappings = mysqlTable("jira_entity_mapping", {
+  id: int("id").autoincrement().primaryKey(),
+  onboardingId: int("onboardingId").notNull(),
+  projectId: int("projectId"),
+  mappingKey: varchar("mappingKey", { length: 255 }).notNull().unique(),
+  mappingVersion: int("mappingVersion").default(1).notNull(),
+  sourceKey: varchar("sourceKey", { length: 100 }).notNull(),
+  jiraIssueType: varchar("jiraIssueType", { length: 100 }),
+  targetEntityType: mysqlEnum("targetEntityType", ["milestone", "risk", "epic", "task", "user", "document", "stage_evidence", "ignored"]).notNull(),
+  targetEntityId: varchar("targetEntityId", { length: 100 }),
+  syncDirection: mysqlEnum("syncDirection", ["jira_to_pmo", "pmo_to_jira_explicit", "none"]).default("jira_to_pmo").notNull(),
+  status: mysqlEnum("status", ["proposed", "approved", "excluded", "superseded"]).default("proposed").notNull(),
+  metadata: json("metadata"),
+  approvedBy: int("approvedBy"),
+  approvedByName: varchar("approvedByName", { length: 200 }),
+  approvedAt: timestamp("approvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type JiraEntityMapping = typeof jiraEntityMappings.$inferSelect;
+export type InsertJiraEntityMapping = typeof jiraEntityMappings.$inferInsert;
+
+export const jiraSyncLogs = mysqlTable("jira_sync_log", {
+  id: int("id").autoincrement().primaryKey(),
+  runId: varchar("runId", { length: 64 }).notNull().unique(),
+  onboardingId: int("onboardingId"),
+  projectId: int("projectId"),
+  jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull(),
+  source: mysqlEnum("source", ["preflight", "initial_import", "manual", "scheduled", "retry"]).notNull(),
+  status: mysqlEnum("status", ["running", "dry_run", "applied", "partial", "error"]).notNull(),
+  inputCount: int("inputCount").default(0).notNull(),
+  createdCount: int("createdCount").default(0).notNull(),
+  updatedCount: int("updatedCount").default(0).notNull(),
+  skippedCount: int("skippedCount").default(0).notNull(),
+  errorCount: int("errorCount").default(0).notNull(),
+  details: json("details"),
+  errorMessage: text("errorMessage"),
+  triggeredBy: int("triggeredBy"),
+  triggeredByName: varchar("triggeredByName", { length: 200 }),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+  durationMs: int("durationMs"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type JiraSyncLog = typeof jiraSyncLogs.$inferSelect;
+export type InsertJiraSyncLog = typeof jiraSyncLogs.$inferInsert;
+
+export const jiraImportExceptions = mysqlTable("jira_import_exception", {
+  id: int("id").autoincrement().primaryKey(),
+  onboardingId: int("onboardingId").notNull(),
+  projectId: int("projectId"),
+  domain: mysqlEnum("domain", ["identity", "sow", "jira", "risks", "planning", "baseline", "milestones", "documents", "finance", "users", "other"]).notNull(),
+  sourceKey: varchar("sourceKey", { length: 100 }),
+  reason: text("reason").notNull(),
+  resolution: text("resolution"),
+  severity: mysqlEnum("severity", ["info", "warning", "blocking"]).default("warning").notNull(),
+  status: mysqlEnum("status", ["open", "accepted", "resolved", "ignored"]).default("open").notNull(),
+  resolvedBy: int("resolvedBy"),
+  resolvedByName: varchar("resolvedByName", { length: 200 }),
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type JiraImportException = typeof jiraImportExceptions.$inferSelect;
+export type InsertJiraImportException = typeof jiraImportExceptions.$inferInsert;
+
 // ==================== RISK VERSIONS (Historial de exportaciones Excel de la Matriz de Riesgos) ====================
 export const riskVersions = mysqlTable("risk_versions", {
   id: int("id").autoincrement().primaryKey(),

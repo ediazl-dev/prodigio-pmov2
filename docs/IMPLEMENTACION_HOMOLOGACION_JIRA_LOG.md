@@ -22,3 +22,17 @@ También se extrajo a una función pura el comportamiento heredado de `createLin
 | TypeScript oficial | Mantiene cinco errores previos fuera de H0: cuatro de iteración/target en `jiraMilestoneSync.ts` y uno de `invitations.estadoSII` en `routers.ts` |
 
 > H0 no declara TypeScript limpio. Los errores indicados ya pertenecían a la base y se tratarán como deuda independiente; ninguna prueba focal de homologación falla por ellos.
+
+## H1 — Modelo de datos para onboarding y trazabilidad
+
+Se agregó una capa de orquestación separada del modelo canónico mediante cuatro tablas: `jira_project_onboarding`, `jira_entity_mapping`, `jira_sync_log` y `jira_import_exception`. El modelo conserva snapshots de origen, versiones de mapeo, claves de idempotencia, dirección de sincronización, resultados por ejecución y excepciones resolubles sin crear una séptima etapa PMO.
+
+La migración `0034_living_firelord.sql` fue revisada y aislada antes de ejecutarse. La generación inicial detectó ocho tablas financieras que ya existían en la base, pero que no figuraban en el snapshot previo de Drizzle; por ello, esas operaciones se excluyeron de la migración H1. La ejecución final solo creó las cuatro tablas nuevas y sus índices únicos.
+
+| Validación | Resultado |
+|---|---|
+| Tablas H1 creadas | 4 de 4 |
+| Índices únicos | `jiraProjectKey`, `mappingKey` y `runId` verificados |
+| Operaciones destructivas | Ninguna |
+| Pruebas focales H0–H1 | 42 de 42 aprobadas |
+| Registros productivos creados | Ninguno; solo estructura |
