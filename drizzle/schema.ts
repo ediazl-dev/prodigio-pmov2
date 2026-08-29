@@ -135,7 +135,9 @@ export const risks = mysqlTable("risks", {
   jiraIssueKey: varchar("jiraIssueKey", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  projectJiraIssueUnique: uniqueIndex("risks_project_jira_issue_unique").on(table.projectId, table.jiraIssueKey),
+}));
 
 export type Risk = typeof risks.$inferSelect;
 export type InsertRisk = typeof risks.$inferInsert;
@@ -164,7 +166,9 @@ export const wbsTasks = mysqlTable("wbs_tasks", {
   acceptanceCriteria: text("acceptanceCriteria"),
   storyPoints: int("storyPoints"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  projectJiraIssueUnique: uniqueIndex("wbs_project_jira_issue_unique").on(table.projectId, table.jiraIssueKey),
+}));
 
 export type WbsTask = typeof wbsTasks.$inferSelect;
 export type InsertWbsTask = typeof wbsTasks.$inferInsert;
