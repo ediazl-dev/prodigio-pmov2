@@ -35,3 +35,9 @@ Cada ejecución tendrá un identificador de operación. Para el job diario, la c
 El callback será `POST /api/scheduled/syncJiraHomologated`, se registrará antes del fallback Vite/static y exigirá `sdk.authenticateRequest(req)`, `user.isCron === true`, `user.taskUid` y coincidencia exacta con el identificador durable guardado. El trabajo será acotado a menos de dos minutos y no leerá identificadores de negocio desde `req.body`.
 
 La ejecución manual quedará restringida a **Admin/PMO**. Los roles PM y consulta podrán leer el historial de proyectos autorizados, pero no disparar corridas globales. Ninguna ruta H7 cerrará etapas, aprobará baseline, aceptará hitos, adjuntará actas o escribirá en Jira.
+
+## Programación activada
+
+El callback se publicó antes de crear la programación. El job durable `jira-homologation-sync-daily` quedó habilitado con `task_uid` `85htkuVocAmvfXwUV7CTa5`, cron `0 0 4 * * *` y ruta `POST /api/scheduled/syncJiraHomologated`. Su identificador se guardó en `admin_settings.jira_reconciliation_daily_task_uid`, que el callback compara con la identidad cron autenticada.
+
+Para validar el circuito real, el cron se ajustó temporalmente a una ventana por minuto y luego se restauró inmediatamente a las **04:00 UTC**. La ejecución `SDT2Fn25s5U4YuLhqw8FCc` terminó con HTTP 200 en 1.524 ms y respondió `candidateCount: 0`, `processedCount: 0`, `errorCount: 0`; por lo tanto, demostró autenticación, ruteo y batch sin modificar proyectos ni Jira. La próxima ejecución regular quedó fijada para `2026-08-30T04:00:00Z`.
