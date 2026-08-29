@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMappedJiraDomainImport } from "./jiraDomainImport";
+import { buildMappedJiraDocumentPlan, buildMappedJiraDomainImport } from "./jiraDomainImport";
 
 describe("buildMappedJiraDomainImport", () => {
   it("importa solo mappings aprobados y conserva observaciones Jira sin inventar clasificaciones PMO", () => {
@@ -144,5 +144,28 @@ describe("buildMappedJiraDomainImport", () => {
       { domain: "risks", sourceKey: "PRJ-40", reason: "El issue aprobado no está presente en el snapshot Jira vigente." },
       { domain: "planning", sourceKey: "PRJ-41", reason: "El issue aprobado no está presente en el snapshot Jira vigente." },
     ]);
+  });
+});
+
+describe("buildMappedJiraDocumentPlan H6", () => {
+  it("no inventa archivos para mappings documentales y registra un pendiente S3 por mapping aprobado", () => {
+    const result = buildMappedJiraDocumentPlan({
+      sourceSnapshot: { issues: [{ key: "PILOT-30", summary: "Acta mencionada en Jira" }] },
+      mappings: [
+        { sourceKey: "PILOT-30", targetEntityType: "stage_evidence", status: "approved" },
+        { sourceKey: "PILOT-31", targetEntityType: "document", status: "approved" },
+        { sourceKey: "PILOT-32", targetEntityType: "document", status: "excluded" },
+      ],
+    });
+
+    expect(result).toEqual({
+      mappedCount: 2,
+      linkedCount: 0,
+      pendingCount: 2,
+      exceptions: [
+        expect.objectContaining({ domain: "documents", sourceKey: "PILOT-30", reason: expect.stringContaining("clave S3 real") }),
+        expect.objectContaining({ domain: "documents", sourceKey: "PILOT-31", reason: expect.stringContaining("[PENDIENTE]") }),
+      ],
+    });
   });
 });

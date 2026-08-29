@@ -47,7 +47,7 @@ describe("runInitialJiraDomainImport", () => {
     const result = await runInitialJiraDomainImport({ projectId: 901, actorId: 1, actorName: "PMO" }, deps);
 
     expect(result).toMatchObject({
-      runId: "initial_import_domains:90:v2:h6-fingerprint:Deal901",
+      runId: expect.stringMatching(/^initial_import_h6:90:[a-f0-9]{32}$/),
       reused: false,
       risks: { createdCount: 1, updatedCount: 0 },
       wbs: { createdCount: 2, updatedCount: 0 },
@@ -61,6 +61,45 @@ describe("runInitialJiraDomainImport", () => {
       status: "applied",
       createdCount: 4,
       errorCount: 0,
+    }));
+  });
+
+  it("registra mappings documentales como pendientes cuando Jira no aporta un archivo S3 real", async () => {
+    const base = context();
+    const deps = dependencies({
+      loadContext: vi.fn(async () => ({
+        ...base,
+        onboarding: {
+          ...base.onboarding,
+          sourceSnapshot: {
+            issues: [
+              ...(base.onboarding.sourceSnapshot as any).issues,
+              { key: "PILOT-30", summary: "Acta", issueType: "Documento" },
+            ],
+          },
+        },
+        mappings: [
+          ...base.mappings,
+          { sourceKey: "PILOT-30", targetEntityType: "stage_evidence", status: "approved" },
+        ],
+      })),
+    });
+
+    const result = await runInitialJiraDomainImport({ projectId: 901, actorId: 1 }, deps);
+    expect(result).toMatchObject({
+      documents: { mappedCount: 1, linkedCount: 0, pendingCount: 1 },
+      exceptions: 1,
+    });
+    expect(deps.upsertException).toHaveBeenCalledWith(expect.objectContaining({
+      domain: "documents",
+      sourceKey: "PILOT-30",
+      reason: expect.stringContaining("S3 real"),
+    }));
+    expect(deps.completeSyncRun).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      status: "partial",
+      skippedCount: 1,
+      errorCount: 1,
+      details: expect.objectContaining({ documents: { mappedCount: 1, linkedCount: 0, pendingCount: 1 } }),
     }));
   });
 

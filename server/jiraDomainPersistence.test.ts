@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
-import { financialData, projectStages, projects, risks, wbsTasks } from "../drizzle/schema";
+import { financialData, linkedProjectDocuments, projectStages, projects, risks, wbsTasks } from "../drizzle/schema";
 import {
   createLinkedProject,
   getDb,
+  getJiraHomologationImportStatus,
   linkProjectToConfirmedFinancialDeal,
+  upsertLinkedProjectDocument,
   upsertJiraImportedRisks,
   upsertJiraImportedWbs,
 } from "./db";
@@ -18,6 +20,7 @@ async function cleanup() {
   const db = await getDb();
   if (!db) return;
   if (projectId) {
+    await db.delete(linkedProjectDocuments).where(eq(linkedProjectDocuments.projectId, projectId));
     await db.delete(risks).where(eq(risks.projectId, projectId));
     await db.delete(wbsTasks).where(eq(wbsTasks.projectId, projectId));
     await db.delete(projectStages).where(eq(projectStages.projectId, projectId));
@@ -145,6 +148,34 @@ describe.runIf(shouldRun)("persistencia H6 aislada", () => {
     expect(await linkProjectToConfirmedFinancialDeal(projectId, testDealId)).toMatchObject({ linked: true, reused: false });
     expect(await linkProjectToConfirmedFinancialDeal(projectId, testDealId)).toMatchObject({ linked: true, reused: true });
     expect(await db.select({ dealId: projects.dealId }).from(projects).where(eq(projects.id, projectId))).toEqual([{ dealId: testDealId }]);
+
+    const documentInput = {
+      projectId,
+      docType: "sow" as const,
+      fileName: "SoW contractual.pdf",
+      fileUrl: "https://example.invalid/sow-contractual.pdf",
+      fileKey: `linked-docs/${projectId}/sow/sha256-test.pdf`,
+      fileSize: 128,
+      mimeType: "application/pdf",
+      notes: "Primera carga",
+      uploadedBy: 1,
+      uploadedByName: "Prueba H6",
+    };
+    expect(await upsertLinkedProjectDocument(documentInput)).toMatchObject({ created: true });
+    expect(await upsertLinkedProjectDocument({ ...documentInput, notes: "Reintento idempotente" })).toMatchObject({ created: false });
+    expect(await db.select().from(linkedProjectDocuments).where(eq(linkedProjectDocuments.projectId, projectId))).toEqual([
+      expect.objectContaining({ fileKey: documentInput.fileKey, notes: "Reintento idempotente" }),
+    ]);
+
+    expect(await getJiraHomologationImportStatus(projectId)).toMatchObject({
+      project: { dealId: testDealId },
+      counts: {
+        risks: { imported: 1, mapped: 0 },
+        wbs: { imported: 1, mapped: 0 },
+        documents: { sow: 1, gantt: 0, milestoneAcceptances: 0 },
+      },
+      pending: expect.arrayContaining(["Onboarding Jira [PENDIENTE]", "Gantt contractual [PENDIENTE]"]),
+    });
 
     await cleanup();
     expect(await db.select({ id: projects.id }).from(projects).where(eq(projects.jiraProjectKey, testKey))).toHaveLength(0);

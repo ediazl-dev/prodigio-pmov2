@@ -1,10 +1,11 @@
 import type { InsertRisk, InsertWbsTask } from "../drizzle/schema";
+import { createHash } from "node:crypto";
 import {
   linkProjectToConfirmedFinancialDeal,
   upsertJiraImportedRisks,
   upsertJiraImportedWbs,
 } from "./db";
-import { buildMappedJiraDomainImport, type JiraDomainImportException } from "./jiraDomainImport";
+import { buildMappedJiraDocumentPlan, buildMappedJiraDomainImport, type JiraDomainImportException } from "./jiraDomainImport";
 import { loadProductionJiraBaselineImportContext, type JiraBaselineImportContext } from "./jiraBaselineImportRunner";
 import { createProductionJiraOnboardingService } from "./jiraOnboardingRepository";
 
@@ -48,17 +49,21 @@ export async function runInitialJiraDomainImport(input: {
     sourceSnapshot: onboarding.sourceSnapshot,
     mappings,
   });
+  const documents = buildMappedJiraDocumentPlan({
+    sourceSnapshot: onboarding.sourceSnapshot,
+    mappings,
+  });
   const domainMappingCount = mappings.filter(mapping =>
-    mapping.status === "approved" && ["risk", "epic", "task"].includes(mapping.targetEntityType),
+    mapping.status === "approved" && ["risk", "epic", "task", "document", "stage_evidence"].includes(mapping.targetEntityType),
   ).length;
   const dealId = identityDealId(onboarding.identitySnapshot);
-  const runId = [
-    "initial_import_domains",
-    onboarding.id,
-    `v${onboarding.mappingVersion}`,
-    onboarding.sourceFingerprint || "sin-fingerprint",
-    dealId || "sin-deal",
-  ].join(":");
+  const runFingerprint = createHash("sha256").update(JSON.stringify({
+    contractVersion: "h6-v2",
+    mappingVersion: onboarding.mappingVersion,
+    sourceFingerprint: onboarding.sourceFingerprint || null,
+    dealId,
+  })).digest("hex").slice(0, 32);
+  const runId = `initial_import_h6:${onboarding.id}:${runFingerprint}`;
   const startedAt = new Date();
   const syncRun = await dependencies.startSyncRun({
     runId,
@@ -82,6 +87,7 @@ export async function runInitialJiraDomainImport(input: {
       reused: true,
       risks: syncRun.record.details?.risks ?? { createdCount: 0, updatedCount: 0 },
       wbs: syncRun.record.details?.wbs ?? { createdCount: 0, updatedCount: 0 },
+      documents: syncRun.record.details?.documents ?? { mappedCount: 0, linkedCount: 0, pendingCount: 0 },
       finance: syncRun.record.details?.finance ?? { linked: false, reused: false, dealId: null },
       exceptions: syncRun.record.errorCount ?? 0,
     };
@@ -93,8 +99,13 @@ export async function runInitialJiraDomainImport(input: {
     const financeResult = dealId
       ? await dependencies.linkDeal(input.projectId, dealId)
       : { linked: false, reused: false, dealId: null, reason: "La identidad confirmada no contiene un Deal financiero; permanece [POR CONFIRMAR]." };
-    const exceptions: Array<JiraDomainImportException | { domain: "finance"; sourceKey: string; reason: string }> = [
+    const exceptions: Array<
+      JiraDomainImportException
+      | { domain: "documents"; sourceKey: string; reason: string }
+      | { domain: "finance"; sourceKey: string; reason: string }
+    > = [
       ...transformed.exceptions,
+      ...documents.exceptions,
     ];
     if (!financeResult.linked && financeResult.reason) {
       exceptions.push({ domain: "finance" as const, sourceKey: dealId ?? "[POR CONFIRMAR]", reason: financeResult.reason });
@@ -114,7 +125,16 @@ export async function runInitialJiraDomainImport(input: {
     const updatedCount = riskResult.updatedCount + wbsResult.updatedCount;
     const skippedCount = Math.max(0, domainMappingCount - transformed.risks.length - transformed.wbsItems.length)
       + (financeResult.reused ? 1 : 0);
-    const details = { risks: riskResult, wbs: wbsResult, finance: financeResult };
+    const details = {
+      risks: riskResult,
+      wbs: wbsResult,
+      documents: {
+        mappedCount: documents.mappedCount,
+        linkedCount: documents.linkedCount,
+        pendingCount: documents.pendingCount,
+      },
+      finance: financeResult,
+    };
     await dependencies.completeSyncRun(syncRun.record, {
       status: exceptions.length ? "partial" : "applied",
       createdCount,
@@ -129,6 +149,7 @@ export async function runInitialJiraDomainImport(input: {
       reused: false,
       risks: riskResult,
       wbs: wbsResult,
+      documents: details.documents,
       finance: financeResult,
       exceptions: exceptions.length,
     };

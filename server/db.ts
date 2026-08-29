@@ -2148,6 +2148,37 @@ export async function insertLinkedProjectDocument(data: InsertLinkedProjectDocum
   return result.insertId;
 }
 
+export async function upsertLinkedProjectDocument(data: InsertLinkedProjectDocument) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const naturalKey = and(
+    eq(linkedProjectDocuments.projectId, data.projectId),
+    eq(linkedProjectDocuments.docType, data.docType),
+    eq(linkedProjectDocuments.fileKey, data.fileKey),
+  );
+  const existing = await db.select({ id: linkedProjectDocuments.id })
+    .from(linkedProjectDocuments)
+    .where(naturalKey)
+    .limit(1);
+  await db.insert(linkedProjectDocuments).values(data).onDuplicateKeyUpdate({
+    set: {
+      fileName: data.fileName,
+      fileUrl: data.fileUrl,
+      fileSize: data.fileSize ?? null,
+      mimeType: data.mimeType ?? null,
+      notes: data.notes ?? null,
+      uploadedBy: data.uploadedBy,
+      uploadedByName: data.uploadedByName ?? null,
+    },
+  });
+  const rows = await db.select({ id: linkedProjectDocuments.id })
+    .from(linkedProjectDocuments)
+    .where(naturalKey)
+    .limit(1);
+  if (!rows[0]) throw new Error("No fue posible persistir el documento vinculado");
+  return { id: rows[0].id, created: existing.length === 0 };
+}
+
 export async function getLinkedProjectDocuments(projectId: number, docType?: "sow" | "gantt") {
   const db = await getDb();
   if (!db) return [];
@@ -2170,6 +2201,94 @@ export async function getLinkedProjectDocumentById(id: number) {
   const rows = await db.select().from(linkedProjectDocuments)
     .where(eq(linkedProjectDocuments.id, id));
   return rows[0] ?? null;
+}
+
+export async function getJiraHomologationImportStatus(projectId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const projectRows = await db.select({
+    id: projects.id,
+    origin: projects.origin,
+    jiraProjectKey: projects.jiraProjectKey,
+    dealId: projects.dealId,
+  }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  const project = projectRows[0];
+  if (!project) return null;
+
+  const onboardingRows = await db.select().from(jiraProjectOnboardings)
+    .where(eq(jiraProjectOnboardings.projectId, projectId)).limit(1);
+  const onboarding = onboardingRows[0] ?? null;
+  const documents = await db.select({
+    id: linkedProjectDocuments.id,
+    docType: linkedProjectDocuments.docType,
+    fileKey: linkedProjectDocuments.fileKey,
+  }).from(linkedProjectDocuments).where(eq(linkedProjectDocuments.projectId, projectId));
+  const importedRisks = await db.select({ id: risks.id }).from(risks)
+    .where(and(eq(risks.projectId, projectId), isNotNull(risks.jiraIssueKey)));
+  const importedWbs = await db.select({ id: wbsTasks.id }).from(wbsTasks)
+    .where(and(eq(wbsTasks.projectId, projectId), isNotNull(wbsTasks.jiraIssueKey)));
+  const acceptances = await db.select({ id: executiveMilestoneAcceptances.id })
+    .from(executiveMilestoneAcceptances)
+    .where(and(
+      eq(executiveMilestoneAcceptances.projectId, projectId),
+      eq(executiveMilestoneAcceptances.acceptanceStatus, "accepted"),
+    ));
+
+  const mappings = onboarding
+    ? await db.select().from(jiraEntityMappings).where(and(
+      eq(jiraEntityMappings.onboardingId, onboarding.id),
+      eq(jiraEntityMappings.mappingVersion, onboarding.mappingVersion),
+      eq(jiraEntityMappings.status, "approved"),
+    ))
+    : [];
+  const exceptions = onboarding
+    ? await db.select().from(jiraImportExceptions).where(and(
+      eq(jiraImportExceptions.onboardingId, onboarding.id),
+      eq(jiraImportExceptions.status, "open"),
+      inArray(jiraImportExceptions.domain, ["risks", "planning", "documents", "finance"]),
+    )).orderBy(desc(jiraImportExceptions.updatedAt))
+    : [];
+  const syncRuns = onboarding
+    ? await db.select().from(jiraSyncLogs).where(and(
+      eq(jiraSyncLogs.onboardingId, onboarding.id),
+      eq(jiraSyncLogs.source, "initial_import"),
+    )).orderBy(desc(jiraSyncLogs.createdAt)).limit(20)
+    : [];
+  const latestRun = syncRuns.find(run => {
+    const details = run.details as Record<string, unknown> | null;
+    return details?.importScope === "h6_domains";
+  }) ?? null;
+
+  const expectedRisks = mappings.filter(mapping => mapping.targetEntityType === "risk").length;
+  const expectedWbs = mappings.filter(mapping => ["epic", "task"].includes(mapping.targetEntityType)).length;
+  const sowCount = documents.filter(document => document.docType === "sow").length;
+  const ganttCount = documents.filter(document => document.docType === "gantt").length;
+  const pending: string[] = [];
+  if (!onboarding) pending.push("Onboarding Jira [PENDIENTE]");
+  if (!project.dealId) pending.push("Deal financiero [POR CONFIRMAR]");
+  if (!sowCount) pending.push("SoW contractual [PENDIENTE]");
+  if (!ganttCount) pending.push("Gantt contractual [PENDIENTE]");
+  if (expectedRisks > importedRisks.length) pending.push("Riesgos mapeados [POR CONFIRMAR]");
+  if (expectedWbs > importedWbs.length) pending.push("Backlog mapeado [POR CONFIRMAR]");
+
+  return {
+    project,
+    onboarding: onboarding ? {
+      id: onboarding.id,
+      status: onboarding.status,
+      mappingVersion: onboarding.mappingVersion,
+      jiraProjectKey: onboarding.jiraProjectKey,
+    } : null,
+    latestRun,
+    counts: {
+      risks: { imported: importedRisks.length, mapped: expectedRisks },
+      wbs: { imported: importedWbs.length, mapped: expectedWbs },
+      documents: { sow: sowCount, gantt: ganttCount, milestoneAcceptances: acceptances.length },
+      openExceptions: exceptions.length,
+    },
+    exceptions,
+    pending,
+  };
 }
 
 // ==================== MY PROFILE ====================

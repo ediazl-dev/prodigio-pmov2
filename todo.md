@@ -19,6 +19,9 @@
 - [x] H6: importar riesgos mapeados de Jira de forma idempotente, preservando estado, responsable y trazabilidad de origen.
 - [x] H6: importar épicas, historias y tareas mapeadas al WBS canónico, conservando jerarquía y claves Jira.
 - [ ] H6: unificar SoW, Gantt y evidencias documentales sobre almacenamiento S3 y entidades existentes, sin duplicar archivos.
+- [x] H6: procesar mappings aprobados `document` y `stage_evidence` sin crear archivos ni URLs ficticias, registrando excepciones documentales auditables cuando falte una referencia S3 real.
+- [x] H6: documentar y probar que SoW/Gantt permanecen en `linked_project_documents` y las actas por hito en `executive_milestone_acceptances`, ambas con archivos S3 reales y sin sobrecargar entidades.
+- [ ] H6: exponer en el detalle del proyecto el estado real de documentos, actas, faltantes y excepciones de homologación.
 - [x] H6: materializar el Deal confirmado por onboarding en `projects.dealId` y validar su existencia en `financial_data` sin inferencias.
 - [x] H6: registrar corrida, excepciones y conteos por dominio con reintentos idempotentes y sin escrituras Jira.
 - [ ] H6: validar los cuatro dominios con pruebas focales, persistentes aisladas, limpieza SQL y verificación visual.

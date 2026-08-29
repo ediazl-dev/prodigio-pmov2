@@ -45,7 +45,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { getActiveFinancialData } from "./db";
 import { getDb } from "./db";
@@ -72,6 +72,9 @@ import { buildJiraMappingCandidates, validateJiraOnboardingIdentity } from "./ji
 import { assessJiraOnboardingMaterialization } from "./jiraOnboardingMaterialization";
 import { assessJiraBaselineOperator } from "./jiraBaselineProposal";
 import { loadProductionJiraBaselineImportContext, markProductionJiraOnboardingReady, runProductionInitialJiraBaselineImport } from "./jiraBaselineImportRunner";
+import { runProductionInitialJiraDomainImport } from "./jiraDomainImportRunner";
+import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
+import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -102,6 +105,21 @@ async function requireJiraBaselineOperator(ctx: { user: { id: number; role: stri
   });
   if (!permission.allowed) throw new TRPCError({ code: "FORBIDDEN", message: permission.reason ?? "Acceso denegado" });
   return context;
+}
+
+async function requireLinkedProjectDocumentOperator(ctx: { user: { id: number; role: string } }, projectId: number) {
+  const project = await getProjectById(projectId);
+  if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
+  if (project.origin !== "linked") {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La carga homologada solo aplica a proyectos vinculados desde Jira" });
+  }
+  const permission = assessLinkedProjectDocumentOperator({
+    role: ctx.user.role,
+    userId: ctx.user.id,
+    assignedPmId: project.pmId,
+  });
+  if (!permission.allowed) throw new TRPCError({ code: "FORBIDDEN", message: permission.reason ?? "Acceso denegado" });
+  return project;
 }
 
 const EXECUTIVE_EVIDENCE_MAX_BYTES = 25 * 1024 * 1024;
@@ -4761,43 +4779,42 @@ Genera un análisis PM Senior con esta estructura JSON EXACTA:
 
   // ==================== LINKED PROJECT DOCUMENTS ====================
   /** Upload a SoW or Gantt document for a linked project */
-  uploadDocument: protectedProcedure.input(z.object({
+  uploadDocument: adminOrPmoOrPm.input(z.object({
     projectId: z.number(),
     docType: z.enum(["sow", "gantt"]),
-    fileName: z.string().min(1),
-    fileBase64: z.string().min(1),
-    mimeType: z.string().optional(),
-    notes: z.string().optional(),
+    fileName: z.string().trim().min(1).max(500),
+    fileBase64: z.string().min(1).max(36_000_000),
+    mimeType: z.string().trim().max(100).optional(),
+    notes: z.string().trim().max(2000).optional(),
   })).mutation(async ({ input, ctx }) => {
-    // Verify project is linked
-    const project = await getProjectById(input.projectId);
-    if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
-    // Decode file
-    const buffer = Buffer.from(input.fileBase64, "base64");
-    const fileSize = buffer.length;
-    const maxSize = 25 * 1024 * 1024; // 25MB
-    if (fileSize > maxSize) throw new TRPCError({ code: "BAD_REQUEST", message: "El archivo excede el tamaño máximo de 25MB" });
-    // Upload to S3
-    const ext = input.fileName.split(".").pop() || "pdf";
-    const safeKey = `linked-docs/${input.projectId}/${input.docType}/${nanoid(8)}.${ext}`;
-    const { url } = await storagePut(safeKey, buffer, input.mimeType || "application/octet-stream");
-    // Save metadata in DB
-    const docId = await insertLinkedProjectDocument({
+    await requireLinkedProjectDocumentOperator(ctx, input.projectId);
+    let validated;
+    try {
+      validated = validateLinkedProjectDocumentUpload(input);
+    } catch (error) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Archivo no válido" });
+    }
+    const stored = await storagePut(validated.storageKey, validated.buffer, validated.mimeType);
+    const document = await upsertLinkedProjectDocument({
       projectId: input.projectId,
       docType: input.docType,
-      fileName: input.fileName,
-      fileUrl: url,
-      fileKey: safeKey,
-      fileSize,
-      mimeType: input.mimeType || null,
+      fileName: validated.fileName,
+      fileUrl: stored.url,
+      fileKey: stored.key,
+      fileSize: validated.fileSize,
+      mimeType: validated.mimeType,
       notes: input.notes || null,
       uploadedBy: ctx.user.id,
       uploadedByName: ctx.user.name || "Unknown",
     });
-    await audit(ctx, "upload_linked_doc", "linked_project_document", docId, input.fileName, {
-      projectId: input.projectId, docType: input.docType, fileSize,
+    await audit(ctx, document.created ? "upload_linked_doc" : "reuse_linked_doc", "linked_project_document", document.id, validated.fileName, {
+      projectId: input.projectId,
+      docType: input.docType,
+      fileSize: validated.fileSize,
+      sha256: validated.sha256,
+      reused: !document.created,
     });
-    return { id: docId, fileUrl: url, fileName: input.fileName };
+    return { id: document.id, fileUrl: stored.url, fileName: validated.fileName, reused: !document.created };
   }),
 
   /** List documents for a linked project */
@@ -4809,11 +4826,12 @@ Genera un análisis PM Senior con esta estructura JSON EXACTA:
   }),
 
   /** Delete a linked project document */
-  deleteDocument: protectedProcedure.input(z.object({
+  deleteDocument: adminOrPmoOrPm.input(z.object({
     documentId: z.number(),
   })).mutation(async ({ input, ctx }) => {
     const doc = await getLinkedProjectDocumentById(input.documentId);
     if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Documento no encontrado" });
+    await requireLinkedProjectDocumentOperator(ctx, doc.projectId);
     await deleteLinkedProjectDocument(input.documentId);
     await audit(ctx, "delete_linked_doc", "linked_project_document", input.documentId, doc.fileName, {
       projectId: doc.projectId, docType: doc.docType,
@@ -5561,6 +5579,36 @@ const jiraRouter = router({
       message: `Proyecto "${identity.projectName}" materializado con seis etapas. SoW permanece abierto hasta registrar evidencia.`,
     };
   }),
+
+  /** Read-only H6 status for any authenticated project viewer. */
+  getExistingProjectImportStatus: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const status = await getJiraHomologationImportStatus(input.projectId);
+      if (!status) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
+      return status;
+    }),
+
+  /** Import approved Jira mappings into canonical PMO domains. Never writes to Jira. */
+  importExistingProjectDomains: adminOrPmo
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const project = await getProjectById(input.projectId);
+      if (!project || project.origin !== "linked") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no corresponde a una homologación Jira materializada" });
+      }
+      try {
+        const result = await runProductionInitialJiraDomainImport({
+          projectId: input.projectId,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+        });
+        await audit(ctx, "import_jira_h6_domains", "jira_project_onboarding", input.projectId, project.projectName, result);
+        return { success: true, ...result };
+      } catch (error) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "No fue posible ejecutar la importación H6" });
+      }
+    }),
 
   closeHomologatedStage: adminOrPmo.input(z.object({
     jiraProjectKey: z.string().trim().min(1),

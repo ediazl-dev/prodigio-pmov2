@@ -70,6 +70,17 @@ export interface JiraDomainImportException {
   reason: string;
 }
 
+export interface JiraDocumentMappingResult {
+  mappedCount: number;
+  linkedCount: 0;
+  pendingCount: number;
+  exceptions: Array<{
+    domain: "documents";
+    sourceKey: string;
+    reason: string;
+  }>;
+}
+
 function normalizedKey(value: unknown) {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
 }
@@ -231,4 +242,39 @@ export function buildMappedJiraDomainImport(input: {
   }
 
   return { risks, wbsItems, exceptions };
+}
+
+/**
+ * H6 never turns a Jira issue into a file. The persisted Jira snapshot contains
+ * issue metadata, but no S3 object key or bytes. Approved document/evidence
+ * mappings are therefore made visible as resolvable exceptions until a human
+ * uploads a real file through the canonical S3-backed flow.
+ */
+export function buildMappedJiraDocumentPlan(input: {
+  sourceSnapshot: unknown;
+  mappings: JiraDomainApprovedMapping[];
+}): JiraDocumentMappingResult {
+  const issues = sourceIssues(input.sourceSnapshot);
+  const issueKeys = new Set(issues.map(issue => normalizedKey(issue.key)).filter(Boolean));
+  const documentMappings = input.mappings
+    .filter(mapping => mapping.status === "approved")
+    .filter(mapping => ["document", "stage_evidence"].includes(mapping.targetEntityType))
+    .map(mapping => ({ ...mapping, sourceKey: normalizedKey(mapping.sourceKey) }))
+    .filter(mapping => Boolean(mapping.sourceKey))
+    .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
+
+  const exceptions = documentMappings.map(mapping => ({
+    domain: "documents" as const,
+    sourceKey: mapping.sourceKey,
+    reason: issueKeys.has(mapping.sourceKey)
+      ? `El mapping ${mapping.targetEntityType} identifica un issue Jira, pero el snapshot no contiene archivo ni clave S3 real; cargar y validar la evidencia en Prodigio.`
+      : `El mapping ${mapping.targetEntityType} no está presente en el snapshot Jira vigente y tampoco contiene archivo S3 real; permanece [PENDIENTE].`,
+  }));
+
+  return {
+    mappedCount: documentMappings.length,
+    linkedCount: 0,
+    pendingCount: documentMappings.length,
+    exceptions,
+  };
 }
