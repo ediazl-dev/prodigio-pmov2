@@ -18,6 +18,7 @@ import {
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { C, headerGradient, cardStyle, headerKpiCard, headerKpiLabel, headerKpiValue, footerStyle, footerText } from "./adminStyles";
+import { buildJiraMappingSubmission, resolveJiraWizardStep, type JiraWizardStep } from "./jiraOnboardingWizard";
 
 const PROJECT_TYPES = [
   { value: "apigee", label: "Apigee / API Gateway" },
@@ -273,129 +274,171 @@ function SpaceCard({ space, onRetried }: { space: any; onRetried: () => void }) 
 
 // ==================== LINK PROJECT DIALOG ====================
 function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; onOpenChange: (v: boolean) => void; onLinked: () => void }) {
+  const utils = trpc.useUtils();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [preflightResult, setPreflightResult] = useState<any>(null);
-  const [step, setStep] = useState<"search" | "preflight">("search");
+  const [step, setStep] = useState<JiraWizardStep>("search");
+  const [identity, setIdentity] = useState({ projectName: "", clientName: "", projectType: "otro", pmUserId: "", deliveryUserId: "", dealId: "" });
+  const [mappingDecisions, setMappingDecisions] = useState<Record<string, string>>({});
 
   const { data: availableProjects, isLoading: isSearching } = trpc.jira.searchAvailableProjects.useQuery({ query: searchQuery }, { enabled: open });
+  const { data: users } = trpc.users.list.useQuery(undefined, { enabled: open && (step === "identity" || step === "mapping") });
+  const { data: deals } = trpc.financial.list.useQuery(undefined, { enabled: open && step === "identity" });
+  const onboardingQuery = trpc.jira.getExistingProjectOnboarding.useQuery(
+    { jiraProjectKey: selectedProject?.key ?? "" },
+    { enabled: open && Boolean(selectedProject?.key) },
+  );
+
+  const activeManagers = (users ?? []).filter((user: any) => user.status === "activo" && user.role !== "consulta");
+  const candidates = onboardingQuery.data?.candidates ?? [];
+
   const preflightMutation = trpc.jira.preflightExistingProject.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setPreflightResult(data);
-      if (data.readyForMapping) toast.success("Diagnóstico Jira completado. El proyecto está listo para la etapa de mapeo.");
-      else toast.error("El diagnóstico detectó bloqueos que deben resolverse antes del mapeo.");
+      await utils.jira.getExistingProjectOnboarding.invalidate({ jiraProjectKey: data.project.key });
+      const nextStep = resolveJiraWizardStep(data.readyForMapping, data.onboarding.status);
+      setStep(nextStep);
+      if (!data.readyForMapping) {
+        toast.error("El diagnóstico detectó bloqueos que deben resolverse antes del mapeo.");
+        return;
+      }
+      toast.success("Diagnóstico Jira completado sin escrituras.");
     },
     onError: (err) => toast.error(err.message),
   });
 
-  const resetState = () => { setSearchQuery(""); setSelectedProject(null); setPreflightResult(null); setStep("search"); };
+  const identityMutation = trpc.jira.saveExistingProjectIdentity.useMutation({
+    onSuccess: async () => {
+      await utils.jira.getExistingProjectOnboarding.invalidate({ jiraProjectKey: selectedProject.key });
+      setStep("mapping");
+      toast.success("Identidad y responsables guardados. Ahora revisa cada issue Jira.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const mappingMutation = trpc.jira.saveExistingProjectMappings.useMutation({
+    onSuccess: async () => {
+      await utils.jira.getExistingProjectOnboarding.invalidate({ jiraProjectKey: selectedProject.key });
+      setStep("ready");
+      onLinked();
+      toast.success("Mapeo versionado aprobado. El proyecto está listo para conciliación H4.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const resetState = () => {
+    setSearchQuery(""); setSelectedProject(null); setPreflightResult(null); setStep("search");
+    setIdentity({ projectName: "", clientName: "", projectType: "otro", pmUserId: "", deliveryUserId: "", dealId: "" });
+    setMappingDecisions({});
+  };
+
   const handleSelect = (project: any) => {
     setSelectedProject(project);
+    setIdentity(current => ({ ...current, projectName: project.name ?? "" }));
     setPreflightResult(null);
     setStep("preflight");
     preflightMutation.mutate({ jiraProjectKey: project.key });
   };
 
+  const goToIdentity = () => {
+    const saved = onboardingQuery.data?.identity as any;
+    if (saved) {
+      setIdentity({
+        projectName: saved.projectName ?? selectedProject?.name ?? "",
+        clientName: saved.clientName ?? "",
+        projectType: saved.projectType ?? "otro",
+        pmUserId: saved.pmUserId ? String(saved.pmUserId) : "",
+        deliveryUserId: saved.deliveryUserId ? String(saved.deliveryUserId) : "",
+        dealId: saved.dealId ?? "",
+      });
+    }
+    setStep("identity");
+  };
+
+  const submitIdentity = () => identityMutation.mutate({
+    jiraProjectKey: selectedProject.key,
+    projectName: identity.projectName,
+    clientName: identity.clientName,
+    projectType: identity.projectType as any,
+    pmUserId: Number(identity.pmUserId),
+    deliveryUserId: Number(identity.deliveryUserId),
+    dealId: identity.dealId,
+  });
+
+  const decisionFor = (candidate: any) => mappingDecisions[candidate.sourceKey]
+    ?? onboardingQuery.data?.mappings?.find((mapping: any) => mapping.sourceKey === candidate.sourceKey)?.targetEntityType
+    ?? candidate.proposedTargetEntityType;
+
+  const submitMappings = () => mappingMutation.mutate({
+    jiraProjectKey: selectedProject.key,
+    mappings: buildJiraMappingSubmission(candidates as any, mappingDecisions, onboardingQuery.data?.mappings as any) as any,
+  });
+
+  const stepNumber = step === "search" ? 1 : step === "preflight" ? 2 : step === "identity" ? 3 : 4;
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) resetState(); onOpenChange(v); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+    <Dialog open={open} onOpenChange={(value) => { if (!value) resetState(); onOpenChange(value); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col bg-slate-50">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Link2 className="w-5 h-5" style={{ color: "#7C3AED" }} />{step === "search" ? "Incorporar Proyecto JIRA Existente" : "Diagnóstico previo de homologación"}</DialogTitle>
-          <DialogDescription>{step === "search" ? "Selecciona un proyecto para analizarlo antes de crear cualquier estructura en Prodigio PMO." : `Preflight de solo lectura para "${selectedProject?.name}".`}</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Link2 className="w-5 h-5 text-violet-600" />Homologar proyecto JIRA existente</DialogTitle>
+          <DialogDescription>Asistente auditable de 7 pasos. H3 completa selección, diagnóstico, identidad y mapeo; todavía no crea el proyecto PMO.</DialogDescription>
         </DialogHeader>
-        {step === "search" ? (
-          <div className="flex-1 overflow-hidden flex flex-col gap-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar por nombre o key del proyecto..." className="pl-8" autoFocus />
+
+        <div className="grid grid-cols-4 gap-2">
+          {["Proyecto", "Preflight", "Identidad", "Mapeo"].map((label, index) => (
+            <div key={label} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${stepNumber >= index + 1 ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-400"}`}>
+              <span className="mr-2">{index + 1}</span>{label}
             </div>
-            <div className="flex-1 overflow-y-auto space-y-1.5 min-h-[200px] max-h-[400px]">
-              {isSearching ? (
-                <div className="flex items-center justify-center py-8 text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mr-2" />Buscando proyectos en JIRA...</div>
-              ) : !availableProjects || availableProjects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <Globe className="w-8 h-8 mb-2 opacity-40" />
-                  <p className="text-sm font-medium">No hay proyectos disponibles</p>
-                  <p className="text-xs mt-1">{searchQuery ? "Intenta con otro término de búsqueda" : "Todos los proyectos JIRA ya están gestionados"}</p>
-                </div>
-              ) : availableProjects.map((p: any) => (
-                <button key={p.id} onClick={() => handleSelect(p)} className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-violet-50 hover:border-violet-300 transition-all text-left group">
-                  {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-8 h-8 rounded" /> : <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">{p.key?.charAt(0)}</div>}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2"><code className="text-xs font-mono font-bold text-violet-600">{p.key}</code><span className="text-sm font-medium truncate">{p.name}</span></div>
-                    <div className="flex items-center gap-2 mt-0.5">{p.lead && <span className="text-xs text-muted-foreground">Lead: {p.lead}</span>}{p.projectTypeKey && <Badge variant="outline" className="text-[10px] capitalize">{p.projectTypeKey}</Badge>}</div>
-                  </div>
-                  <Plus className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground text-center">{availableProjects?.length ?? 0} proyectos disponibles para vincular</p>
-          </div>
-        ) : (
-          <div className="space-y-4 overflow-y-auto pr-1">
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 10, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.2)" }}>
-              {selectedProject?.avatarUrl ? <img src={selectedProject.avatarUrl} alt="" className="w-10 h-10 rounded" /> : <div style={{ width: 40, height: 40, borderRadius: 8, background: "rgba(139,92,246,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#7C3AED" }}>{selectedProject?.key?.charAt(0)}</div>}
-              <div className="flex-1 min-w-0">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><code style={{ fontSize: 13, fontWeight: 700, color: "#7C3AED" }}>{selectedProject?.key}</code><span style={{ fontWeight: 600 }}>{selectedProject?.name}</span></div>
-                {selectedProject?.lead && <p style={{ fontSize: 11, color: C.g400, marginTop: 2 }}>Lead: {selectedProject.lead}</p>}
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-1">
+          {step === "search" && (
+            <div className="space-y-3">
+              <div className="relative"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Buscar por nombre o key del proyecto..." className="pl-8 bg-white" autoFocus /></div>
+              <div className="space-y-2 min-h-[240px] max-h-[430px] overflow-y-auto">
+                {isSearching ? <div className="flex justify-center py-10 text-slate-500"><Loader2 className="w-5 h-5 animate-spin mr-2" />Consultando JIRA...</div> : !availableProjects?.length ? <div className="flex flex-col items-center py-10 text-slate-500"><Globe className="w-8 h-8 mb-2 opacity-40" /><p className="text-sm font-medium">No hay proyectos disponibles</p></div> : availableProjects.map((project: any) => (
+                  <button key={project.id} onClick={() => handleSelect(project)} className="w-full flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-violet-50 hover:border-violet-300 text-left group">
+                    <div className="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center text-xs font-bold text-violet-700">{project.key?.charAt(0)}</div>
+                    <div className="flex-1 min-w-0"><div className="flex gap-2"><code className="text-xs font-bold text-violet-600">{project.key}</code><span className="text-sm font-medium truncate">{project.name}</span></div><p className="text-xs text-slate-500 mt-1">{project.lead ? `Lead: ${project.lead}` : "Lead [POR CONFIRMAR]"}</p></div>
+                    <Plus className="w-4 h-4 text-violet-500 opacity-0 group-hover:opacity-100" />
+                  </button>
+                ))}
               </div>
-              {preflightResult && <Badge variant={preflightResult.readyForMapping ? "default" : "destructive"}>{preflightResult.readyForMapping ? "Listo para mapear" : "Bloqueado"}</Badge>}
             </div>
-
-            {preflightMutation.isPending && (
-              <div className="flex items-center justify-center py-12 text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mr-2" />Consultando proyecto, issues, estados y tableros en JIRA...</div>
-            )}
-
-            {!preflightMutation.isPending && preflightResult && (
-              <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {[
-                    ["Issues", preflightResult.inventory.totalIssues],
-                    ["Hitos", preflightResult.inventory.milestones],
-                    ["Riesgos", preflightResult.inventory.risks],
-                    ["Épicas", preflightResult.inventory.epics],
-                  ].map(([label, value]) => <div key={String(label)} className="rounded-lg border bg-white p-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className="text-xl font-bold text-slate-900">{value}</p></div>)}
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="rounded-lg border bg-white p-3">
-                    <div className="flex items-center justify-between mb-2"><p className="text-sm font-semibold">Alineamiento PPDC</p><Badge variant="outline">{preflightResult.corporateAlignment.scorePct}%</Badge></div>
-                    <p className="text-xs text-muted-foreground">{preflightResult.corporateAlignment.foundBoards} de {preflightResult.corporateAlignment.requiredBoards} tableros corporativos identificados.</p>
-                    <p className="text-xs mt-2 font-medium">{preflightResult.corporateAlignment.classification === "corporate" ? "Configuración corporativa reconocida" : "Configuración externa aceptable, requiere mapeo"}</p>
-                  </div>
-                  <div className="rounded-lg border bg-white p-3">
-                    <div className="flex items-center justify-between mb-2"><p className="text-sm font-semibold">Calidad de fechas de hitos</p><Badge variant="outline">{preflightResult.dateQuality.dueDateCompletenessPct}%</Badge></div>
-                    <p className="text-xs text-muted-foreground">{preflightResult.dateQuality.milestoneDueDatePresent} con fecha · {preflightResult.dateQuality.milestoneDueDateMissing + preflightResult.dateQuality.milestoneDueDateInvalid} pendientes</p>
-                    <p className="text-xs mt-2">{preflightResult.dateQuality.openMilestonesOverdue} hitos abiertos vencidos · {preflightResult.dateQuality.doneMilestoneResolutionMissing} cierres sin fecha real</p>
-                  </div>
-                </div>
-
-                {preflightResult.blockers.length > 0 && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3"><p className="text-sm font-semibold text-red-800 flex items-center gap-2"><AlertCircle className="w-4 h-4" />Bloqueos</p><ul className="mt-2 space-y-1 text-xs text-red-800">{preflightResult.blockers.map((item: string) => <li key={item}>• {item}</li>)}</ul></div>
-                )}
-                {preflightResult.warnings.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Brechas que deberán mapearse</p><ul className="mt-2 space-y-1 text-xs text-amber-900">{preflightResult.warnings.map((item: string) => <li key={item}>• {item}</li>)}</ul></div>
-                )}
-
-                <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900">
-                  <strong>Control aplicado:</strong> este diagnóstico fue persistido como <em>dry-run</em>. No creó el proyecto PMO, no modificó JIRA y no cerró ninguna etapa. El siguiente paso será completar identidad y mapeo antes de materializar el proyecto.
-                </div>
-              </>
-            )}
-
-            {!preflightMutation.isPending && preflightMutation.isError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                No fue posible completar el diagnóstico. No se creó ni modificó información. Puedes volver a intentarlo.
-              </div>
-            )}
-          </div>
-        )}
-        <DialogFooter className="gap-2">
-          {step === "preflight" && <Button variant="outline" onClick={() => { setSelectedProject(null); setPreflightResult(null); setStep("search"); }} disabled={preflightMutation.isPending}>Volver</Button>}
-          {step === "preflight" && preflightMutation.isError && (
-            <Button onClick={() => preflightMutation.mutate({ jiraProjectKey: selectedProject.key })} disabled={preflightMutation.isPending}>Reintentar diagnóstico</Button>
           )}
-          {step === "preflight" && preflightResult && <Button onClick={() => { onOpenChange(false); resetState(); onLinked(); }} style={{ background: "#7C3AED", color: "#fff" }}>Cerrar diagnóstico</Button>}
+
+          {step !== "search" && (
+            <div className="rounded-xl border border-violet-200 bg-white p-3 mb-4 flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-violet-700">{selectedProject?.key?.charAt(0)}</div><div className="flex-1"><code className="text-xs font-bold text-violet-600">{selectedProject?.key}</code><p className="text-sm font-semibold text-slate-900">{selectedProject?.name}</p></div><Badge variant="outline">Sin materializar</Badge></div>
+          )}
+
+          {step === "preflight" && (
+            <div className="space-y-4">
+              {preflightMutation.isPending && <div className="flex justify-center py-12 text-slate-500"><Loader2 className="w-5 h-5 animate-spin mr-2" />Leyendo proyecto, issues, estados y tableros...</div>}
+              {!preflightMutation.isPending && preflightResult && <><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{[["Issues", preflightResult.inventory.totalIssues], ["Hitos", preflightResult.inventory.milestones], ["Riesgos", preflightResult.inventory.risks], ["Épicas", preflightResult.inventory.epics]].map(([label, value]) => <div key={String(label)} className="rounded-lg border bg-white p-3"><p className="text-[11px] text-slate-500">{label}</p><p className="text-xl font-bold text-slate-900">{value}</p></div>)}</div><div className="grid md:grid-cols-2 gap-3"><div className="rounded-lg border bg-white p-3"><div className="flex justify-between"><p className="text-sm font-semibold">Alineamiento PPDC</p><Badge variant="outline">{preflightResult.corporateAlignment.scorePct}%</Badge></div><p className="text-xs text-slate-500 mt-2">{preflightResult.corporateAlignment.classification === "corporate" ? "Configuración corporativa reconocida." : "Configuración externa aceptable; no será reconfigurada automáticamente."}</p></div><div className="rounded-lg border bg-white p-3"><div className="flex justify-between"><p className="text-sm font-semibold">Fechas de hitos</p><Badge variant="outline">{preflightResult.dateQuality.dueDateCompletenessPct}%</Badge></div><p className="text-xs text-slate-500 mt-2">{preflightResult.dateQuality.milestoneDueDatePresent} con fecha · {preflightResult.dateQuality.milestoneDueDateMissing + preflightResult.dateQuality.milestoneDueDateInvalid} pendientes.</p></div></div>{preflightResult.blockers.length > 0 && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p className="font-semibold flex gap-2"><AlertCircle className="w-4 h-4" />Bloqueos</p>{preflightResult.blockers.map((item: string) => <p key={item} className="mt-1">• {item}</p>)}</div>}{preflightResult.warnings.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><p className="font-semibold">Brechas a conciliar</p>{preflightResult.warnings.map((item: string) => <p key={item} className="mt-1">• {item}</p>)}</div>}<div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900"><strong>Dry-run:</strong> no se creó un proyecto PMO ni se modificó JIRA.</div></>}
+            </div>
+          )}
+
+          {step === "identity" && (
+            <div className="space-y-4"><div className="rounded-lg border bg-white p-4"><h3 className="font-semibold text-slate-900">Identidad canónica PMO</h3><p className="text-xs text-slate-500 mt-1">Todos los campos son confirmados por una persona; no se infieren desde JIRA.</p><div className="grid md:grid-cols-2 gap-4 mt-4"><div><Label>Nombre del proyecto</Label><Input className="mt-1" value={identity.projectName} onChange={event => setIdentity({ ...identity, projectName: event.target.value })} /></div><div><Label>Cliente</Label><Input className="mt-1" value={identity.clientName} onChange={event => setIdentity({ ...identity, clientName: event.target.value })} placeholder="[POR CONFIRMAR]" /></div><div><Label>Tipo de proyecto</Label><Select value={identity.projectType} onValueChange={value => setIdentity({ ...identity, projectType: value })}><SelectTrigger className="mt-1 bg-white"><SelectValue /></SelectTrigger><SelectContent>{PROJECT_TYPES.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label>Deal financiero</Label><Select value={identity.dealId} onValueChange={value => setIdentity({ ...identity, dealId: value })}><SelectTrigger className="mt-1 bg-white"><SelectValue placeholder="Seleccionar Deal sincronizado" /></SelectTrigger><SelectContent>{(deals ?? []).map((deal: any) => <SelectItem key={deal.dealId} value={deal.dealId}>{deal.dealId} · {deal.clientName ?? "[POR CONFIRMAR]"} · {deal.projectName ?? "[POR CONFIRMAR]"}</SelectItem>)}</SelectContent></Select></div><div><Label>Project Manager</Label><Select value={identity.pmUserId} onValueChange={value => setIdentity({ ...identity, pmUserId: value })}><SelectTrigger className="mt-1 bg-white"><SelectValue placeholder="Seleccionar PM" /></SelectTrigger><SelectContent>{activeManagers.map((user: any) => <SelectItem key={user.id} value={String(user.id)}>{user.name ?? user.email} · {user.role}</SelectItem>)}</SelectContent></Select></div><div><Label>Delivery</Label><Select value={identity.deliveryUserId} onValueChange={value => setIdentity({ ...identity, deliveryUserId: value })}><SelectTrigger className="mt-1 bg-white"><SelectValue placeholder="Seleccionar Delivery" /></SelectTrigger><SelectContent>{activeManagers.map((user: any) => <SelectItem key={user.id} value={String(user.id)}>{user.name ?? user.email} · {user.role}</SelectItem>)}</SelectContent></Select></div></div></div></div>
+          )}
+
+          {step === "mapping" && (
+            <div className="space-y-3"><div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900"><strong>Regla:</strong> cada issue debe quedar homologado o excluido explícitamente. JIRA → PMO será observacional; PMO → JIRA solo mediante una acción futura y explícita.</div><div className="rounded-lg border bg-white overflow-hidden"><div className="grid grid-cols-[120px_130px_1fr_190px] gap-3 px-3 py-2 bg-slate-100 text-[11px] font-semibold text-slate-600"><span>Issue</span><span>Tipo JIRA</span><span>Resumen</span><span>Destino PMO</span></div><div className="max-h-[360px] overflow-y-auto divide-y">{onboardingQuery.isLoading ? <div className="flex justify-center p-8"><Loader2 className="w-5 h-5 animate-spin" /></div> : candidates.map((candidate: any) => <div key={candidate.sourceKey} className="grid grid-cols-[120px_130px_1fr_190px] gap-3 px-3 py-2 items-center text-xs"><code className="font-bold text-violet-700">{candidate.sourceKey}</code><span className="text-slate-600">{candidate.jiraIssueType}</span><div className="min-w-0"><p className="truncate font-medium text-slate-800">{candidate.summary}</p><p className="text-[10px] text-slate-500">{candidate.assigneeName ?? "Responsable [POR CONFIRMAR]"} · {candidate.dueDate ?? "Fecha [PENDIENTE]"}</p></div><Select value={decisionFor(candidate)} onValueChange={value => setMappingDecisions(current => ({ ...current, [candidate.sourceKey]: value }))}><SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="milestone">Hito contractual</SelectItem><SelectItem value="risk">Riesgo</SelectItem><SelectItem value="epic">Épica</SelectItem><SelectItem value="task">Tarea / historia</SelectItem><SelectItem value="document">Documento</SelectItem><SelectItem value="stage_evidence">Evidencia de etapa</SelectItem><SelectItem value="ignored">Excluir justificadamente</SelectItem></SelectContent></Select></div>)}</div></div><p className="text-xs text-slate-500">Versión de mapeo: v{onboardingQuery.data?.onboarding.mappingVersion ?? 1} · {candidates.length} decisiones requeridas.</p></div>
+          )}
+
+          {step === "ready" && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center"><CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" /><h3 className="font-semibold text-emerald-900 mt-3">Identidad y mapeo H3 aprobados</h3><p className="text-sm text-emerald-800 mt-2">El onboarding quedó reanudable y listo para conciliación. No se autocerró ninguna etapa y el proyecto PMO aún no fue materializado.</p></div>}
+        </div>
+
+        <DialogFooter className="gap-2">
+          {step !== "search" && step !== "ready" && <Button variant="outline" onClick={() => setStep(step === "mapping" ? "identity" : step === "identity" ? "preflight" : "search")} disabled={preflightMutation.isPending || identityMutation.isPending || mappingMutation.isPending}>Volver</Button>}
+          {step === "preflight" && preflightMutation.isError && <Button onClick={() => preflightMutation.mutate({ jiraProjectKey: selectedProject.key })}>Reintentar</Button>}
+          {step === "preflight" && preflightResult?.readyForMapping && <Button onClick={goToIdentity} className="bg-violet-600 hover:bg-violet-700">Continuar a identidad</Button>}
+          {step === "identity" && <Button onClick={submitIdentity} disabled={identityMutation.isPending || !identity.projectName.trim() || !identity.clientName.trim() || !identity.pmUserId || !identity.deliveryUserId || !identity.dealId} className="bg-violet-600 hover:bg-violet-700">{identityMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando...</> : "Guardar identidad y continuar"}</Button>}
+          {step === "mapping" && <Button onClick={submitMappings} disabled={mappingMutation.isPending || onboardingQuery.isLoading} className="bg-violet-600 hover:bg-violet-700">{mappingMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Aprobando...</> : `Aprobar ${candidates.length} decisiones`}</Button>}
+          {step === "ready" && <Button onClick={() => { onOpenChange(false); resetState(); }} className="bg-violet-600 hover:bg-violet-700">Cerrar</Button>}
+          {step !== "search" && step !== "ready" && <Button variant="ghost" onClick={() => onOpenChange(false)}>Salir y continuar después</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -406,7 +449,7 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
 export default function JiraSpacesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "created" | "pending_permissions" | "linked">("all");
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(() => new URLSearchParams(window.location.search).get("openLink") === "1");
 
   const { data: spaces, isLoading, refetch } = trpc.jira.listAllSpaces.useQuery();
 

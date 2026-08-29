@@ -4,7 +4,7 @@
 - [x] H1: incorporar persistencia para onboarding Jira, mapeos, ejecuciones y excepciones auditables.
 - [x] H1: implementar servicios idempotentes y pruebas focales de onboarding y trazabilidad.
 - [x] H2: implementar preflight Jira de solo lectura con calidad de fechas, tipos, estados y duplicados.
-- [ ] H3: implementar asistente de identidad PMO y mapeo Jira revisable y reanudable.
+- [x] H3: implementar asistente de identidad PMO y mapeo Jira revisable y reanudable.
 - [ ] H4: reemplazar el autocierre por reconstrucción auditable de las seis etapas con evidencia.
 - [ ] H5: implementar baseline provisional, hitos y sincronización inicial idempotente.
 - [ ] H6: homologar riesgos, backlog, documentos y asociación financiera confirmada.

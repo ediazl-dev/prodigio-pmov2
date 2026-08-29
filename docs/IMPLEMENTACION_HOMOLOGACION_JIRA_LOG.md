@@ -66,3 +66,22 @@ El runner consulta en paralelo las APIs de lectura `getJiraProject`, `getProject
 | Materialización de proyecto PMO | Ninguna |
 | Interfaz | Inventario, PPDC, fechas, bloqueos, advertencias y control `dry-run` visibles |
 | Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |
+
+## H3 — Identidad PMO y mapeo Jira
+
+El preflight conserva ahora el inventario individual de issues Jira —incluidos hitos, riesgos, épicas, historias y tareas— con responsable, estado, fechas y propuesta de destino PMO. El asistente utiliza ese snapshot para exigir una decisión explícita por issue: homologarlo a una entidad canónica o excluirlo justificadamente. La dirección inicial es Jira → PMO; cualquier futura escritura PMO → Jira requerirá una acción explícita.
+
+La identidad se confirma exclusivamente con datos reales: nombre, cliente y tipo; PM y Delivery entre usuarios activos no-`consulta`; y un Deal existente en `financial_data`. La identidad y los mapeos se guardan antes de materializar el proyecto y pueden reanudarse. Al aprobar el mapeo, el onboarding avanza a `reconciliation`, listo para H4, sin crear cierres artificiales.
+
+| Validación | Resultado |
+|---|---|
+| Pruebas focales acumuladas | 62 de 62 aprobadas |
+| Identidad | Validada contra usuarios activos y Deals sincronizados |
+| Mapeo | Una decisión obligatoria por issue, versión inicial auditada |
+| Reanudación | Estado, identidad y mapeos recuperables por `jiraProjectKey` |
+| Materialización PMO | Ninguna; se difiere a H4 |
+| Escrituras Jira | Ninguna |
+| Verificación visual | Asistente abierto en sesión autenticada mediante deep link administrativo; búsqueda Jira cargada, fondo claro y contraste legible |
+| Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |
+
+La respuesta de preflight expone explícitamente `onboarding.status` y está cubierta por la prueba del runner consumida por la interfaz. La máquina pura del wizard agrega cuatro pruebas para bloqueo, reanudación, corrección manual de mapeos y exclusiones sin sincronización. No se completó un onboarding real solo para probar la interfaz, evitando crear un proyecto, asignar personas o asociar un Deal sin decisión de piloto.
