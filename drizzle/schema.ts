@@ -9,6 +9,7 @@ import {
   boolean,
   decimal,
   date,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ==================== USERS ====================
@@ -662,7 +663,9 @@ export const executiveProjectSources = mysqlTable("executive_project_sources", {
   approvalNotes: text("approvalNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  projectBaselineVersionUnique: uniqueIndex("executive_source_project_version_uq").on(table.projectId, table.baselineVersion),
+}));
 
 export type ExecutiveProjectSource = typeof executiveProjectSources.$inferSelect;
 export type InsertExecutiveProjectSource = typeof executiveProjectSources.$inferInsert;
@@ -685,7 +688,9 @@ export const executiveContractMilestones = mysqlTable("executive_contract_milest
   lastObservedAt: timestamp("lastObservedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  sourceJiraIssueUnique: uniqueIndex("executive_milestone_source_issue_uq").on(table.sourceId, table.jiraIssueKey),
+}));
 
 export type ExecutiveContractMilestone = typeof executiveContractMilestones.$inferSelect;
 export type InsertExecutiveContractMilestone = typeof executiveContractMilestones.$inferInsert;
