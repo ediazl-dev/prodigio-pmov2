@@ -1,5 +1,6 @@
 import AppBreadcrumb from "@/components/AppBreadcrumb";
 import { BaselineExecutiveCard } from "@/components/BaselineExecutiveCard";
+import { JiraHomologationStatusCard } from "@/components/JiraHomologationStatusCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -367,8 +368,10 @@ export default function ProjectDetail() {
 
           {/* Baseline Ejecutivo */}
           <BaselineExecutiveCard projectId={projectId} canManage={canManageBaseline} />
+          {/* H6 homologation status */}
+          <JiraHomologationStatusCard projectId={projectId} canImport={canManage} />
           {/* Documents */}
-          <LinkedProjectDocuments projectId={projectId} canManage={canManage} />
+          <LinkedProjectDocuments projectId={projectId} canManage={canManageBaseline} />
 
           {/* Unlink */}
           {canManage && <div style={{ marginTop: 20 }}><UnlinkSection projectId={projectId} projectName={data.projectName} /></div>}
