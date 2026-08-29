@@ -386,3 +386,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Dashboard Ejecutivo v2 disponible para todos los proyectos — restricción piloto eliminada, fallback auto-baseline desde Jira, botón visible en todos los proyectos
 - [x] Sincronizar datos financieros desde Google Sheets (financial_data) — 43 registros UPSERT via gws 2026-08-25
 - [x] Sincronizar estados de hitos desde Jira — 22 hitos actualizados en executive_contract_milestones 2026-08-25
+
+## Manual de homologación Jira H0–H7 (2026-08-29)
+
+- [x] Inventariar el alcance realmente publicado de H0–H7 y distinguirlo de H8 pendiente.
+- [x] Redactar un manual funcional para homologar un proyecto Jira paso a paso.
+- [x] Explicar permisos, sincronización manual/diaria, datos actualizables y datos protegidos.
+- [x] Documentar estados `[PENDIENTE]`/`[POR CONFIRMAR]`, excepciones, troubleshooting y limitaciones actuales.
+- [x] Verificar el manual contra código, bitácora, checkpoints y estado operativo antes de entregarlo.
