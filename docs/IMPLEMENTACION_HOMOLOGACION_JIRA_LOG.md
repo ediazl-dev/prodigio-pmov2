@@ -50,3 +50,19 @@ El servicio restringe las transiciones a la secuencia `draft → preflight → m
 | Idempotencia cubierta | Proyecto, mapeo, ejecución y excepción |
 | Escrituras Jira | Ninguna |
 | TypeScript | Sin errores nuevos; persisten los cinco errores preexistentes documentados en H0 |
+
+## H2 — Preflight Jira de solo lectura
+
+Se implementó un analizador que diagnostica duplicidad, alineamiento PPDC, tableros, tipos de issue, estados, inventario y calidad de fechas. El resultado distingue bloqueos de advertencias: una configuración Jira no corporativa puede continuar a mapeo; un proyecto ya gestionado queda bloqueado. Los datos faltantes se exponen como brechas y nunca se completan con estimaciones.
+
+El runner consulta en paralelo las APIs de lectura `getJiraProject`, `getProjectBoards`, `getProjectStatuses` y `getJiraAdvanceReport`. Persiste un snapshot estable, un fingerprint y una ejecución `dry_run`; si la fuente no cambia, reutiliza onboarding, corrida y excepciones. La interfaz de Administración reemplazó temporalmente la vinculación directa por el diagnóstico previo, impidiendo materializar proyectos hasta implementar identidad y mapeo en H3.
+
+| Validación | Resultado |
+|---|---|
+| Pruebas puras de diagnóstico | 4 de 4 aprobadas |
+| Pruebas del runner | 2 de 2 aprobadas |
+| Pruebas focales acumuladas | 54 de 54 aprobadas |
+| Escrituras en Jira | Ninguna |
+| Materialización de proyecto PMO | Ninguna |
+| Interfaz | Inventario, PPDC, fechas, bloqueos, advertencias y control `dry-run` visibles |
+| Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |

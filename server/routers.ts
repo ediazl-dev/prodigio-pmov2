@@ -66,6 +66,7 @@ import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
 import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
 import { buildExecutiveOperationalEvidence } from "./executiveOperationalEvidence";
 import { resolveExternalEvidence } from "./executiveExternalEvidence";
+import { runProductionJiraPreflight } from "./jiraPreflightRunner";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -5347,6 +5348,19 @@ const jiraRouter = router({
       avatarUrl: p.avatarUrls?.["32x32"] ?? null,
       lead: p.lead?.displayName ?? null,
     }));
+  }),
+
+  /** Diagnose an existing Jira project without creating, editing or transitioning Jira entities. */
+  preflightExistingProject: adminOrPmo.input(z.object({
+    jiraProjectKey: z.string().trim().min(1),
+    asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  })).mutation(async ({ input, ctx }) => {
+    return runProductionJiraPreflight({
+      jiraProjectKey: input.jiraProjectKey,
+      asOf: input.asOf ?? new Date().toISOString().slice(0, 10),
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+    });
   }),
 
   /** Link an existing JIRA project to the PMO platform */

@@ -275,29 +275,33 @@ function SpaceCard({ space, onRetried }: { space: any; onRetried: () => void }) 
 function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; onOpenChange: (v: boolean) => void; onLinked: () => void }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<any>(null);
-  const [clientName, setClientName] = useState("");
-  const [projectType, setProjectType] = useState("otro");
-  const [step, setStep] = useState<"search" | "confirm">("search");
+  const [preflightResult, setPreflightResult] = useState<any>(null);
+  const [step, setStep] = useState<"search" | "preflight">("search");
 
   const { data: availableProjects, isLoading: isSearching } = trpc.jira.searchAvailableProjects.useQuery({ query: searchQuery }, { enabled: open });
-  const linkMutation = trpc.jira.linkExistingProject.useMutation({
-    onSuccess: (data) => { toast.success(data.message); onOpenChange(false); resetState(); onLinked(); },
+  const preflightMutation = trpc.jira.preflightExistingProject.useMutation({
+    onSuccess: (data) => {
+      setPreflightResult(data);
+      if (data.readyForMapping) toast.success("Diagnóstico Jira completado. El proyecto está listo para la etapa de mapeo.");
+      else toast.error("El diagnóstico detectó bloqueos que deben resolverse antes del mapeo.");
+    },
     onError: (err) => toast.error(err.message),
   });
 
-  const resetState = () => { setSearchQuery(""); setSelectedProject(null); setClientName(""); setProjectType("otro"); setStep("search"); };
-  const handleSelect = (project: any) => { setSelectedProject(project); setStep("confirm"); };
-  const handleLink = () => {
-    if (!selectedProject || !clientName.trim()) { toast.error("Ingresa el nombre del cliente"); return; }
-    linkMutation.mutate({ jiraProjectKey: selectedProject.key, jiraProjectName: selectedProject.name, clientName: clientName.trim(), projectType: projectType as any });
+  const resetState = () => { setSearchQuery(""); setSelectedProject(null); setPreflightResult(null); setStep("search"); };
+  const handleSelect = (project: any) => {
+    setSelectedProject(project);
+    setPreflightResult(null);
+    setStep("preflight");
+    preflightMutation.mutate({ jiraProjectKey: project.key });
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetState(); onOpenChange(v); }}>
-      <DialogContent className="max-w-xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Link2 className="w-5 h-5" style={{ color: "#7C3AED" }} />{step === "search" ? "Vincular Proyecto JIRA Existente" : "Confirmar Vinculación"}</DialogTitle>
-          <DialogDescription>{step === "search" ? "Busca y selecciona un proyecto JIRA para vincularlo a la plataforma PMO." : `Completa la información para vincular "${selectedProject?.name}".`}</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Link2 className="w-5 h-5" style={{ color: "#7C3AED" }} />{step === "search" ? "Incorporar Proyecto JIRA Existente" : "Diagnóstico previo de homologación"}</DialogTitle>
+          <DialogDescription>{step === "search" ? "Selecciona un proyecto para analizarlo antes de crear cualquier estructura en Prodigio PMO." : `Preflight de solo lectura para "${selectedProject?.name}".`}</DialogDescription>
         </DialogHeader>
         {step === "search" ? (
           <div className="flex-1 overflow-hidden flex flex-col gap-3">
@@ -328,33 +332,70 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
             <p className="text-xs text-muted-foreground text-center">{availableProjects?.length ?? 0} proyectos disponibles para vincular</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto pr-1">
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 10, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.2)" }}>
               {selectedProject?.avatarUrl ? <img src={selectedProject.avatarUrl} alt="" className="w-10 h-10 rounded" /> : <div style={{ width: 40, height: 40, borderRadius: 8, background: "rgba(139,92,246,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#7C3AED" }}>{selectedProject?.key?.charAt(0)}</div>}
-              <div>
+              <div className="flex-1 min-w-0">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}><code style={{ fontSize: 13, fontWeight: 700, color: "#7C3AED" }}>{selectedProject?.key}</code><span style={{ fontWeight: 600 }}>{selectedProject?.name}</span></div>
                 {selectedProject?.lead && <p style={{ fontSize: 11, color: C.g400, marginTop: 2 }}>Lead: {selectedProject.lead}</p>}
               </div>
+              {preflightResult && <Badge variant={preflightResult.readyForMapping ? "default" : "destructive"}>{preflightResult.readyForMapping ? "Listo para mapear" : "Bloqueado"}</Badge>}
             </div>
-            <div className="space-y-3">
-              <div><Label className="text-sm font-medium">Nombre del Cliente *</Label><Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej: Banco Estado, Falabella..." className="mt-1" autoFocus /></div>
-              <div>
-                <Label className="text-sm font-medium">Tipo de Proyecto</Label>
-                <Select value={projectType} onValueChange={setProjectType}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent>{PROJECT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select>
+
+            {preflightMutation.isPending && (
+              <div className="flex items-center justify-center py-12 text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mr-2" />Consultando proyecto, issues, estados y tableros en JIRA...</div>
+            )}
+
+            {!preflightMutation.isPending && preflightResult && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    ["Issues", preflightResult.inventory.totalIssues],
+                    ["Hitos", preflightResult.inventory.milestones],
+                    ["Riesgos", preflightResult.inventory.risks],
+                    ["Épicas", preflightResult.inventory.epics],
+                  ].map(([label, value]) => <div key={String(label)} className="rounded-lg border bg-white p-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className="text-xl font-bold text-slate-900">{value}</p></div>)}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="rounded-lg border bg-white p-3">
+                    <div className="flex items-center justify-between mb-2"><p className="text-sm font-semibold">Alineamiento PPDC</p><Badge variant="outline">{preflightResult.corporateAlignment.scorePct}%</Badge></div>
+                    <p className="text-xs text-muted-foreground">{preflightResult.corporateAlignment.foundBoards} de {preflightResult.corporateAlignment.requiredBoards} tableros corporativos identificados.</p>
+                    <p className="text-xs mt-2 font-medium">{preflightResult.corporateAlignment.classification === "corporate" ? "Configuración corporativa reconocida" : "Configuración externa aceptable, requiere mapeo"}</p>
+                  </div>
+                  <div className="rounded-lg border bg-white p-3">
+                    <div className="flex items-center justify-between mb-2"><p className="text-sm font-semibold">Calidad de fechas de hitos</p><Badge variant="outline">{preflightResult.dateQuality.dueDateCompletenessPct}%</Badge></div>
+                    <p className="text-xs text-muted-foreground">{preflightResult.dateQuality.milestoneDueDatePresent} con fecha · {preflightResult.dateQuality.milestoneDueDateMissing + preflightResult.dateQuality.milestoneDueDateInvalid} pendientes</p>
+                    <p className="text-xs mt-2">{preflightResult.dateQuality.openMilestonesOverdue} hitos abiertos vencidos · {preflightResult.dateQuality.doneMilestoneResolutionMissing} cierres sin fecha real</p>
+                  </div>
+                </div>
+
+                {preflightResult.blockers.length > 0 && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3"><p className="text-sm font-semibold text-red-800 flex items-center gap-2"><AlertCircle className="w-4 h-4" />Bloqueos</p><ul className="mt-2 space-y-1 text-xs text-red-800">{preflightResult.blockers.map((item: string) => <li key={item}>• {item}</li>)}</ul></div>
+                )}
+                {preflightResult.warnings.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Brechas que deberán mapearse</p><ul className="mt-2 space-y-1 text-xs text-amber-900">{preflightResult.warnings.map((item: string) => <li key={item}>• {item}</li>)}</ul></div>
+                )}
+
+                <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900">
+                  <strong>Control aplicado:</strong> este diagnóstico fue persistido como <em>dry-run</em>. No creó el proyecto PMO, no modificó JIRA y no cerró ninguna etapa. El siguiente paso será completar identidad y mapeo antes de materializar el proyecto.
+                </div>
+              </>
+            )}
+
+            {!preflightMutation.isPending && preflightMutation.isError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                No fue posible completar el diagnóstico. No se creó ni modificó información. Puedes volver a intentarlo.
               </div>
-            </div>
-            <div style={{ borderRadius: 10, padding: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.2)", fontSize: 12, color: "#7C3AED" }}>
-              <strong>Nota:</strong> Los proyectos vinculados se abren directamente en la vista de <strong>Avance Proyecto</strong> con el dashboard JIRA en tiempo real.
-            </div>
+            )}
           </div>
         )}
         <DialogFooter className="gap-2">
-          {step === "confirm" && <Button variant="outline" onClick={() => { setSelectedProject(null); setStep("search"); }} disabled={linkMutation.isPending}>Volver</Button>}
-          {step === "confirm" && (
-            <Button onClick={handleLink} disabled={linkMutation.isPending || !clientName.trim()} style={{ background: "#7C3AED", color: "#fff" }}>
-              {linkMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Vinculando...</> : <><Link2 className="w-4 h-4 mr-1" /> Vincular Proyecto</>}
-            </Button>
+          {step === "preflight" && <Button variant="outline" onClick={() => { setSelectedProject(null); setPreflightResult(null); setStep("search"); }} disabled={preflightMutation.isPending}>Volver</Button>}
+          {step === "preflight" && preflightMutation.isError && (
+            <Button onClick={() => preflightMutation.mutate({ jiraProjectKey: selectedProject.key })} disabled={preflightMutation.isPending}>Reintentar diagnóstico</Button>
           )}
+          {step === "preflight" && preflightResult && <Button onClick={() => { onOpenChange(false); resetState(); onLinked(); }} style={{ background: "#7C3AED", color: "#fff" }}>Cerrar diagnóstico</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
