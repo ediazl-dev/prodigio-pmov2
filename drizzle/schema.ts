@@ -396,6 +396,12 @@ export const stageClosures = mysqlTable("stage_closures", {
   closedByName: varchar("closedByName", { length: 200 }),
   confirmationText: text("confirmationText").notNull(), // The disclaimer text the GP confirmed
   notes: text("notes"), // Optional observations
+  closureMode: mysqlEnum("closureMode", ["native", "homologated"]).default("native").notNull(),
+  onboardingId: int("onboardingId"),
+  evidenceSource: varchar("evidenceSource", { length: 100 }),
+  evidenceReference: varchar("evidenceReference", { length: 1000 }),
+  evidenceDate: date("evidenceDate", { mode: "string" }),
+  homologationMetadata: json("homologationMetadata"),
   closedAt: timestamp("closedAt").defaultNow().notNull(),
 });
 
