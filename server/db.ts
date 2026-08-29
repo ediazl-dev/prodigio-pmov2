@@ -19,6 +19,7 @@ import {
   InsertExecutiveGovernanceAssignment, InsertExecutiveFinancialSnapshot, InsertExecutiveDashboardSnapshot, InsertExecutiveVerdictReview,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { buildLegacyLinkedProjectStagePlan } from "./jiraHomologation";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1493,6 +1494,7 @@ export async function createLinkedProject(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  const legacyStagePlan = buildLegacyLinkedProjectStagePlan();
   const [result] = await db.insert(projects).values({
     projectName: data.projectName,
     clientName: data.clientName,
@@ -1500,34 +1502,21 @@ export async function createLinkedProject(data: {
     jiraProjectUrl: data.jiraProjectUrl,
     pmoId: data.pmoId,
     projectType: (data.projectType as any) ?? "otro",
-    status: "activo",
-    currentStage: "design",
+    status: legacyStagePlan.projectStatus,
+    currentStage: legacyStagePlan.currentStage,
     origin: "linked",
   });
   const projectId = (result as any).insertId as number;
-  // Create all stages: sow-planning completed, design in_progress, closure locked
-  const stagesBefore = ["sow", "jira", "risks", "planning"] as const;
-  for (const stageId of stagesBefore) {
+  // Comportamiento heredado caracterizado en H0; H4 lo reemplazará por homologación con evidencia.
+  for (const stage of legacyStagePlan.stages) {
     await db.insert(projectStages).values({
       projectId,
-      stageId,
-      status: "completed",
-      progress: 100,
-      completedAt: new Date(),
+      stageId: stage.stageId,
+      status: stage.status,
+      progress: stage.progress,
+      completedAt: stage.completedAt,
     });
   }
-  await db.insert(projectStages).values({
-    projectId,
-    stageId: "design",
-    status: "in_progress",
-    progress: 0,
-  });
-  await db.insert(projectStages).values({
-    projectId,
-    stageId: "closure",
-    status: "locked",
-    progress: 0,
-  });
   return projectId;
 }
 
