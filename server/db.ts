@@ -619,6 +619,34 @@ export async function updateReadyJiraOnboardingSnapshot(input: {
   ));
 }
 
+export async function listReadyJiraProjectsForReconciliation(limit = 51) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 101);
+  const rows = await db.select({
+    onboardingId: jiraProjectOnboardings.id,
+    projectId: jiraProjectOnboardings.projectId,
+    jiraProjectKey: jiraProjectOnboardings.jiraProjectKey,
+  }).from(jiraProjectOnboardings)
+    .where(and(
+      eq(jiraProjectOnboardings.status, "ready"),
+      isNotNull(jiraProjectOnboardings.projectId),
+    ))
+    .orderBy(jiraProjectOnboardings.id)
+    .limit(boundedLimit);
+  return rows.flatMap(row => row.projectId === null ? [] : [{ ...row, projectId: row.projectId }]);
+}
+
+export async function getAdminSettingValue(key: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ value: adminSettings.value })
+    .from(adminSettings)
+    .where(eq(adminSettings.key, key))
+    .limit(1);
+  return rows[0]?.value ?? null;
+}
+
 export async function resolveOpenJiraImportExceptions(input: {
   onboardingId: number;
   domains: Array<"milestones" | "risks" | "planning" | "documents">;

@@ -29,14 +29,14 @@
 - [x] H7: auditar sincronizadores Jira, historial y callbacks periódicos existentes; fijar una única ruta Jira → PMO sin polling ni escrituras implícitas.
 - [x] H7: implementar un motor determinista de conciliación para proyectos homologados `ready`, reutilizando mappings aprobados y preservando baseline, aceptación y campos PMO confirmados.
 - [ ] H7: registrar cada ejecución manual o diaria con huella, origen, conteos, excepciones y estado; los reintentos no deben duplicar ni formar loops.
-- [ ] H7: validar explícitamente que el runner registre corridas `scheduled` con fuente, operationId, conteos, excepciones y estado correctos, sin duplicación en reintentos.
+- [x] H7: validar explícitamente que el runner registre corridas `scheduled` con fuente, operationId, conteos, excepciones y estado correctos, sin duplicación en reintentos.
 - [ ] H7: completar e integrar el callback diario H7 y ejecutar una prueba controlada que demuestre el registro auditable de una corrida programada.
 - [x] H7: agregar en la interfaz una acción Admin/PMO “Sincronizar ahora” y un historial legible con última ejecución, resultado por dominio y faltantes explícitos.
 - [x] H7: validar la tarjeta en un onboarding `ready` mediante un fixture persistente aislado, cubriendo botón, última ejecución, historial, resultados y faltantes sin tocar proyectos productivos.
 - [x] H7: validar el contrato backend/UI mediante prueba persistente del helper real, fixture live con tRPC real y prueba del contenedor `ProjectDetail` con transporte tRPC controlado; no presentar esta última como E2E aislada.
 - [x] H7: montar el contenedor `ProjectDetail` con respuesta H7 realista y verificar tarjeta, acción, historial y faltantes en el árbol integrado, manteniendo la validación backend real en pruebas separadas.
 - [x] H7: corregir la navegación con anchors anidados en `ConsolaGobierno` y confirmar que el acceso al detalle no emite errores de runtime.
-- [ ] H7: implementar un callback diario autenticado, idempotente y acotado que omita proyectos no listos, continúe ante fallos parciales y no utilice temporizadores en proceso.
+- [x] H7: implementar un callback diario autenticado, idempotente y acotado que omita proyectos no listos, continúe ante fallos parciales y no utilice temporizadores en proceso.
 - [ ] H7: publicar el callback antes de crear la programación diaria, conservar su identificador durable y comprobar una ejecución controlada sin modificar Jira.
 - [ ] H7: validar permisos, no-autocierre, no-autoaceptación, no-sobrescritura de baseline, limpieza de pruebas, build y experiencia visual en escritorio/móvil.
 - [ ] H8: ejecutar piloto, reconciliar resultados y estabilizar la migración por lotes.

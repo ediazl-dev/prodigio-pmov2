@@ -169,19 +169,20 @@ describe.runIf(shouldRun)("conciliación H7 persistente aislada", () => {
       resolveExceptions: resolveOpenJiraImportExceptions,
       now: () => new Date("2026-08-29T12:05:00.000Z"),
     };
+    const scheduledOperationId = `daily:${testKey}`;
     const first = await runJiraReconciliation({
       projectId,
-      source: "manual",
-      operationId: `persistent-${testKey}`,
-      actorId: 1,
-      actorName: "Prueba H7",
+      source: "scheduled",
+      operationId: scheduledOperationId,
+      actorId: null,
+      actorName: "Conciliación Jira diaria",
     }, dependencies);
     const second = await runJiraReconciliation({
       projectId,
-      source: "manual",
-      operationId: `persistent-${testKey}`,
-      actorId: 1,
-      actorName: "Prueba H7",
+      source: "scheduled",
+      operationId: scheduledOperationId,
+      actorId: null,
+      actorName: "Conciliación Jira diaria",
     }, dependencies);
 
     expect(first).toMatchObject({ status: "applied", reused: false, exceptions: 0 });
@@ -189,7 +190,17 @@ describe.runIf(shouldRun)("conciliación H7 persistente aislada", () => {
     expect(fetchIssues).toHaveBeenCalledOnce();
     expect(await db.select().from(risks).where(eq(risks.projectId, projectId))).toHaveLength(1);
     expect(await db.select().from(wbsTasks).where(eq(wbsTasks.projectId, projectId))).toHaveLength(1);
-    expect(await db.select().from(jiraSyncLogs).where(eq(jiraSyncLogs.projectId, projectId))).toHaveLength(1);
+    const syncLogs = await db.select().from(jiraSyncLogs).where(eq(jiraSyncLogs.projectId, projectId));
+    expect(syncLogs).toHaveLength(1);
+    expect(syncLogs[0]).toMatchObject({
+      source: "scheduled",
+      status: "applied",
+      inputCount: 3,
+      createdCount: 2,
+      updatedCount: 1,
+      errorCount: 0,
+      details: expect.objectContaining({ operationId: scheduledOperationId }),
+    });
     expect(await db.select().from(jiraImportExceptions).where(eq(jiraImportExceptions.projectId, projectId))).toHaveLength(0);
     expect(await db.select().from(executiveMilestoneAcceptances).where(eq(executiveMilestoneAcceptances.projectId, projectId))).toHaveLength(0);
     expect(await db.select().from(executiveContractMilestones).where(eq(executiveContractMilestones.id, milestone.id))).toEqual([
@@ -208,7 +219,7 @@ describe.runIf(shouldRun)("conciliación H7 persistente aislada", () => {
     const integrationStatus = await getJiraHomologationImportStatus(projectId);
     expect(integrationStatus).toMatchObject({
       onboarding: { status: "ready", jiraProjectKey: testKey },
-      latestReconciliation: { source: "manual", status: "applied" },
+      latestReconciliation: { source: "scheduled", status: "applied" },
       counts: {
         risks: { imported: 1, mapped: 1 },
         wbs: { imported: 1, mapped: 1 },
@@ -222,6 +233,7 @@ describe.runIf(shouldRun)("conciliación H7 persistente aislada", () => {
     expect(integratedHtml).toContain("Sincronizar ahora");
     expect(integratedHtml).toContain("Historial de sincronización");
     expect(integratedHtml).toContain("Aplicada");
+    expect(integratedHtml).toContain("Diaria");
     expect(integratedHtml).toContain("1/1");
     expect(integratedHtml).toContain("SoW contractual [PENDIENTE]");
 

@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { runFinancialSync } from "../financialSync";
 import { captureHealthSnapshot } from "../healthSnapshot";
+import { scheduledJiraReconciliationHandler } from "../jiraReconciliationSchedule";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -52,6 +53,19 @@ async function startServer() {
       const user = await sdk.authenticateRequest(req);
       if (!user.isCron) {
         res.status(403).json({ status: "error", error: "Sólo tareas programadas pueden invocar este endpoint" });
+        return;
+      }
+      const outcome = await runFinancialSync();
+      console.log(
+        `[FinancialSync] applied: ${outcome.inputDeals} deals (${outcome.insert} insert, ${outcome.update} update)`
+      );
+      res.status(200).json(outcome);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[FinancialSync] error:", message);
+      res.status(500).json({ status: "error", error: message });
+    }
+  });
   // Heartbeat: captura diaria de snapshot de salud por proyecto (sólo cron autenticado)
   app.post("/api/scheduled/captureHealthSnapshot", async (req, res) => {
     try {
@@ -71,19 +85,8 @@ async function startServer() {
       res.status(500).json({ status: "error", error: message });
     }
   });
-        return;
-      }
-      const outcome = await runFinancialSync();
-      console.log(
-        `[FinancialSync] applied: ${outcome.inputDeals} deals (${outcome.insert} insert, ${outcome.update} update)`
-      );
-      res.status(200).json(outcome);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[FinancialSync] error:", message);
-      res.status(500).json({ status: "error", error: message });
-    }
-  });
+  // Heartbeat: conciliación Jira diaria para proyectos homologados ready.
+  app.post("/api/scheduled/syncJiraHomologated", scheduledJiraReconciliationHandler);
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
