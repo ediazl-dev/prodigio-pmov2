@@ -147,9 +147,10 @@ export default function ProjectDetail() {
   const { user } = useAuth();
   const role = (user as any)?.role ?? "consulta";
   const canManage = ["admin", "pmo"].includes(role);
-  const canManageBaseline = ["admin", "pmo", "pm"].includes(role);
 
   const { data, isLoading } = trpc.projects.get.useQuery({ id: projectId });
+  const canManageBaseline = ["admin", "pmo"].includes(role)
+    || (role === "pm" && Number((user as any)?.id) === Number(data?.assignedPmUserId));
   const { data: timeData, refetch: refetchTime } = trpc.stageOpenings.timeRemaining.useQuery({ projectId });
   const recordOpening = trpc.stageOpenings.recordOpening.useMutation();
 

@@ -33,7 +33,7 @@ import {
   getStageClosure, createStageClosure, getAllStageClosures,
   getNextSowVersionNumber,
   getRiskVersionsByProject, getNextRiskVersionNumber, insertRiskVersion, updateRiskJiraKey, updateRiskConfirmed,
-  createAuditLog, getAuditLogs, getAuditLogDistinctActions, getAuditLogDistinctEntities,
+  createAuditLog, getAuditLogs, getAuditLogDistinctActions, getAuditLogDistinctEntities, getJiraOnboardingByProjectId,
 } from "./db";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
@@ -45,7 +45,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateExecutiveMilestoneBaseline, createExecutiveBaselineWithMilestones } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { getActiveFinancialData } from "./db";
 import { getDb } from "./db";
@@ -70,6 +70,8 @@ import { runProductionJiraPreflight } from "./jiraPreflightRunner";
 import { createProductionJiraOnboardingService } from "./jiraOnboardingRepository";
 import { buildJiraMappingCandidates, validateJiraOnboardingIdentity } from "./jiraOnboardingMapping";
 import { assessJiraOnboardingMaterialization } from "./jiraOnboardingMaterialization";
+import { assessJiraBaselineOperator } from "./jiraBaselineProposal";
+import { loadProductionJiraBaselineImportContext, markProductionJiraOnboardingReady, runProductionInitialJiraBaselineImport } from "./jiraBaselineImportRunner";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -88,6 +90,18 @@ const adminOrPmoOrPm = protectedProcedure.use(({ ctx, next }) => {
 /** Helper to create audit log with user context */
 function audit(ctx: { user: { id: number; name: string | null; role: string } }, action: string, entity: string, entityId?: string | number | null, entityName?: string | null, details?: Record<string, any> | null) {
   return createAuditLog({ action, entity, entityId, entityName, userId: ctx.user.id, userName: ctx.user.name ?? "Unknown", userRole: ctx.user.role, details });
+}
+
+async function requireJiraBaselineOperator(ctx: { user: { id: number; role: string } }, projectId: number) {
+  const context = await loadProductionJiraBaselineImportContext(projectId);
+  if (!context) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no tiene un onboarding Jira materializado" });
+  const permission = assessJiraBaselineOperator({
+    role: ctx.user.role,
+    userId: ctx.user.id,
+    identitySnapshot: context.onboarding.identitySnapshot,
+  });
+  if (!permission.allowed) throw new TRPCError({ code: "FORBIDDEN", message: permission.reason ?? "Acceso denegado" });
+  return context;
 }
 
 const EXECUTIVE_EVIDENCE_MAX_BYTES = 25 * 1024 * 1024;
@@ -329,7 +343,11 @@ const projectsRouter = router({
     const stages = await getProjectStages(input.id);
     const sow = await getSowByProject(input.id);
     const stageClosures = await getAllStageClosures(input.id);
-    return { ...project, stages, sow, stageClosures };
+    const onboarding = project.origin === "linked" ? await getJiraOnboardingByProjectId(input.id) : null;
+    const assignedPmUserId = onboarding?.identitySnapshot && typeof onboarding.identitySnapshot === "object"
+      ? Number((onboarding.identitySnapshot as Record<string, unknown>).pmUserId ?? 0) || null
+      : null;
+    return { ...project, stages, sow, stageClosures, assignedPmUserId };
   }),
   create: adminOrPmo.input(z.object({
     projectName: z.string().min(1),
@@ -3821,46 +3839,16 @@ Responde SOLO con JSON:
       // Dashboard Ejecutivo v2 disponible para todos los proyectos (antes: solo piloto Tanner)
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
-      let source = await getExecutiveProjectSource(input.projectId);
+      const source = await getExecutiveProjectSource(input.projectId);
       if (!source) {
-        // Fallback: auto-crear baseline desde Jira si el proyecto tiene Space vinculado
-        const jiraSpace = await getJiraSpaceByProject(input.projectId);
-        if (jiraSpace?.jiraProjectKey) {
-          try {
-            const report = await getJiraAdvanceReport(jiraSpace.jiraProjectKey);
-            const jiraMilestones = report?.milestones ?? [];
-            if (jiraMilestones.length > 0) {
-              const project = await getProjectById(input.projectId);
-              const dealMatch = project?.projectName?.match(/Deal\s*(\d+)/i);
-              const dealId = dealMatch ? `Deal${dealMatch[1]}` : `PROJ-${input.projectId}`;
-              const weight = (100 / jiraMilestones.length).toFixed(2);
-              await createExecutiveBaselineWithMilestones({
-                projectId: input.projectId,
-                dealId,
-                jiraProjectKey: jiraSpace.jiraProjectKey,
-                baselineVersion: "jira-auto-v1",
-                approvedBy: 1,
-                approvedByName: "Sistema (auto)",
-                approvalNotes: "Baseline auto-generado desde hitos Jira al abrir el Dashboard Ejecutivo v2.",
-                milestones: jiraMilestones.map((m: any, idx: number) => ({
-                  milestoneCode: `M${String(idx + 1).padStart(2, "0")}`,
-                  title: m.summary ?? m.key,
-                  billingWeight: weight,
-                  baselineDate: m.duedate ?? null,
-                  jiraIssueKey: m.key,
-                  jiraStatusName: m.status ?? null,
-                  jiraDueDate: m.duedate ?? null,
-                  semanticStatus: m.statusCategory === "Done" ? "fulfilled" : "pending",
-                })),
-              });
-              source = await getExecutiveProjectSource(input.projectId);
-            }
-          } catch (e) {
-            console.warn(`[DashboardV2] No se pudo auto-crear baseline para proyecto ${input.projectId}:`, e);
-          }
-        }
+        const proposal = await getExecutiveProjectSourceProposal(input.projectId);
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: proposal
+            ? "El proyecto tiene una propuesta de baseline pendiente de revisión y aprobación humana"
+            : "El proyecto no tiene un baseline ejecutivo aprobado. Genere primero una propuesta desde su onboarding Jira",
+        });
       }
-      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado ni un Space Jira vinculado para generarlo" });
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
       const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict] = await Promise.all([
         getExecutiveMilestoneAcceptances(input.projectId, source.id),
@@ -6872,58 +6860,60 @@ const portfolioConsoleRouter = router({
       cutoffDate,
     };
   }),
-  /** Baseline ejecutivo del proyecto: source aprobado + hitos contractuales (o null si no tiene) */
+  /** Baseline aprobado o propuesta draft pendiente de aprobación humana. */
   getBaseline: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input }) => {
-    const source = await getExecutiveProjectSource(input.projectId);
+    const source = await getExecutiveProjectSource(input.projectId) ?? await getExecutiveProjectSourceProposal(input.projectId);
     if (!source) return null;
     const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-    return { source, milestones };
+    return { source, milestones, isProvisional: source.sourceStatus === "draft" };
   }),
-  /** Actualiza la fecha baseline contractual de un hito (admin/pmo, con auditoría) */
+  /** Actualiza una fecha propuesta; un baseline aprobado es inmutable desde este endpoint. */
   updateMilestoneBaseline: adminOrPmoOrPm
-    .input(z.object({ milestoneId: z.number(), baselineDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .input(z.object({ projectId: z.number(), milestoneId: z.number(), baselineDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .mutation(async ({ ctx, input }) => {
-      await updateExecutiveMilestoneBaseline(input.milestoneId, input.baselineDate);
+      await requireJiraBaselineOperator(ctx, input.projectId);
+      await updateDraftExecutiveMilestoneBaseline(input);
       await audit(ctx, "update_baseline", "executive_contract_milestone", input.milestoneId, null, { baselineDate: input.baselineDate });
       return { success: true };
     }),
-  /** Crea un baseline ejecutivo aprobado importando los hitos del tablero Jira del proyecto (admin/pmo) */
+  /** Construye o reutiliza una propuesta draft desde el onboarding y los mapeos aprobados. */
   createBaselineFromJira: adminOrPmoOrPm
     .input(z.object({ projectId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
+      await requireJiraBaselineOperator(ctx, input.projectId);
       const existing = await getExecutiveProjectSource(input.projectId);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "El proyecto ya tiene un baseline ejecutivo aprobado" });
-      const jiraSpace = await getJiraSpaceByProject(input.projectId);
-      if (!jiraSpace?.jiraProjectKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no tiene un Space Jira vinculado" });
-      const report = await getJiraAdvanceReport(jiraSpace.jiraProjectKey);
-      const jiraMilestones = report?.milestones ?? [];
-      if (jiraMilestones.length === 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El tablero Jira no tiene hitos (issues tipo Hito/Milestone) para importar" });
-      const dealMatch = project.projectName.match(/Deal\s*(\d+)/i);
-      const dealId = dealMatch ? `Deal${dealMatch[1]}` : `PROJ-${input.projectId}`;
-      const weight = (100 / jiraMilestones.length).toFixed(2);
-      const sourceId = await createExecutiveBaselineWithMilestones({
-        projectId: input.projectId,
-        dealId,
-        jiraProjectKey: jiraSpace.jiraProjectKey,
-        baselineVersion: "jira-v1",
-        approvedBy: ctx.user.id,
-        approvedByName: ctx.user.name ?? null,
-        approvalNotes: "Baseline creado desde hitos del tablero Jira. Las fechas duedate de Jira quedan como línea base contractual inicial editable.",
-        milestones: jiraMilestones.map((m: any, idx: number) => ({
-          milestoneCode: `M${String(idx + 1).padStart(2, "0")}`,
-          title: m.summary ?? m.key,
-          billingWeight: weight,
-          baselineDate: m.duedate ?? null,
-          jiraIssueKey: m.key,
-          jiraStatusName: m.status ?? null,
-          jiraDueDate: m.duedate ?? null,
-          semanticStatus: m.statusCategory === "Done" ? "fulfilled" : "pending",
-        })),
-      });
-      await audit(ctx, "create_baseline", "executive_project_source", sourceId ?? 0, null, { projectId: input.projectId, jiraProjectKey: jiraSpace.jiraProjectKey, hitos: jiraMilestones.length });
-      return { success: true, sourceId, hitosImportados: jiraMilestones.length };
+      try {
+        const result = await runProductionInitialJiraBaselineImport({ projectId: input.projectId, actorId: ctx.user.id, actorName: ctx.user.name });
+        await audit(ctx, "create_baseline_proposal", "executive_project_source", result.sourceId ?? 0, project.projectName, result);
+        return { success: true, ...result };
+      } catch (error) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : String(error) });
+      }
+    }),
+  /** Aprueba humanamente el draft después de confirmar todas sus fechas contractuales. */
+  approveBaselineProposal: adminOrPmoOrPm
+    .input(z.object({ projectId: z.number(), sourceId: z.number(), approvalNotes: z.string().trim().min(10).max(2000) }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await requireJiraBaselineOperator(ctx, input.projectId);
+        const result = await approveJiraBaselineProposal({
+          ...input,
+          approvedBy: ctx.user.id,
+          approvedByName: ctx.user.name ?? null,
+        });
+        const onboarding = await markProductionJiraOnboardingReady({
+          projectId: input.projectId,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+        });
+        await audit(ctx, "approve_baseline", "executive_project_source", input.sourceId, null, { projectId: input.projectId, approvalNotes: input.approvalNotes });
+        return { success: true, ...result, onboarding };
+      } catch (error) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : String(error) });
+      }
     }),
 
   // ─── Consolidado de Facturación ────────────────────────────────────────────

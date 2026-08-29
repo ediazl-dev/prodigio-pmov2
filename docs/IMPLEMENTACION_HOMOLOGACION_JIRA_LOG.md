@@ -106,3 +106,26 @@ Los proyectos vinculados históricos no fueron reescritos. Su detalle identifica
 | Limpieza de pruebas | 0 proyectos, 0 onboardings y 0 Spaces transitorios restantes |
 | Verificación visual | Tanner muestra 4 brechas heredadas seleccionables y 0 etapas falsamente homologadas |
 | Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |
+
+## H5 — Baseline provisional, hitos y sincronización inicial
+
+Se eliminó el fallback que aprobaba automáticamente un baseline derivado de Jira. La importación inicial utiliza únicamente los issues aprobados como hitos en H3, crea o reutiliza una fuente `draft` y mantiene separados `baselineDate`, `jiraDueDate`, `jiraClosedDate` y la aceptación del cliente. Cuando Jira no aporta fecha, el baseline queda `[PENDIENTE]`; no se inventan pesos financieros y el avance contractual continúa calculándose por cardinalidad de hitos aceptados.
+
+Admin, PMO o el PM asignado pueden crear la propuesta, editar sus fechas y aprobarla. La aprobación requiere que no existan fechas pendientes y una nota humana de al menos diez caracteres; una propuesta aprobada anteriormente pasa al estado válido `superseded`. Solo después de esta aprobación el onboarding transita idempotentemente a `ready`.
+
+La ejecución `initial_import` reutiliza `runId` y fingerprint, persiste sus resultados en `jira_sync_log` y registra como excepciones resolubles los hitos Jira sin fecha. La sincronización observa estado, planificación y cierre Jira, pero no sobrescribe el baseline contractual ni crea aceptación del cliente.
+
+| Validación | Resultado |
+|---|---|
+| Pruebas focales H5 finales | 16 de 16 aprobadas, incluidas 3 guardias contra autoaprobación |
+| Regresión focal seleccionada H0–H5 | 54 de 54 aprobadas; pruebas persistentes opt-in omitidas por defecto |
+| Prueba persistente H5 | 1 de 1 aprobada: draft, edición, aprobación, transición `ready`, reintento idempotente y limpieza |
+| Auditoría de rutas productivas | Sin símbolos `createExecutiveBaselineWithMilestones`, `jira-auto-v1` ni aprobador `Sistema` |
+| Dashboard Ejecutivo v2 | La lectura no crea ni aprueba fuentes; la propuesta y su aprobación son operaciones separadas |
+| Índices de idempotencia | Versión por proyecto e issue Jira por fuente verificados |
+| Roles de operación | Admin, PMO o PM asignado |
+| Avance contractual | Cardinalidad de hitos aceptados; sin ponderación financiera |
+| Datos transitorios restantes | 0 proyectos, 0 onboardings, 0 fuentes y 0 hitos H5, verificado por SQL |
+| Servidor tras reinicio | Inicia correctamente; 0 errores de importación posteriores al reinicio H5 |
+| Verificación visual | Tanner conserva su baseline humano aprobado; fechas contractuales y Jira permanecen separadas |
+| Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |

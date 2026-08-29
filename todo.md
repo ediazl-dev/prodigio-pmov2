@@ -8,11 +8,13 @@
 - [x] H4: reemplazar el autocierre por reconstrucción auditable de las seis etapas con evidencia.
 - [x] H4: implementar reconciliación controlada de estados heredados `completed` sin evidencia, sin falsificar cierres.
 - [x] H4: validar materialización, seis cierres secuenciales, desbloqueos y cierre final mediante un repositorio persistente aislado.
-- [ ] H5: implementar baseline provisional, hitos y sincronización inicial idempotente.
-- [ ] H5: reemplazar toda aprobación automática Jira por propuesta `draft` y aprobación humana explícita.
-- [ ] H5: importar únicamente hitos mapeados, sin pesos financieros inventados y con fechas Jira separadas del baseline.
-- [ ] H5: registrar la importación inicial en historial, reutilizar reintentos y avanzar onboarding a `ready` solo después de aprobar.
-- [ ] H5: validar propuesta, edición, aprobación, sincronización y limpieza con pruebas focales y persistentes aisladas.
+- [x] H5: implementar baseline provisional, hitos y sincronización inicial idempotente.
+- [x] H5: reemplazar toda aprobación automática Jira por propuesta `draft` y aprobación humana explícita.
+- [x] H5: importar únicamente hitos mapeados, sin pesos financieros inventados y con fechas Jira separadas del baseline.
+- [x] H5: registrar la importación inicial en historial, reutilizar reintentos y avanzar onboarding a `ready` solo después de aprobar.
+- [x] H5: validar propuesta, edición, aprobación, sincronización y limpieza con pruebas focales y persistentes aisladas.
+- [x] H5: demostrar por búsqueda y pruebas que ninguna ruta productiva autoaprueba baseline Jira.
+- [x] H5: ejecutar nuevamente la prueba persistente opt-in y verificar por SQL la limpieza total de sus registros transitorios.
 - [ ] H6: homologar riesgos, backlog, documentos y asociación financiera confirmada.
 - [ ] H7: unificar experiencia, sincronización manual, historial y ejecución continua controlada.
 - [ ] H8: ejecutar piloto, reconciliar resultados y estabilizar la migración por lotes.

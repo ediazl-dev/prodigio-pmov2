@@ -26,6 +26,7 @@ import {
   assessHomologatedStageClosure,
   buildHistoricalReconciliationMetadata,
 } from "./jiraOnboardingMaterialization";
+import { assessJiraBaselineApproval } from "./jiraBaselineProposal";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -427,6 +428,15 @@ export async function getExecutiveProjectSource(projectId: number) {
   const rows = await db.select().from(executiveProjectSources)
     .where(and(eq(executiveProjectSources.projectId, projectId), eq(executiveProjectSources.sourceStatus, "approved")))
     .orderBy(desc(executiveProjectSources.approvedAt)).limit(1);
+  return rows[0];
+}
+
+export async function getExecutiveProjectSourceProposal(projectId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(executiveProjectSources)
+    .where(and(eq(executiveProjectSources.projectId, projectId), eq(executiveProjectSources.sourceStatus, "draft")))
+    .orderBy(desc(executiveProjectSources.createdAt)).limit(1);
   return rows[0];
 }
 
@@ -1557,6 +1567,15 @@ export async function bindJiraOnboardingToProject(input: {
   }).where(eq(jiraEntityMappings.onboardingId, input.onboardingId));
 }
 
+export async function getJiraOnboardingByProjectId(projectId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(jiraProjectOnboardings)
+    .where(eq(jiraProjectOnboardings.projectId, projectId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function createHomologatedStageClosure(input: {
   projectId: number;
   onboardingId: number;
@@ -2120,57 +2139,154 @@ export async function getLatestFinancialSync() {
   return rows[0];
 }
 
-// ==================== BASELINE EJECUTIVO: EDICIÓN Y CREACIÓN DESDE JIRA ====================
-/** Actualiza la fecha baseline contractual de un hito ejecutivo. */
-export async function updateExecutiveMilestoneBaseline(milestoneId: number, baselineDate: string) {
+// ==================== BASELINE EJECUTIVO: PROPUESTA JIRA Y APROBACIÓN HUMANA ====================
+export async function updateDraftExecutiveMilestoneBaseline(input: {
+  projectId: number;
+  milestoneId: number;
+  baselineDate: string;
+}) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({
+    milestoneId: executiveContractMilestones.id,
+    sourceStatus: executiveProjectSources.sourceStatus,
+  }).from(executiveContractMilestones)
+    .innerJoin(executiveProjectSources, eq(executiveContractMilestones.sourceId, executiveProjectSources.id))
+    .where(and(
+      eq(executiveContractMilestones.id, input.milestoneId),
+      eq(executiveContractMilestones.projectId, input.projectId),
+    )).limit(1);
+  if (!rows[0]) throw new Error("Hito ejecutivo no encontrado");
+  if (rows[0].sourceStatus !== "draft") throw new Error("Solo se puede editar una propuesta de baseline en estado draft");
   await db.update(executiveContractMilestones)
-    .set({ baselineDate })
-    .where(eq(executiveContractMilestones.id, milestoneId));
+    .set({
+      baselineDate: input.baselineDate,
+      reconciliationNotes: "Fecha contractual confirmada manualmente durante la homologación Jira.",
+    })
+    .where(eq(executiveContractMilestones.id, input.milestoneId));
 }
-/** Crea un baseline ejecutivo aprobado junto con sus hitos contractuales (origen Jira). */
-export async function createExecutiveBaselineWithMilestones(input: {
+
+export async function createOrReplaceJiraBaselineProposal(input: {
   projectId: number;
   dealId: string;
   jiraProjectKey: string;
   baselineVersion: string;
-  approvedBy: number;
-  approvedByName: string | null;
-  approvalNotes?: string;
-  milestones: { milestoneCode: string; title: string; billingWeight: string; baselineDate: string | null; jiraIssueKey: string; jiraStatusName?: string | null; jiraDueDate?: string | null; semanticStatus?: "pending" | "fulfilled" | "delayed" | "blocked" }[];
+  createdBy: number;
+  createdByName: string | null;
+  milestones: Array<{
+    milestoneCode: string;
+    title: string;
+    billingWeight: string;
+    baselineDate: string | null;
+    jiraIssueKey: string;
+    jiraStatusName?: string | null;
+    jiraDueDate?: string | null;
+    jiraClosedDate?: string | null;
+    semanticStatus?: "pending" | "fulfilled" | "delayed" | "blocked";
+    reconciliationNotes?: string | null;
+  }>;
 }) {
   const db = await getDb();
-  if (!db) return undefined;
-  const [result] = await db.insert(executiveProjectSources).values({
-    projectId: input.projectId,
-    dealId: input.dealId,
-    jiraProjectKey: input.jiraProjectKey,
-    baselineVersion: input.baselineVersion,
-    contractFileName: `baseline-jira-${input.jiraProjectKey}`,
-    contractFileUrl: `jira://${input.jiraProjectKey}`,
-    sourceStatus: "approved",
-    approvedAt: new Date(),
-    approvedBy: input.approvedBy,
-    approvedByName: input.approvedByName,
-    approvalNotes: input.approvalNotes ?? null,
-  });
-  const sourceId = Number((result as any).insertId);
-  if (input.milestones.length) {
-    await db.insert(executiveContractMilestones).values(
-      input.milestones.map((m) => ({
+  if (!db) throw new Error("Database not available");
+  return (db as any).transaction(async (tx: any) => {
+    const existing = await tx.select().from(executiveProjectSources).where(and(
+      eq(executiveProjectSources.projectId, input.projectId),
+      eq(executiveProjectSources.baselineVersion, input.baselineVersion),
+    )).limit(1);
+    if (existing[0]?.sourceStatus === "approved") {
+      return { sourceId: existing[0].id, sourceStatus: "approved" as const, reused: true };
+    }
+
+    await tx.insert(executiveProjectSources).values({
+      projectId: input.projectId,
+      dealId: input.dealId,
+      jiraProjectKey: input.jiraProjectKey,
+      baselineVersion: input.baselineVersion,
+      contractFileName: `propuesta-baseline-jira-${input.jiraProjectKey}`,
+      contractFileUrl: `jira://${input.jiraProjectKey}`,
+      sourceStatus: "draft",
+      approvedAt: null,
+      approvedBy: null,
+      approvedByName: null,
+      approvalNotes: "[PENDIENTE] Propuesta Jira sin aprobación contractual humana.",
+    }).onDuplicateKeyUpdate({ set: {
+      dealId: input.dealId,
+      jiraProjectKey: input.jiraProjectKey,
+      contractFileName: `propuesta-baseline-jira-${input.jiraProjectKey}`,
+      contractFileUrl: `jira://${input.jiraProjectKey}`,
+      sourceStatus: "draft",
+      approvedAt: null,
+      approvedBy: null,
+      approvedByName: null,
+      approvalNotes: "[PENDIENTE] Propuesta Jira sin aprobación contractual humana.",
+    } });
+
+    const sourceRows = await tx.select({ id: executiveProjectSources.id }).from(executiveProjectSources).where(and(
+      eq(executiveProjectSources.projectId, input.projectId),
+      eq(executiveProjectSources.baselineVersion, input.baselineVersion),
+    )).limit(1);
+    const sourceId = sourceRows[0]?.id;
+    if (!sourceId) throw new Error("No fue posible persistir la propuesta de baseline Jira");
+
+    await tx.delete(executiveContractMilestones).where(eq(executiveContractMilestones.sourceId, sourceId));
+    if (input.milestones.length) {
+      await tx.insert(executiveContractMilestones).values(input.milestones.map(milestone => ({
         projectId: input.projectId,
         sourceId,
-        milestoneCode: m.milestoneCode,
-        title: m.title,
-        billingWeight: m.billingWeight,
-        baselineDate: m.baselineDate,
-        jiraIssueKey: m.jiraIssueKey,
-        jiraStatusName: m.jiraStatusName ?? null,
-        jiraDueDate: m.jiraDueDate ?? null,
-        semanticStatus: m.semanticStatus ?? "pending",
-      }))
-    );
-  }
-  return sourceId;
+        milestoneCode: milestone.milestoneCode,
+        title: milestone.title,
+        billingWeight: milestone.billingWeight,
+        baselineDate: milestone.baselineDate,
+        jiraIssueKey: milestone.jiraIssueKey,
+        jiraStatusName: milestone.jiraStatusName ?? null,
+        jiraDueDate: milestone.jiraDueDate ?? null,
+        jiraClosedDate: milestone.jiraClosedDate ?? null,
+        semanticStatus: milestone.semanticStatus ?? "pending",
+        reconciliationNotes: milestone.reconciliationNotes ?? null,
+      })));
+    }
+
+    return { sourceId, sourceStatus: "draft" as const, reused: Boolean(existing[0]) };
+  });
+}
+
+export async function approveJiraBaselineProposal(input: {
+  projectId: number;
+  sourceId: number;
+  approvedBy: number;
+  approvedByName: string | null;
+  approvalNotes: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return (db as any).transaction(async (tx: any) => {
+    const sourceRows = await tx.select().from(executiveProjectSources).where(and(
+      eq(executiveProjectSources.id, input.sourceId),
+      eq(executiveProjectSources.projectId, input.projectId),
+    )).limit(1);
+    const source = sourceRows[0];
+    if (!source) throw new Error("Propuesta de baseline no encontrada");
+    if (source.sourceStatus === "approved") return { sourceId: source.id, reused: true };
+
+    const milestones = await tx.select({
+      jiraIssueKey: executiveContractMilestones.jiraIssueKey,
+      baselineDate: executiveContractMilestones.baselineDate,
+    }).from(executiveContractMilestones).where(eq(executiveContractMilestones.sourceId, source.id));
+    const assessment = assessJiraBaselineApproval({ sourceStatus: source.sourceStatus, milestones });
+    if (!assessment.approvable) throw new Error(assessment.reasons.join(" "));
+
+    await tx.update(executiveProjectSources).set({ sourceStatus: "superseded" }).where(and(
+      eq(executiveProjectSources.projectId, input.projectId),
+      eq(executiveProjectSources.sourceStatus, "approved"),
+    ));
+    await tx.update(executiveProjectSources).set({
+      sourceStatus: "approved",
+      approvedAt: new Date(),
+      approvedBy: input.approvedBy,
+      approvedByName: input.approvedByName,
+      approvalNotes: input.approvalNotes,
+    }).where(eq(executiveProjectSources.id, source.id));
+
+    return { sourceId: source.id, reused: false };
+  });
 }
