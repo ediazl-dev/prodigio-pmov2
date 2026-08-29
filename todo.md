@@ -26,7 +26,7 @@
 - [x] H6: registrar corrida, excepciones y conteos por dominio con reintentos idempotentes y sin escrituras Jira.
 - [x] H6: validar los cuatro dominios con pruebas focales, persistentes aisladas, limpieza SQL y verificación visual.
 - [ ] H7: unificar experiencia, sincronización manual, historial y ejecución continua controlada.
-- [ ] H7: auditar sincronizadores Jira, historial y callbacks periódicos existentes; fijar una única ruta Jira → PMO sin polling ni escrituras implícitas.
+- [x] H7: auditar sincronizadores Jira, historial y callbacks periódicos existentes; fijar una única ruta Jira → PMO sin polling ni escrituras implícitas.
 - [ ] H7: implementar un motor determinista de conciliación para proyectos homologados `ready`, reutilizando mappings aprobados y preservando baseline, aceptación y campos PMO confirmados.
 - [ ] H7: registrar cada ejecución manual o diaria con huella, origen, conteos, excepciones y estado; los reintentos no deben duplicar ni formar loops.
 - [ ] H7: agregar en la interfaz una acción Admin/PMO “Sincronizar ahora” y un historial legible con última ejecución, resultado por dominio y faltantes explícitos.
