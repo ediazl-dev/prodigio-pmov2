@@ -19,6 +19,7 @@ function createMemoryRepository(): JiraOnboardingRepository & { state: Record<st
     findOnboardingByProjectKey: async key => state.onboardings.find(item => item.jiraProjectKey === key) ?? null,
     createOnboarding: async values => insert(state.onboardings, values),
     updateOnboarding: async (id, values) => update(state.onboardings, id, values),
+    listMappings: async (onboardingId, mappingVersion) => state.mappings.filter(item => item.onboardingId === onboardingId && (mappingVersion == null || item.mappingVersion === mappingVersion)),
     findMappingByKey: async key => state.mappings.find(item => item.mappingKey === key) ?? null,
     createMapping: async values => insert(state.mappings, values),
     updateMapping: async (id, values) => update(state.mappings, id, values),
@@ -50,6 +51,13 @@ function buildDependencies(repository: ReturnType<typeof createMemoryRepository>
       primaryProgressSource: "MILESTONES" as const, totalTimeSpentSeconds: 0, totalOriginalEstimateSeconds: 0,
       totalTimeSpentHours: 0, totalOriginalEstimateHours: 0, lastUpdated: "2026-08-29T12:00:00.000Z",
     })),
+    getIssues: vi.fn(async () => [{
+      id: "1", key: "PILOT-1", self: "https://jira.example/PILOT-1",
+      fields: {
+        summary: "Hito", status: { name: "Open", statusCategory: { name: "To Do", key: "new" } },
+        issuetype: { name: "Hito PMO", subtask: false }, assignee: null, created: "2026-08-01", updated: "2026-08-29", duedate: "2026-09-30",
+      },
+    }]),
     getManagedKeys: vi.fn(async () => [] as string[]),
     onboarding: createJiraOnboardingService(repository),
   };
@@ -70,6 +78,7 @@ describe("runner H2 de preflight Jira", () => {
     expect(repository.state.runs).toHaveLength(1);
     expect(repository.state.mappings).toHaveLength(0);
     expect(dependencies.getProject).toHaveBeenCalledWith("PILOT");
+    expect(dependencies.getIssues).toHaveBeenCalledWith("PILOT");
   });
 
   it("reutiliza onboarding, corrida y excepciones cuando el snapshot no cambia", async () => {

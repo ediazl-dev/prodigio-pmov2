@@ -39,6 +39,13 @@ export function createDrizzleJiraOnboardingRepository(): JiraOnboardingRepositor
       await db.update(jiraProjectOnboardings).set(sanitized as any).where(eq(jiraProjectOnboardings.id, id));
       return selectById(jiraProjectOnboardings, jiraProjectOnboardings.id, id);
     },
+    async listMappings(onboardingId, mappingVersion) {
+      const db = await requireDb();
+      const filter = mappingVersion == null
+        ? eq(jiraEntityMappings.onboardingId, onboardingId)
+        : and(eq(jiraEntityMappings.onboardingId, onboardingId), eq(jiraEntityMappings.mappingVersion, mappingVersion));
+      return db.select().from(jiraEntityMappings).where(filter).orderBy(jiraEntityMappings.sourceKey);
+    },
     async findMappingByKey(mappingKey) {
       const db = await requireDb();
       const rows = await db.select().from(jiraEntityMappings)

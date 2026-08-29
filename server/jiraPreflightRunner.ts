@@ -1,10 +1,12 @@
 import {
   getJiraAdvanceReport,
   getJiraProject,
+  getProjectIssues,
   getProjectBoards,
   getProjectStatuses,
   type JiraAdvanceReport,
   type JiraBoard,
+  type JiraIssue,
   type JiraProject,
 } from "./jiraClient";
 import { getManagedJiraProjectKeys } from "./db";
@@ -24,6 +26,7 @@ export interface JiraPreflightDependencies {
   getBoards(key: string): Promise<JiraBoard[]>;
   getStatuses(key: string): Promise<StatusGroups>;
   getReport(key: string): Promise<JiraAdvanceReport>;
+  getIssues(key: string): Promise<JiraIssue[]>;
   getManagedKeys(): Promise<string[]>;
   onboarding: OnboardingService;
 }
@@ -52,6 +55,7 @@ function stablePreflightSnapshot(input: {
   boards: JiraBoard[];
   statuses: StatusGroups;
   report: JiraAdvanceReport;
+  issues: JiraIssue[];
   managedProjectKeys: string[];
   asOf: string;
   diagnostic: JiraPreflightResult;
@@ -81,6 +85,19 @@ function stablePreflightSnapshot(input: {
       scopeChanges: input.report.scopeChanges,
       team: input.report.team.map(member => ({ accountId: member.accountId, name: member.name, total: member.total })),
     },
+    issues: input.issues.map(issue => ({
+      id: issue.id,
+      key: issue.key,
+      summary: issue.fields.summary,
+      issueType: issue.fields.issuetype?.name ?? "[POR CONFIRMAR]",
+      statusName: issue.fields.status?.name ?? null,
+      statusCategory: issue.fields.status?.statusCategory?.name ?? null,
+      assigneeAccountId: issue.fields.assignee?.accountId ?? null,
+      assigneeName: issue.fields.assignee?.displayName ?? null,
+      dueDate: typeof issue.fields.duedate === "string" ? issue.fields.duedate : null,
+      resolutionDate: typeof issue.fields.resolutiondate === "string" ? issue.fields.resolutiondate : null,
+      parentKey: typeof issue.fields.parent?.key === "string" ? issue.fields.parent.key : null,
+    })).sort((left, right) => left.key.localeCompare(right.key)),
     managedProjectKeys: input.managedProjectKeys.map(key => key.toUpperCase()).sort(),
     diagnostic: stableDiagnostic,
   };
@@ -90,15 +107,16 @@ export function createJiraPreflightRunner(dependencies: JiraPreflightDependencie
   return async function runJiraPreflight(input: RunJiraPreflightInput): Promise<PersistedJiraPreflightResult> {
     const startedAt = new Date();
     const key = input.jiraProjectKey.trim().toUpperCase();
-    const [project, boards, statuses, report, managedProjectKeys] = await Promise.all([
+    const [project, boards, statuses, report, issues, managedProjectKeys] = await Promise.all([
       dependencies.getProject(key),
       dependencies.getBoards(key),
       dependencies.getStatuses(key),
       dependencies.getReport(key),
+      dependencies.getIssues(key),
       dependencies.getManagedKeys(),
     ]);
     const diagnostic = analyzeJiraPreflight({ project, boards, statuses, report, managedProjectKeys, asOf: input.asOf });
-    const sourceSnapshot = stablePreflightSnapshot({ project, boards, statuses, report, managedProjectKeys, asOf: input.asOf, diagnostic });
+    const sourceSnapshot = stablePreflightSnapshot({ project, boards, statuses, report, issues, managedProjectKeys, asOf: input.asOf, diagnostic });
     const sourceFingerprint = fingerprintJiraSnapshot(sourceSnapshot as any);
 
     const onboardingResult = await dependencies.onboarding.startOrResume({
@@ -178,6 +196,20 @@ export function runProductionJiraPreflight(input: RunJiraPreflightInput) {
     getBoards: getProjectBoards,
     getStatuses: getProjectStatuses,
     getReport: getJiraAdvanceReport,
+    getIssues: async key => {
+      const issues: JiraIssue[] = [];
+      let nextPageToken: string | undefined;
+      for (let page = 0; page < 100; page += 1) {
+        const result = await getProjectIssues(key, {
+          maxResults: 100,
+          nextPageToken,
+        });
+        issues.push(...result.issues);
+        if (result.isLast || !result.nextPageToken) break;
+        nextPageToken = result.nextPageToken;
+      }
+      return issues;
+    },
     getManagedKeys: getManagedJiraProjectKeys,
     onboarding: createProductionJiraOnboardingService(),
   })(input);

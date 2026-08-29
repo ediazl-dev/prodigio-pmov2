@@ -67,6 +67,8 @@ import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
 import { buildExecutiveOperationalEvidence } from "./executiveOperationalEvidence";
 import { resolveExternalEvidence } from "./executiveExternalEvidence";
 import { runProductionJiraPreflight } from "./jiraPreflightRunner";
+import { createProductionJiraOnboardingService } from "./jiraOnboardingRepository";
+import { buildJiraMappingCandidates, validateJiraOnboardingIdentity } from "./jiraOnboardingMapping";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -5361,6 +5363,133 @@ const jiraRouter = router({
       actorId: ctx.user.id,
       actorName: ctx.user.name,
     });
+  }),
+
+  /** Resume identity and mapping state without materializing a PMO project. */
+  getExistingProjectOnboarding: adminOrPmo.input(z.object({
+    jiraProjectKey: z.string().trim().min(1),
+  })).query(async ({ input }) => {
+    const state = await createProductionJiraOnboardingService().getState(input.jiraProjectKey);
+    if (!state) return null;
+    const sourceSnapshot = (state.onboarding.sourceSnapshot ?? {}) as any;
+    const identitySnapshot = (state.onboarding.identitySnapshot ?? null) as any;
+    return {
+      onboarding: {
+        id: state.onboarding.id,
+        status: state.onboarding.status,
+        currentStep: state.onboarding.currentStep,
+        mappingVersion: state.onboarding.mappingVersion,
+        jiraProjectKey: state.onboarding.jiraProjectKey,
+        jiraProjectName: state.onboarding.jiraProjectName,
+      },
+      identity: identitySnapshot,
+      identityValidation: validateJiraOnboardingIdentity(identitySnapshot ?? {}),
+      candidates: buildJiraMappingCandidates(sourceSnapshot),
+      mappings: state.mappings,
+      preflight: sourceSnapshot.diagnostic ?? null,
+    };
+  }),
+
+  /** Confirm PMO identity using only active users and an existing synchronized Deal. */
+  saveExistingProjectIdentity: adminOrPmo.input(z.object({
+    jiraProjectKey: z.string().trim().min(1),
+    projectName: z.string().trim().min(1),
+    clientName: z.string().trim().min(1),
+    projectType: z.enum(["apigee", "desarrollo", "integracion", "data", "otro"]),
+    pmUserId: z.number().int().positive(),
+    deliveryUserId: z.number().int().positive(),
+    dealId: z.string().trim().min(1),
+  })).mutation(async ({ input, ctx }) => {
+    const service = createProductionJiraOnboardingService();
+    const state = await service.getState(input.jiraProjectKey);
+    if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "Ejecuta primero el diagnóstico Jira" });
+    const diagnostic = (state.onboarding.sourceSnapshot as any)?.diagnostic;
+    if (Array.isArray(diagnostic?.blockers) && diagnostic.blockers.length > 0) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El preflight mantiene bloqueos que impiden confirmar la identidad" });
+    }
+    const allUsers = await getAllUsers();
+    const pm = allUsers.find(user => user.id === input.pmUserId && user.status === "activo" && user.role !== "consulta");
+    const delivery = allUsers.find(user => user.id === input.deliveryUserId && user.status === "activo" && user.role !== "consulta");
+    if (!pm) throw new TRPCError({ code: "BAD_REQUEST", message: "El PM debe ser un usuario activo con rol PM, PMO o administrador" });
+    if (!delivery) throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery debe ser un usuario activo con rol PM, PMO o administrador" });
+    const deals = await getAllFinancialDataFromDb();
+    const deal = deals.find(item => item.dealId === input.dealId);
+    if (!deal) throw new TRPCError({ code: "BAD_REQUEST", message: "El Deal seleccionado no existe en los datos financieros sincronizados" });
+    const identity = {
+      projectName: input.projectName,
+      clientName: input.clientName,
+      projectType: input.projectType,
+      pmUserId: pm.id,
+      pmName: pm.name ?? pm.email ?? "[POR CONFIRMAR]",
+      deliveryUserId: delivery.id,
+      deliveryName: delivery.name ?? delivery.email ?? "[POR CONFIRMAR]",
+      dealId: deal.dealId,
+      dealProjectName: deal.projectName ?? null,
+      dealClientName: deal.clientName ?? null,
+    };
+    const validation = validateJiraOnboardingIdentity(identity);
+    if (!validation.complete) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: `Identidad incompleta: ${validation.missing.join(", ")}` });
+    }
+    const onboarding = await service.saveIdentity({
+      onboarding: state.onboarding,
+      identitySnapshot: identity,
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+    });
+    return { onboarding, identity, validation };
+  }),
+
+  /** Approve one explicit decision per Jira issue and advance to reconciliation. */
+  saveExistingProjectMappings: adminOrPmo.input(z.object({
+    jiraProjectKey: z.string().trim().min(1),
+    mappings: z.array(z.object({
+      sourceKey: z.string().trim().min(1),
+      targetEntityType: z.enum(["milestone", "risk", "epic", "task", "user", "document", "stage_evidence", "ignored"]),
+      syncDirection: z.enum(["jira_to_pmo", "pmo_to_jira_explicit", "none"]).default("jira_to_pmo"),
+    })),
+  })).mutation(async ({ input, ctx }) => {
+    const service = createProductionJiraOnboardingService();
+    const state = await service.getState(input.jiraProjectKey);
+    if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "Onboarding Jira no encontrado" });
+    if (state.onboarding.status !== "mapping") {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Confirma la identidad antes de aprobar el mapeo" });
+    }
+    const candidates = buildJiraMappingCandidates(state.onboarding.sourceSnapshot ?? {});
+    const decisions = new Map(input.mappings.map(item => [item.sourceKey.toUpperCase(), item]));
+    if (decisions.size !== candidates.length || candidates.some(candidate => !decisions.has(candidate.sourceKey))) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Cada issue Jira debe tener una decisión explícita de mapeo o exclusión" });
+    }
+    for (const candidate of candidates) {
+      const decision = decisions.get(candidate.sourceKey)!;
+      await service.upsertMapping({
+        onboardingId: state.onboarding.id,
+        projectId: state.onboarding.projectId ?? null,
+        mappingVersion: state.onboarding.mappingVersion,
+        sourceKey: candidate.sourceKey,
+        jiraIssueType: candidate.jiraIssueType,
+        targetEntityType: decision.targetEntityType,
+        syncDirection: decision.targetEntityType === "ignored" ? "none" : decision.syncDirection,
+        status: decision.targetEntityType === "ignored" ? "excluded" : "approved",
+        metadata: {
+          summary: candidate.summary,
+          statusName: candidate.statusName,
+          assigneeAccountId: candidate.assigneeAccountId,
+          assigneeName: candidate.assigneeName,
+          dueDate: candidate.dueDate,
+        },
+        actorId: ctx.user.id,
+        actorName: ctx.user.name,
+      });
+    }
+    const onboarding = await service.transition({
+      onboarding: state.onboarding,
+      status: "reconciliation",
+      currentStep: 4,
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+    });
+    return { onboarding, mappingVersion: state.onboarding.mappingVersion, approvedCount: candidates.length };
   }),
 
   /** Link an existing JIRA project to the PMO platform */

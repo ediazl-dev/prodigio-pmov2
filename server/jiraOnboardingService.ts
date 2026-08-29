@@ -11,6 +11,7 @@ export interface JiraOnboardingRepository {
   findOnboardingByProjectKey(jiraProjectKey: string): Promise<any | null>;
   createOnboarding(values: Record<string, unknown>): Promise<any>;
   updateOnboarding(id: number, values: Record<string, unknown>): Promise<any>;
+  listMappings(onboardingId: number, mappingVersion?: number): Promise<any[]>;
   findMappingByKey(mappingKey: string): Promise<any | null>;
   createMapping(values: Record<string, unknown>): Promise<any>;
   updateMapping(id: number, values: Record<string, unknown>): Promise<any>;
@@ -83,6 +84,13 @@ async function auditBestEffort(sink: JiraOnboardingAuditSink | undefined, event:
 
 export function createJiraOnboardingService(repository: JiraOnboardingRepository, auditSink?: JiraOnboardingAuditSink) {
   return {
+    async getState(jiraProjectKey: string) {
+      const onboarding = await repository.findOnboardingByProjectKey(normalizeJiraProjectKey(jiraProjectKey));
+      if (!onboarding) return null;
+      const mappings = await repository.listMappings(onboarding.id, onboarding.mappingVersion);
+      return { onboarding, mappings };
+    },
+
     async startOrResume(input: {
       jiraProjectKey: string;
       jiraProjectId?: string | null;
@@ -139,6 +147,33 @@ export function createJiraOnboardingService(repository: JiraOnboardingRepository
         details: { status: "draft", sourceFingerprint },
       });
       return { record, created: true };
+    },
+
+    async saveIdentity(input: {
+      onboarding: { id: number; status: JiraOnboardingStatus; jiraProjectKey: string };
+      identitySnapshot: JsonRecord;
+      actorId: number;
+      actorName?: string | null;
+    }) {
+      if (!ALLOWED_TRANSITIONS[input.onboarding.status].includes("mapping")) {
+        throw new Error(`No es posible guardar identidad desde el estado ${input.onboarding.status}`);
+      }
+      const record = await repository.updateOnboarding(input.onboarding.id, {
+        status: "mapping",
+        currentStep: 3,
+        identitySnapshot: input.identitySnapshot,
+        lastError: null,
+      });
+      await auditBestEffort(auditSink, {
+        action: "save_identity",
+        entity: "jira_onboarding",
+        entityId: record.id,
+        entityName: input.onboarding.jiraProjectKey,
+        userId: input.actorId,
+        userName: input.actorName,
+        details: { complete: true, currentStep: 3 },
+      });
+      return record;
     },
 
     async transition(input: {

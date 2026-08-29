@@ -32,6 +32,9 @@ function createMemoryRepository(): JiraOnboardingRepository & {
       this.onboardings[index] = { ...this.onboardings[index], ...values };
       return this.onboardings[index];
     },
+    async listMappings(onboardingId: number, mappingVersion?: number) {
+      return this.mappings.filter(item => item.onboardingId === onboardingId && (mappingVersion == null || item.mappingVersion === mappingVersion));
+    },
     async findMappingByKey(mappingKey: string) {
       return this.mappings.find(item => item.mappingKey === mappingKey) ?? null;
     },
@@ -127,6 +130,26 @@ describe("servicio idempotente de onboarding Jira", () => {
     expect(repository.mappings).toHaveLength(1);
     expect(repository.mappings[0].status).toBe("approved");
     expect(repository.mappings[0].mappingKey).toBe(buildJiraMappingKey(base));
+  });
+
+  it("guarda identidad confirmada y reanuda el estado con los mapeos de su versión", async () => {
+    const repository = createMemoryRepository();
+    const service = createJiraOnboardingService(repository);
+    const started = await service.startOrResume({
+      jiraProjectKey: "PILOT", jiraProjectName: "Piloto", sourceSnapshot: { issues: [] }, initiatedBy: 7,
+    });
+    const preflight = await service.transition({ onboarding: started.record, status: "preflight", currentStep: 2, actorId: 7 });
+    const mapping = await service.saveIdentity({
+      onboarding: preflight,
+      identitySnapshot: { projectName: "Piloto", clientName: "Cliente", dealId: "Deal1" },
+      actorId: 7,
+    });
+    await service.upsertMapping({ onboardingId: mapping.id, mappingVersion: 1, sourceKey: "PILOT-1", targetEntityType: "milestone" });
+
+    const state = await service.getState("pilot");
+    expect(state?.onboarding.status).toBe("mapping");
+    expect(state?.onboarding.currentStep).toBe(3);
+    expect(state?.mappings).toHaveLength(1);
   });
 
   it("reutiliza runId y excepción natural sin crear duplicados", async () => {
