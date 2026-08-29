@@ -121,10 +121,10 @@ export const risks = mysqlTable("risks", {
   projectId: int("projectId").notNull(),
   riskCode: varchar("riskCode", { length: 20 }),
   description: text("description").notNull(),
-  category: mysqlEnum("category", ["tecnico", "organizacional", "externo", "oculto"]).notNull(),
+  category: mysqlEnum("category", ["tecnico", "organizacional", "externo", "oculto", "por_confirmar"]).notNull(),
   type: mysqlEnum("type", ["riesgo", "riesgo_oculto", "supuesto_no_validado", "dependencia_externa"]).notNull(),
-  probability: mysqlEnum("probability", ["alta", "media", "baja"]).notNull(),
-  impact: mysqlEnum("impact", ["alto", "medio", "bajo"]).notNull(),
+  probability: mysqlEnum("probability", ["alta", "media", "baja", "por_confirmar"]).notNull(),
+  impact: mysqlEnum("impact", ["alto", "medio", "bajo", "por_confirmar"]).notNull(),
   mitigation: text("mitigation"),
   owner: varchar("owner", { length: 255 }),
   contingency: text("contingency"),
@@ -149,7 +149,7 @@ export const wbsTasks = mysqlTable("wbs_tasks", {
   projectId: int("projectId").notNull(),
   taskCode: varchar("taskCode", { length: 20 }),
   taskName: varchar("taskName", { length: 500 }).notNull(),
-  phase: mysqlEnum("phase", ["preparacion", "inicio", "planificacion", "analisis", "construccion", "cierre"]).notNull(),
+  phase: mysqlEnum("phase", ["preparacion", "inicio", "planificacion", "analisis", "construccion", "cierre", "por_confirmar"]).notNull(),
   optimistic: decimal("optimistic", { precision: 6, scale: 1 }),
   pessimistic: decimal("pessimistic", { precision: 6, scale: 1 }),
   probable: decimal("probable", { precision: 6, scale: 1 }),
@@ -874,7 +874,9 @@ export const linkedProjectDocuments = mysqlTable("linked_project_documents", {
   uploadedBy: int("uploadedBy").notNull(),
   uploadedByName: varchar("uploadedByName", { length: 200 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  projectDocFileUnique: uniqueIndex("linked_project_documents_project_type_file_unique").on(table.projectId, table.docType, table.fileKey),
+}));
 
 export type LinkedProjectDocument = typeof linkedProjectDocuments.$inferSelect;
 export type InsertLinkedProjectDocument = typeof linkedProjectDocuments.$inferInsert;
