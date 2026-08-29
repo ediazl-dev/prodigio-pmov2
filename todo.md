@@ -15,7 +15,7 @@
 - [x] H5: validar propuesta, edición, aprobación, sincronización y limpieza con pruebas focales y persistentes aisladas.
 - [x] H5: demostrar por búsqueda y pruebas que ninguna ruta productiva autoaprueba baseline Jira.
 - [x] H5: ejecutar nuevamente la prueba persistente opt-in y verificar por SQL la limpieza total de sus registros transitorios.
-- [ ] H6: homologar riesgos, backlog, documentos y asociación financiera confirmada.
+- [x] H6: homologar riesgos, backlog, documentos y asociación financiera confirmada.
 - [x] H6: importar riesgos mapeados de Jira de forma idempotente, preservando estado, responsable y trazabilidad de origen.
 - [x] H6: importar épicas, historias y tareas mapeadas al WBS canónico, conservando jerarquía y claves Jira.
 - [x] H6: unificar SoW, Gantt y evidencias documentales sobre almacenamiento S3 y entidades existentes, sin duplicar archivos.
@@ -24,7 +24,7 @@
 - [x] H6: exponer en el detalle del proyecto el estado real de documentos, actas, faltantes y excepciones de homologación.
 - [x] H6: materializar el Deal confirmado por onboarding en `projects.dealId` y validar su existencia en `financial_data` sin inferencias.
 - [x] H6: registrar corrida, excepciones y conteos por dominio con reintentos idempotentes y sin escrituras Jira.
-- [ ] H6: validar los cuatro dominios con pruebas focales, persistentes aisladas, limpieza SQL y verificación visual.
+- [x] H6: validar los cuatro dominios con pruebas focales, persistentes aisladas, limpieza SQL y verificación visual.
 - [ ] H7: unificar experiencia, sincronización manual, historial y ejecución continua controlada.
 - [ ] H8: ejecutar piloto, reconciliar resultados y estabilizar la migración por lotes.
 - [ ] Ejecutar validación integral, corregir regresiones y limpiar cualquier dato de prueba.

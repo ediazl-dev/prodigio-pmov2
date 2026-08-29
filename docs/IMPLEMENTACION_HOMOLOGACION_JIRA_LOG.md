@@ -129,3 +129,28 @@ La ejecución `initial_import` reutiliza `runId` y fingerprint, persiste sus res
 | Servidor tras reinicio | Inicia correctamente; 0 errores de importación posteriores al reinicio H5 |
 | Verificación visual | Tanner conserva su baseline humano aprobado; fechas contractuales y Jira permanecen separadas |
 | Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |
+
+## H6 — Riesgos, WBS, documentos y asociación financiera
+
+La importación inicial H6 consume exclusivamente el snapshot Jira persistido por H2/H3 y mappings con estado `approved`. Los transformadores puros solo aceptan destinos canónicos: `risk` para `risks`, y `epic`, `story` o `task` para `wbs_tasks`. Cada fila conserva su `jiraIssueKey`, estado, categoría de estado y responsable observados en Jira; cuando un atributo PMO obligatorio no existe en la fuente se utiliza `por_confirmar`, sin clasificar, ponderar ni completar por inferencia.
+
+Los UPSERTs usan la clave natural proyecto + issue Jira. Un reintento actualiza únicamente los campos observables de origen y preserva clasificaciones PMO ya confirmadas, como categoría/probabilidad/impacto del riesgo, fase, story points y otros atributos gobernados en Prodigio. La jerarquía WBS solo se conserva cuando el `parentKey` real también está presente y aprobado; un padre faltante produce una excepción resoluble y nunca una relación inventada.
+
+El runner `initial_import` exige proyecto materializado y onboarding `ready`, calcula una huella estable versionada, permite reintentar corridas fallidas y registra resultados y excepciones en `jira_sync_log` y `jira_import_exception`. La asociación financiera toma únicamente el `dealId` confirmado en la identidad H3, valida coincidencia exacta en `financial_data` y actualiza `projects.dealId`; si falta o no existe, conserva `[POR CONFIRMAR]`. H6 no ejecuta una sincronización financiera y no busca coincidencias por nombre.
+
+La política documental mantiene SoW y Gantt en `linked_project_documents`, con bytes en S3 y metadatos en base de datos, mientras que las actas permanecen asociadas a su hito en `executive_milestone_acceptances`. La carga reutiliza el flujo existente y aplica UPSERT por proyecto + tipo + clave S3. Los mappings `document` y `stage_evidence` sin una referencia S3 real quedan como excepciones documentales auditables; no se crean archivos, URLs o evidencias ficticias y un cierre Jira no se interpreta como aceptación del cliente.
+
+La API expone una ejecución H6 restringida a Admin/PMO y una consulta de estado para usuarios autorizados. La carga de documentos queda disponible para Admin/PMO y para el PM asignado al proyecto; `consulta` conserva acceso de solo lectura. El detalle de proyectos vinculados muestra Deal, riesgos/WBS importados versus mapeados, SoW/Gantt/actas reales, última corrida, faltantes y excepciones abiertas. El botón de importación se deshabilita de forma visible cuando el onboarding no está `ready`.
+
+| Validación | Resultado |
+|---|---|
+| Batería cerrada H0–H6 | 76 de 76 pruebas aprobadas; 4 persistentes opt-in omitidas por defecto |
+| Prueba persistente H6 | 1 de 1 aprobada: create/update sin duplicados, preservación PMO, Deal exacto, documento idempotente y limpieza |
+| Limpieza SQL posterior | 0 proyectos, 0 Deals, 0 riesgos, 0 WBS y 0 documentos H6 transitorios |
+| Suite completa | 579 pruebas aprobadas, 7 omitidas y 1 fallo externo ajeno a H6: Banco Central devolvió `Codigo=-5` en `ufService.test.ts` |
+| TypeScript | Ningún error nuevo de H6; permanecen cuatro errores heredados de iteración/target en `jiraMilestoneSync.ts` y uno de `invitations.estadoSII` en `routers.ts` |
+| Verificación visual | Tarjeta H6 revisada en escritorio y móvil sobre un proyecto vinculado real, sin ejecutar importación ni modificar datos productivos |
+| Escrituras Jira | Ninguna; H6 solo consume snapshot y mappings persistidos |
+| Sincronización financiera | Ninguna; solo validación exacta contra `financial_data` existente |
+
+Los checkpoints incrementales de H6 fueron: `7aab40b5` (índices riesgos/WBS), `8be488da` (`projects.dealId`), `515ba597` (valores pendientes e idempotencia documental), `20ef1668` (observaciones Jira), `84e95acf` (transformadores puros), `a0f7f7bb` (persistencia, runner y Deal), `460330f0` (API, permisos y documentos) y `1efd14df` (interfaz y validación visual). No se ejecutaron migraciones destructivas ni importaciones masivas sobre proyectos productivos.
