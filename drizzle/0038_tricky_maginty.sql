@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `dealId` varchar(50);

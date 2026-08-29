@@ -41,6 +41,7 @@ export const projects = mysqlTable("projects", {
   currentStage: mysqlEnum("currentStage", ["sow", "jira", "risks", "planning", "design", "closure"]).default("sow").notNull(),
   pmId: int("pmId"),
   pmoId: int("pmoId"),
+  dealId: varchar("dealId", { length: 50 }),
   totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }),
   currency: varchar("currency", { length: 10 }).default("USD"),
   startDate: date("startDate", { mode: "string" }),

@@ -267,6 +267,13 @@
       "when": 1788032055449,
       "tag": "0037_workable_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1788032255935,
+      "tag": "0038_tricky_maginty",
+      "breakpoints": true
     }
   ]
 }
