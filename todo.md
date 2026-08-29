@@ -1,5 +1,9 @@
 # Prodigio PMO Platform — Restauración desde respaldo
 
+- [x] Auditar si la plataforma ya permite incorporar un proyecto Jira existente y crear su estructura PMO vinculada; diagnóstico persistido en `docs/ANALISIS_INCORPORACION_PROYECTO_JIRA_EXISTENTE_2026-08-29.md`.
+- [x] Identificar qué datos Jira se importan o sincronizan actualmente y qué componentes PMO todavía requieren configuración manual; inventario incluido en el diagnóstico.
+- [x] Proponer el flujo objetivo, controles y backlog necesario sin modificar la aplicación hasta recibir aprobación; propuesta documentada sin cambios funcionales.
+
 - [x] Ejecutar una nueva sincronización financiera desde Google Sheets y verificar los registros aplicados.
 - [x] Sincronizar nuevamente los estados, fechas planificadas y fechas reales de cierre de los hitos desde Jira.
 - [x] Validar por proyecto la consistencia de los hitos sincronizados y registrar incidencias sin fabricar datos.
