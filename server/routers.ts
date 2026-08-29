@@ -73,6 +73,7 @@ import { assessJiraOnboardingMaterialization } from "./jiraOnboardingMaterializa
 import { assessJiraBaselineOperator } from "./jiraBaselineProposal";
 import { loadProductionJiraBaselineImportContext, markProductionJiraOnboardingReady, runProductionInitialJiraBaselineImport } from "./jiraBaselineImportRunner";
 import { runProductionInitialJiraDomainImport } from "./jiraDomainImportRunner";
+import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
 import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 
@@ -5607,6 +5608,42 @@ const jiraRouter = router({
         return { success: true, ...result };
       } catch (error) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "No fue posible ejecutar la importación H6" });
+      }
+    }),
+
+  /** Refresh approved Jira mappings and reconcile observations into PMO. Never writes to Jira. */
+  syncExistingProjectNow: adminOrPmo
+    .input(z.object({
+      projectId: z.number().int().positive(),
+      operationId: z.string().trim().min(12).max(128).regex(/^[A-Za-z0-9:_-]+$/),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const project = await getProjectById(input.projectId);
+      if (!project || project.origin !== "linked") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no corresponde a una homologación Jira materializada" });
+      }
+      try {
+        const result = await runProductionJiraReconciliation({
+          projectId: input.projectId,
+          source: "manual",
+          operationId: input.operationId,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+        });
+        await audit(ctx, "sync_jira_h7_manual", "jira_project_onboarding", input.projectId, project.projectName, {
+          runId: result.runId,
+          status: result.status,
+          reused: result.reused,
+          jiraRead: result.jiraRead,
+          risks: result.risks,
+          wbs: result.wbs,
+          milestones: result.milestones,
+          documents: result.documents,
+          exceptions: result.exceptions,
+        });
+        return { success: true, ...result };
+      } catch (error) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "No fue posible sincronizar el proyecto con Jira" });
       }
     }),
 

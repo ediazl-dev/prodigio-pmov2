@@ -288,8 +288,7 @@ export default function ConsolaGobierno() {
               const senalesMora = generarSenalesMora(proyecto);
               
               return (
-                <Link key={proyecto.projectId} href={`/projects/${proyecto.projectId}`}>
-                  <a className={`cg-fila ${config.clase}`}>
+                <Link key={proyecto.projectId} href={`/projects/${proyecto.projectId}`} className={`cg-fila ${config.clase}`}>
                     {/* Columna PA */}
                     <div className="cg-pa" title={`PA = ${proyecto.pa}
 Severidad: ${calcularDesglosePA(proyecto).severidad} × 0.4 = ${Math.round(calcularDesglosePA(proyecto).severidad * 0.4)}
@@ -363,7 +362,6 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                     
                     {/* Columna flecha */}
                     <div className="cg-ir">→</div>
-                  </a>
                 </Link>
               );
             })

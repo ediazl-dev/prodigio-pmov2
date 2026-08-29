@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   executiveContractMilestones,
   executiveMilestoneAcceptances,
@@ -16,6 +18,7 @@ import {
 import {
   createLinkedProject,
   getDb,
+  getJiraHomologationImportStatus,
   reconcileExecutiveMilestoneJiraObservations,
   resolveOpenJiraImportExceptions,
   updateReadyJiraOnboardingSnapshot,
@@ -25,6 +28,7 @@ import {
 import { loadProductionJiraBaselineImportContext } from "./jiraBaselineImportRunner";
 import { createProductionJiraOnboardingService } from "./jiraOnboardingRepository";
 import { runJiraReconciliation, type JiraReconciliationContext } from "./jiraReconciliationRunner";
+import { JiraHomologationStatusCardBody } from "../client/src/components/JiraHomologationStatusCard";
 
 const shouldRun = Boolean(process.env.DATABASE_URL) && process.env.RUN_PERSISTENT_H7_TEST === "true";
 const testKey = `H7T${Date.now().toString().slice(-7)}`;
@@ -200,6 +204,31 @@ describe.runIf(shouldRun)("conciliación H7 persistente aislada", () => {
     ]);
     expect(await db.select({ status: jiraProjectOnboardings.status }).from(jiraProjectOnboardings).where(eq(jiraProjectOnboardings.id, onboardingId)))
       .toEqual([{ status: "ready" }]);
+
+    const integrationStatus = await getJiraHomologationImportStatus(projectId);
+    expect(integrationStatus).toMatchObject({
+      onboarding: { status: "ready", jiraProjectKey: testKey },
+      latestReconciliation: { source: "manual", status: "applied" },
+      counts: {
+        risks: { imported: 1, mapped: 1 },
+        wbs: { imported: 1, mapped: 1 },
+      },
+    });
+    expect(integrationStatus?.reconciliationHistory).toHaveLength(1);
+    const integratedHtml = renderToStaticMarkup(createElement(JiraHomologationStatusCardBody, {
+      status: integrationStatus!,
+      canImport: true,
+    }));
+    expect(integratedHtml).toContain("Sincronizar ahora");
+    expect(integratedHtml).toContain("Historial de sincronización");
+    expect(integratedHtml).toContain("Aplicada");
+    expect(integratedHtml).toContain("1/1");
+    expect(integratedHtml).toContain("SoW contractual [PENDIENTE]");
+
+    if (process.env.HOLD_H7_VISUAL_FIXTURE === "true") {
+      console.log(`[H7_VISUAL_FIXTURE] projectId=${projectId}`);
+      await new Promise(resolve => setTimeout(resolve, 45_000));
+    }
 
     await cleanup();
     expect(await db.select({ id: projects.id }).from(projects).where(eq(projects.jiraProjectKey, testKey))).toHaveLength(0);

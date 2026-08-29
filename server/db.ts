@@ -2342,15 +2342,34 @@ export async function getJiraHomologationImportStatus(projectId: number) {
     )).orderBy(desc(jiraImportExceptions.updatedAt))
     : [];
   const syncRuns = onboarding
-    ? await db.select().from(jiraSyncLogs).where(and(
+    ? await db.select().from(jiraSyncLogs).where(
       eq(jiraSyncLogs.onboardingId, onboarding.id),
-      eq(jiraSyncLogs.source, "initial_import"),
-    )).orderBy(desc(jiraSyncLogs.createdAt)).limit(20)
+    ).orderBy(desc(jiraSyncLogs.createdAt)).limit(50)
     : [];
   const latestRun = syncRuns.find(run => {
     const details = run.details as Record<string, unknown> | null;
-    return details?.importScope === "h6_domains";
+    return run.source === "initial_import" && details?.importScope === "h6_domains";
   }) ?? null;
+  const reconciliationHistory = syncRuns.filter(run => {
+    const details = run.details as Record<string, unknown> | null;
+    return details?.reconciliationScope === "h7_jira_to_pmo";
+  }).slice(0, 10).map(run => ({
+    id: run.id,
+    runId: run.runId,
+    source: run.source,
+    status: run.status,
+    inputCount: run.inputCount,
+    createdCount: run.createdCount,
+    updatedCount: run.updatedCount,
+    skippedCount: run.skippedCount,
+    errorCount: run.errorCount,
+    errorMessage: run.errorMessage,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    createdAt: run.createdAt,
+    details: run.details,
+  }));
+  const latestReconciliation = reconciliationHistory[0] ?? null;
 
   const expectedRisks = mappings.filter(mapping => mapping.targetEntityType === "risk").length;
   const expectedWbs = mappings.filter(mapping => ["epic", "task"].includes(mapping.targetEntityType)).length;
@@ -2373,6 +2392,8 @@ export async function getJiraHomologationImportStatus(projectId: number) {
       jiraProjectKey: onboarding.jiraProjectKey,
     } : null,
     latestRun,
+    latestReconciliation,
+    reconciliationHistory,
     counts: {
       risks: { imported: importedRisks.length, mapped: expectedRisks },
       wbs: { imported: importedWbs.length, mapped: expectedWbs },

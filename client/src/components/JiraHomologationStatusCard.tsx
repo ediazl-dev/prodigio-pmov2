@@ -21,10 +21,29 @@ type HomologationException = {
   reason: string;
 };
 
+type JiraReconciliationRun = {
+  id: number;
+  source: string;
+  status: string;
+  inputCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  errorMessage: string | null;
+  finishedAt: Date | string | null;
+  createdAt: Date | string;
+  details: {
+    jiraRead?: { requestedCount?: number; returnedCount?: number };
+  } | null;
+};
+
 export type JiraHomologationStatus = {
   project: { dealId: string | null };
   onboarding: { status: string; jiraProjectKey: string } | null;
-  latestRun: { status: string; completedAt: Date | string | null; createdAt: Date | string } | null;
+  latestRun: { status: string; finishedAt: Date | string | null; createdAt: Date | string } | null;
+  latestReconciliation: JiraReconciliationRun | null;
+  reconciliationHistory: JiraReconciliationRun[];
   counts: {
     risks: { imported: number; mapped: number };
     wbs: { imported: number; mapped: number };
@@ -36,16 +55,37 @@ export type JiraHomologationStatus = {
 };
 
 const DOMAIN_LABELS: Record<string, string> = {
+  milestones: "Hitos",
   risks: "Riesgos",
   planning: "Backlog",
   documents: "Documentos",
   finance: "Finanzas",
 };
 
+const RUN_STATUS_LABELS: Record<string, string> = {
+  applied: "Aplicada",
+  partial: "Parcial",
+  error: "Error",
+  running: "En curso",
+};
+
+const RUN_SOURCE_LABELS: Record<string, string> = {
+  manual: "Manual",
+  scheduled: "Diaria",
+  retry: "Reintento",
+};
+
 function formatRunDate(value: Date | string | null | undefined) {
   if (!value) return "[PENDIENTE]";
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? "[PENDIENTE]" : date.toLocaleString("es-CL");
+}
+
+function runStatusClasses(status: string) {
+  if (status === "applied") return "bg-emerald-100 text-emerald-800";
+  if (status === "error") return "bg-red-100 text-red-800";
+  if (status === "running") return "bg-blue-100 text-blue-800";
+  return "bg-amber-100 text-amber-800";
 }
 
 function CountTile({ icon: Icon, label, value, detail }: {
@@ -78,7 +118,10 @@ export function JiraHomologationStatusCardBody({
   onImport?: () => void;
 }) {
   const onboardingReady = status.onboarding?.status === "ready";
-  const importedAt = status.latestRun?.completedAt ?? status.latestRun?.createdAt;
+  const synchronizedAt = status.latestReconciliation?.finishedAt
+    ?? status.latestReconciliation?.createdAt
+    ?? status.latestRun?.finishedAt
+    ?? status.latestRun?.createdAt;
   const hasPending = status.pending.length > 0 || status.counts.openExceptions > 0;
 
   return (
@@ -93,7 +136,7 @@ export function JiraHomologationStatusCardBody({
             </span>
           </div>
           <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-slate-500">
-            La importación usa el snapshot y los mappings aprobados. Es idempotente, no elimina información PMO y no escribe en Jira.
+            La sincronización lee en Jira solo los mappings aprobados. Es idempotente, preserva baseline y aceptación, y nunca escribe en Jira.
           </p>
         </div>
         {canImport ? (
@@ -104,7 +147,7 @@ export function JiraHomologationStatusCardBody({
             className="bg-[#e91e8c] text-white hover:bg-[#c51678] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:opacity-100"
           >
             {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="mr-2 h-4 w-4" aria-hidden="true" />}
-            {isImporting ? "Importando…" : "Importar dominios aprobados"}
+            {isImporting ? "Sincronizando…" : "Sincronizar ahora"}
           </Button>
         ) : null}
       </div>
@@ -117,7 +160,7 @@ export function JiraHomologationStatusCardBody({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] text-slate-600">
-        <span><strong>Última corrida H6:</strong> {formatRunDate(importedAt)}</span>
+        <span><strong>Última sincronización Jira:</strong> {formatRunDate(synchronizedAt)}</span>
         <span className={`inline-flex items-center gap-1 font-bold ${hasPending ? "text-amber-700" : "text-emerald-700"}`}>
           {hasPending ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
           {hasPending ? `${status.counts.openExceptions} excepciones abiertas` : "Sin excepciones abiertas"}
@@ -148,6 +191,31 @@ export function JiraHomologationStatusCardBody({
         </div>
       ) : null}
 
+      <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+        <div className="flex items-center justify-between gap-3 bg-slate-100 px-3 py-2">
+          <h3 className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-slate-700">Historial de sincronización</h3>
+          <span className="text-[9px] font-semibold text-slate-500">Últimas 10 corridas H7</span>
+        </div>
+        {status.reconciliationHistory.length === 0 ? (
+          <p className="px-3 py-4 text-[10px] text-slate-500">Aún no existen sincronizaciones manuales o diarias. [PENDIENTE]</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {status.reconciliationHistory.map(run => (
+              <div key={run.id} className="grid gap-2 px-3 py-2.5 text-[10px] text-slate-700 sm:grid-cols-[140px_72px_82px_1fr] sm:items-center">
+                <span className="font-semibold text-slate-600">{formatRunDate(run.finishedAt ?? run.createdAt)}</span>
+                <span>{RUN_SOURCE_LABELS[run.source] ?? run.source}</span>
+                <span className={`w-fit rounded-full px-2 py-0.5 font-bold ${runStatusClasses(run.status)}`}>{RUN_STATUS_LABELS[run.status] ?? run.status}</span>
+                <span className="text-slate-500">
+                  Jira {run.details?.jiraRead?.returnedCount ?? 0}/{run.details?.jiraRead?.requestedCount ?? run.inputCount}
+                  {` · ${run.updatedCount} actualizados · ${run.createdCount} creados · ${run.errorCount} excepciones`}
+                  {run.errorMessage ? ` · ${run.errorMessage}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <p className="mt-4 text-[10px] leading-relaxed text-slate-500">
         SoW y Gantt se almacenan como documentos del proyecto. Las actas permanecen asociadas a su hito contractual; un cierre Jira no equivale a aceptación del cliente.
       </p>
@@ -158,14 +226,26 @@ export function JiraHomologationStatusCardBody({
 export function JiraHomologationStatusCard({ projectId, canImport }: { projectId: number; canImport: boolean }) {
   const utils = trpc.useUtils();
   const statusQuery = trpc.jira.getExistingProjectImportStatus.useQuery({ projectId });
-  const importMutation = trpc.jira.importExistingProjectDomains.useMutation({
+  const operationIdRef = React.useRef<string | null>(null);
+  const syncMutation = trpc.jira.syncExistingProjectNow.useMutation({
     onSuccess: async result => {
-      toast.success(result.reused ? "La importación H6 ya estaba aplicada para este snapshot." : "Dominios Jira importados y trazabilidad actualizada.");
+      if (result.reused) toast.success("Esta operación ya había sido procesada; no se duplicaron cambios.");
+      else if (result.status === "partial") toast.warning(`Sincronización aplicada con ${result.exceptions} excepciones resolubles.`);
+      else toast.success("Sincronización Jira completada.");
       await statusQuery.refetch();
       await utils.projects.get.invalidate({ id: projectId });
     },
     onError: error => toast.error(error.message),
+    onSettled: () => { operationIdRef.current = null; },
   });
+
+  const synchronizeNow = () => {
+    if (syncMutation.isPending) return;
+    const operationId = operationIdRef.current
+      ?? `manual:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}`;
+    operationIdRef.current = operationId;
+    syncMutation.mutate({ projectId, operationId });
+  };
 
   if (statusQuery.isLoading) {
     return <div className="mb-5 h-44 animate-pulse rounded-[14px] border border-slate-200 bg-white" aria-label="Cargando estado de homologación Jira" />;
@@ -183,8 +263,8 @@ export function JiraHomologationStatusCard({ projectId, canImport }: { projectId
     <JiraHomologationStatusCardBody
       status={statusQuery.data as JiraHomologationStatus}
       canImport={canImport}
-      isImporting={importMutation.isPending}
-      onImport={() => importMutation.mutate({ projectId })}
+      isImporting={syncMutation.isPending}
+      onImport={synchronizeNow}
     />
   );
 }
