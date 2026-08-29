@@ -10,6 +10,7 @@ import {
   executiveProjectSources, executiveContractMilestones, executiveMilestoneAcceptances, executiveMeetingMinutes,
   executiveCommitments, executiveRequirements, executiveRecoveryPlans, executiveGovernanceAssignments,
   executiveFinancialSnapshots, executiveDashboardSnapshots, executiveVerdictReviews,
+  jiraProjectOnboardings, jiraEntityMappings, jiraSyncLogs, jiraImportExceptions,
   InsertUser, InsertProject, InsertSowDocument, InsertRisk, InsertWbsTask, InsertSowVersion,
   InsertStageDeadline, InsertStageOpening, InsertHoliday,
   InsertStageDeadlineExtension, InsertDeadlineNotification, InsertStageApproval, InsertStageClosure, InsertJiraSpace, InsertRiskVersion, InsertAuditLog,
@@ -1531,6 +1532,26 @@ export async function getManagedJiraProjectKeys(): Promise<string[]> {
   return result.map(r => r.key!).filter(Boolean);
 }
 
+async function deleteJiraOnboardingRecordsForProject(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  projectId: number,
+) {
+  const onboardings = await db.select({ id: jiraProjectOnboardings.id })
+    .from(jiraProjectOnboardings)
+    .where(eq(jiraProjectOnboardings.projectId, projectId));
+
+  for (const onboarding of onboardings) {
+    await db.delete(jiraEntityMappings).where(eq(jiraEntityMappings.onboardingId, onboarding.id));
+    await db.delete(jiraImportExceptions).where(eq(jiraImportExceptions.onboardingId, onboarding.id));
+    await db.delete(jiraSyncLogs).where(eq(jiraSyncLogs.onboardingId, onboarding.id));
+  }
+
+  await db.delete(jiraEntityMappings).where(eq(jiraEntityMappings.projectId, projectId));
+  await db.delete(jiraImportExceptions).where(eq(jiraImportExceptions.projectId, projectId));
+  await db.delete(jiraSyncLogs).where(eq(jiraSyncLogs.projectId, projectId));
+  await db.delete(jiraProjectOnboardings).where(eq(jiraProjectOnboardings.projectId, projectId));
+}
+
 
 /**
  * Unlink a linked JIRA project: deletes the project and all associated records.
@@ -1551,6 +1572,7 @@ export async function unlinkProject(projectId: number): Promise<{ deleted: boole
   const projectName = project.projectName;
 
   // Delete all associated records (linked projects only have stages and jira_spaces)
+  await deleteJiraOnboardingRecordsForProject(db, projectId);
   await db.delete(projectStages).where(eq(projectStages.projectId, projectId));
   await db.delete(jiraSpaces).where(eq(jiraSpaces.projectId, projectId));
   await db.delete(stageOpenings).where(eq(stageOpenings.projectId, projectId));
@@ -1585,6 +1607,7 @@ export async function deleteProjectAdmin(projectId: number): Promise<{ deleted: 
   const projectName = project.projectName;
 
   // Full cascade delete
+  await deleteJiraOnboardingRecordsForProject(db, projectId);
   await db.delete(executiveContractMilestones).where(eq(executiveContractMilestones.projectId, projectId));
   await db.delete(executiveProjectSources).where(eq(executiveProjectSources.projectId, projectId));
   await db.delete(billingMilestones).where(eq(billingMilestones.projectId, projectId));

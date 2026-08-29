@@ -36,3 +36,17 @@ La migración `0034_living_firelord.sql` fue revisada y aislada antes de ejecuta
 | Operaciones destructivas | Ninguna |
 | Pruebas focales H0–H1 | 42 de 42 aprobadas |
 | Registros productivos creados | Ninguno; solo estructura |
+
+## H1 — Servicios idempotentes y auditoría
+
+Se implementó un servicio de onboarding independiente de tRPC y de Jira, con repositorio intercambiable. Sus claves naturales permiten reanudar un proyecto por `jiraProjectKey`, actualizar un mapeo por `mappingKey`, reutilizar una ejecución por `runId` y conciliar excepciones por dominio, elemento de origen y motivo.
+
+El servicio restringe las transiciones a la secuencia `draft → preflight → mapping → reconciliation → ready`, admite recuperación explícita desde `failed` y valida los siete pasos del asistente. La auditoría es best-effort: un fallo del registro no interrumpe la operación principal. Las cascadas administrativas eliminan primero mapeos, excepciones y ejecuciones por `onboardingId`, evitando huérfanos aunque el proyecto todavía no haya sido materializado.
+
+| Validación | Resultado |
+|---|---|
+| Pruebas de servicio | 6 de 6 aprobadas |
+| Pruebas focales acumuladas | 48 de 48 aprobadas |
+| Idempotencia cubierta | Proyecto, mapeo, ejecución y excepción |
+| Escrituras Jira | Ninguna |
+| TypeScript | Sin errores nuevos; persisten los cinco errores preexistentes documentados en H0 |
