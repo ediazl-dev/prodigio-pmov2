@@ -394,3 +394,14 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Explicar permisos, sincronización manual/diaria, datos actualizables y datos protegidos.
 - [x] Documentar estados `[PENDIENTE]`/`[POR CONFIRMAR]`, excepciones, troubleshooting y limitaciones actuales.
 - [x] Verificar el manual contra código, bitácora, checkpoints y estado operativo antes de entregarlo.
+
+## Manual ilustrado para vincular un proyecto Jira existente (2026-08-29)
+
+- [x] Auditar el flujo visible completo en Administración → Spaces Jira y Detalle de Proyecto.
+- [x] Definir un guion visual con cada estado requerido desde selección hasta onboarding `ready`.
+- [x] Preparar escenarios seguros que no modifiquen proyectos productivos y permitan capturar estados representativos.
+- [x] Capturar pantallas reales de selección, diagnóstico, identidad, mapeo, activación, baseline, estado H6/H7 e historial.
+- [x] Recortar y rotular las capturas para que cada acción y validación sea inequívoca.
+- [x] Redactar un manual profesional con portada, índice, prerrequisitos, pasos, roles, controles, errores frecuentes y checklist final.
+- [x] Verificar que el manual distinga claramente Jira cerrado, aceptación de cliente, baseline contractual y fecha Jira.
+- [x] Verificar diseño, legibilidad, referencias visuales y exactitud contra la aplicación antes de entregar.
