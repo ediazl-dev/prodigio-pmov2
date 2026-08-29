@@ -337,6 +337,40 @@ export async function bulkInsertRisks(projectId: number, riskList: Omit<InsertRi
   }
 }
 
+export async function upsertJiraImportedRisks(projectId: number, riskList: Omit<InsertRisk, "projectId">[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  let createdCount = 0;
+  let updatedCount = 0;
+  for (const risk of riskList) {
+    const jiraIssueKey = risk.jiraIssueKey?.trim().toUpperCase();
+    if (!jiraIssueKey) throw new Error("Todo riesgo importado desde Jira requiere jiraIssueKey");
+    const existing = await db.select({ id: risks.id }).from(risks).where(and(
+      eq(risks.projectId, projectId),
+      eq(risks.jiraIssueKey, jiraIssueKey),
+    )).limit(1);
+    if (existing[0]) {
+      await db.update(risks).set({
+        riskCode: risk.riskCode,
+        description: risk.description,
+        owner: risk.owner,
+        dueDate: risk.dueDate,
+        jiraTaskId: jiraIssueKey,
+        jiraIssueKey,
+        jiraStatusName: risk.jiraStatusName,
+        jiraStatusCategory: risk.jiraStatusCategory,
+        jiraAssigneeId: risk.jiraAssigneeId,
+        updatedAt: new Date(),
+      }).where(eq(risks.id, existing[0].id));
+      updatedCount += 1;
+    } else {
+      await db.insert(risks).values({ ...risk, projectId, jiraTaskId: jiraIssueKey, jiraIssueKey });
+      createdCount += 1;
+    }
+  }
+  return { createdCount, updatedCount };
+}
+
 // ==================== RISK VERSIONS ====================
 export async function getRiskVersionsByProject(projectId: number) {
   const db = await getDb();
@@ -412,6 +446,42 @@ export async function bulkInsertWbs(projectId: number, tasks: Omit<InsertWbsTask
   if (tasks.length > 0) {
     await db.insert(wbsTasks).values(tasks.map((t) => ({ ...t, projectId })));
   }
+}
+
+export async function upsertJiraImportedWbs(projectId: number, tasks: Omit<InsertWbsTask, "projectId">[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  let createdCount = 0;
+  let updatedCount = 0;
+  for (const task of tasks) {
+    const jiraIssueKey = task.jiraIssueKey?.trim().toUpperCase();
+    if (!jiraIssueKey) throw new Error("Todo ítem WBS importado desde Jira requiere jiraIssueKey");
+    const existing = await db.select({ id: wbsTasks.id }).from(wbsTasks).where(and(
+      eq(wbsTasks.projectId, projectId),
+      eq(wbsTasks.jiraIssueKey, jiraIssueKey),
+    )).limit(1);
+    if (existing[0]) {
+      await db.update(wbsTasks).set({
+        taskCode: task.taskCode,
+        taskName: task.taskName,
+        assignee: task.assignee,
+        jiraTaskId: jiraIssueKey,
+        issueLevel: task.issueLevel,
+        epicCode: task.epicCode,
+        storyCode: task.storyCode,
+        jiraIssueKey,
+        jiraParentKey: task.jiraParentKey,
+        jiraStatusName: task.jiraStatusName,
+        jiraStatusCategory: task.jiraStatusCategory,
+        jiraAssigneeId: task.jiraAssigneeId,
+      }).where(eq(wbsTasks.id, existing[0].id));
+      updatedCount += 1;
+    } else {
+      await db.insert(wbsTasks).values({ ...task, projectId, jiraTaskId: jiraIssueKey, jiraIssueKey });
+      createdCount += 1;
+    }
+  }
+  return { createdCount, updatedCount };
 }
 
 export async function updateWbsItemJiraKey(id: number, jiraIssueKey: string, jiraParentKey?: string | null) {
@@ -1838,6 +1908,33 @@ export async function getFinancialDataByDealId(dealId: string) {
   if (!db) return undefined;
   const result = await db.select().from(financialData).where(eq(financialData.dealId, dealId)).limit(1);
   return result[0];
+}
+
+export async function linkProjectToConfirmedFinancialDeal(projectId: number, dealId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const normalizedDealId = dealId.trim();
+  if (!normalizedDealId) {
+    return { linked: false, reused: false, dealId: null, reason: "La identidad confirmada no contiene un Deal financiero." };
+  }
+  const financialRows = await db.select({ dealId: financialData.dealId }).from(financialData)
+    .where(eq(financialData.dealId, normalizedDealId)).limit(1);
+  if (!financialRows[0]) {
+    return {
+      linked: false,
+      reused: false,
+      dealId: normalizedDealId,
+      reason: `El Deal confirmado ${normalizedDealId} no existe en financial_data; permanece [POR CONFIRMAR].`,
+    };
+  }
+  const projectRows = await db.select({ id: projects.id, dealId: projects.dealId }).from(projects)
+    .where(eq(projects.id, projectId)).limit(1);
+  if (!projectRows[0]) throw new Error("El proyecto materializado no existe");
+  if (projectRows[0].dealId === normalizedDealId) {
+    return { linked: true, reused: true, dealId: normalizedDealId, reason: null };
+  }
+  await db.update(projects).set({ dealId: normalizedDealId, updatedAt: new Date() }).where(eq(projects.id, projectId));
+  return { linked: true, reused: false, dealId: normalizedDealId, reason: null };
 }
 
 export async function getAllFinancialData() {

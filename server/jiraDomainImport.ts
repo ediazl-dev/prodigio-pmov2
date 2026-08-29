@@ -119,7 +119,7 @@ export function buildMappedJiraDomainImport(input: {
       .map(mapping => [mapping.sourceKey, mapping] as const),
   );
   const levelsByKey = new Map<string, "epic" | "story" | "task">();
-  for (const [key, mapping] of wbsMappingsByKey) {
+  for (const [key, mapping] of Array.from(wbsMappingsByKey.entries())) {
     const issue = issuesByKey.get(key);
     if (issue) levelsByKey.set(key, issueLevel(mapping, issue));
   }
