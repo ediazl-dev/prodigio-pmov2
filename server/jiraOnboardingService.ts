@@ -312,7 +312,14 @@ export function createJiraOnboardingService(repository: JiraOnboardingRepository
       };
       const existing = await repository.findExceptionByNaturalKey(naturalKey);
       const record = existing
-        ? await repository.updateException(existing.id, { severity: input.severity ?? existing.severity })
+        ? await repository.updateException(existing.id, {
+            severity: input.severity ?? existing.severity,
+            status: "open",
+            resolution: null,
+            resolvedBy: null,
+            resolvedByName: null,
+            resolvedAt: null,
+          })
         : await repository.createException({ ...input, sourceKey: input.sourceKey ?? null, severity: input.severity ?? "warning", status: "open" });
       return { record, created: !existing };
     },

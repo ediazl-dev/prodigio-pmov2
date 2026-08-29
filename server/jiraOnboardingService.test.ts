@@ -167,6 +167,32 @@ describe("servicio idempotente de onboarding Jira", () => {
     expect(repository.exceptions[0].severity).toBe("blocking");
   });
 
+  it("reabre una excepción resuelta cuando la misma condición reaparece", async () => {
+    const repository = createMemoryRepository();
+    const service = createJiraOnboardingService(repository);
+    const exception = { onboardingId: 11, domain: "milestones", sourceKey: "PILOT-10", reason: "Issue no encontrado" };
+
+    await service.upsertException(exception);
+    repository.exceptions[0] = {
+      ...repository.exceptions[0],
+      status: "resolved",
+      resolution: "Corregido en Jira",
+      resolvedBy: 7,
+      resolvedByName: "PMO",
+      resolvedAt: new Date("2026-08-28T10:00:00.000Z"),
+    };
+    const reopened = await service.upsertException(exception);
+
+    expect(reopened.created).toBe(false);
+    expect(repository.exceptions[0]).toMatchObject({
+      status: "open",
+      resolution: null,
+      resolvedBy: null,
+      resolvedByName: null,
+      resolvedAt: null,
+    });
+  });
+
   it("no interrumpe la operación si la auditoría falla", async () => {
     const repository = createMemoryRepository();
     const auditSink = vi.fn().mockRejectedValue(new Error("auditoría no disponible"));

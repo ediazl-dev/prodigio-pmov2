@@ -549,6 +549,99 @@ export async function updateExecutiveContractMilestoneJiraObservation(
     .where(eq(executiveContractMilestones.id, milestoneId));
 }
 
+export async function reconcileExecutiveMilestoneJiraObservations(
+  projectId: number,
+  observations: Array<{
+    sourceKey: string;
+    jiraDueDate: string | null;
+    jiraClosedDate: string | null;
+    jiraStatusName: string | null;
+    semanticStatus: "pending" | "fulfilled" | "delayed" | "blocked";
+  }>,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const keys = Array.from(new Set(observations.map(item => item.sourceKey.trim().toUpperCase()).filter(Boolean)));
+  if (!keys.length) return { observedCount: 0, changedCount: 0, unchangedCount: 0, missingIssueKeys: [] as string[] };
+  const existing = await db.select().from(executiveContractMilestones).where(and(
+    eq(executiveContractMilestones.projectId, projectId),
+    inArray(executiveContractMilestones.jiraIssueKey, keys),
+  ));
+  const byKey = new Map(existing.map(item => [item.jiraIssueKey?.trim().toUpperCase(), item] as const));
+  let changedCount = 0;
+  let unchangedCount = 0;
+  const missingIssueKeys: string[] = [];
+  for (const observation of observations) {
+    const sourceKey = observation.sourceKey.trim().toUpperCase();
+    const milestone = byKey.get(sourceKey);
+    if (!milestone) {
+      missingIssueKeys.push(sourceKey);
+      continue;
+    }
+    const changed = milestone.jiraDueDate !== observation.jiraDueDate
+      || milestone.jiraClosedDate !== observation.jiraClosedDate
+      || milestone.jiraStatusName !== observation.jiraStatusName
+      || milestone.semanticStatus !== observation.semanticStatus;
+    if (!changed) {
+      unchangedCount += 1;
+      continue;
+    }
+    await updateExecutiveContractMilestoneJiraObservation(milestone.id, {
+      jiraDueDate: observation.jiraDueDate,
+      jiraClosedDate: observation.jiraClosedDate,
+      jiraStatusName: observation.jiraStatusName,
+      semanticStatus: observation.semanticStatus,
+    });
+    changedCount += 1;
+  }
+  return {
+    observedCount: existing.length,
+    changedCount,
+    unchangedCount,
+    missingIssueKeys: missingIssueKeys.sort(),
+  };
+}
+
+export async function updateReadyJiraOnboardingSnapshot(input: {
+  onboardingId: number;
+  sourceSnapshot: Record<string, unknown>;
+  sourceFingerprint: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(jiraProjectOnboardings).set({
+    sourceSnapshot: input.sourceSnapshot,
+    sourceFingerprint: input.sourceFingerprint,
+    lastError: null,
+  }).where(and(
+    eq(jiraProjectOnboardings.id, input.onboardingId),
+    eq(jiraProjectOnboardings.status, "ready"),
+  ));
+}
+
+export async function resolveOpenJiraImportExceptions(input: {
+  onboardingId: number;
+  domains: Array<"milestones" | "risks" | "planning" | "documents">;
+  actorId?: number | null;
+  actorName?: string | null;
+  resolution: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (!input.domains.length) return;
+  await db.update(jiraImportExceptions).set({
+    status: "resolved",
+    resolution: input.resolution,
+    resolvedBy: input.actorId ?? null,
+    resolvedByName: input.actorName ?? null,
+    resolvedAt: new Date(),
+  }).where(and(
+    eq(jiraImportExceptions.onboardingId, input.onboardingId),
+    eq(jiraImportExceptions.status, "open"),
+    inArray(jiraImportExceptions.domain, input.domains),
+  ));
+}
+
 export async function replaceExecutiveContractMilestones(projectId: number, sourceId: number, milestones: Omit<InsertExecutiveContractMilestone, "projectId" | "sourceId">[]) {
   const db = await getDb();
   if (!db) return;

@@ -27,8 +27,10 @@
 - [x] H6: validar los cuatro dominios con pruebas focales, persistentes aisladas, limpieza SQL y verificación visual.
 - [ ] H7: unificar experiencia, sincronización manual, historial y ejecución continua controlada.
 - [x] H7: auditar sincronizadores Jira, historial y callbacks periódicos existentes; fijar una única ruta Jira → PMO sin polling ni escrituras implícitas.
-- [ ] H7: implementar un motor determinista de conciliación para proyectos homologados `ready`, reutilizando mappings aprobados y preservando baseline, aceptación y campos PMO confirmados.
+- [x] H7: implementar un motor determinista de conciliación para proyectos homologados `ready`, reutilizando mappings aprobados y preservando baseline, aceptación y campos PMO confirmados.
 - [ ] H7: registrar cada ejecución manual o diaria con huella, origen, conteos, excepciones y estado; los reintentos no deben duplicar ni formar loops.
+- [ ] H7: validar explícitamente que el runner registre corridas `scheduled` con fuente, operationId, conteos, excepciones y estado correctos, sin duplicación en reintentos.
+- [ ] H7: completar e integrar el callback diario H7 y ejecutar una prueba controlada que demuestre el registro auditable de una corrida programada.
 - [ ] H7: agregar en la interfaz una acción Admin/PMO “Sincronizar ahora” y un historial legible con última ejecución, resultado por dominio y faltantes explícitos.
 - [ ] H7: implementar un callback diario autenticado, idempotente y acotado que omita proyectos no listos, continúe ante fallos parciales y no utilice temporizadores en proceso.
 - [ ] H7: publicar el callback antes de crear la programación diaria, conservar su identificador durable y comprobar una ejecución controlada sin modificar Jira.
