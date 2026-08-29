@@ -3,7 +3,7 @@
 - [x] Ejecutar una nueva sincronización financiera desde Google Sheets y verificar los registros aplicados.
 - [x] Sincronizar nuevamente los estados, fechas planificadas y fechas reales de cierre de los hitos desde Jira.
 - [x] Validar por proyecto la consistencia de los hitos sincronizados y registrar incidencias sin fabricar datos.
-- [ ] Completar en Jira las fechas planificadas de `PCIAD4-11`, `PCIAD4-12` y `PCIAD4-13`, y volver a sincronizar el proyecto 180003.
+- [x] Registrar como trabajo diferido la definición de fechas planificadas para `PCIAD4-11`, `PCIAD4-12` y `PCIAD4-13`: permanecen como `[PENDIENTE EN JIRA]` hasta contar con evidencia del usuario; no se modifica ni resincroniza el proyecto 180003 por ahora.
 
 - [x] Reemplazar el esqueleto inicial por el código fuente restaurado del respaldo `prodigio-pmo-main.zip`.
 - [x] Restaurar el esquema completo de Drizzle y las 27 migraciones de base de datos para las entidades PMO requeridas.

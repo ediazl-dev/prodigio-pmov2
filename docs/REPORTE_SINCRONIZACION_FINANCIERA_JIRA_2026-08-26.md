@@ -29,6 +29,8 @@ El proyecto **180003 — Consalud Implementación Apigee** tiene tres hitos en e
 
 > Para corregir esta incidencia se deben definir las fechas planificadas directamente en Jira. Una nueva sincronización trasladará esos valores al PMO. No corresponde completar estas fechas manualmente en la base PMO sin evidencia de Jira.
 
+**Decisión del usuario:** el 26 de agosto de 2026 se acordó dejar esta corrección pendiente hasta disponer de las fechas. Los tres issues permanecen sin `duedate` y no se modificó Jira.
+
 ## Validaciones
 
 Todos los 22 hitos tienen estado Jira sincronizado. Banco Tanner y CloudOps tienen fecha planificada para todos sus hitos. Consalud Apigee conserva tres fechas planificadas pendientes en la fuente Jira. La ejecución no reportó errores ni issues faltantes.
