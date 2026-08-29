@@ -1,5 +1,11 @@
 # Prodigio PMO Platform — Restauración desde respaldo
 
+- [x] Comparar el alta nativa y la incorporación desde Jira en las seis etapas, datos, evidencias, permisos y transiciones.
+- [x] Diseñar el modelo objetivo para homologar proyectos Jira sin perder historia ni marcar etapas completadas sin evidencia.
+- [x] Definir reglas de mapeo, sincronización inicial y continua, trazabilidad, reversibilidad e idempotencia.
+- [x] Preparar un backlog por fases con criterios de aceptación, pruebas, riesgos, dependencias y estrategia de despliegue.
+- [x] Entregar el plan de homologación para aprobación antes de implementar cambios funcionales.
+
 - [x] Auditar si la plataforma ya permite incorporar un proyecto Jira existente y crear su estructura PMO vinculada; diagnóstico persistido en `docs/ANALISIS_INCORPORACION_PROYECTO_JIRA_EXISTENTE_2026-08-29.md`.
 - [x] Identificar qué datos Jira se importan o sincronizan actualmente y qué componentes PMO todavía requieren configuración manual; inventario incluido en el diagnóstico.
 - [x] Proponer el flujo objetivo, controles y backlog necesario sin modificar la aplicación hasta recibir aprobación; propuesta documentada sin cambios funcionales.
