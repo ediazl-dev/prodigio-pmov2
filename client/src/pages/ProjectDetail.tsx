@@ -143,6 +143,7 @@ export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
   const projectId = parseInt(params.id);
   const [, setLocation] = useLocation();
+  const trpcUtils = trpc.useUtils();
   const { user } = useAuth();
   const role = (user as any)?.role ?? "consulta";
   const canManage = ["admin", "pmo"].includes(role);
@@ -156,6 +157,8 @@ export default function ProjectDetail() {
   const [selectedStage, setSelectedStage] = useState<string>("");
   const [reason, setReason] = useState("");
   const [extraDays, setExtraDays] = useState(5);
+  const [homologationStage, setHomologationStage] = useState<string | null>(null);
+  const [homologationEvidence, setHomologationEvidence] = useState({ source: "Documento validado", reference: "", date: "", notes: "" });
 
   const { data: historyData, refetch: refetchHistory } = trpc.extensions.history.useQuery(
     { projectId, stageId: selectedStage as any },
@@ -173,6 +176,26 @@ export default function ProjectDetail() {
   const extendMutation = trpc.extensions.extend.useMutation({
     onSuccess: () => { toast.success("Plazo extendido correctamente"); setModalType(null); setReason(""); setExtraDays(5); refetchTime(); },
     onError: (e) => toast.error(e.message),
+  });
+
+  const closeHomologatedStage = trpc.jira.closeHomologatedStage.useMutation({
+    onSuccess: async () => {
+      toast.success("Etapa homologada con evidencia y trazabilidad.");
+      setHomologationStage(null);
+      setHomologationEvidence({ source: "Documento validado", reference: "", date: "", notes: "" });
+      await trpcUtils.projects.get.invalidate({ id: projectId });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const reconcileHistoricalStage = trpc.jira.reconcileHistoricalStage.useMutation({
+    onSuccess: async () => {
+      toast.success("Estado heredado conciliado con evidencia; el pipeline no fue modificado.");
+      setHomologationStage(null);
+      setHomologationEvidence({ source: "Documento validado", reference: "", date: "", notes: "" });
+      await trpcUtils.projects.get.invalidate({ id: projectId });
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const openModal = (type: ModalType, stageId: string) => {
@@ -219,11 +242,18 @@ export default function ProjectDetail() {
 
   const isLinked = (data as any).origin === "linked";
   const stagesMap = Object.fromEntries((data.stages ?? []).map((s: any) => [s.stageId, s]));
+  const closuresMap = Object.fromEntries(((data as any).stageClosures ?? []).map((closure: any) => [closure.stageId, closure]));
   const status = STATUS_CONFIG[data.status] ?? STATUS_CONFIG.activo;
   const activeStage = STAGES.find((s) => stagesMap[s.id]?.status === "in_progress") ?? STAGES[0];
   const completedCount = STAGES.filter((s) => stagesMap[s.id]?.status === "completed").length;
+  const homologatedCount = STAGES.filter((stage) => Boolean(closuresMap[stage.id]?.evidenceReference)).length;
   const overallProgress = Math.round((completedCount / STAGES.length) * 100);
   const selectedStageLabel = STAGES.find((s) => s.id === selectedStage)?.label ?? selectedStage;
+  const isHistoricalReconciliation = Boolean(
+    homologationStage
+      && stagesMap[homologationStage]?.status === "completed"
+      && !closuresMap[homologationStage]?.evidenceReference,
+  );
 
   /* ═══════════════════════════════════════════════════════════════
      LINKED PROJECT VIEW
@@ -277,6 +307,37 @@ export default function ProjectDetail() {
 
         {/* Body */}
         <div style={{ maxWidth: 1100, margin: "-16px auto 0", padding: "0 24px 40px" }}>
+          {/* Homologated canonical pipeline */}
+          <div style={{ background: C.cardBg, borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 16px rgba(10,22,40,.08)", border: `1px solid ${C.border}`, marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 800, color: C.textPrimary }}>Pipeline PMO canónico</p>
+                <p style={{ fontSize: 11, color: C.textSecondary, marginTop: 3 }}>Las etapas avanzan en secuencia y solo se cierran con evidencia validada. Un estado Jira no equivale a cierre PMO.</p>
+              </div>
+              <div style={{ textAlign: "right" }}><span style={{ fontSize: 11, fontWeight: 700, color: C.teal }}>{homologatedCount} de 6 etapas homologadas</span>{completedCount > homologatedCount && <p style={{ fontSize: 9, color: "#b45309", marginTop: 2 }}>{completedCount - homologatedCount} estados heredados con evidencia [PENDIENTE]</p>}</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(112px, 1fr))", gap: 8, overflowX: "auto", marginTop: 14, paddingBottom: 4 }}>
+              {STAGES.map((stage, index) => {
+                const stageStatus = stagesMap[stage.id]?.status ?? "locked";
+                const isCompleted = stageStatus === "completed";
+                const isActiveStage = stageStatus === "in_progress";
+                const hasEvidence = Boolean(closuresMap[stage.id]?.evidenceReference);
+                const isLegacyGap = isCompleted && !hasEvidence;
+                return <button key={stage.id} disabled={stageStatus === "locked"} onClick={() => { if (stageStatus === "locked") return; if (isLegacyGap && canManage) setHomologationStage(stage.id); else setLocation(`/projects/${projectId}/${stage.path}`); }} style={{ minWidth: 112, textAlign: "left", borderRadius: 10, border: `1px solid ${hasEvidence ? "#a7f3d0" : isLegacyGap ? "#fed7aa" : isActiveStage ? `${stage.color}70` : C.border}`, background: hasEvidence ? "#ecfdf5" : isLegacyGap ? "#fff7ed" : isActiveStage ? `${stage.color}0d` : "#f8fafc", padding: "10px 9px", cursor: stageStatus === "locked" ? "not-allowed" : "pointer", opacity: stageStatus === "locked" ? .62 : 1 }}>
+                  <p style={{ fontSize: 9, fontWeight: 800, color: hasEvidence ? C.green : isLegacyGap ? "#b45309" : isActiveStage ? stage.color : C.textMuted }}>ETAPA {index + 1}</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: C.textPrimary, marginTop: 3 }}>{stage.label}</p>
+                  <p style={{ fontSize: 9, color: hasEvidence ? C.green : isLegacyGap ? "#b45309" : isActiveStage ? stage.color : C.textMuted, marginTop: 5 }}>{hasEvidence ? "Cerrada con evidencia" : isLegacyGap ? canManage ? "Estado heredado · seleccionar para conciliar" : "Estado heredado · evidencia [PENDIENTE]" : isActiveStage ? "En progreso · evidencia [PENDIENTE]" : "Bloqueada"}</p>
+                </button>;
+              })}
+            </div>
+            {canManage && activeStage && stagesMap[activeStage.id]?.status === "in_progress" && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", marginTop: 12, flexWrap: "wrap" }}>
+                <p style={{ fontSize: 11, color: "#9a3412" }}><strong>{activeStage.label}:</strong> para homologarla debes identificar una evidencia real, su referencia y fecha.</p>
+                <Button size="sm" onClick={() => setHomologationStage(activeStage.id)} style={{ background: C.accent, color: "#fff", border: "none" }}>Registrar evidencia y cerrar</Button>
+              </div>
+            )}
+          </div>
+
           {/* Dashboard Ejecutivo CTA */}
           <div style={{
             background: C.cardBg, borderRadius: 14, padding: "18px 24px", display: "flex", alignItems: "center", gap: 14,
@@ -310,6 +371,20 @@ export default function ProjectDetail() {
 
           {/* Unlink */}
           {canManage && <div style={{ marginTop: 20 }}><UnlinkSection projectId={projectId} projectName={data.projectName} /></div>}
+
+          <Dialog open={Boolean(homologationStage)} onOpenChange={(open) => { if (!open) setHomologationStage(null); }}>
+            <DialogContent className="max-w-lg bg-white">
+              <DialogHeader><DialogTitle>{isHistoricalReconciliation ? "Conciliar evidencia histórica" : "Homologar"} {STAGES.find(stage => stage.id === homologationStage)?.label ?? "etapa"}</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{isHistoricalReconciliation ? "Esta acción registra evidencia para un estado completado heredado. No cambia el estado ni desbloquea etapas." : "Esta acción cierra formalmente la etapa y desbloquea la siguiente."} Jira por sí solo no constituye evidencia ni aceptación del cliente.</div>
+                <div><Label>Fuente de evidencia</Label><Input className="mt-1" value={homologationEvidence.source} onChange={event => setHomologationEvidence(current => ({ ...current, source: event.target.value }))} placeholder="Ej.: SoW firmado, acta, configuración validada" /></div>
+                <div><Label>Referencia verificable</Label><Input className="mt-1" value={homologationEvidence.reference} onChange={event => setHomologationEvidence(current => ({ ...current, reference: event.target.value }))} placeholder="Nombre de archivo, URL o identificador documental" /></div>
+                <div><Label>Fecha de evidencia</Label><Input className="mt-1" type="date" value={homologationEvidence.date} onChange={event => setHomologationEvidence(current => ({ ...current, date: event.target.value }))} /></div>
+                <div><Label>Notas de reconciliación</Label><Textarea className="mt-1" value={homologationEvidence.notes} onChange={event => setHomologationEvidence(current => ({ ...current, notes: event.target.value }))} placeholder="Brechas, alcance de la evidencia o elementos pendientes." /></div>
+                <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setHomologationStage(null)} disabled={closeHomologatedStage.isPending || reconcileHistoricalStage.isPending}>Cancelar</Button><Button disabled={closeHomologatedStage.isPending || reconcileHistoricalStage.isPending || !homologationStage || !data.jiraProjectKey || !homologationEvidence.source.trim() || !homologationEvidence.reference.trim() || !homologationEvidence.date} onClick={() => { const payload = { jiraProjectKey: data.jiraProjectKey!, stageId: homologationStage as any, actorConfirmed: true as const, confirmationText: isHistoricalReconciliation ? "Confirmo la conciliación del estado histórico con evidencia real identificada y revisada." : "Confirmo el cierre homologado con la evidencia identificada y revisada.", evidenceSource: homologationEvidence.source, evidenceReference: homologationEvidence.reference, evidenceDate: homologationEvidence.date, notes: homologationEvidence.notes || undefined }; if (isHistoricalReconciliation) reconcileHistoricalStage.mutate({ ...payload, projectId }); else closeHomologatedStage.mutate(payload); }} style={{ background: C.accent, color: "#fff" }}>{closeHomologatedStage.isPending || reconcileHistoricalStage.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando...</> : isHistoricalReconciliation ? "Confirmar conciliación" : "Confirmar cierre homologado"}</Button></div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Footer */}

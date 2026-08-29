@@ -11,6 +11,7 @@ import {
   CANONICAL_HOMOLOGATION_CONTRACT,
   CANONICAL_PROJECT_ROLES,
   CANONICAL_PROJECT_STAGE_IDS,
+  buildCanonicalLinkedProjectStagePlan,
   buildLegacyLinkedProjectStagePlan,
   validateHomologationActivationContract,
 } from "./jiraHomologation";
@@ -60,6 +61,27 @@ describe("caracterización del alta vinculada heredada", () => {
       ["closure", "locked", 0],
     ]);
     expect(plan.stages.slice(0, 4).every(stage => stage.completedAt === timestamp)).toBe(true);
+  });
+});
+
+describe("reconstrucción canónica H4", () => {
+  it("inicia en SoW y no completa ninguna etapa sin evidencia", () => {
+    const plan = buildCanonicalLinkedProjectStagePlan();
+
+    expect(plan.currentStage).toBe("sow");
+    expect(plan.stages.map(stage => [stage.stageId, stage.status, stage.progress])).toEqual([
+      ["sow", "in_progress", 0],
+      ["jira", "locked", 0],
+      ["risks", "locked", 0],
+      ["planning", "locked", 0],
+      ["design", "locked", 0],
+      ["closure", "locked", 0],
+    ]);
+    expect(plan.stages.every(stage => stage.data.homologation.message === "[PENDIENTE DE EVIDENCIA]")).toBe(true);
+  });
+
+  it("conserva exactamente las seis etapas canónicas sin una etapa adicional de onboarding", () => {
+    expect(buildCanonicalLinkedProjectStagePlan().stages.map(stage => stage.stageId)).toEqual(CANONICAL_PROJECT_STAGE_IDS);
   });
 });
 

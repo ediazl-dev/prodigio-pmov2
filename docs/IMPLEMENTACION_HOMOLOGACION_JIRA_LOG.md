@@ -85,3 +85,24 @@ La identidad se confirma exclusivamente con datos reales: nombre, cliente y tipo
 | Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |
 
 La respuesta de preflight expone explícitamente `onboarding.status` y está cubierta por la prueba del runner consumida por la interfaz. La máquina pura del wizard agrega cuatro pruebas para bloqueo, reanudación, corrección manual de mapeos y exclusiones sin sincronización. No se completó un onboarding real solo para probar la interfaz, evitando crear un proyecto, asignar personas o asociar un Deal sin decisión de piloto.
+
+## H4 — Reconstrucción auditable de las seis etapas
+
+La materialización vinculada dejó de crear cuatro etapas artificialmente completadas. Todo nuevo proyecto proveniente del onboarding H2–H3 se crea con exactamente seis etapas: `sow` en progreso y las cinco restantes bloqueadas. El proyecto conserva `origin='linked'`, pero comparte el mismo pipeline canónico y las mismas transiciones secuenciales del alta nativa.
+
+Se extendió el cierre formal existente con modo de cierre, onboarding, fuente, referencia, fecha de evidencia y metadatos de reconciliación. Una etapa solo puede homologarse si está en progreso, las anteriores están completadas, existe evidencia identificable y un usuario Admin/PMO confirma explícitamente la acción. Cerrar Jira no equivale a cerrar PMO ni a aceptación del cliente.
+
+Los proyectos vinculados históricos no fueron reescritos. Su detalle identifica los estados completados heredados como `evidencia [PENDIENTE]` y permite que Admin/PMO seleccione cada brecha para conciliarla con evidencia real. La conciliación crea o completa el cierre formal, preserva el estado existente y no desbloquea etapas. La ejecución productiva por lotes continúa reservada para el piloto H8.
+
+| Validación | Resultado |
+|---|---|
+| Pruebas focales acumuladas | 71 de 71 aprobadas; 2 persistentes opt-in aprobadas |
+| Etapas por proyecto nuevo | Exactamente 6 |
+| Autocierres al materializar | 0 |
+| Cierre homologado | Secuencial, idempotente y con evidencia obligatoria |
+| Reconciliación histórica | Evidencia obligatoria, estado preservado y cero desbloqueos |
+| Prueba persistente | Materialización, 6 cierres, 5 desbloqueos, cierre final y limpieza completa |
+| Proyectos productivos históricos | Sin cambios de estado ni cierres nuevos durante la validación |
+| Limpieza de pruebas | 0 proyectos, 0 onboardings y 0 Spaces transitorios restantes |
+| Verificación visual | Tanner muestra 4 brechas heredadas seleccionables y 0 etapas falsamente homologadas |
+| Regresión TypeScript | Ningún error nuevo; continúan los cinco errores heredados registrados en H0 |

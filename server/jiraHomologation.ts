@@ -94,3 +94,44 @@ export function buildLegacyLinkedProjectStagePlan(completedAt = new Date()): Leg
     ],
   };
 }
+
+export type CanonicalLinkedProjectStagePlan = {
+  projectStatus: "activo";
+  currentStage: "sow";
+  stages: Array<{
+    stageId: CanonicalProjectStageId;
+    status: "locked" | "in_progress";
+    progress: 0;
+    data: {
+      homologation: {
+        status: "pending_evidence";
+        source: "jira_onboarding";
+        message: "[PENDIENTE DE EVIDENCIA]";
+      };
+    };
+  }>;
+};
+
+/**
+ * Plan canónico para proyectos Jira homologados.
+ * Ninguna etapa histórica se cierra por inferencia: SoW queda abierta y las
+ * etapas siguientes bloqueadas hasta que exista un cierre formal con evidencia.
+ */
+export function buildCanonicalLinkedProjectStagePlan(): CanonicalLinkedProjectStagePlan {
+  return {
+    projectStatus: "activo",
+    currentStage: "sow",
+    stages: CANONICAL_PROJECT_STAGE_IDS.map((stageId, index) => ({
+      stageId,
+      status: index === 0 ? "in_progress" : "locked",
+      progress: 0,
+      data: {
+        homologation: {
+          status: "pending_evidence",
+          source: "jira_onboarding",
+          message: "[PENDIENTE DE EVIDENCIA]",
+        },
+      },
+    })),
+  };
+}

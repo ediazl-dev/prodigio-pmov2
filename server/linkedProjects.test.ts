@@ -156,7 +156,7 @@ describe("linkExistingProject logic", () => {
     vi.mocked(createJiraSpaceRecord).mockResolvedValue(50);
   });
 
-  it("should create a linked project with origin=linked and currentStage=design", async () => {
+  it("should create a linked project with origin=linked using the confirmed identity", async () => {
     const projectId = await createLinkedProject({
       projectName: "External Project",
       clientName: "Client Corp",
@@ -233,32 +233,32 @@ describe("linkExistingProject logic", () => {
 // ==================== LINKED PROJECT BEHAVIOR ====================
 describe("linked project behavior", () => {
   it("should identify a project as linked by its origin field", () => {
-    const project = { id: 100, origin: "linked", currentStage: "design" };
+    const project = { id: 100, origin: "linked", currentStage: "sow" };
     expect(project.origin).toBe("linked");
   });
 
-  it("should have currentStage=design for linked projects", () => {
-    const project = { id: 100, origin: "linked", currentStage: "design" };
-    expect(project.currentStage).toBe("design");
+  it("should start linked projects at the first canonical stage", () => {
+    const project = { id: 100, origin: "linked", currentStage: "sow" };
+    expect(project.currentStage).toBe("sow");
   });
 
   it("should distinguish platform vs linked projects", () => {
     const platformProject = { id: 1, origin: "platform", currentStage: "sow" };
-    const linkedProject = { id: 2, origin: "linked", currentStage: "design" };
+    const linkedProject = { id: 2, origin: "linked", currentStage: "sow" };
 
     expect(platformProject.origin).not.toBe(linkedProject.origin);
-    expect(linkedProject.currentStage).toBe("design");
+    expect(linkedProject.currentStage).toBe("sow");
     expect(platformProject.currentStage).toBe("sow");
   });
 
-  it("linked projects should skip SoW, JIRA creation, Risks, and Planning stages", () => {
-    const stagesBeforeDesign = ["sow", "jira", "risks", "planning"];
-    const linkedProjectStages = stagesBeforeDesign.map(s => ({ stageId: s, status: "completed" }));
+  it("linked projects should not skip or auto-complete historical stages", () => {
+    const linkedProjectStages = ["sow", "jira", "risks", "planning", "design", "closure"].map((stageId, index) => ({
+      stageId,
+      status: index === 0 ? "in_progress" : "locked",
+    }));
 
-    // All stages before design should be completed
-    for (const stage of linkedProjectStages) {
-      expect(stage.status).toBe("completed");
-    }
+    expect(linkedProjectStages).toHaveLength(6);
+    expect(linkedProjectStages.some(stage => stage.status === "completed")).toBe(false);
   });
 });
 

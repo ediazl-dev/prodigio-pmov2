@@ -45,7 +45,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateExecutiveMilestoneBaseline, createExecutiveBaselineWithMilestones } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, insertLinkedProjectDocument, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateExecutiveMilestoneBaseline, createExecutiveBaselineWithMilestones } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { getActiveFinancialData } from "./db";
 import { getDb } from "./db";
@@ -69,6 +69,7 @@ import { resolveExternalEvidence } from "./executiveExternalEvidence";
 import { runProductionJiraPreflight } from "./jiraPreflightRunner";
 import { createProductionJiraOnboardingService } from "./jiraOnboardingRepository";
 import { buildJiraMappingCandidates, validateJiraOnboardingIdentity } from "./jiraOnboardingMapping";
+import { assessJiraOnboardingMaterialization } from "./jiraOnboardingMaterialization";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -327,7 +328,8 @@ const projectsRouter = router({
     if (!project) throw new TRPCError({ code: "NOT_FOUND" });
     const stages = await getProjectStages(input.id);
     const sow = await getSowByProject(input.id);
-    return { ...project, stages, sow };
+    const stageClosures = await getAllStageClosures(input.id);
+    return { ...project, stages, sow, stageClosures };
   }),
   create: adminOrPmo.input(z.object({
     projectName: z.string().min(1),
@@ -5492,63 +5494,175 @@ const jiraRouter = router({
     return { onboarding, mappingVersion: state.onboarding.mappingVersion, approvedCount: candidates.length };
   }),
 
-  /** Link an existing JIRA project to the PMO platform */
+  /** Materialize an approved onboarding in the canonical six-stage PMO model. */
   linkExistingProject: adminOrPmo.input(z.object({
-    jiraProjectKey: z.string().min(1),
-    jiraProjectName: z.string().min(1),
-    clientName: z.string().min(1, "Nombre del cliente es requerido"),
-    projectType: z.enum(["apigee", "desarrollo", "integracion", "data", "otro"]).optional(),
+    jiraProjectKey: z.string().trim().min(1),
   })).mutation(async ({ input, ctx }) => {
-    // Verify the project exists in JIRA
-    const jiraProject = await getJiraProject(input.jiraProjectKey);
-    const jiraUrl = `${process.env.JIRA_BASE_URL}/jira/software/projects/${input.jiraProjectKey}/boards`;
-
-    // Check not already managed
-    const managedKeys = await getManagedJiraProjectKeys();
-    if (managedKeys.map(k => k.toUpperCase()).includes(input.jiraProjectKey.toUpperCase())) {
-      throw new TRPCError({ code: "CONFLICT", message: `El proyecto ${input.jiraProjectKey} ya está vinculado a la plataforma PMO` });
+    const key = input.jiraProjectKey.toUpperCase();
+    const service = createProductionJiraOnboardingService();
+    const state = await service.getState(key);
+    if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "Onboarding Jira no encontrado" });
+    const sourceSnapshot = (state.onboarding.sourceSnapshot ?? {}) as any;
+    const identity = (state.onboarding.identitySnapshot ?? {}) as any;
+    const candidates = buildJiraMappingCandidates(sourceSnapshot);
+    const assessment = assessJiraOnboardingMaterialization({
+      status: state.onboarding.status,
+      projectId: state.onboarding.projectId,
+      identitySnapshot: identity,
+      sourceIssueKeys: candidates.map(candidate => candidate.sourceKey),
+      mappings: state.mappings,
+    });
+    if (!assessment.ready) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: assessment.errors.join(" ") });
     }
 
-    // Create the PMO project with origin=linked
-    const projectId = await createLinkedProject({
-      projectName: input.jiraProjectName,
-      clientName: input.clientName,
-      jiraProjectKey: input.jiraProjectKey,
-      jiraProjectUrl: jiraUrl,
-      pmoId: ctx.user.id,
-      projectType: input.projectType,
-    });
+    const existingProject = state.onboarding.projectId
+      ? await getProjectById(state.onboarding.projectId)
+      : await getProjectByJiraProjectKey(key);
+    let projectId = existingProject?.id ?? null;
+    if (existingProject && existingProject.jiraProjectKey?.toUpperCase() !== key) {
+      throw new TRPCError({ code: "CONFLICT", message: "El onboarding apunta a un proyecto PMO incompatible" });
+    }
+    const jiraUrl = `${process.env.JIRA_BASE_URL}/jira/software/projects/${key}/boards`;
+    if (!projectId) {
+      projectId = await createLinkedProject({
+        projectName: identity.projectName,
+        clientName: identity.clientName,
+        jiraProjectKey: key,
+        jiraProjectUrl: jiraUrl,
+        pmoId: identity.deliveryUserId,
+        pmId: identity.pmUserId,
+        projectType: identity.projectType,
+      });
+    }
 
-    // Also create a jira_spaces record for the linked project
-    const spaceId = await createJiraSpaceRecord({
+    const existingSpace = await getJiraSpaceByProject(projectId);
+    const spaceId = existingSpace?.id ?? await createJiraSpaceRecord({
       projectId,
-      spaceName: input.jiraProjectName,
-      jiraProjectKey: input.jiraProjectKey,
-      jiraProjectId: jiraProject.id,
-      jiraProjectName: jiraProject.name,
+      spaceName: identity.projectName,
+      jiraProjectKey: key,
+      jiraProjectId: String(sourceSnapshot.project?.id ?? state.onboarding.jiraProjectId ?? ""),
+      jiraProjectName: String(sourceSnapshot.project?.name ?? state.onboarding.jiraProjectName),
       jiraProjectUrl: jiraUrl,
       status: "linked",
       templateKey: null,
-      boards: [] as any,
-      issueTypes: (jiraProject.issueTypes?.map((it: any) => ({ id: it.id, name: it.name, subtask: it.subtask })) ?? []) as any,
-      workflows: [] as any,
+      boards: (sourceSnapshot.boards ?? []) as any,
+      issueTypes: (sourceSnapshot.project?.issueTypes ?? []) as any,
+      workflows: (sourceSnapshot.statuses ?? []) as any,
       createdBy: ctx.user.id,
       createdByName: ctx.user.name ?? "Unknown",
     });
 
-    await audit(ctx, "link_jira_project", "project", projectId, input.jiraProjectName, {
-      jiraProjectKey: input.jiraProjectKey,
+    await bindJiraOnboardingToProject({ onboardingId: state.onboarding.id, projectId, jiraSpaceId: spaceId });
+    await audit(ctx, "materialize_jira_project", "project", projectId, identity.projectName, {
+      jiraProjectKey: key,
       origin: "linked",
       spaceId,
+      onboardingId: state.onboarding.id,
+      reusedProject: Boolean(existingProject),
+      approvedMappings: assessment.approvedCount,
+      excludedMappings: assessment.excludedCount,
     });
-
     return {
       projectId,
       spaceId,
-      jiraProjectKey: input.jiraProjectKey,
+      jiraProjectKey: key,
       jiraProjectUrl: jiraUrl,
-      message: `Proyecto "${input.jiraProjectName}" vinculado exitosamente. Se mostrará directamente en la vista de Avance.`,
+      currentStage: existingProject?.currentStage ?? "sow",
+      reused: Boolean(existingProject),
+      message: `Proyecto "${identity.projectName}" materializado con seis etapas. SoW permanece abierto hasta registrar evidencia.`,
     };
+  }),
+
+  closeHomologatedStage: adminOrPmo.input(z.object({
+    jiraProjectKey: z.string().trim().min(1),
+    stageId: z.enum(["sow", "jira", "risks", "planning", "design", "closure"]),
+    actorConfirmed: z.literal(true),
+    confirmationText: z.string().trim().min(20),
+    evidenceSource: z.string().trim().min(1),
+    evidenceReference: z.string().trim().min(1),
+    evidenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    notes: z.string().trim().max(2000).optional(),
+  })).mutation(async ({ input, ctx }) => {
+    const service = createProductionJiraOnboardingService();
+    const state = await service.getState(input.jiraProjectKey);
+    if (!state?.onboarding.projectId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Materializa primero el proyecto PMO" });
+    try {
+      const result = await createHomologatedStageClosure({
+        projectId: state.onboarding.projectId,
+        onboardingId: state.onboarding.id,
+        stageId: input.stageId,
+        closedBy: ctx.user.id,
+        closedByName: ctx.user.name ?? "Unknown",
+        actorConfirmed: input.actorConfirmed,
+        confirmationText: input.confirmationText,
+        evidenceSource: input.evidenceSource,
+        evidenceReference: input.evidenceReference,
+        evidenceDate: input.evidenceDate,
+        notes: input.notes,
+      });
+      await audit(ctx, "close_homologated_stage", "project_stage", `${state.onboarding.projectId}:${input.stageId}`, input.stageId, {
+        projectId: state.onboarding.projectId,
+        onboardingId: state.onboarding.id,
+        closureId: result.closure?.id ?? null,
+        created: result.created,
+        evidenceSource: input.evidenceSource,
+        evidenceReference: input.evidenceReference,
+      });
+      return { ...result, stages: await getProjectStages(state.onboarding.projectId) };
+    } catch (error) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "No fue posible homologar la etapa" });
+    }
+  }),
+
+  /** Reconcile a legacy completed stage with real evidence without changing or unlocking pipeline state. */
+  reconcileHistoricalStage: adminOrPmo.input(z.object({
+    projectId: z.number().int().positive(),
+    jiraProjectKey: z.string().trim().min(1),
+    stageId: z.enum(["sow", "jira", "risks", "planning", "design", "closure"]),
+    actorConfirmed: z.literal(true),
+    confirmationText: z.string().trim().min(20),
+    evidenceSource: z.string().trim().min(1),
+    evidenceReference: z.string().trim().min(1),
+    evidenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    notes: z.string().trim().max(2000).optional(),
+  })).mutation(async ({ input, ctx }) => {
+    const project = await getProjectById(input.projectId);
+    const key = input.jiraProjectKey.toUpperCase();
+    if (!project || project.origin !== "linked" || project.jiraProjectKey?.toUpperCase() !== key) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no corresponde al vínculo Jira indicado" });
+    }
+    const onboardingState = await createProductionJiraOnboardingService().getState(key);
+    const onboardingId = onboardingState?.onboarding.projectId === input.projectId
+      ? onboardingState.onboarding.id
+      : null;
+    try {
+      const result = await reconcileHistoricalStageClosure({
+        projectId: input.projectId,
+        onboardingId,
+        stageId: input.stageId,
+        closedBy: ctx.user.id,
+        closedByName: ctx.user.name ?? "Unknown",
+        actorConfirmed: input.actorConfirmed,
+        confirmationText: input.confirmationText,
+        evidenceSource: input.evidenceSource,
+        evidenceReference: input.evidenceReference,
+        evidenceDate: input.evidenceDate,
+        notes: input.notes,
+      });
+      await audit(ctx, "reconcile_historical_stage", "project_stage", `${input.projectId}:${input.stageId}`, input.stageId, {
+        projectId: input.projectId,
+        onboardingId,
+        closureId: result.closure?.id ?? null,
+        created: result.created,
+        stageStatusPreserved: result.stageStatusPreserved,
+        evidenceSource: input.evidenceSource,
+        evidenceReference: input.evidenceReference,
+      });
+      return { ...result, stages: await getProjectStages(input.projectId) };
+    } catch (error) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "No fue posible conciliar la etapa histórica" });
+    }
   }),
 
   /** Unlink a manually linked JIRA project (removes PMO project and associated records) */

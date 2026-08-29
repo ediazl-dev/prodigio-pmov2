@@ -275,12 +275,14 @@ function SpaceCard({ space, onRetried }: { space: any; onRetried: () => void }) 
 // ==================== LINK PROJECT DIALOG ====================
 function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; onOpenChange: (v: boolean) => void; onLinked: () => void }) {
   const utils = trpc.useUtils();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [preflightResult, setPreflightResult] = useState<any>(null);
   const [step, setStep] = useState<JiraWizardStep>("search");
   const [identity, setIdentity] = useState({ projectName: "", clientName: "", projectType: "otro", pmUserId: "", deliveryUserId: "", dealId: "" });
   const [mappingDecisions, setMappingDecisions] = useState<Record<string, string>>({});
+  const [materializationResult, setMaterializationResult] = useState<any>(null);
 
   const { data: availableProjects, isLoading: isSearching } = trpc.jira.searchAvailableProjects.useQuery({ query: searchQuery }, { enabled: open });
   const { data: users } = trpc.users.list.useQuery(undefined, { enabled: open && (step === "identity" || step === "mapping") });
@@ -321,8 +323,21 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
     onSuccess: async () => {
       await utils.jira.getExistingProjectOnboarding.invalidate({ jiraProjectKey: selectedProject.key });
       setStep("ready");
-      onLinked();
       toast.success("Mapeo versionado aprobado. El proyecto está listo para conciliación H4.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const materializationMutation = trpc.jira.linkExistingProject.useMutation({
+    onSuccess: async (data) => {
+      setMaterializationResult(data);
+      await Promise.all([
+        utils.jira.getExistingProjectOnboarding.invalidate({ jiraProjectKey: selectedProject.key }),
+        utils.jira.searchAvailableProjects.invalidate(),
+        utils.jira.listAllSpaces.invalidate(),
+      ]);
+      onLinked();
+      toast.success(data.reused ? "Materialización recuperada sin duplicar el proyecto." : "Proyecto materializado con seis etapas canónicas.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -331,6 +346,7 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
     setSearchQuery(""); setSelectedProject(null); setPreflightResult(null); setStep("search");
     setIdentity({ projectName: "", clientName: "", projectType: "otro", pmUserId: "", deliveryUserId: "", dealId: "" });
     setMappingDecisions({});
+    setMaterializationResult(null);
   };
 
   const handleSelect = (project: any) => {
@@ -382,7 +398,7 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col bg-slate-50">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Link2 className="w-5 h-5 text-violet-600" />Homologar proyecto JIRA existente</DialogTitle>
-          <DialogDescription>Asistente auditable de 7 pasos. H3 completa selección, diagnóstico, identidad y mapeo; todavía no crea el proyecto PMO.</DialogDescription>
+          <DialogDescription>Asistente auditable de 7 pasos. Diagnostica, confirma identidad, mapea cada issue y materializa el pipeline PMO sin autocierres.</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-4 gap-2">
@@ -410,7 +426,7 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
           )}
 
           {step !== "search" && (
-            <div className="rounded-xl border border-violet-200 bg-white p-3 mb-4 flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-violet-700">{selectedProject?.key?.charAt(0)}</div><div className="flex-1"><code className="text-xs font-bold text-violet-600">{selectedProject?.key}</code><p className="text-sm font-semibold text-slate-900">{selectedProject?.name}</p></div><Badge variant="outline">Sin materializar</Badge></div>
+            <div className="rounded-xl border border-violet-200 bg-white p-3 mb-4 flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-violet-700">{selectedProject?.key?.charAt(0)}</div><div className="flex-1"><code className="text-xs font-bold text-violet-600">{selectedProject?.key}</code><p className="text-sm font-semibold text-slate-900">{selectedProject?.name}</p></div><Badge variant="outline">{materializationResult ? "Materializado" : "Sin materializar"}</Badge></div>
           )}
 
           {step === "preflight" && (
@@ -428,7 +444,8 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
             <div className="space-y-3"><div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900"><strong>Regla:</strong> cada issue debe quedar homologado o excluido explícitamente. JIRA → PMO será observacional; PMO → JIRA solo mediante una acción futura y explícita.</div><div className="rounded-lg border bg-white overflow-hidden"><div className="grid grid-cols-[120px_130px_1fr_190px] gap-3 px-3 py-2 bg-slate-100 text-[11px] font-semibold text-slate-600"><span>Issue</span><span>Tipo JIRA</span><span>Resumen</span><span>Destino PMO</span></div><div className="max-h-[360px] overflow-y-auto divide-y">{onboardingQuery.isLoading ? <div className="flex justify-center p-8"><Loader2 className="w-5 h-5 animate-spin" /></div> : candidates.map((candidate: any) => <div key={candidate.sourceKey} className="grid grid-cols-[120px_130px_1fr_190px] gap-3 px-3 py-2 items-center text-xs"><code className="font-bold text-violet-700">{candidate.sourceKey}</code><span className="text-slate-600">{candidate.jiraIssueType}</span><div className="min-w-0"><p className="truncate font-medium text-slate-800">{candidate.summary}</p><p className="text-[10px] text-slate-500">{candidate.assigneeName ?? "Responsable [POR CONFIRMAR]"} · {candidate.dueDate ?? "Fecha [PENDIENTE]"}</p></div><Select value={decisionFor(candidate)} onValueChange={value => setMappingDecisions(current => ({ ...current, [candidate.sourceKey]: value }))}><SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="milestone">Hito contractual</SelectItem><SelectItem value="risk">Riesgo</SelectItem><SelectItem value="epic">Épica</SelectItem><SelectItem value="task">Tarea / historia</SelectItem><SelectItem value="document">Documento</SelectItem><SelectItem value="stage_evidence">Evidencia de etapa</SelectItem><SelectItem value="ignored">Excluir justificadamente</SelectItem></SelectContent></Select></div>)}</div></div><p className="text-xs text-slate-500">Versión de mapeo: v{onboardingQuery.data?.onboarding.mappingVersion ?? 1} · {candidates.length} decisiones requeridas.</p></div>
           )}
 
-          {step === "ready" && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center"><CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" /><h3 className="font-semibold text-emerald-900 mt-3">Identidad y mapeo H3 aprobados</h3><p className="text-sm text-emerald-800 mt-2">El onboarding quedó reanudable y listo para conciliación. No se autocerró ninguna etapa y el proyecto PMO aún no fue materializado.</p></div>}
+          {step === "ready" && !materializationResult && <div className="space-y-4"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="w-9 h-9 text-emerald-600" /><h3 className="font-semibold text-emerald-900 mt-3">Identidad y mapeo aprobados</h3><p className="text-sm text-emerald-800 mt-2">La activación creará un proyecto PMO canónico. No cerrará ninguna etapa ni convertirá un estado Jira en evidencia.</p></div><div className="rounded-xl border bg-white p-4"><p className="text-sm font-semibold text-slate-900">Pipeline que será materializado</p><div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">{["1. SoW", "2. Jira", "3. Riesgos", "4. Planificación", "5. Avance", "6. Cierre"].map((label, index) => <div key={label} className={`rounded-lg border px-3 py-2 text-xs ${index === 0 ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}><p className="font-semibold">{label}</p><p className="mt-1">{index === 0 ? "En progreso · evidencia [PENDIENTE]" : "Bloqueada hasta cierre formal anterior"}</p></div>)}</div></div></div>}
+          {step === "ready" && materializationResult && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center"><CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" /><h3 className="font-semibold text-emerald-900 mt-3">Proyecto PMO materializado</h3><p className="text-sm text-emerald-800 mt-2">Se crearon exactamente seis etapas. SoW permanece en progreso y las demás están bloqueadas. Cada avance exigirá evidencia y confirmación humana.</p><p className="text-xs text-emerald-700 mt-3">Proyecto #{materializationResult.projectId} · Jira {materializationResult.jiraProjectKey} · {materializationResult.reused ? "reintento idempotente" : "nueva materialización"}</p></div>}
         </div>
 
         <DialogFooter className="gap-2">
@@ -437,7 +454,9 @@ function LinkProjectDialog({ open, onOpenChange, onLinked }: { open: boolean; on
           {step === "preflight" && preflightResult?.readyForMapping && <Button onClick={goToIdentity} className="bg-violet-600 hover:bg-violet-700">Continuar a identidad</Button>}
           {step === "identity" && <Button onClick={submitIdentity} disabled={identityMutation.isPending || !identity.projectName.trim() || !identity.clientName.trim() || !identity.pmUserId || !identity.deliveryUserId || !identity.dealId} className="bg-violet-600 hover:bg-violet-700">{identityMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando...</> : "Guardar identidad y continuar"}</Button>}
           {step === "mapping" && <Button onClick={submitMappings} disabled={mappingMutation.isPending || onboardingQuery.isLoading} className="bg-violet-600 hover:bg-violet-700">{mappingMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Aprobando...</> : `Aprobar ${candidates.length} decisiones`}</Button>}
-          {step === "ready" && <Button onClick={() => { onOpenChange(false); resetState(); }} className="bg-violet-600 hover:bg-violet-700">Cerrar</Button>}
+          {step === "ready" && !materializationResult && <Button onClick={() => materializationMutation.mutate({ jiraProjectKey: selectedProject.key })} disabled={materializationMutation.isPending} className="bg-violet-600 hover:bg-violet-700">{materializationMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Materializando...</> : "Materializar seis etapas"}</Button>}
+          {step === "ready" && materializationResult && <Button onClick={() => setLocation(`/projects/${materializationResult.projectId}/sow`)} className="bg-violet-600 hover:bg-violet-700">Abrir SoW y registrar evidencia</Button>}
+          {step === "ready" && materializationResult && <Button variant="outline" onClick={() => { onOpenChange(false); resetState(); }}>Cerrar</Button>}
           {step !== "search" && step !== "ready" && <Button variant="ghost" onClick={() => onOpenChange(false)}>Salir y continuar después</Button>}
         </DialogFooter>
       </DialogContent>

@@ -20,7 +20,12 @@ import {
   InsertExecutiveGovernanceAssignment, InsertExecutiveFinancialSnapshot, InsertExecutiveDashboardSnapshot, InsertExecutiveVerdictReview,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { buildLegacyLinkedProjectStagePlan } from "./jiraHomologation";
+import { buildCanonicalLinkedProjectStagePlan } from "./jiraHomologation";
+import {
+  assessHistoricalStageReconciliation,
+  assessHomologatedStageClosure,
+  buildHistoricalReconciliationMetadata,
+} from "./jiraOnboardingMaterialization";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1482,8 +1487,8 @@ export async function updateJiraSpaceStatus(
 
 /**
  * Create a project linked from an existing JIRA project.
- * These projects skip the pipeline and go directly to "design" (Avance Proyecto).
- * All stages before design are marked as completed, design is in_progress.
+ * Los proyectos vinculados conservan el pipeline canónico completo.
+ * Ninguna etapa se cierra sin evidencia y confirmación humana.
  */
 export async function createLinkedProject(data: {
   projectName: string;
@@ -1491,34 +1496,206 @@ export async function createLinkedProject(data: {
   jiraProjectKey: string;
   jiraProjectUrl: string;
   pmoId: number;
+  pmId?: number | null;
   projectType?: string;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const legacyStagePlan = buildLegacyLinkedProjectStagePlan();
+  const stagePlan = buildCanonicalLinkedProjectStagePlan();
   const [result] = await db.insert(projects).values({
     projectName: data.projectName,
     clientName: data.clientName,
     jiraProjectKey: data.jiraProjectKey,
     jiraProjectUrl: data.jiraProjectUrl,
     pmoId: data.pmoId,
+    pmId: data.pmId ?? null,
     projectType: (data.projectType as any) ?? "otro",
-    status: legacyStagePlan.projectStatus,
-    currentStage: legacyStagePlan.currentStage,
+    status: stagePlan.projectStatus,
+    currentStage: stagePlan.currentStage,
     origin: "linked",
   });
   const projectId = (result as any).insertId as number;
-  // Comportamiento heredado caracterizado en H0; H4 lo reemplazará por homologación con evidencia.
-  for (const stage of legacyStagePlan.stages) {
+  for (const stage of stagePlan.stages) {
     await db.insert(projectStages).values({
       projectId,
       stageId: stage.stageId,
       status: stage.status,
       progress: stage.progress,
-      completedAt: stage.completedAt,
+      completedAt: null,
+      data: stage.data,
     });
   }
   return projectId;
+}
+
+export async function getProjectByJiraProjectKey(jiraProjectKey: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(projects)
+    .where(eq(projects.jiraProjectKey, jiraProjectKey.trim().toUpperCase()))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function bindJiraOnboardingToProject(input: {
+  onboardingId: number;
+  projectId: number;
+  jiraSpaceId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(jiraProjectOnboardings).set({
+    projectId: input.projectId,
+    jiraSpaceId: input.jiraSpaceId,
+    currentStep: 5,
+    lastError: null,
+    updatedAt: new Date(),
+  }).where(eq(jiraProjectOnboardings.id, input.onboardingId));
+  await db.update(jiraEntityMappings).set({
+    projectId: input.projectId,
+    updatedAt: new Date(),
+  }).where(eq(jiraEntityMappings.onboardingId, input.onboardingId));
+}
+
+export async function createHomologatedStageClosure(input: {
+  projectId: number;
+  onboardingId: number;
+  stageId: "sow" | "jira" | "risks" | "planning" | "design" | "closure";
+  closedBy: number;
+  closedByName: string;
+  actorConfirmed: boolean;
+  confirmationText: string;
+  evidenceSource: string;
+  evidenceReference: string;
+  evidenceDate: string;
+  notes?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const existing = await getStageClosure(input.projectId, input.stageId);
+  if (existing) return { closure: existing, created: false };
+
+  const stages = await getProjectStages(input.projectId);
+  const current = stages.find(stage => stage.stageId === input.stageId);
+  if (!current) throw new Error("La etapa no existe en el proyecto");
+  const stageStatuses = Object.fromEntries(stages.map(stage => [stage.stageId, stage.status])) as any;
+  const assessment = assessHomologatedStageClosure({
+    stageId: input.stageId,
+    stageStatus: current.status,
+    stageStatuses,
+    actorConfirmed: input.actorConfirmed,
+    evidenceSource: input.evidenceSource,
+    evidenceReference: input.evidenceReference,
+    evidenceDate: input.evidenceDate,
+    notes: input.notes,
+  });
+  if (!assessment.allowed) throw new Error(assessment.errors.join(" "));
+
+  const [result] = await db.insert(stageClosures).values({
+    projectId: input.projectId,
+    stageId: input.stageId,
+    closedBy: input.closedBy,
+    closedByName: input.closedByName,
+    confirmationText: input.confirmationText,
+    notes: input.notes?.trim() || null,
+    closureMode: "homologated",
+    onboardingId: input.onboardingId,
+    evidenceSource: input.evidenceSource.trim(),
+    evidenceReference: input.evidenceReference.trim(),
+    evidenceDate: input.evidenceDate,
+    homologationMetadata: {
+      actorConfirmed: true,
+      jiraStatusIsNotClientAcceptance: true,
+      reconciledAt: new Date().toISOString(),
+    },
+  });
+  const closureId = (result as any).insertId as number;
+  if (input.stageId === "closure") {
+    await updateProjectStage(input.projectId, "closure", { status: "completed", progress: 100, completedAt: new Date() });
+    await updateProject(input.projectId, { status: "completado", currentStage: "closure" });
+  } else {
+    await unlockNextStage(input.projectId, input.stageId);
+  }
+  const closure = await getStageClosure(input.projectId, input.stageId);
+  return { closure: closure ?? { id: closureId }, created: true };
+}
+
+export async function reconcileHistoricalStageClosure(input: {
+  projectId: number;
+  onboardingId?: number | null;
+  stageId: "sow" | "jira" | "risks" | "planning" | "design" | "closure";
+  closedBy: number;
+  closedByName: string;
+  actorConfirmed: boolean;
+  confirmationText: string;
+  evidenceSource: string;
+  evidenceReference: string;
+  evidenceDate: string;
+  notes?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const project = await getProjectById(input.projectId);
+  if (!project || project.origin !== "linked") {
+    throw new Error("La conciliación histórica solo aplica a proyectos vinculados desde Jira.");
+  }
+  const stages = await getProjectStages(input.projectId);
+  const current = stages.find(stage => stage.stageId === input.stageId);
+  if (!current) throw new Error("La etapa no existe en el proyecto");
+  const existing = await getStageClosure(input.projectId, input.stageId);
+  const existingHomologatedEvidence = Boolean(
+    existing?.closureMode === "homologated" && existing.evidenceReference && existing.evidenceSource && existing.evidenceDate,
+  );
+  const stageStatuses = Object.fromEntries(stages.map(stage => [stage.stageId, stage.status])) as any;
+  const assessment = assessHistoricalStageReconciliation({
+    stageId: input.stageId,
+    stageStatus: current.status,
+    stageStatuses,
+    existingHomologatedEvidence,
+    actorConfirmed: input.actorConfirmed,
+    evidenceSource: input.evidenceSource,
+    evidenceReference: input.evidenceReference,
+    evidenceDate: input.evidenceDate,
+    notes: input.notes,
+  });
+  if (!assessment.allowed) throw new Error(assessment.errors.join(" "));
+  if (assessment.idempotent && existing) return { closure: existing, created: false, stageStatusPreserved: true };
+
+  const metadata = buildHistoricalReconciliationMetadata({
+    stageId: input.stageId,
+    stageStatus: current.status,
+    stageStatuses,
+    existingHomologatedEvidence: false,
+    actorConfirmed: input.actorConfirmed,
+    evidenceSource: input.evidenceSource,
+    evidenceReference: input.evidenceReference,
+    evidenceDate: input.evidenceDate,
+    notes: input.notes,
+  });
+  const values = {
+    closedBy: input.closedBy,
+    closedByName: input.closedByName,
+    confirmationText: input.confirmationText,
+    notes: input.notes?.trim() || null,
+    closureMode: metadata.closureMode,
+    onboardingId: input.onboardingId ?? null,
+    evidenceSource: metadata.evidenceSource,
+    evidenceReference: metadata.evidenceReference,
+    evidenceDate: metadata.evidenceDate,
+    homologationMetadata: {
+      ...metadata.homologationMetadata,
+      reconciledAt: new Date().toISOString(),
+      previousClosureId: existing?.id ?? null,
+    },
+  } as const;
+
+  if (existing) {
+    await db.update(stageClosures).set(values).where(eq(stageClosures.id, existing.id));
+  } else {
+    await db.insert(stageClosures).values({ projectId: input.projectId, stageId: input.stageId, ...values });
+  }
+  const closure = await getStageClosure(input.projectId, input.stageId);
+  return { closure, created: !existing, stageStatusPreserved: true };
 }
 
 /**

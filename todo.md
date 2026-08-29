@@ -5,7 +5,9 @@
 - [x] H1: implementar servicios idempotentes y pruebas focales de onboarding y trazabilidad.
 - [x] H2: implementar preflight Jira de solo lectura con calidad de fechas, tipos, estados y duplicados.
 - [x] H3: implementar asistente de identidad PMO y mapeo Jira revisable y reanudable.
-- [ ] H4: reemplazar el autocierre por reconstrucción auditable de las seis etapas con evidencia.
+- [x] H4: reemplazar el autocierre por reconstrucción auditable de las seis etapas con evidencia.
+- [x] H4: implementar reconciliación controlada de estados heredados `completed` sin evidencia, sin falsificar cierres.
+- [x] H4: validar materialización, seis cierres secuenciales, desbloqueos y cierre final mediante un repositorio persistente aislado.
 - [ ] H5: implementar baseline provisional, hitos y sincronización inicial idempotente.
 - [ ] H6: homologar riesgos, backlog, documentos y asociación financiera confirmada.
 - [ ] H7: unificar experiencia, sincronización manual, historial y ejecución continua controlada.
