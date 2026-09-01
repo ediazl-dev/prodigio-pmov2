@@ -154,3 +154,23 @@ La API expone una ejecución H6 restringida a Admin/PMO y una consulta de estado
 | Sincronización financiera | Ninguna; solo validación exacta contra `financial_data` existente |
 
 Los checkpoints incrementales de H6 fueron: `7aab40b5` (índices riesgos/WBS), `8be488da` (`projects.dealId`), `515ba597` (valores pendientes e idempotencia documental), `20ef1668` (observaciones Jira), `84e95acf` (transformadores puros), `a0f7f7bb` (persistencia, runner y Deal), `460330f0` (API, permisos y documentos) y `1efd14df` (interfaz y validación visual). No se ejecutaron migraciones destructivas ni importaciones masivas sobre proyectos productivos.
+
+## Incidente 2026-09-01 — Preflight de proyecto Jira existente
+
+El preflight de `PMOCCLSRPM` fallaba antes de finalizar el diagnóstico porque `jira_sync_log.runId` estaba definido como `varchar(64)`, mientras que el runner construía el identificador auditable `preflight:<clave Jira>:<SHA-256 completo>`. Para una clave de diez caracteres, el valor resultante mide 85 caracteres. La base rechazaba la inserción; no existía una corrida registrada, no se materializaba un proyecto PMO y no se efectuaban escrituras en Jira.
+
+La corrección amplió `runId` a `varchar(191)` mediante la migración aditiva `0041_workable_brood.sql`, conservó el índice único y mantuvo el identificador completo, sin truncamiento. El servicio ahora normaliza el valor y emite un error explícito si está vacío o supera el contrato persistente. Durante la prueba contra la base real se detectó además un segundo bloqueo latente: el runner enviaba `domain: "project"` a `jira_import_exception`, pero el enum canónico no admite ese valor. Las observaciones de preflight se registran ahora bajo el dominio válido `jira`.
+
+| Validación | Resultado |
+|---|---|
+| Contrato físico | `runId` en `varchar(191)`, `NOT NULL`, índice único conservado |
+| Regresión `PMOCCLSRPM` | Identificador completo de 85 caracteres y reutilización idempotente |
+| Pruebas focales | 25 aprobadas; 2 persistentes opt-in omitidas por defecto |
+| Prueba persistente controlada | 2 de 2 aprobadas contra la base real |
+| Preflight E2E controlado | Dos ejecuciones, una corrida `dry_run`, un onboarding en paso 2 y cero duplicados |
+| Lecturas/escrituras Jira | Dependencias Jira simuladas; ninguna llamada ni modificación Jira |
+| Limpieza SQL | 0 logs, 0 onboardings y 0 excepciones temporales restantes |
+| Build de producción | Exitoso |
+| TypeScript | Ningún error nuevo; permanecen los cinco errores heredados documentados |
+
+El onboarding real de `PMOCCLSRPM` se mantuvo sin reintento ni alteración durante el diagnóstico. El usuario puede volver a ejecutar **Diagnosticar y preparar vínculo** después de publicada esta corrección.

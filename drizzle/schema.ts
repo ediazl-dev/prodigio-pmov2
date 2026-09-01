@@ -495,7 +495,7 @@ export type InsertJiraEntityMapping = typeof jiraEntityMappings.$inferInsert;
 
 export const jiraSyncLogs = mysqlTable("jira_sync_log", {
   id: int("id").autoincrement().primaryKey(),
-  runId: varchar("runId", { length: 64 }).notNull().unique(),
+  runId: varchar("runId", { length: 191 }).notNull().unique(),
   onboardingId: int("onboardingId"),
   projectId: int("projectId"),
   jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull(),

@@ -153,10 +153,10 @@ export function createJiraPreflightRunner(dependencies: JiraPreflightDependencie
     });
 
     for (const reason of diagnostic.blockers) {
-      await dependencies.onboarding.upsertException({ onboardingId: onboarding.id, projectId: onboarding.projectId ?? null, domain: "project", reason, severity: "blocking" });
+      await dependencies.onboarding.upsertException({ onboardingId: onboarding.id, projectId: onboarding.projectId ?? null, domain: "jira", reason, severity: "blocking" });
     }
     for (const reason of diagnostic.warnings) {
-      await dependencies.onboarding.upsertException({ onboardingId: onboarding.id, projectId: onboarding.projectId ?? null, domain: "project", reason, severity: "warning" });
+      await dependencies.onboarding.upsertException({ onboardingId: onboarding.id, projectId: onboarding.projectId ?? null, domain: "jira", reason, severity: "warning" });
     }
 
     const completedRun = runResult.created

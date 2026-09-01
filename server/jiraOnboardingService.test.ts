@@ -3,6 +3,7 @@ import {
   buildJiraMappingKey,
   createJiraOnboardingService,
   fingerprintJiraSnapshot,
+  JIRA_SYNC_RUN_ID_MAX_LENGTH,
   normalizeJiraProjectKey,
   type JiraOnboardingRepository,
 } from "./jiraOnboardingService";
@@ -165,6 +166,16 @@ describe("servicio idempotente de onboarding Jira", () => {
     expect(repository.runs).toHaveLength(1);
     expect(repository.exceptions).toHaveLength(1);
     expect(repository.exceptions[0].severity).toBe("blocking");
+  });
+
+  it("rechaza de forma explícita un runId que excede el contrato persistente", async () => {
+    const repository = createMemoryRepository();
+    const service = createJiraOnboardingService(repository);
+    const runId = "x".repeat(JIRA_SYNC_RUN_ID_MAX_LENGTH + 1);
+
+    await expect(service.startSyncRun({ runId, jiraProjectKey: "PILOT", source: "preflight" }))
+      .rejects.toThrow(`máximo de ${JIRA_SYNC_RUN_ID_MAX_LENGTH} caracteres`);
+    expect(repository.runs).toHaveLength(0);
   });
 
   it("reabre una excepción resuelta cuando la misma condición reaparece", async () => {

@@ -4,6 +4,7 @@ export type JiraOnboardingStatus = "draft" | "preflight" | "mapping" | "reconcil
 export type JiraMappingTarget = "milestone" | "risk" | "epic" | "task" | "user" | "document" | "stage_evidence" | "ignored";
 export type JiraSyncSource = "preflight" | "initial_import" | "manual" | "scheduled" | "retry";
 export type JiraSyncStatus = "running" | "dry_run" | "applied" | "partial" | "error";
+export const JIRA_SYNC_RUN_ID_MAX_LENGTH = 191;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -267,10 +268,16 @@ export function createJiraOnboardingService(repository: JiraOnboardingRepository
       triggeredBy?: number | null;
       triggeredByName?: string | null;
     }) {
-      const existing = await repository.findSyncRunByRunId(input.runId);
+      const runId = input.runId.trim();
+      if (!runId) throw new Error("El identificador de corrida Jira es obligatorio");
+      if (runId.length > JIRA_SYNC_RUN_ID_MAX_LENGTH) {
+        throw new Error(`El identificador de corrida Jira excede el máximo de ${JIRA_SYNC_RUN_ID_MAX_LENGTH} caracteres (${runId.length})`);
+      }
+      const existing = await repository.findSyncRunByRunId(runId);
       if (existing) return { record: existing, created: false };
       const record = await repository.createSyncRun({
         ...input,
+        runId,
         jiraProjectKey: normalizeJiraProjectKey(input.jiraProjectKey),
         status: input.status ?? "running",
         inputCount: input.inputCount ?? 0,

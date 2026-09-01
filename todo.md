@@ -405,3 +405,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Redactar un manual profesional con portada, índice, prerrequisitos, pasos, roles, controles, errores frecuentes y checklist final.
 - [x] Verificar que el manual distinga claramente Jira cerrado, aceptación de cliente, baseline contractual y fecha Jira.
 - [x] Verificar diseño, legibilidad, referencias visuales y exactitud contra la aplicación antes de entregar.
+- [x] Diagnosticar el fallo de inserción en `jira_sync_log` al ejecutar el preflight de un proyecto Jira existente, identificando columna, valor y restricción exactos.
+- [x] Corregir el registro de corridas de preflight sin truncar silenciosamente identificadores ni modificar datos Jira o proyectos productivos.
+- [x] Agregar una prueba de regresión con una clave Jira y huella equivalentes al caso `PMOCCLSRPM`, cubriendo creación e idempotencia del log.
+- [x] Validar el preflight completo en un escenario controlado y confirmar que el onboarding avanza sin errores ni registros duplicados.
+- [x] Documentar la causa raíz, pruebas ejecutadas y checkpoint de la corrección del vínculo Jira existente.

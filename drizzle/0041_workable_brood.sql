@@ -1,0 +1,1 @@
+ALTER TABLE `jira_sync_log` MODIFY COLUMN `runId` varchar(191) NOT NULL;

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createJiraOnboardingService, type JiraOnboardingRepository } from "./jiraOnboardingService";
+import {
+  createJiraOnboardingService,
+  JIRA_SYNC_RUN_ID_MAX_LENGTH,
+  type JiraOnboardingRepository,
+} from "./jiraOnboardingService";
 import { createJiraPreflightRunner } from "./jiraPreflightRunner";
 
 function createMemoryRepository(): JiraOnboardingRepository & { state: Record<string, any[]> } {
@@ -94,5 +98,21 @@ describe("runner H2 de preflight Jira", () => {
     expect(repository.state.onboardings).toHaveLength(1);
     expect(repository.state.runs).toHaveLength(1);
     expect(repository.state.exceptions).toHaveLength(first.warnings.length + first.blockers.length);
+    expect(repository.state.exceptions.every(item => item.domain === "jira")).toBe(true);
+  });
+
+  it("persiste completo e idempotente el runId del caso PMOCCLSRPM", async () => {
+    const repository = createMemoryRepository();
+    const runner = createJiraPreflightRunner(buildDependencies(repository));
+    const input = { jiraProjectKey: "PMOCCLSRPM", asOf: "2026-09-01", actorId: 7, actorName: "PMO" };
+
+    const first = await runner(input);
+    const second = await runner(input);
+
+    expect(first.run.runId).toMatch(/^preflight:PMOCCLSRPM:[a-f0-9]{64}$/);
+    expect(first.run.runId).toHaveLength(85);
+    expect(first.run.runId.length).toBeLessThanOrEqual(JIRA_SYNC_RUN_ID_MAX_LENGTH);
+    expect(second.run).toMatchObject({ runId: first.run.runId, created: false, status: "dry_run" });
+    expect(repository.state.runs).toHaveLength(1);
   });
 });
