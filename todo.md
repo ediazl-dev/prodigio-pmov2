@@ -410,3 +410,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Agregar una prueba de regresión con una clave Jira y huella equivalentes al caso `PMOCCLSRPM`, cubriendo creación e idempotencia del log.
 - [x] Validar el preflight completo en un escenario controlado y confirmar que el onboarding avanza sin errores ni registros duplicados.
 - [x] Documentar la causa raíz, pruebas ejecutadas y checkpoint de la corrección del vínculo Jira existente.
+
+## Incidente JSM en servicio recurrente Deal 4687 (2026-09-15)
+
+- [x] Confirmar en modo lectura si la clave `PSCSC4S` y el nombre informado ya existen en Jira y si corresponden al mismo contrato/servicio recurrente.
+- [x] Verificar en la base PMO el estado del servicio Deal 4687 y si falta persistir un vínculo JSM creado previamente.
+- [x] Trazar la ruta `createJsmProject` desde la interfaz hasta `createJiraSpace`, incluyendo logs y auditoría del intento fallido.
+- [x] Determinar si la causa es un reintento no idempotente, una colisión legítima o una creación Jira exitosa con persistencia local incompleta.
+- [x] Diseñar un plan de remediación seguro con preflight de unicidad, recuperación/vinculación controlada y mensajes de error accionables, sin modificar Jira durante el diagnóstico.
