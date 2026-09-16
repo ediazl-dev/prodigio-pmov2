@@ -437,3 +437,14 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Diseñar la experiencia de usuario para buscar, revisar y confirmar el vínculo de un Space JSM desde el servicio recurrente.
 - [x] Preparar un backlog por fases con archivos, dependencias, pruebas, migraciones, criterios de aceptación y controles anti-loop.
 - [x] Documentar y presentar la recomendación para aprobación antes de implementar cambios funcionales.
+
+## Implementación de vinculación de Spaces JSM existentes (J0–J7)
+
+- [x] J0: confirmar contrato canónico, cardinalidad uno-a-uno, alcance sin importación automática y política de desvinculación.
+- [ ] J1: ampliar el modelo con origen, nombre, URLs separadas, verificación, mapeos y corridas auditables; aplicar migración aditiva e índices seguros.
+- [ ] J2: implementar lectores paginados de Service Desks, detalle, permisos, proyecto e issue types usando solo operaciones GET.
+- [ ] J3: implementar listado, preflight, asociación idempotente, revalidación, auditoría y desvinculación controlada.
+- [ ] J4: implementar mapeos explícitos de issue types, dry-run y sincronización segura sin asociación por título.
+- [ ] J5: construir el flujo Crear/Vincular en JSM Setup con búsqueda, diagnóstico, confirmación y estados accesibles.
+- [ ] J6: crear Administración > Spaces JSM con inventario, filtros, vínculo visible, salud y permisos Admin/PMO.
+- [ ] J7: ejecutar pruebas unitarias y persistentes focales, TypeScript/build, validación visual, documentación y publicación final.
