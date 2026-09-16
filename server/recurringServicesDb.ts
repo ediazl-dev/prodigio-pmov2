@@ -849,6 +849,12 @@ export async function getRecurringDashboardV2Data() {
         clientName: financialData.clientName,
         projectName: financialData.projectName,
         valorVentaUF: financialData.valorVentaUF,
+        presupuestoUF: financialData.presupuestoUF,
+        utilizadoUF: financialData.utilizadoUF,
+        planificadoUF: financialData.planificadoUF,
+        proyectadoUF: financialData.proyectadoUF,
+        lineaNegocio: financialData.lineaNegocio,
+        syncedAt: financialData.syncedAt,
       })
       .from(financialData),
   ]);

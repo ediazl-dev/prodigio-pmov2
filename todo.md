@@ -535,7 +535,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D3: eliminar semánticas ambiguas de “Facturado” y “Cumplimiento SLA” y cubrir las fórmulas con pruebas.
 - [x] D4: construir la Torre de Control V2 con filtros persistentes, KPIs trazables, matriz maestra y bandeja de excepciones.
 - [x] D4: mantener convivencia V1/V2 durante el piloto y validar navegación, permisos, responsive, accesibilidad y estados vacíos/error.
-- [ ] D5: implementar programado vs. facturado vs. cobrado, vencimientos, tendencia mensual, moneda y reconciliación financiera por Deal.
+- [x] D5: implementar programado vs. facturado vs. cobrado, vencimientos, tendencia mensual, moneda y reconciliación financiera por Deal.
 - [ ] D6: implementar heatmap de reportes, evidencia de entrega/aceptación y panel de formalidad documental.
 - [ ] D7: implementar lectura JSM de incidentes, prioridades, antigüedad, primera respuesta y resolución, sin fabricar cumplimiento cuando falten datos.
 - [ ] D7: persistir snapshots e historial de SLA/incidentes con degradación explícita por falta de vínculo, permiso o timeout.

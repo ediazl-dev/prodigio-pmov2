@@ -16,10 +16,14 @@ import {
   FileWarning,
   HelpCircle,
   Layers3,
+  Link2,
+  ReceiptText,
   RefreshCw,
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  TrendingUp,
+  WalletCards,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -59,6 +63,18 @@ const QUALITY_LABELS: Record<string, string> = {
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
+
+function monthLabel(month: string) {
+  return new Intl.DateTimeFormat("es-CL", { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
+}
+
+const RECONCILIATION_LABELS: Record<string, { label: string; className: string }> = {
+  comparable: { label: "Conciliado y comparable", className: "bg-emerald-50 text-emerald-800" },
+  reference_not_comparable: { label: "Referencia UF no comparable", className: "bg-blue-50 text-blue-800" },
+  missing_reference: { label: "Sin referencia corporativa", className: "bg-amber-50 text-amber-900" },
+  ambiguous: { label: "Deal ambiguo", className: "bg-red-50 text-red-800" },
+  no_deal: { label: "Sin Deal", className: "bg-red-50 text-red-800" },
+};
 
 function KpiCard({
   eyebrow,
@@ -164,7 +180,7 @@ export default function RecurringServicesDashboardV2() {
     );
   }
 
-  const { kpis, metadata, filterOptions, matrix, quality, evidenceInventory } = data;
+  const { kpis, metadata, filterOptions, matrix, quality, evidenceInventory, financeAnalytics, trends } = data;
   const finance = currencyRows(kpis.financeByCurrency);
   const activeFilterCount = countActiveFilters(filters);
   const requiresAttention = kpis.healthCounts.critical + kpis.healthCounts.attention;
@@ -352,6 +368,104 @@ export default function RecurringServicesDashboardV2() {
             Evidencias D2: {evidenceInventory.reportEvidence} reportes, {evidenceInventory.financialEvidence} financieras, {evidenceInventory.documentControls} controles documentales y {evidenceInventory.jsmSnapshots} snapshots.
           </div>
         </aside>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+        <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Analítica financiera recurrente</p>
+              <h3 className="mt-1 text-lg font-black text-slate-950">Programado versus facturado, cobrado y vencido</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">La planificación local se presenta por moneda. La referencia corporativa UF se compara solo cuando la moneda contractual también es UF.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Deals conciliados</p><p className="mt-1 text-lg font-black text-slate-950">{financeAnalytics.summary.reconciledServices}/{kpis.totalServices}</p></div>
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Comparables UF</p><p className="mt-1 text-lg font-black text-slate-950">{financeAnalytics.summary.comparableUfServices}</p></div>
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Facturas verificadas</p><p className="mt-1 text-lg font-black text-slate-950">{financeAnalytics.summary.verifiedInvoiceEvidence}</p></div>
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Pagos verificados</p><p className="mt-1 text-lg font-black text-slate-950">{financeAnalytics.summary.verifiedPaymentEvidence}</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="border-b border-slate-200 p-5 sm:p-6 xl:border-b-0 xl:border-r">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-black text-slate-900"><TrendingUp size={16} className="text-[#175CD3]" /> Tendencia mensual</div>
+              <span className="text-[10px] font-semibold text-slate-500">Hasta {formatCutOffDate(metadata.cutOffDate)}</span>
+            </div>
+            {trends.finance.length === 0 ? (
+              <div className="mt-5"><EmptyValue text="Sin cuotas programadas" /></div>
+            ) : (
+              <div className="mt-4 max-h-[330px] space-y-3 overflow-y-auto pr-1">
+                {trends.finance.map(item => {
+                  const maxValue = Math.max(item.scheduled, item.invoiced, item.collected, 1);
+                  return (
+                    <div key={`${item.month}-${item.currency}`} className="rounded-xl border border-slate-200 p-3">
+                      <div className="flex items-center justify-between"><b className="text-xs text-slate-900">{monthLabel(item.month)}</b><span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">{item.currency}</span></div>
+                      <div className="mt-3 space-y-2 text-[10px] font-semibold text-slate-600">
+                        {[
+                          ["Programado", item.scheduled, "#94A3B8"],
+                          ["Facturado", item.invoiced, "#175CD3"],
+                          ["Cobrado", item.collected, "#12A08D"],
+                        ].map(([label, value, color]) => (
+                          <div key={String(label)} className="grid grid-cols-[68px_1fr_auto] items-center gap-2">
+                            <span>{label}</span><span className="h-1.5 overflow-hidden rounded-full bg-slate-100"><i className="block h-full rounded-full" style={{ width: `${(Number(value) / maxValue) * 100}%`, background: String(color) }} /></span><b className="text-slate-800">{formatRecurringMoney(Number(value), item.currency)}</b>
+                          </div>
+                        ))}
+                      </div>
+                      {item.overdue > 0 && <p className="mt-2 text-right text-[10px] font-bold text-red-700">Vencido {formatRecurringMoney(item.overdue, item.currency)}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 sm:p-6">
+            <div className="flex items-center gap-2 text-sm font-black text-slate-900"><Link2 size={16} className="text-[#E91E8C]" /> Reconciliación por servicio y Deal</div>
+            <div className="mt-4 space-y-3">
+              {financeAnalytics.services.map(service => {
+                const reconciliation = RECONCILIATION_LABELS[service.reconciliationStatus] ?? RECONCILIATION_LABELS.missing_reference;
+                return (
+                  <article key={service.serviceId} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-950">{service.serviceName}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">{service.clientName} · Deal {service.dealId ?? "N/D"}</p>
+                      </div>
+                      <span className={`w-fit rounded-full px-2.5 py-1 text-[10px] font-black ${reconciliation.className}`}>{reconciliation.label}</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {service.localCurrencies.map(row => (
+                        <div key={row.currency} className="rounded-lg bg-slate-50 p-3">
+                          <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Plan local {row.currency}</span><WalletCards size={14} className="text-slate-400" /></div>
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-[10px]">
+                            <span className="text-slate-500">Programado</span><b className="text-right text-slate-900">{formatRecurringMoney(row.scheduled, row.currency)}</b>
+                            <span className="text-slate-500">Facturado</span><b className="text-right text-[#175CD3]">{formatRecurringMoney(row.invoiced, row.currency)}</b>
+                            <span className="text-slate-500">Cobrado</span><b className="text-right text-emerald-700">{formatRecurringMoney(row.collected, row.currency)}</b>
+                            <span className="text-slate-500">Vencido</span><b className={`text-right ${row.overdue > 0 ? "text-red-700" : "text-slate-900"}`}>{formatRecurringMoney(row.overdue, row.currency)}</b>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Referencia corporativa</span><ReceiptText size={14} className="text-slate-400" /></div>
+                        {service.corporateReference ? (
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-[10px]">
+                            <span className="text-slate-500">Venta</span><b className="text-right text-slate-900">{service.corporateReference.valorVentaUF === null ? "N/D" : formatRecurringMoney(service.corporateReference.valorVentaUF, "UF")}</b>
+                            <span className="text-slate-500">Utilizado</span><b className="text-right text-slate-900">{service.corporateReference.utilizadoUF === null ? "N/D" : formatRecurringMoney(service.corporateReference.utilizadoUF, "UF")}</b>
+                            <span className="text-slate-500">Proyectado</span><b className="text-right text-slate-900">{service.corporateReference.proyectadoUF === null ? "N/D" : formatRecurringMoney(service.corporateReference.proyectadoUF, "UF")}</b>
+                            <span className="text-slate-500">Línea</span><b className="text-right text-slate-900">{service.corporateReference.lineaNegocio ?? "N/D"}</b>
+                          </div>
+                        ) : <div className="mt-3"><EmptyValue text="Deal no presente en la fuente corporativa" /></div>}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10px] leading-4 text-slate-500">Evidencia confirmada: {service.verifiedEvidenceByCurrency.reduce((sum, row) => sum + row.items, 0)} registro(s). La ausencia de evidencia no cambia automáticamente el estado de la cuota.</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">

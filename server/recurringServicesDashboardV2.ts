@@ -7,6 +7,7 @@ import {
 } from "./recurringServicesMetricsEngine";
 import {
   diagnoseRecurringServicesQuality,
+  normalizeRecurringDealId,
   type RecurringServicesQualityInput,
   type ServiceDataQuality,
 } from "./recurringServicesQualityEngine";
@@ -198,6 +199,91 @@ function financeTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month) || a.currency.localeCompare(b.currency));
 }
 
+function financialAnalytics(
+  source: RecurringDashboardV2Source,
+  services: ServiceMetricsV2[],
+  cutOffDate: string,
+) {
+  const cutOff = new Date(`${cutOffDate}T23:59:59.999Z`).getTime();
+  const confirmedEvidence = source.financialEvidence.filter(row => {
+    const occurredAt = new Date(row.occurredAt).getTime();
+    return row.status === "confirmed" && Number.isFinite(occurredAt) && occurredAt <= cutOff;
+  });
+
+  const rows = services.map(service => {
+    const normalizedDealId = normalizeRecurringDealId(service.dealId);
+    const matches = normalizedDealId
+      ? source.financialReferences.filter(reference => normalizeRecurringDealId(reference.dealId) === normalizedDealId)
+      : [];
+    const reference = matches.length === 1 ? matches[0] : null;
+    const localCurrencies = Object.values(service.finance.byCurrency).sort((a, b) => a.currency.localeCompare(b.currency));
+    const comparableToCorporateUf = localCurrencies.length === 1 && localCurrencies[0].currency === "UF" && reference !== null;
+    const evidence = confirmedEvidence.filter(row => row.serviceId === service.id);
+    const evidenceByCurrency: Record<string, { currency: string; invoiced: number; collected: number; creditNotes: number; items: number }> = {};
+
+    for (const item of evidence) {
+      const currency = normalizedCurrency(item.currency);
+      const bucket = evidenceByCurrency[currency] ?? { currency, invoiced: 0, collected: 0, creditNotes: 0, items: 0 };
+      const value = numeric(item.amount);
+      if (item.evidenceType === "invoice") bucket.invoiced += value;
+      if (item.evidenceType === "payment") bucket.collected += value;
+      if (item.evidenceType === "credit_note") bucket.creditNotes += value;
+      bucket.items += 1;
+      evidenceByCurrency[currency] = bucket;
+    }
+
+    const status = !normalizedDealId
+      ? "no_deal"
+      : matches.length === 0
+        ? "missing_reference"
+        : matches.length > 1
+          ? "ambiguous"
+          : comparableToCorporateUf
+            ? "comparable"
+            : "reference_not_comparable";
+
+    return {
+      serviceId: service.id,
+      clientName: service.clientName,
+      serviceName: service.serviceName,
+      dealId: service.dealId,
+      reconciliationStatus: status,
+      localCurrencies,
+      verifiedEvidenceByCurrency: Object.values(evidenceByCurrency).sort((a, b) => a.currency.localeCompare(b.currency)),
+      corporateReference: reference
+        ? {
+            valorVentaUF: reference.valorVentaUF === null ? null : numeric(reference.valorVentaUF),
+            presupuestoUF: reference.presupuestoUF == null ? null : numeric(reference.presupuestoUF),
+            utilizadoUF: reference.utilizadoUF == null ? null : numeric(reference.utilizadoUF),
+            planificadoUF: reference.planificadoUF == null ? null : numeric(reference.planificadoUF),
+            proyectadoUF: reference.proyectadoUF == null ? null : numeric(reference.proyectadoUF),
+            lineaNegocio: reference.lineaNegocio ?? null,
+            syncedAt: reference.syncedAt ? isoDate(reference.syncedAt) : null,
+          }
+        : null,
+    };
+  });
+
+  const latestCorporateSyncAt = source.financialReferences
+    .map(reference => reference.syncedAt ? isoDate(reference.syncedAt) : null)
+    .filter((value): value is string => value !== null)
+    .sort()
+    .at(-1) ?? null;
+
+  return {
+    summary: {
+      reconciledServices: rows.filter(row => row.corporateReference !== null).length,
+      comparableUfServices: rows.filter(row => row.reconciliationStatus === "comparable").length,
+      missingReferenceServices: rows.filter(row => row.reconciliationStatus === "missing_reference").length,
+      ambiguousServices: rows.filter(row => row.reconciliationStatus === "ambiguous").length,
+      verifiedInvoiceEvidence: confirmedEvidence.filter(row => row.evidenceType === "invoice").length,
+      verifiedPaymentEvidence: confirmedEvidence.filter(row => row.evidenceType === "payment").length,
+      latestCorporateSyncAt,
+    },
+    services: rows,
+  };
+}
+
 function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   const buckets = new Map<string, { month: string; planned: number; due: number; completedDue: number; overdue: number }>();
   for (const row of source.workPlanItems.filter(item => item.itemType === "informe_mensual")) {
@@ -281,6 +367,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     .map(item => isoDate(item.capturedAt))
     .sort()
     .at(-1) ?? null;
+  const financeAnalytics = financialAnalytics(filteredSource, metrics.services, options.cutOffDate);
 
   return {
     metadata: {
@@ -306,6 +393,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       reports: reportTrend(filteredSource, options.cutOffDate),
       incidents: incidentTrend(filteredSource),
     },
+    financeAnalytics,
     matrix,
     quality,
     evidenceInventory: {

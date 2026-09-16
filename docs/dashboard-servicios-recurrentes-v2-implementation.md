@@ -34,7 +34,9 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | D1 — Calidad y reconciliación | Completada |
 | D2 — Modelo de evidencias y snapshots | Completada |
 | D3 — API consolidada de portafolio | Completada |
-| D4–D10 | Pendientes |
+| D4 — Torre de Control V2 | Completada |
+| D5 — Analítica financiera recurrente | Completada |
+| D6–D10 | Pendientes |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -108,3 +110,41 @@ La capa de datos obtiene por separado servicios, cuotas, plan de trabajo, docume
 | `evidenceInventory` | Cobertura de las cuatro entidades D2 |
 
 Las pruebas unitarias D3 cubren filtros, búsqueda, snapshot vigente/obsoleto, salud, calidad y series multimoneda. La prueba de integración opt-in consultó la base real en modo solo lectura y construyó el portafolio completo sin sumar monedas distintas. Resultado acumulado: 19 pruebas unitarias D0–D3 y 1 prueba de integración aprobadas; no se agregaron errores TypeScript a los cinco heredados.
+
+## D4 — Torre de Control V2
+
+La ruta de Servicios Recurrentes abre ahora por defecto una **Torre de Control V2**, manteniendo disponibles las vistas `Clásico` y `Lista` durante la convivencia. La cabecera prioriza cuántos servicios requieren atención y permite fijar la fecha de corte; un selector separado conserva el acceso a las vistas anteriores sin duplicar navegación global.
+
+La interfaz consume exclusivamente `recurringServices.dashboardV2`. Incluye filtros combinables por cliente, estado, tipo, salud, moneda y búsqueda; KPIs de cartera, reportes, formalidad y cobertura operacional; panel financiero separado por moneda; diagnóstico de calidad; y una matriz priorizada con navegación al detalle de cada servicio. Los estados críticos, en atención, estables y sin datos tienen códigos visuales independientes del magenta corporativo.
+
+| Validación D4 | Resultado |
+|---|---|
+| Vista predeterminada | Torre V2 |
+| Convivencia | Torre V2, Clásico y Lista |
+| Escritorio | Revisado a 1440 × 1000 |
+| Móvil | Revisado a 390 × 844 |
+| Build | Exitoso |
+| Pruebas focales | 24 aprobadas |
+| Errores TypeScript nuevos | 0 |
+
+La vista móvil apila filtros, indicadores financieros y filas de servicio sin desbordes horizontales. Facturado, cobrado, SLA e incidentes preservan N/D cuando no existe evidencia; no se presentan ceros ficticios como cumplimiento.
+
+## D5 — Analítica financiera recurrente
+
+La Torre V2 incorpora un módulo financiero dedicado con tendencia mensual de **programado, facturado, cobrado y vencido** por moneda, seguido por una reconciliación individual de cada servicio con su Deal y la fuente financiera corporativa. El servidor realiza todos los cálculos y nunca suma ni convierte monedas diferentes.
+
+La conciliación separa cinco estados: comparable en UF, referencia existente pero no comparable por moneda, referencia faltante, Deal ambiguo y servicio sin Deal. Los campos corporativos de venta, presupuesto, utilizado, planificado, proyectado, línea de negocio y fecha de sincronización se exponen únicamente cuando existe una referencia única. Las facturas, pagos y notas de crédito de las tablas D2 se muestran como evidencia confirmada y no alteran por sí solas el estado de una cuota.
+
+| Control D5 | Resultado |
+|---|---|
+| Servicios con Deal conciliado | 1 de 3 |
+| Servicios comparables directamente en UF | 0 de 3 |
+| Servicios sin referencia corporativa | 2 de 3 |
+| Evidencia real de factura/pago | 0 registros; visible como ausencia |
+| Monedas | USD presentada sin conversión ni total cruzado |
+| Fecha de corte | Aplicada a cuotas y evidencia financiera |
+| Pruebas focales acumuladas | 21 aprobadas |
+| Build | Exitoso |
+| Errores TypeScript nuevos | 0 |
+
+La revisión visual en escritorio confirmó legibilidad de la tendencia, las tres conciliaciones y la separación entre plan local y referencia corporativa. El servicio Camanchaca aparece correctamente como referencia UF no comparable con su contrato local USD; los Deals 4687 y 4727 muestran la brecha sin fabricar equivalencias.

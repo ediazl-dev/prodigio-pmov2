@@ -37,6 +37,12 @@ export interface RecurringFinancialReferenceSource {
   clientName: string | null;
   projectName: string | null;
   valorVentaUF: string | number | null;
+  presupuestoUF?: string | number | null;
+  utilizadoUF?: string | number | null;
+  planificadoUF?: string | number | null;
+  proyectadoUF?: string | number | null;
+  lineaNegocio?: string | null;
+  syncedAt?: Date | string | null;
 }
 
 export interface DataQualityIssue {

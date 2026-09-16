@@ -93,8 +93,12 @@ const source: RecurringDashboardV2Source = {
   ],
   documentControls: [{ serviceId: 1 }],
   reportEvidence: [],
-  financialEvidence: [],
-  financialReferences: [{ id: 10, dealId: "Deal100", clientName: "Cliente A", projectName: "Soporte", valorVentaUF: "120" }],
+  financialEvidence: [
+    { serviceId: 1, evidenceType: "invoice", status: "confirmed", amount: "60", currency: "UF", occurredAt: "2026-01-31T12:00:00.000Z" },
+    { serviceId: 1, evidenceType: "payment", status: "confirmed", amount: "60", currency: "UF", occurredAt: "2026-02-05T12:00:00.000Z" },
+    { serviceId: 2, evidenceType: "invoice", status: "pending_validation", amount: "1200", currency: "USD", occurredAt: "2026-02-28T12:00:00.000Z" },
+  ],
+  financialReferences: [{ id: 10, dealId: "Deal100", clientName: "Cliente A", projectName: "Soporte", valorVentaUF: "120", presupuestoUF: "80", utilizadoUF: "40", planificadoUF: "45", proyectadoUF: "82", lineaNegocio: "Servicios", syncedAt: "2026-03-15T08:00:00.000Z" }],
 };
 
 describe("buildRecurringServicesDashboardV2", () => {
@@ -177,5 +181,39 @@ describe("buildRecurringServicesDashboardV2", () => {
       pending: 0,
       overdue: 0,
     });
+  });
+
+  it("reconcilia por Deal y mantiene separada la evidencia financiera confirmada", () => {
+    const result = buildRecurringServicesDashboardV2(source, { cutOffDate: "2026-03-16" });
+    const reconciled = result.financeAnalytics.services.find(item => item.serviceId === 1);
+    const missing = result.financeAnalytics.services.find(item => item.serviceId === 2);
+
+    expect(reconciled?.reconciliationStatus).toBe("comparable");
+    expect(reconciled?.corporateReference?.valorVentaUF).toBe(120);
+    expect(reconciled?.verifiedEvidenceByCurrency).toEqual([
+      { currency: "UF", invoiced: 60, collected: 60, creditNotes: 0, items: 2 },
+    ]);
+    expect(missing?.reconciliationStatus).toBe("missing_reference");
+    expect(result.financeAnalytics.summary.verifiedInvoiceEvidence).toBe(1);
+    expect(result.financeAnalytics.summary.verifiedPaymentEvidence).toBe(1);
+    expect(result.financeAnalytics.summary.latestCorporateSyncAt).toBe("2026-03-15T08:00:00.000Z");
+  });
+
+  it("no compara una referencia corporativa UF contra un contrato local en otra moneda", () => {
+    const result = buildRecurringServicesDashboardV2(
+      {
+        ...source,
+        financialReferences: [
+          ...source.financialReferences,
+          { id: 11, dealId: "Deal200", clientName: "Cliente B", projectName: "Staffing", valorVentaUF: "55" },
+        ],
+      },
+      { cutOffDate: "2026-03-16" },
+    );
+
+    const service = result.financeAnalytics.services.find(item => item.serviceId === 2);
+    expect(service?.reconciliationStatus).toBe("reference_not_comparable");
+    expect(service?.localCurrencies[0].currency).toBe("USD");
+    expect(service?.corporateReference?.valorVentaUF).toBe(55);
   });
 });
