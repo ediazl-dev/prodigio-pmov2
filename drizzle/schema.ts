@@ -1,26 +1,6 @@
-import {
-  int,
-  mysqlEnum,
-  mysqlTable,
-  text,
-  timestamp,
-  varchar,
-  json,
-  boolean,
-  decimal,
-  date,
-  uniqueIndex,
-} from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, decimal, date, uniqueIndex } from "drizzle-orm/mysql-core";
 import { RECURRING_SERVICE_TYPE_VALUES } from "../shared/recurringServiceTypes";
-import {
-  JSM_ISSUE_MAPPING_CATEGORY_VALUES,
-  JSM_ISSUE_MAPPING_SOURCE_VALUES,
-  JSM_ISSUE_MAPPING_STATUS_VALUES,
-  JSM_LINK_HEALTH_VALUES,
-  JSM_LINK_RUN_SOURCE_VALUES,
-  JSM_LINK_RUN_STATUS_VALUES,
-  JSM_LINK_SOURCE_VALUES,
-} from "../shared/jsmExistingSpace";
+import { JSM_ISSUE_MAPPING_CATEGORY_VALUES, JSM_ISSUE_MAPPING_SOURCE_VALUES, JSM_ISSUE_MAPPING_STATUS_VALUES, JSM_LINK_HEALTH_VALUES, JSM_LINK_RUN_SOURCE_VALUES, JSM_LINK_RUN_STATUS_VALUES, JSM_LINK_SOURCE_VALUES, JSM_SYNC_RUN_STATUS_VALUES } from "../shared/jsmExistingSpace";
 
 // ==================== USERS ====================
 export const users = mysqlTable("users", {
@@ -126,66 +106,74 @@ export type SowDocument = typeof sowDocuments.$inferSelect;
 export type InsertSowDocument = typeof sowDocuments.$inferInsert;
 
 // ==================== RISKS ====================
-export const risks = mysqlTable("risks", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  riskCode: varchar("riskCode", { length: 20 }),
-  description: text("description").notNull(),
-  category: mysqlEnum("category", ["tecnico", "organizacional", "externo", "oculto", "por_confirmar"]).notNull(),
-  type: mysqlEnum("type", ["riesgo", "riesgo_oculto", "supuesto_no_validado", "dependencia_externa"]).notNull(),
-  probability: mysqlEnum("probability", ["alta", "media", "baja", "por_confirmar"]).notNull(),
-  impact: mysqlEnum("impact", ["alto", "medio", "bajo", "por_confirmar"]).notNull(),
-  mitigation: text("mitigation"),
-  owner: varchar("owner", { length: 255 }),
-  contingency: text("contingency"),
-  dueDate: varchar("dueDate", { length: 20 }),
-  estimatedCost: varchar("estimatedCost", { length: 100 }),
-  status: mysqlEnum("status", ["abierto", "mitigado", "cerrado"]).default("abierto"),
-  confirmed: boolean("confirmed").default(false).notNull(),
-  jiraTaskId: varchar("jiraTaskId", { length: 100 }),
-  jiraIssueKey: varchar("jiraIssueKey", { length: 50 }),
-  jiraStatusName: varchar("jiraStatusName", { length: 120 }),
-  jiraStatusCategory: varchar("jiraStatusCategory", { length: 80 }),
-  jiraAssigneeId: varchar("jiraAssigneeId", { length: 120 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  projectJiraIssueUnique: uniqueIndex("risks_project_jira_issue_unique").on(table.projectId, table.jiraIssueKey),
-}));
+export const risks = mysqlTable(
+  "risks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    riskCode: varchar("riskCode", { length: 20 }),
+    description: text("description").notNull(),
+    category: mysqlEnum("category", ["tecnico", "organizacional", "externo", "oculto", "por_confirmar"]).notNull(),
+    type: mysqlEnum("type", ["riesgo", "riesgo_oculto", "supuesto_no_validado", "dependencia_externa"]).notNull(),
+    probability: mysqlEnum("probability", ["alta", "media", "baja", "por_confirmar"]).notNull(),
+    impact: mysqlEnum("impact", ["alto", "medio", "bajo", "por_confirmar"]).notNull(),
+    mitigation: text("mitigation"),
+    owner: varchar("owner", { length: 255 }),
+    contingency: text("contingency"),
+    dueDate: varchar("dueDate", { length: 20 }),
+    estimatedCost: varchar("estimatedCost", { length: 100 }),
+    status: mysqlEnum("status", ["abierto", "mitigado", "cerrado"]).default("abierto"),
+    confirmed: boolean("confirmed").default(false).notNull(),
+    jiraTaskId: varchar("jiraTaskId", { length: 100 }),
+    jiraIssueKey: varchar("jiraIssueKey", { length: 50 }),
+    jiraStatusName: varchar("jiraStatusName", { length: 120 }),
+    jiraStatusCategory: varchar("jiraStatusCategory", { length: 80 }),
+    jiraAssigneeId: varchar("jiraAssigneeId", { length: 120 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    projectJiraIssueUnique: uniqueIndex("risks_project_jira_issue_unique").on(table.projectId, table.jiraIssueKey),
+  })
+);
 
 export type Risk = typeof risks.$inferSelect;
 export type InsertRisk = typeof risks.$inferInsert;
 
 // ==================== WBS TASKS ====================
-export const wbsTasks = mysqlTable("wbs_tasks", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  taskCode: varchar("taskCode", { length: 20 }),
-  taskName: varchar("taskName", { length: 500 }).notNull(),
-  phase: mysqlEnum("phase", ["preparacion", "inicio", "planificacion", "analisis", "construccion", "cierre", "por_confirmar"]).notNull(),
-  optimistic: decimal("optimistic", { precision: 6, scale: 1 }),
-  pessimistic: decimal("pessimistic", { precision: 6, scale: 1 }),
-  probable: decimal("probable", { precision: 6, scale: 1 }),
-  expected: decimal("expected", { precision: 6, scale: 1 }),
-  isCritical: boolean("isCritical").default(false),
-  dependencies: varchar("dependencies", { length: 255 }),
-  assignee: varchar("assignee", { length: 255 }),
-  jiraTaskId: varchar("jiraTaskId", { length: 100 }),
-  // Backlog ágil (Epic → Story → Task)
-  issueLevel: mysqlEnum("issueLevel", ["epic", "story", "task", "milestone"]).default("task"),
-  epicCode: varchar("epicCode", { length: 20 }),
-  storyCode: varchar("storyCode", { length: 20 }),
-  jiraIssueKey: varchar("jiraIssueKey", { length: 50 }),
-  jiraParentKey: varchar("jiraParentKey", { length: 50 }),
-  jiraStatusName: varchar("jiraStatusName", { length: 120 }),
-  jiraStatusCategory: varchar("jiraStatusCategory", { length: 80 }),
-  jiraAssigneeId: varchar("jiraAssigneeId", { length: 120 }),
-  acceptanceCriteria: text("acceptanceCriteria"),
-  storyPoints: int("storyPoints"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, (table) => ({
-  projectJiraIssueUnique: uniqueIndex("wbs_project_jira_issue_unique").on(table.projectId, table.jiraIssueKey),
-}));
+export const wbsTasks = mysqlTable(
+  "wbs_tasks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    taskCode: varchar("taskCode", { length: 20 }),
+    taskName: varchar("taskName", { length: 500 }).notNull(),
+    phase: mysqlEnum("phase", ["preparacion", "inicio", "planificacion", "analisis", "construccion", "cierre", "por_confirmar"]).notNull(),
+    optimistic: decimal("optimistic", { precision: 6, scale: 1 }),
+    pessimistic: decimal("pessimistic", { precision: 6, scale: 1 }),
+    probable: decimal("probable", { precision: 6, scale: 1 }),
+    expected: decimal("expected", { precision: 6, scale: 1 }),
+    isCritical: boolean("isCritical").default(false),
+    dependencies: varchar("dependencies", { length: 255 }),
+    assignee: varchar("assignee", { length: 255 }),
+    jiraTaskId: varchar("jiraTaskId", { length: 100 }),
+    // Backlog ágil (Epic → Story → Task)
+    issueLevel: mysqlEnum("issueLevel", ["epic", "story", "task", "milestone"]).default("task"),
+    epicCode: varchar("epicCode", { length: 20 }),
+    storyCode: varchar("storyCode", { length: 20 }),
+    jiraIssueKey: varchar("jiraIssueKey", { length: 50 }),
+    jiraParentKey: varchar("jiraParentKey", { length: 50 }),
+    jiraStatusName: varchar("jiraStatusName", { length: 120 }),
+    jiraStatusCategory: varchar("jiraStatusCategory", { length: 80 }),
+    jiraAssigneeId: varchar("jiraAssigneeId", { length: 120 }),
+    acceptanceCriteria: text("acceptanceCriteria"),
+    storyPoints: int("storyPoints"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    projectJiraIssueUnique: uniqueIndex("wbs_project_jira_issue_unique").on(table.projectId, table.jiraIssueKey),
+  })
+);
 
 export type WbsTask = typeof wbsTasks.$inferSelect;
 export type InsertWbsTask = typeof wbsTasks.$inferInsert;
@@ -599,16 +587,31 @@ export const financialData = mysqlTable("financial_data", {
   presupuestoHH: decimal("presupuestoHH", { precision: 14, scale: 4 }),
   capacityHH: decimal("capacityHH", { precision: 14, scale: 4 }),
   hhPorcUtilizado: decimal("hhPorcUtilizado", { precision: 14, scale: 10 }),
-  margenBrutoNotaVentaUF: decimal("margenBrutoNotaVentaUF", { precision: 14, scale: 4 }),
-  porcentajeAvanceProyecto: decimal("porcentajeAvanceProyecto", { precision: 14, scale: 10 }),
+  margenBrutoNotaVentaUF: decimal("margenBrutoNotaVentaUF", {
+    precision: 14,
+    scale: 4,
+  }),
+  porcentajeAvanceProyecto: decimal("porcentajeAvanceProyecto", {
+    precision: 14,
+    scale: 10,
+  }),
   costoProyectadoUF: decimal("costoProyectadoUF", { precision: 14, scale: 4 }),
-  margenProyectadoUF: decimal("margenProyectadoUF", { precision: 14, scale: 4 }),
-  margenProyectadoPorc: decimal("margenProyectadoPorc", { precision: 14, scale: 10 }),
+  margenProyectadoUF: decimal("margenProyectadoUF", {
+    precision: 14,
+    scale: 4,
+  }),
+  margenProyectadoPorc: decimal("margenProyectadoPorc", {
+    precision: 14,
+    scale: 10,
+  }),
   margenTargetPorc: decimal("margenTargetPorc", { precision: 14, scale: 10 }),
   capacityU: decimal("capacityU", { precision: 14, scale: 4 }),
   planificadoUF: decimal("planificadoUF", { precision: 14, scale: 4 }),
   proyectadoUF: decimal("proyectadoUF", { precision: 14, scale: 4 }),
-  margenProyectadoSegunCapacity: decimal("margenProyectadoSegunCapacity", { precision: 14, scale: 10 }),
+  margenProyectadoSegunCapacity: decimal("margenProyectadoSegunCapacity", {
+    precision: 14,
+    scale: 10,
+  }),
   notas: text("notas"),
   otrosCostosUF: decimal("otrosCostosUF", { precision: 14, scale: 4 }),
   lineaNegocio: varchar("lineaNegocio", { length: 100 }),
@@ -667,51 +670,62 @@ export type InsertExecutiveVerdictReview = typeof executiveVerdictReviews.$infer
 
 // ==================== EXECUTIVE DASHBOARD V2: SOURCES & CONTRACTUAL BASELINES ====================
 // El SoW fija el baseline contractual; Jira sólo aporta estado y fecha operativa.
-export const executiveProjectSources = mysqlTable("executive_project_sources", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  dealId: varchar("dealId", { length: 50 }).notNull(),
-  jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull(),
-  contractDocumentId: int("contractDocumentId"),
-  baselineVersion: varchar("baselineVersion", { length: 50 }).notNull(),
-  contractFileName: varchar("contractFileName", { length: 500 }).notNull(),
-  contractFileUrl: varchar("contractFileUrl", { length: 1000 }).notNull(),
-  contractSha256: varchar("contractSha256", { length: 64 }),
-  sourceStatus: mysqlEnum("sourceStatus", ["draft", "approved", "superseded"]).default("draft").notNull(),
-  approvedAt: timestamp("approvedAt"),
-  approvedBy: int("approvedBy"),
-  approvedByName: varchar("approvedByName", { length: 200 }),
-  approvalNotes: text("approvalNotes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  projectBaselineVersionUnique: uniqueIndex("executive_source_project_version_uq").on(table.projectId, table.baselineVersion),
-}));
+export const executiveProjectSources = mysqlTable(
+  "executive_project_sources",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    dealId: varchar("dealId", { length: 50 }).notNull(),
+    jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull(),
+    contractDocumentId: int("contractDocumentId"),
+    baselineVersion: varchar("baselineVersion", { length: 50 }).notNull(),
+    contractFileName: varchar("contractFileName", { length: 500 }).notNull(),
+    contractFileUrl: varchar("contractFileUrl", { length: 1000 }).notNull(),
+    contractSha256: varchar("contractSha256", { length: 64 }),
+    sourceStatus: mysqlEnum("sourceStatus", ["draft", "approved", "superseded"]).default("draft").notNull(),
+    approvedAt: timestamp("approvedAt"),
+    approvedBy: int("approvedBy"),
+    approvedByName: varchar("approvedByName", { length: 200 }),
+    approvalNotes: text("approvalNotes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    projectBaselineVersionUnique: uniqueIndex("executive_source_project_version_uq").on(table.projectId, table.baselineVersion),
+  })
+);
 
 export type ExecutiveProjectSource = typeof executiveProjectSources.$inferSelect;
 export type InsertExecutiveProjectSource = typeof executiveProjectSources.$inferInsert;
 
-export const executiveContractMilestones = mysqlTable("executive_contract_milestones", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  sourceId: int("sourceId").notNull(),
-  milestoneCode: varchar("milestoneCode", { length: 50 }).notNull(),
-  title: varchar("title", { length: 500 }).notNull(),
-  billingWeight: decimal("billingWeight", { precision: 5, scale: 2 }).notNull(),
-  baselineDate: date("baselineDate", { mode: "string" }),
-  jiraIssueKey: varchar("jiraIssueKey", { length: 50 }).notNull(),
-  jiraStatusName: varchar("jiraStatusName", { length: 100 }),
-  jiraDueDate: date("jiraDueDate", { mode: "string" }),
-  jiraClosedDate: date("jiraClosedDate", { mode: "string" }),
-  semanticStatus: mysqlEnum("semanticStatus", ["pending", "fulfilled", "delayed", "blocked"]).default("pending").notNull(),
-  isCritical: boolean("isCritical").default(false).notNull(),
-  reconciliationNotes: text("reconciliationNotes"),
-  lastObservedAt: timestamp("lastObservedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  sourceJiraIssueUnique: uniqueIndex("executive_milestone_source_issue_uq").on(table.sourceId, table.jiraIssueKey),
-}));
+export const executiveContractMilestones = mysqlTable(
+  "executive_contract_milestones",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    sourceId: int("sourceId").notNull(),
+    milestoneCode: varchar("milestoneCode", { length: 50 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    billingWeight: decimal("billingWeight", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    baselineDate: date("baselineDate", { mode: "string" }),
+    jiraIssueKey: varchar("jiraIssueKey", { length: 50 }).notNull(),
+    jiraStatusName: varchar("jiraStatusName", { length: 100 }),
+    jiraDueDate: date("jiraDueDate", { mode: "string" }),
+    jiraClosedDate: date("jiraClosedDate", { mode: "string" }),
+    semanticStatus: mysqlEnum("semanticStatus", ["pending", "fulfilled", "delayed", "blocked"]).default("pending").notNull(),
+    isCritical: boolean("isCritical").default(false).notNull(),
+    reconciliationNotes: text("reconciliationNotes"),
+    lastObservedAt: timestamp("lastObservedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    sourceJiraIssueUnique: uniqueIndex("executive_milestone_source_issue_uq").on(table.sourceId, table.jiraIssueKey),
+  })
+);
 
 export type ExecutiveContractMilestone = typeof executiveContractMilestones.$inferSelect;
 export type InsertExecutiveContractMilestone = typeof executiveContractMilestones.$inferInsert;
@@ -877,149 +891,207 @@ export type ExecutiveDashboardSnapshot = typeof executiveDashboardSnapshots.$inf
 export type InsertExecutiveDashboardSnapshot = typeof executiveDashboardSnapshots.$inferInsert;
 
 // ==================== LINKED PROJECT DOCUMENTS (SoW y Gantt de proyectos vinculados) ====================
-export const linkedProjectDocuments = mysqlTable("linked_project_documents", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  docType: mysqlEnum("docType", ["sow", "gantt"]).notNull(),
-  fileName: varchar("fileName", { length: 500 }).notNull(),
-  fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
-  fileKey: varchar("fileKey", { length: 1000 }).notNull(),
-  fileSize: int("fileSize"),
-  mimeType: varchar("mimeType", { length: 100 }),
-  notes: text("notes"),
-  uploadedBy: int("uploadedBy").notNull(),
-  uploadedByName: varchar("uploadedByName", { length: 200 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, (table) => ({
-  projectDocFileUnique: uniqueIndex("linked_project_documents_project_type_file_unique").on(table.projectId, table.docType, table.fileKey),
-}));
+export const linkedProjectDocuments = mysqlTable(
+  "linked_project_documents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    docType: mysqlEnum("docType", ["sow", "gantt"]).notNull(),
+    fileName: varchar("fileName", { length: 500 }).notNull(),
+    fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
+    fileKey: varchar("fileKey", { length: 1000 }).notNull(),
+    fileSize: int("fileSize"),
+    mimeType: varchar("mimeType", { length: 100 }),
+    notes: text("notes"),
+    uploadedBy: int("uploadedBy").notNull(),
+    uploadedByName: varchar("uploadedByName", { length: 200 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    projectDocFileUnique: uniqueIndex("linked_project_documents_project_type_file_unique").on(table.projectId, table.docType, table.fileKey),
+  })
+);
 
 export type LinkedProjectDocument = typeof linkedProjectDocuments.$inferSelect;
 export type InsertLinkedProjectDocument = typeof linkedProjectDocuments.$inferInsert;
 
-
 // ==================== RECURRING SERVICES ====================
-export const recurringServices = mysqlTable("recurring_services", {
-  id: int("id").autoincrement().primaryKey(),
-  // Datos generales
-  clientName: varchar("clientName", { length: 255 }).notNull(),
-  dealId: varchar("dealId", { length: 100 }),
-  serviceName: varchar("serviceName", { length: 255 }).notNull(),
-  serviceType: mysqlEnum("serviceType", [...RECURRING_SERVICE_TYPE_VALUES]).notNull(),
-  durationMonths: int("durationMonths").notNull(),
-  estimatedStartDate: date("estimatedStartDate", { mode: "string" }),
-  formalStartDate: date("formalStartDate", { mode: "string" }),
-  endDate: date("endDate", { mode: "string" }),
-  // Estructura de cobro
-  billingType: mysqlEnum("billingType", ["cuota_fija", "cuotas_variables"]).notNull(),
-  fixedMonthlyAmount: decimal("fixedMonthlyAmount", { precision: 12, scale: 2 }),
-  currency: varchar("currency", { length: 10 }).default("USD"),
-  totalContractAmount: decimal("totalContractAmount", { precision: 12, scale: 2 }),
-  // Estado del pipeline
-  status: mysqlEnum("status", ["activo", "pausado", "completado", "cancelado"]).default("activo").notNull(),
-  currentStage: mysqlEnum("currentStage", ["inicializacion", "plan_trabajo", "jira_setup", "ejecucion", "cierre"]).default("inicializacion").notNull(),
-  // Integración CRM Pipedrive
-  pipedrivePersonName: varchar("pipedrivePersonName", { length: 255 }),
-  pipedrivePersonEmail: varchar("pipedrivePersonEmail", { length: 320 }),
-  pipedrivePersonPhone: varchar("pipedrivePersonPhone", { length: 100 }),
-  pipedriveDealAmount: decimal("pipedriveDealAmount", { precision: 12, scale: 2 }),
-  pipedriveDealCreatedAt: date("pipedriveDealCreatedAt", { mode: "string" }),
-  pipedriveDealClosedAt: date("pipedriveDealClosedAt", { mode: "string" }),
-  pipedriveInteractionCount: int("pipedriveInteractionCount"),
-  pipedriveOrgName: varchar("pipedriveOrgName", { length: 255 }),
-  pipedriveOrgAddress: varchar("pipedriveOrgAddress", { length: 500 }),
-  pipedriveDealStatus: varchar("pipedriveDealStatus", { length: 50 }),
-  pipedriveDealCurrency: varchar("pipedriveDealCurrency", { length: 10 }),
-  pipedriveEmailsCount: int("pipedriveEmailsCount"),
-  pipedriveNotesCount: int("pipedriveNotesCount"),
-  pipedriveNotesRaw: text("pipedriveNotesRaw"),
-  pipedriveFlowSummary: text("pipedriveFlowSummary"),
-  pipedriveSyncedAt: timestamp("pipedriveSyncedAt"),
-  pipedriveAiSummary: text("pipedriveAiSummary"),
-  pipedriveClientConcerns: text("pipedriveClientConcerns"),
-  // Integración JSM
-  jsmPlatform: mysqlEnum("jsmPlatform", ["prodigio", "cliente"]).default("prodigio"),
-  jsmLinkSource: mysqlEnum("jsmLinkSource", [...JSM_LINK_SOURCE_VALUES]),
-  jsmProjectKey: varchar("jsmProjectKey", { length: 50 }),
-  jsmProjectId: varchar("jsmProjectId", { length: 50 }),
-  jsmProjectName: varchar("jsmProjectName", { length: 255 }),
-  jsmAgentUrl: varchar("jsmAgentUrl", { length: 500 }),
-  jsmPortalUrl: varchar("jsmPortalUrl", { length: 500 }),
-  jsmOrganizationId: varchar("jsmOrganizationId", { length: 50 }),
-  jsmServiceDeskId: varchar("jsmServiceDeskId", { length: 50 }),
-  jsmClientPlatformUrl: varchar("jsmClientPlatformUrl", { length: 500 }),
-  jsmLinkHealth: mysqlEnum("jsmLinkHealth", [...JSM_LINK_HEALTH_VALUES]),
-  jsmLastVerifiedAt: timestamp("jsmLastVerifiedAt"),
-  jsmLinkedAt: timestamp("jsmLinkedAt"),
-  jsmLinkedBy: int("jsmLinkedBy"),
-  // Flujo de inicialización (2 pasos)
-  initStep1Confirmed: boolean("initStep1Confirmed").default(false),
-  pipedriveAiRecommendations: text("pipedriveAiRecommendations"),
-  // Análisis agéntico persistido
-  aiHealthStatus: varchar("aiHealthStatus", { length: 20 }),
-  aiHealthJustification: text("aiHealthJustification"),
-  aiExecutiveAbstract: text("aiExecutiveAbstract"),
-  aiFullAnalysis: text("aiFullAnalysis"),
-  aiAnalysisDate: timestamp("aiAnalysisDate"),
-  // Responsables
-  pmId: int("pmId"),
-  createdBy: int("createdBy"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  jsmProjectKeyUnique: uniqueIndex("recurring_services_jsm_project_key_uq").on(table.jsmProjectKey),
-  jsmProjectIdUnique: uniqueIndex("recurring_services_jsm_project_id_uq").on(table.jsmProjectId),
-  jsmServiceDeskIdUnique: uniqueIndex("recurring_services_jsm_service_desk_id_uq").on(table.jsmServiceDeskId),
-}));
+export const recurringServices = mysqlTable(
+  "recurring_services",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    // Datos generales
+    clientName: varchar("clientName", { length: 255 }).notNull(),
+    dealId: varchar("dealId", { length: 100 }),
+    serviceName: varchar("serviceName", { length: 255 }).notNull(),
+    serviceType: mysqlEnum("serviceType", [...RECURRING_SERVICE_TYPE_VALUES]).notNull(),
+    durationMonths: int("durationMonths").notNull(),
+    estimatedStartDate: date("estimatedStartDate", { mode: "string" }),
+    formalStartDate: date("formalStartDate", { mode: "string" }),
+    endDate: date("endDate", { mode: "string" }),
+    // Estructura de cobro
+    billingType: mysqlEnum("billingType", ["cuota_fija", "cuotas_variables"]).notNull(),
+    fixedMonthlyAmount: decimal("fixedMonthlyAmount", {
+      precision: 12,
+      scale: 2,
+    }),
+    currency: varchar("currency", { length: 10 }).default("USD"),
+    totalContractAmount: decimal("totalContractAmount", {
+      precision: 12,
+      scale: 2,
+    }),
+    // Estado del pipeline
+    status: mysqlEnum("status", ["activo", "pausado", "completado", "cancelado"]).default("activo").notNull(),
+    currentStage: mysqlEnum("currentStage", ["inicializacion", "plan_trabajo", "jira_setup", "ejecucion", "cierre"]).default("inicializacion").notNull(),
+    // Integración CRM Pipedrive
+    pipedrivePersonName: varchar("pipedrivePersonName", { length: 255 }),
+    pipedrivePersonEmail: varchar("pipedrivePersonEmail", { length: 320 }),
+    pipedrivePersonPhone: varchar("pipedrivePersonPhone", { length: 100 }),
+    pipedriveDealAmount: decimal("pipedriveDealAmount", {
+      precision: 12,
+      scale: 2,
+    }),
+    pipedriveDealCreatedAt: date("pipedriveDealCreatedAt", { mode: "string" }),
+    pipedriveDealClosedAt: date("pipedriveDealClosedAt", { mode: "string" }),
+    pipedriveInteractionCount: int("pipedriveInteractionCount"),
+    pipedriveOrgName: varchar("pipedriveOrgName", { length: 255 }),
+    pipedriveOrgAddress: varchar("pipedriveOrgAddress", { length: 500 }),
+    pipedriveDealStatus: varchar("pipedriveDealStatus", { length: 50 }),
+    pipedriveDealCurrency: varchar("pipedriveDealCurrency", { length: 10 }),
+    pipedriveEmailsCount: int("pipedriveEmailsCount"),
+    pipedriveNotesCount: int("pipedriveNotesCount"),
+    pipedriveNotesRaw: text("pipedriveNotesRaw"),
+    pipedriveFlowSummary: text("pipedriveFlowSummary"),
+    pipedriveSyncedAt: timestamp("pipedriveSyncedAt"),
+    pipedriveAiSummary: text("pipedriveAiSummary"),
+    pipedriveClientConcerns: text("pipedriveClientConcerns"),
+    // Integración JSM
+    jsmPlatform: mysqlEnum("jsmPlatform", ["prodigio", "cliente"]).default("prodigio"),
+    jsmLinkSource: mysqlEnum("jsmLinkSource", [...JSM_LINK_SOURCE_VALUES]),
+    jsmProjectKey: varchar("jsmProjectKey", { length: 50 }),
+    jsmProjectId: varchar("jsmProjectId", { length: 50 }),
+    jsmProjectName: varchar("jsmProjectName", { length: 255 }),
+    jsmAgentUrl: varchar("jsmAgentUrl", { length: 500 }),
+    jsmPortalUrl: varchar("jsmPortalUrl", { length: 500 }),
+    jsmOrganizationId: varchar("jsmOrganizationId", { length: 50 }),
+    jsmServiceDeskId: varchar("jsmServiceDeskId", { length: 50 }),
+    jsmClientPlatformUrl: varchar("jsmClientPlatformUrl", { length: 500 }),
+    jsmLinkHealth: mysqlEnum("jsmLinkHealth", [...JSM_LINK_HEALTH_VALUES]),
+    jsmLastVerifiedAt: timestamp("jsmLastVerifiedAt"),
+    jsmLinkedAt: timestamp("jsmLinkedAt"),
+    jsmLinkedBy: int("jsmLinkedBy"),
+    // Flujo de inicialización (2 pasos)
+    initStep1Confirmed: boolean("initStep1Confirmed").default(false),
+    pipedriveAiRecommendations: text("pipedriveAiRecommendations"),
+    // Análisis agéntico persistido
+    aiHealthStatus: varchar("aiHealthStatus", { length: 20 }),
+    aiHealthJustification: text("aiHealthJustification"),
+    aiExecutiveAbstract: text("aiExecutiveAbstract"),
+    aiFullAnalysis: text("aiFullAnalysis"),
+    aiAnalysisDate: timestamp("aiAnalysisDate"),
+    // Responsables
+    pmId: int("pmId"),
+    createdBy: int("createdBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    jsmProjectKeyUnique: uniqueIndex("recurring_services_jsm_project_key_uq").on(table.jsmProjectKey),
+    jsmProjectIdUnique: uniqueIndex("recurring_services_jsm_project_id_uq").on(table.jsmProjectId),
+    jsmServiceDeskIdUnique: uniqueIndex("recurring_services_jsm_service_desk_id_uq").on(table.jsmServiceDeskId),
+  })
+);
 export type RecurringService = typeof recurringServices.$inferSelect;
 export type InsertRecurringService = typeof recurringServices.$inferInsert;
 
 // ==================== RECURRING SERVICE JSM LINK RUNS ====================
-export const recurringServiceJsmLinkRuns = mysqlTable("recurring_service_jsm_link_runs", {
-  id: int("id").autoincrement().primaryKey(),
-  runId: varchar("runId", { length: 191 }).notNull().unique(),
-  serviceId: int("serviceId").notNull(),
-  source: mysqlEnum("source", [...JSM_LINK_RUN_SOURCE_VALUES]).notNull(),
-  status: mysqlEnum("status", [...JSM_LINK_RUN_STATUS_VALUES]).notNull(),
-  candidateProjectId: varchar("candidateProjectId", { length: 50 }),
-  candidateProjectKey: varchar("candidateProjectKey", { length: 50 }),
-  candidateProjectName: varchar("candidateProjectName", { length: 255 }),
-  candidateServiceDeskId: varchar("candidateServiceDeskId", { length: 50 }),
-  fingerprint: varchar("fingerprint", { length: 64 }),
-  checks: json("checks"),
-  snapshot: json("snapshot"),
-  errorMessage: text("errorMessage"),
-  triggeredBy: int("triggeredBy"),
-  triggeredByName: varchar("triggeredByName", { length: 200 }),
-  startedAt: timestamp("startedAt").defaultNow().notNull(),
-  finishedAt: timestamp("finishedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, (table) => ({
-  serviceFingerprintUnique: uniqueIndex("recurring_jsm_link_service_fingerprint_uq").on(table.serviceId, table.fingerprint),
-}));
+export const recurringServiceJsmLinkRuns = mysqlTable(
+  "recurring_service_jsm_link_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    runId: varchar("runId", { length: 191 }).notNull().unique(),
+    serviceId: int("serviceId").notNull(),
+    source: mysqlEnum("source", [...JSM_LINK_RUN_SOURCE_VALUES]).notNull(),
+    status: mysqlEnum("status", [...JSM_LINK_RUN_STATUS_VALUES]).notNull(),
+    candidateProjectId: varchar("candidateProjectId", { length: 50 }),
+    candidateProjectKey: varchar("candidateProjectKey", { length: 50 }),
+    candidateProjectName: varchar("candidateProjectName", { length: 255 }),
+    candidateServiceDeskId: varchar("candidateServiceDeskId", { length: 50 }),
+    fingerprint: varchar("fingerprint", { length: 64 }),
+    checks: json("checks"),
+    snapshot: json("snapshot"),
+    errorMessage: text("errorMessage"),
+    triggeredBy: int("triggeredBy"),
+    triggeredByName: varchar("triggeredByName", { length: 200 }),
+    startedAt: timestamp("startedAt").defaultNow().notNull(),
+    finishedAt: timestamp("finishedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    serviceFingerprintUnique: uniqueIndex("recurring_jsm_link_service_fingerprint_uq").on(table.serviceId, table.fingerprint),
+  })
+);
 
 export type RecurringServiceJsmLinkRun = typeof recurringServiceJsmLinkRuns.$inferSelect;
 export type InsertRecurringServiceJsmLinkRun = typeof recurringServiceJsmLinkRuns.$inferInsert;
 
 // ==================== RECURRING SERVICE JSM ISSUE TYPE MAPPINGS ====================
-export const recurringServiceJsmIssueTypeMappings = mysqlTable("recurring_service_jsm_issue_type_mappings", {
-  id: int("id").autoincrement().primaryKey(),
-  serviceId: int("serviceId").notNull(),
-  category: mysqlEnum("category", [...JSM_ISSUE_MAPPING_CATEGORY_VALUES]).notNull(),
-  issueTypeId: varchar("issueTypeId", { length: 50 }).notNull(),
-  issueTypeName: varchar("issueTypeName", { length: 100 }).notNull(),
-  source: mysqlEnum("source", [...JSM_ISSUE_MAPPING_SOURCE_VALUES]).default("selected").notNull(),
-  status: mysqlEnum("status", [...JSM_ISSUE_MAPPING_STATUS_VALUES]).default("active").notNull(),
-  configuredBy: int("configuredBy"),
-  configuredByName: varchar("configuredByName", { length: 200 }),
-  configuredAt: timestamp("configuredAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  serviceCategoryUnique: uniqueIndex("recurring_jsm_issue_mapping_service_category_uq").on(table.serviceId, table.category),
-}));
+export const recurringServiceJsmIssueTypeMappings = mysqlTable(
+  "recurring_service_jsm_issue_type_mappings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    serviceId: int("serviceId").notNull(),
+    category: mysqlEnum("category", [...JSM_ISSUE_MAPPING_CATEGORY_VALUES]).notNull(),
+    issueTypeId: varchar("issueTypeId", { length: 50 }).notNull(),
+    issueTypeName: varchar("issueTypeName", { length: 100 }).notNull(),
+    source: mysqlEnum("source", [...JSM_ISSUE_MAPPING_SOURCE_VALUES])
+      .default("selected")
+      .notNull(),
+    status: mysqlEnum("status", [...JSM_ISSUE_MAPPING_STATUS_VALUES])
+      .default("active")
+      .notNull(),
+    configuredBy: int("configuredBy"),
+    configuredByName: varchar("configuredByName", { length: 200 }),
+    configuredAt: timestamp("configuredAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    serviceCategoryUnique: uniqueIndex("recurring_jsm_issue_mapping_service_category_uq").on(table.serviceId, table.category),
+  })
+);
 
 export type RecurringServiceJsmIssueTypeMapping = typeof recurringServiceJsmIssueTypeMappings.$inferSelect;
 export type InsertRecurringServiceJsmIssueTypeMapping = typeof recurringServiceJsmIssueTypeMappings.$inferInsert;
+
+// ==================== RECURRING SERVICE JSM SYNC RUNS ====================
+export const recurringServiceJsmSyncRuns = mysqlTable(
+  "recurring_service_jsm_sync_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    runId: varchar("runId", { length: 191 }).notNull().unique(),
+    serviceId: int("serviceId").notNull(),
+    status: mysqlEnum("status", [...JSM_SYNC_RUN_STATUS_VALUES]).notNull(),
+    fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
+    projectId: varchar("projectId", { length: 50 }).notNull(),
+    projectKey: varchar("projectKey", { length: 50 }).notNull(),
+    serviceDeskId: varchar("serviceDeskId", { length: 50 }),
+    mappingsSnapshot: json("mappingsSnapshot").notNull(),
+    plan: json("plan").notNull(),
+    result: json("result"),
+    errorMessage: text("errorMessage"),
+    triggeredBy: int("triggeredBy"),
+    triggeredByName: varchar("triggeredByName", { length: 200 }),
+    startedAt: timestamp("startedAt").defaultNow().notNull(),
+    finishedAt: timestamp("finishedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    serviceFingerprintUnique: uniqueIndex("recurring_jsm_sync_service_fingerprint_uq").on(table.serviceId, table.fingerprint),
+  })
+);
+
+export type RecurringServiceJsmSyncRun = typeof recurringServiceJsmSyncRuns.$inferSelect;
+export type InsertRecurringServiceJsmSyncRun = typeof recurringServiceJsmSyncRuns.$inferInsert;
 
 // ==================== RECURRING SERVICE BILLING MONTHS ====================
 export const recurringServiceBillingMonths = mysqlTable("recurring_service_billing_months", {
@@ -1093,7 +1165,9 @@ export const recurringServiceSlaConfig = mysqlTable("recurring_service_sla_confi
   firstResponseMinutes: int("firstResponseMinutes").notNull(),
   resolutionMinutes: int("resolutionMinutes").notNull(),
   coverageType: mysqlEnum("coverageType", ["24x7", "8x5", "personalizado"]).default("8x5").notNull(),
-  customCoverageDescription: varchar("customCoverageDescription", { length: 255 }),
+  customCoverageDescription: varchar("customCoverageDescription", {
+    length: 255,
+  }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type RecurringServiceSlaConfigItem = typeof recurringServiceSlaConfig.$inferSelect;

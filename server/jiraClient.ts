@@ -155,7 +155,9 @@ export async function getJsmServiceDesk(serviceDeskId: string): Promise<JsmServi
 
 /** Reads effective project permissions for the configured technical identity. Read-only. */
 export async function getJiraProjectPermissions(projectKey: string): Promise<Record<string, JiraProjectPermission>> {
-  const result = await jiraFetch<{ permissions: Record<string, JiraProjectPermission> }>("/mypermissions", {
+  const result = await jiraFetch<{
+    permissions: Record<string, JiraProjectPermission>;
+  }>("/mypermissions", {
     params: {
       projectKey,
       permissions: "BROWSE_PROJECTS,CREATE_ISSUES",
@@ -188,8 +190,13 @@ export interface JiraIssue {
   fields: {
     summary: string;
     status: { name: string; statusCategory: { name: string; key: string } };
-    issuetype: { name: string; subtask: boolean };
-    assignee?: { displayName: string; accountId: string; avatarUrls?: Record<string, string> } | null;
+    issuetype: { id?: string; name: string; subtask: boolean };
+    project?: { id: string; key: string; name: string };
+    assignee?: {
+      displayName: string;
+      accountId: string;
+      avatarUrls?: Record<string, string>;
+    } | null;
     priority?: { name: string; iconUrl: string } | null;
     created: string;
     updated: string;
@@ -208,7 +215,11 @@ interface JiraSearchResult {
 
 export async function searchJiraIssues(
   jql: string,
-  options: { maxResults?: number; nextPageToken?: string; fields?: string[] } = {}
+  options: {
+    maxResults?: number;
+    nextPageToken?: string;
+    fields?: string[];
+  } = {}
 ): Promise<JiraSearchResult> {
   const { maxResults = 50, nextPageToken, fields = ["summary", "status", "issuetype", "assignee", "priority", "created", "updated", "labels"] } = options;
   const body: any = { jql, maxResults, fields };
@@ -221,13 +232,20 @@ export async function searchJiraIssues(
 
 export async function getProjectIssues(
   projectKey: string,
-  options: { maxResults?: number; nextPageToken?: string; statusCategory?: string } = {}
+  options: {
+    maxResults?: number;
+    nextPageToken?: string;
+    statusCategory?: string;
+  } = {}
 ): Promise<JiraSearchResult> {
   let jql = `project=${projectKey} ORDER BY created DESC`;
   if (options.statusCategory) {
     jql = `project=${projectKey} AND statusCategory="${options.statusCategory}" ORDER BY created DESC`;
   }
-  return searchJiraIssues(jql, { maxResults: options.maxResults, nextPageToken: options.nextPageToken });
+  return searchJiraIssues(jql, {
+    maxResults: options.maxResults,
+    nextPageToken: options.nextPageToken,
+  });
 }
 
 /** Count issues matching a JQL query (fetches 0 results, reads total from response) */
@@ -243,7 +261,9 @@ export async function countJiraIssues(jql: string): Promise<number> {
 
 export async function getJiraIssue(issueKey: string): Promise<JiraIssue> {
   return jiraFetch<JiraIssue>(`/issue/${issueKey}`, {
-    params: { fields: "summary,status,issuetype,assignee,priority,created,updated,labels,description" },
+    params: {
+      fields: "summary,status,issuetype,project,assignee,priority,created,updated,labels,description",
+    },
   });
 }
 
@@ -253,6 +273,7 @@ export interface CreateIssueInput {
   projectKey: string;
   summary: string;
   issueTypeName?: string; // defaults to "Task" (auto-resolved for JSM next-gen)
+  issueTypeId?: string; // strict mode: Jira receives this exact configured type, without fallback
   description?: string;
   assigneeAccountId?: string;
   labels?: string[];
@@ -270,7 +291,12 @@ const _issueTypeCache: Record<string, string[]> = {};
 async function resolveIssueTypeName(projectKey: string, preferred: string): Promise<string> {
   if (!_issueTypeCache[projectKey]) {
     try {
-      const proj = await jiraFetch<{ id: string; projectTypeKey?: string; style?: string; issueTypes?: Array<{ name: string }> }>(`/project/${projectKey}`);
+      const proj = await jiraFetch<{
+        id: string;
+        projectTypeKey?: string;
+        style?: string;
+        issueTypes?: Array<{ name: string }>;
+      }>(`/project/${projectKey}`);
       // Obtener issue types via endpoint dedicado usando el ID numérico del proyecto
       const types = await jiraFetch<Array<{ id: string; name: string }>>(`/issuetype/project?projectId=${proj.id}`);
       _issueTypeCache[projectKey] = Array.isArray(types) ? types.map(t => t.name) : [];
@@ -297,12 +323,12 @@ export async function createJiraIssue(input: CreateIssueInput): Promise<{ id: st
   if (rawSummary.length > 255) {
     console.warn(`[JIRA] Summary truncated from ${rawSummary.length} to 255 chars: ${rawSummary.substring(0, 80)}...`);
   }
-  // Resolver el issue type correcto según el proyecto (JSM next-gen no tiene "Task")
-  const resolvedIssueType = await resolveIssueTypeName(input.projectKey, input.issueTypeName ?? "Task");
+  // Existing callers may still resolve by name; J4 sync always supplies issueTypeId and bypasses fallbacks.
+  const resolvedIssueType = input.issueTypeId ? null : await resolveIssueTypeName(input.projectKey, input.issueTypeName ?? "Task");
   const fields: any = {
     project: { key: input.projectKey },
     summary,
-    issuetype: { name: resolvedIssueType },
+    issuetype: input.issueTypeId ? { id: input.issueTypeId } : { name: resolvedIssueType },
   };
   if (input.description) {
     // Split long descriptions into multiple paragraphs for ADF format
@@ -310,7 +336,10 @@ export async function createJiraIssue(input: CreateIssueInput): Promise<{ id: st
     fields.description = {
       type: "doc",
       version: 1,
-      content: paragraphs.map(p => ({ type: "paragraph", content: [{ type: "text", text: p }] })),
+      content: paragraphs.map(p => ({
+        type: "paragraph",
+        content: [{ type: "text", text: p }],
+      })),
     };
   }
   if (input.assigneeAccountId) {
@@ -329,13 +358,28 @@ export async function createJiraIssue(input: CreateIssueInput): Promise<{ id: st
 
 // ==================== Project Statuses ====================
 
-export async function getProjectStatuses(projectKey: string): Promise<Array<{ name: string; statuses: Array<{ name: string; id: string; statusCategory: { name: string } }> }>> {
+export async function getProjectStatuses(projectKey: string): Promise<
+  Array<{
+    name: string;
+    statuses: Array<{
+      name: string;
+      id: string;
+      statusCategory: { name: string };
+    }>;
+  }>
+> {
   return jiraFetch(`/project/${projectKey}/statuses`);
 }
 
 // ==================== Issue Transitions ====================
 
-export async function getIssueTransitions(issueKey: string): Promise<{ transitions: Array<{ id: string; name: string; to: { name: string; id: string } }> }> {
+export async function getIssueTransitions(issueKey: string): Promise<{
+  transitions: Array<{
+    id: string;
+    name: string;
+    to: { name: string; id: string };
+  }>;
+}> {
   return jiraFetch(`/issue/${issueKey}/transitions`);
 }
 
@@ -347,9 +391,7 @@ export async function getIssueTransitions(issueKey: string): Promise<{ transitio
 export async function transitionJiraIssue(issueKey: string, targetStatusName: string): Promise<boolean> {
   try {
     const { transitions } = await getIssueTransitions(issueKey);
-    const target = transitions.find(
-      (t) => t.to.name.toLowerCase() === targetStatusName.toLowerCase()
-    );
+    const target = transitions.find(t => t.to.name.toLowerCase() === targetStatusName.toLowerCase());
     if (!target) {
       console.warn(`[JIRA] Transition to "${targetStatusName}" not found for issue ${issueKey}. Available: ${transitions.map(t => t.to.name).join(", ")}`);
       return false;
@@ -392,7 +434,11 @@ async function jiraAgileFetch<T = any>(path: string, options: JiraRequestOptions
     Accept: "application/json",
   };
   if (body) headers["Content-Type"] = "application/json";
-  const resp = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const resp = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`JIRA Agile API error ${resp.status}: ${text}`);
@@ -483,25 +529,69 @@ export interface JiraTemplateStructure {
   templateKey: string;
   templateName: string;
   projectTypeKey: string;
-  boards: Array<{ name: string; type: string; boardId?: number; filterId?: string; jqlTemplate?: string }>;
+  boards: Array<{
+    name: string;
+    type: string;
+    boardId?: number;
+    filterId?: string;
+    jqlTemplate?: string;
+  }>;
   issueTypes: Array<{ name: string; description: string; subtask: boolean }>;
-  workflows: Array<{ issueType: string; statuses: Array<{ name: string; category: string }> }>;
+  workflows: Array<{
+    issueType: string;
+    statuses: Array<{ name: string; category: string }>;
+  }>;
 }
 
 /** Static PPDC issue types - canonical corporate template */
-const PPDC_ISSUE_TYPES: Array<{ name: string; description: string; subtask: boolean }> = [
+const PPDC_ISSUE_TYPES: Array<{
+  name: string;
+  description: string;
+  subtask: boolean;
+}> = [
   { name: "Task", description: "Tarea general del proyecto", subtask: false },
-  { name: "Sub-task", description: "Subtarea asociada a una tarea principal", subtask: true },
-  { name: "Epic", description: "Agrupación de tareas de alto nivel", subtask: false },
-  { name: "Story", description: "Historia de usuario o requerimiento funcional", subtask: false },
-  { name: "Hito PMO", description: "Hito de facturación o entrega del proyecto", subtask: false },
-  { name: "Riesgos PMO", description: "Riesgo identificado en la matriz de riesgos", subtask: false },
-  { name: "Cambio de Alcance", description: "Solicitud de cambio de alcance del proyecto", subtask: false },
-  { name: "Proyecto PMO - Avance", description: "Registro de avance general del proyecto", subtask: false },
+  {
+    name: "Sub-task",
+    description: "Subtarea asociada a una tarea principal",
+    subtask: true,
+  },
+  {
+    name: "Epic",
+    description: "Agrupación de tareas de alto nivel",
+    subtask: false,
+  },
+  {
+    name: "Story",
+    description: "Historia de usuario o requerimiento funcional",
+    subtask: false,
+  },
+  {
+    name: "Hito PMO",
+    description: "Hito de facturación o entrega del proyecto",
+    subtask: false,
+  },
+  {
+    name: "Riesgos PMO",
+    description: "Riesgo identificado en la matriz de riesgos",
+    subtask: false,
+  },
+  {
+    name: "Cambio de Alcance",
+    description: "Solicitud de cambio de alcance del proyecto",
+    subtask: false,
+  },
+  {
+    name: "Proyecto PMO - Avance",
+    description: "Registro de avance general del proyecto",
+    subtask: false,
+  },
 ];
 
 /** Static PPDC workflows - canonical corporate template */
-const PPDC_WORKFLOWS: Array<{ issueType: string; statuses: Array<{ name: string; category: string }> }> = [
+const PPDC_WORKFLOWS: Array<{
+  issueType: string;
+  statuses: Array<{ name: string; category: string }>;
+}> = [
   {
     issueType: "Task",
     statuses: [
@@ -552,10 +642,7 @@ const PPDC_WORKFLOWS: Array<{ issueType: string; statuses: Array<{ name: string;
 /** Fetches the structure of the template project. Falls back to static PPDC config if JIRA API fails. */
 export async function getTemplateStructure(templateKey = "PBTISD1"): Promise<JiraTemplateStructure> {
   try {
-    const [project, statuses] = await Promise.all([
-      getJiraProject(templateKey),
-      getProjectStatuses(templateKey),
-    ]);
+    const [project, statuses] = await Promise.all([getJiraProject(templateKey), getProjectStatuses(templateKey)]);
 
     const issueTypes = (project.issueTypes ?? []).map((t: any) => ({
       name: t.name,
@@ -653,29 +740,31 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
     // Step 1: Create the project — JSM uses Mesa de Servicio category, PMO uses PPDC HIBRIDO
     const result = await jiraFetch<{ id: string; key: string; self: string }>("/project", {
       method: "POST",
-      body: isJSM ? {
-        // JSM / Mesa de Servicio configuration
-        name: input.spaceName,
-        key: input.spaceKey,
-        projectTypeKey: JSM_CONFIG.projectTypeKey,
-        projectTemplateKey: JSM_CONFIG.projectTemplateKey,
-        leadAccountId: input.leadAccountId || JSM_CONFIG.ownerAccountId,
-        description: input.description ?? `Mesa de Servicio creada desde PMO Platform Prodigio. Categoría: ${JSM_CONFIG.categoryName}.`,
-        assigneeType: "UNASSIGNED",
-        categoryId: JSM_CONFIG.categoryId,
-      } : {
-        // Standard PMO / PPDC HIBRIDO configuration
-        name: input.spaceName,
-        key: input.spaceKey,
-        projectTypeKey: "business",
-        projectTemplateKey: "com.atlassian.jira-core-project-templates:jira-core-simplified-project-management",
-        // Owner: Yanahí Takiana Villegas García (corporate PMO owner)
-        leadAccountId: PPDC_CONFIG.ownerAccountId,
-        description: input.description ?? `Proyecto creado desde PMO Platform Prodigio. Categoría: ${PPDC_CONFIG.categoryName}.`,
-        assigneeType: "UNASSIGNED",
-        // Category: PPDC HIBRIDO
-        categoryId: PPDC_CONFIG.categoryId,
-      },
+      body: isJSM
+        ? {
+            // JSM / Mesa de Servicio configuration
+            name: input.spaceName,
+            key: input.spaceKey,
+            projectTypeKey: JSM_CONFIG.projectTypeKey,
+            projectTemplateKey: JSM_CONFIG.projectTemplateKey,
+            leadAccountId: input.leadAccountId || JSM_CONFIG.ownerAccountId,
+            description: input.description ?? `Mesa de Servicio creada desde PMO Platform Prodigio. Categoría: ${JSM_CONFIG.categoryName}.`,
+            assigneeType: "UNASSIGNED",
+            categoryId: JSM_CONFIG.categoryId,
+          }
+        : {
+            // Standard PMO / PPDC HIBRIDO configuration
+            name: input.spaceName,
+            key: input.spaceKey,
+            projectTypeKey: "business",
+            projectTemplateKey: "com.atlassian.jira-core-project-templates:jira-core-simplified-project-management",
+            // Owner: Yanahí Takiana Villegas García (corporate PMO owner)
+            leadAccountId: PPDC_CONFIG.ownerAccountId,
+            description: input.description ?? `Proyecto creado desde PMO Platform Prodigio. Categoría: ${PPDC_CONFIG.categoryName}.`,
+            assigneeType: "UNASSIGNED",
+            // Category: PPDC HIBRIDO
+            categoryId: PPDC_CONFIG.categoryId,
+          },
     });
 
     // Step 2: Apply corporate schemas to the new project
@@ -691,7 +780,9 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
           method: "PUT",
           body: { issueTypeSchemeId: PPDC_CONFIG.issueTypeSchemeId, projectId },
         });
-      } catch (e: any) { schemaErrors.push(`IssueTypeScheme: ${e.message?.substring(0, 100)}`); }
+      } catch (e: any) {
+        schemaErrors.push(`IssueTypeScheme: ${e.message?.substring(0, 100)}`);
+      }
 
       // Apply Workflow Scheme: PPDC: Project Management Workflow Scheme
       // Endpoint: PUT /rest/api/3/workflowscheme/project (assign scheme to project)
@@ -700,7 +791,9 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
           method: "PUT",
           body: { workflowSchemeId: PPDC_CONFIG.workflowSchemeId, projectId },
         });
-      } catch (e: any) { schemaErrors.push(`WorkflowScheme: ${e.message?.substring(0, 100)}`); }
+      } catch (e: any) {
+        schemaErrors.push(`WorkflowScheme: ${e.message?.substring(0, 100)}`);
+      }
 
       // Apply Issue Type Screen Scheme: PPDC: Project Management Issue Type Screen Scheme
       // Endpoint: PUT /rest/api/3/issuetypescreenscheme/project (without schemeId in URL)
@@ -708,9 +801,14 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
       try {
         await jiraFetch(`/issuetypescreenscheme/project`, {
           method: "PUT",
-          body: { issueTypeScreenSchemeId: PPDC_CONFIG.screenSchemeId, projectId },
+          body: {
+            issueTypeScreenSchemeId: PPDC_CONFIG.screenSchemeId,
+            projectId,
+          },
         });
-      } catch (e: any) { schemaErrors.push(`ScreenScheme: ${e.message?.substring(0, 100)}`); }
+      } catch (e: any) {
+        schemaErrors.push(`ScreenScheme: ${e.message?.substring(0, 100)}`);
+      }
 
       // Apply Notification Scheme: Default Notification Scheme
       // Endpoint: PUT /rest/api/3/project/{projectId}/notificationscheme
@@ -724,7 +822,9 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
         try {
           await jiraFetch(`/project/${result.key}`, {
             method: "PUT",
-            body: { notificationScheme: parseInt(PPDC_CONFIG.notificationSchemeId) },
+            body: {
+              notificationScheme: parseInt(PPDC_CONFIG.notificationSchemeId),
+            },
           });
         } catch (e2: any) {
           schemaErrors.push(`NotificationScheme: ${e2.message?.substring(0, 100)}`);
@@ -745,8 +845,17 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
     // Step 3: Create the 5 PMO boards via JQL filters (PMO only — JSM has its own portal/queues)
     // NOTE: Business projects (JWM) do NOT support location in the agile board API.
     // Boards are created without location; the JQL filter scopes them to the project.
-    const createdBoards: Array<{ name: string; type: string; boardId?: number; filterId?: string }> = [];
-    const agileHeaders = { Authorization: `Basic ${JIRA_AUTH}`, "Content-Type": "application/json", Accept: "application/json" };
+    const createdBoards: Array<{
+      name: string;
+      type: string;
+      boardId?: number;
+      filterId?: string;
+    }> = [];
+    const agileHeaders = {
+      Authorization: `Basic ${JIRA_AUTH}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
 
     // JSM projects skip PMO board creation — they use JSM queues and portals instead
     const boardsToCreate = isJSM ? [] : PPDC_CONFIG.pmoBoards;
@@ -764,11 +873,8 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
         let exactFilter: any = null;
         let searchStartAt = 0;
         while (!exactFilter) {
-          const searchResp = await fetch(
-            `${JIRA_BASE}/rest/api/3/filter/search?filterName=${encodeURIComponent(filterName)}&maxResults=50&startAt=${searchStartAt}`,
-            { headers: agileHeaders }
-          );
-          const searchResult = await searchResp.json() as any;
+          const searchResp = await fetch(`${JIRA_BASE}/rest/api/3/filter/search?filterName=${encodeURIComponent(filterName)}&maxResults=50&startAt=${searchStartAt}`, { headers: agileHeaders });
+          const searchResult = (await searchResp.json()) as any;
           exactFilter = searchResult.values?.find((v: any) => v.name === filterName) ?? null;
           if (exactFilter || searchResult.isLast || !searchResult.values?.length) break;
           searchStartAt += 50;
@@ -783,7 +889,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
             headers: agileHeaders,
             body: JSON.stringify({ name: tempName, jql: filterJql }),
           });
-          const filter = await filterResp.json() as any;
+          const filter = (await filterResp.json()) as any;
           if (!filter.id) throw new Error(`Filter creation failed: ${JSON.stringify(filter)}`);
           filterId = filter.id;
           // Rename to canonical name
@@ -807,9 +913,14 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
             // No location field - business projects don't support it
           }),
         });
-        const boardResult = await boardResp.json() as any;
+        const boardResult = (await boardResp.json()) as any;
         if (boardResult.id) {
-          createdBoards.push({ name: board.name, type: "kanban", boardId: boardResult.id, filterId });
+          createdBoards.push({
+            name: board.name,
+            type: "kanban",
+            boardId: boardResult.id,
+            filterId,
+          });
         } else {
           createdBoards.push({ name: board.name, type: "kanban" });
           console.warn(`[JIRA Space] Board creation warning for ${board.name}:`, boardResult);
@@ -825,10 +936,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
     let actualWorkflows = template.workflows;
     let actualIssueTypes = template.issueTypes;
     try {
-      const [proj, statuses] = await Promise.all([
-        getJiraProject(result.key),
-        getProjectStatuses(result.key),
-      ]);
+      const [proj, statuses] = await Promise.all([getJiraProject(result.key), getProjectStatuses(result.key)]);
       actualIssueTypes = (proj.issueTypes ?? []).map((t: any) => ({
         name: t.name,
         description: t.description ?? "",
@@ -846,9 +954,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
     }
 
     // JSM projects use a different URL (service desk portal)
-    const jiraProjectUrl = isJSM
-      ? `${JIRA_BASE}/jira/servicedesk/projects/${result.key}/boards`
-      : `${JIRA_BASE}/jira/core/projects/${result.key}/board`;
+    const jiraProjectUrl = isJSM ? `${JIRA_BASE}/jira/servicedesk/projects/${result.key}/boards` : `${JIRA_BASE}/jira/core/projects/${result.key}/board`;
 
     return {
       success: true,
@@ -858,21 +964,23 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
       jiraProjectName: input.spaceName,
       jiraProjectUrl,
       // Corporate configuration applied
-      corporateConfig: isJSM ? {
-        category: JSM_CONFIG.categoryName,
-        owner: PPDC_CONFIG.ownerName,
-        issueTypeScheme: "JSM Default",
-        workflowScheme: "JSM Default",
-        screenScheme: "JSM Default",
-        notificationScheme: PPDC_CONFIG.notificationSchemeName,
-      } : {
-        category: PPDC_CONFIG.categoryName,
-        owner: PPDC_CONFIG.ownerName,
-        issueTypeScheme: PPDC_CONFIG.issueTypeSchemeName,
-        workflowScheme: PPDC_CONFIG.workflowSchemeName,
-        screenScheme: PPDC_CONFIG.screenSchemeName,
-        notificationScheme: PPDC_CONFIG.notificationSchemeName,
-      },
+      corporateConfig: isJSM
+        ? {
+            category: JSM_CONFIG.categoryName,
+            owner: PPDC_CONFIG.ownerName,
+            issueTypeScheme: "JSM Default",
+            workflowScheme: "JSM Default",
+            screenScheme: "JSM Default",
+            notificationScheme: PPDC_CONFIG.notificationSchemeName,
+          }
+        : {
+            category: PPDC_CONFIG.categoryName,
+            owner: PPDC_CONFIG.ownerName,
+            issueTypeScheme: PPDC_CONFIG.issueTypeSchemeName,
+            workflowScheme: PPDC_CONFIG.workflowSchemeName,
+            screenScheme: PPDC_CONFIG.screenSchemeName,
+            notificationScheme: PPDC_CONFIG.notificationSchemeName,
+          },
       template: {
         ...template,
         boards: boards.length > 0 ? boards : PPDC_CONFIG.pmoBoards,
@@ -899,7 +1007,11 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
 }
 
 /** Get the current user's accountId in JIRA */
-export async function getJiraCurrentUser(): Promise<{ accountId: string; displayName: string; emailAddress: string }> {
+export async function getJiraCurrentUser(): Promise<{
+  accountId: string;
+  displayName: string;
+  emailAddress: string;
+}> {
   return jiraFetch("/myself");
 }
 
@@ -914,9 +1026,31 @@ export interface JiraProjectReport {
   toDo: number;
   percentComplete: number;
   byType: Array<{ name: string; count: number; done: number }>;
-  byAssignee: Array<{ name: string; accountId?: string; avatar?: string; total: number; done: number; inProgress: number }>;
-  recentActivity: Array<{ key: string; summary: string; status: string; statusCategory: string; type: string; assignee: string; updated: string }>;
-  overdueIssues: Array<{ key: string; summary: string; type: string; assignee: string; duedate: string; status: string }>;
+  byAssignee: Array<{
+    name: string;
+    accountId?: string;
+    avatar?: string;
+    total: number;
+    done: number;
+    inProgress: number;
+  }>;
+  recentActivity: Array<{
+    key: string;
+    summary: string;
+    status: string;
+    statusCategory: string;
+    type: string;
+    assignee: string;
+    updated: string;
+  }>;
+  overdueIssues: Array<{
+    key: string;
+    summary: string;
+    type: string;
+    assignee: string;
+    duedate: string;
+    status: string;
+  }>;
   lastUpdated: string;
 }
 
@@ -928,7 +1062,11 @@ async function fetchAllIssues(projectKey: string, extraJql = ""): Promise<JiraIs
   const fields = ["summary", "status", "issuetype", "assignee", "priority", "duedate", "created", "updated", "resolutiondate", "timetracking", "timeoriginalestimate", "timespent", "aggregatetimeoriginalestimate", "aggregatetimespent"];
   while (!done) {
     const jql = `project = ${projectKey}${extraJql ? " AND " + extraJql : ""} ORDER BY updated DESC`;
-    const result = await searchJiraIssues(jql, { maxResults: 100, nextPageToken: token, fields });
+    const result = await searchJiraIssues(jql, {
+      maxResults: 100,
+      nextPageToken: token,
+      fields,
+    });
     all.push(...result.issues);
     if (result.isLast || !result.nextPageToken || result.issues.length === 0) done = true;
     else token = result.nextPageToken;
@@ -940,15 +1078,35 @@ async function fetchAllIssues(projectKey: string, extraJql = ""): Promise<JiraIs
 /** Build a full project report from JIRA issues */
 export async function getJiraProjectReport(projectKey: string): Promise<JiraProjectReport> {
   const [project, allIssues] = await Promise.all([
-    getJiraProject(projectKey).catch(() => ({ id: projectKey, key: projectKey, name: projectKey, projectTypeKey: "business", style: "classic", avatarUrls: {}, issueTypes: [] })),
+    getJiraProject(projectKey).catch(() => ({
+      id: projectKey,
+      key: projectKey,
+      name: projectKey,
+      projectTypeKey: "business",
+      style: "classic",
+      avatarUrls: {},
+      issueTypes: [],
+    })),
     fetchAllIssues(projectKey),
   ]);
 
   const total = allIssues.length;
-  let done = 0, inProgress = 0, toDo = 0;
+  let done = 0,
+    inProgress = 0,
+    toDo = 0;
 
   const typeMap: Record<string, { count: number; done: number }> = {};
-  const assigneeMap: Record<string, { name: string; accountId?: string; avatar?: string; total: number; done: number; inProgress: number }> = {};
+  const assigneeMap: Record<
+    string,
+    {
+      name: string;
+      accountId?: string;
+      avatar?: string;
+      total: number;
+      done: number;
+      inProgress: number;
+    }
+  > = {};
 
   for (const issue of allIssues) {
     const cat = issue.fields.status?.statusCategory?.name ?? "To Do";
@@ -966,7 +1124,15 @@ export async function getJiraProjectReport(projectKey: string): Promise<JiraProj
     const assigneeName = issue.fields.assignee?.displayName ?? "Sin asignar";
     const assigneeId = issue.fields.assignee?.accountId ?? "unassigned";
     const assigneeAvatar = issue.fields.assignee?.avatarUrls?.["48x48"];
-    if (!assigneeMap[assigneeId]) assigneeMap[assigneeId] = { name: assigneeName, accountId: assigneeId, avatar: assigneeAvatar, total: 0, done: 0, inProgress: 0 };
+    if (!assigneeMap[assigneeId])
+      assigneeMap[assigneeId] = {
+        name: assigneeName,
+        accountId: assigneeId,
+        avatar: assigneeAvatar,
+        total: 0,
+        done: 0,
+        inProgress: 0,
+      };
     assigneeMap[assigneeId].total++;
     if (cat === "Done") assigneeMap[assigneeId].done++;
     else if (cat === "In Progress") assigneeMap[assigneeId].inProgress++;
@@ -1058,19 +1224,60 @@ export interface JiraAdvanceReport {
   toDoCount: number;
   percentComplete: number;
   // Issues by status (for donut chart)
-  byStatus: Array<{ status: string; count: number; percentage: number; color: string }>;
+  byStatus: Array<{
+    status: string;
+    count: number;
+    percentage: number;
+    color: string;
+  }>;
   // Issues by type (for bar chart)
   byType: Array<{ type: string; count: number }>;
   // Epics map
-  epics: Array<{ key: string; summary: string; status: string; statusCategory: string; doneSubtasks: number; totalSubtasks: number }>;
+  epics: Array<{
+    key: string;
+    summary: string;
+    status: string;
+    statusCategory: string;
+    doneSubtasks: number;
+    totalSubtasks: number;
+  }>;
   // Milestones (Hito PMO)
-  milestones: Array<{ key: string; summary: string; status: string; statusCategory: string; percentage?: string; duedate?: string | null; resolutiondate?: string | null }>;
+  milestones: Array<{
+    key: string;
+    summary: string;
+    status: string;
+    statusCategory: string;
+    percentage?: string;
+    duedate?: string | null;
+    resolutiondate?: string | null;
+  }>;
   // Risks
-  risks: Array<{ key: string; summary: string; status: string; statusCategory: string; priority: string }>;
+  risks: Array<{
+    key: string;
+    summary: string;
+    status: string;
+    statusCategory: string;
+    priority: string;
+  }>;
   // Scope changes (Cambio de Alcance)
-  scopeChanges: Array<{ key: string; summary: string; status: string; statusCategory: string; priority: string }>;
+  scopeChanges: Array<{
+    key: string;
+    summary: string;
+    status: string;
+    statusCategory: string;
+    priority: string;
+  }>;
   // Team contributions
-  team: Array<{ name: string; accountId?: string; avatar?: string; total: number; done: number; inProgress: number; contribution: string; status: string }>;
+  team: Array<{
+    name: string;
+    accountId?: string;
+    avatar?: string;
+    total: number;
+    done: number;
+    inProgress: number;
+    contribution: string;
+    status: string;
+  }>;
   // Milestones summary
   milestonesCumplidos: number;
   milestonesPendientes: number;
@@ -1085,15 +1292,8 @@ export interface JiraAdvanceReport {
   lastUpdated: string;
 }
 
-export function calculateExecutiveProgress(
-  milestonesTotal: number,
-  milestonesCumplidos: number,
-  totalIssues: number,
-  doneIssues: number,
-) {
-  const milestoneCompletionPct = milestonesTotal > 0
-    ? Math.round((milestonesCumplidos / milestonesTotal) * 100)
-    : 0;
+export function calculateExecutiveProgress(milestonesTotal: number, milestonesCumplidos: number, totalIssues: number, doneIssues: number) {
+  const milestoneCompletionPct = milestonesTotal > 0 ? Math.round((milestonesCumplidos / milestonesTotal) * 100) : 0;
   const issueCompletionPct = totalIssues > 0 ? Math.round((doneIssues / totalIssues) * 100) : 0;
   const primaryProgressSource: "MILESTONES" | "JIRA_FALLBACK" = milestonesTotal > 0 ? "MILESTONES" : "JIRA_FALLBACK";
   return {
@@ -1107,24 +1307,53 @@ export function calculateExecutiveProgress(
 /** Build a comprehensive advance report from JIRA issues for the PMO dashboard */
 export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdvanceReport> {
   const [project, allIssues] = await Promise.all([
-    getJiraProject(projectKey).catch(() => ({ id: projectKey, key: projectKey, name: projectKey, projectTypeKey: "business", style: "classic", avatarUrls: {}, issueTypes: [] })),
+    getJiraProject(projectKey).catch(() => ({
+      id: projectKey,
+      key: projectKey,
+      name: projectKey,
+      projectTypeKey: "business",
+      style: "classic",
+      avatarUrls: {},
+      issueTypes: [],
+    })),
     fetchAllIssues(projectKey),
   ]);
 
   const total = allIssues.length;
-  let doneCount = 0, inProgressCount = 0, toDoCount = 0;
-  let totalTimeSpentSeconds = 0, totalOriginalEstimateSeconds = 0;
+  let doneCount = 0,
+    inProgressCount = 0,
+    toDoCount = 0;
+  let totalTimeSpentSeconds = 0,
+    totalOriginalEstimateSeconds = 0;
 
   // Status colors mapping
   const statusColors: Record<string, string> = {
-    "Finalizada": "#10b981", "Done": "#10b981", "Cerrado": "#6b7280", "Closed": "#6b7280",
-    "Cumplido": "#06b6d4", "Pendiente": "#f59e0b", "Aceptado": "#ef4444",
-    "Activo": "#3b82f6", "In Progress": "#3b82f6", "To Do": "#94a3b8",
+    Finalizada: "#10b981",
+    Done: "#10b981",
+    Cerrado: "#6b7280",
+    Closed: "#6b7280",
+    Cumplido: "#06b6d4",
+    Pendiente: "#f59e0b",
+    Aceptado: "#ef4444",
+    Activo: "#3b82f6",
+    "In Progress": "#3b82f6",
+    "To Do": "#94a3b8",
   };
 
   const statusMap: Record<string, number> = {};
   const typeMap: Record<string, number> = {};
-  const assigneeMap: Record<string, { name: string; accountId?: string; avatar?: string; total: number; done: number; inProgress: number; types: Record<string, number> }> = {};
+  const assigneeMap: Record<
+    string,
+    {
+      name: string;
+      accountId?: string;
+      avatar?: string;
+      total: number;
+      done: number;
+      inProgress: number;
+      types: Record<string, number>;
+    }
+  > = {};
   const epics: JiraAdvanceReport["epics"] = [];
   const milestones: JiraAdvanceReport["milestones"] = [];
   const risks: JiraAdvanceReport["risks"] = [];
@@ -1133,14 +1362,8 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
 
   // Status names that indicate "done" regardless of JIRA statusCategory
   // (some JIRA projects have misconfigured statusCategory mappings)
-  const DONE_STATUS_NAMES = new Set([
-    "finalizada", "done", "cerrado", "closed", "cumplido", "cumplido (entregable)",
-    "resuelto", "resolved", "completado", "completed", "terminado",
-  ]);
-  const IN_PROGRESS_STATUS_NAMES = new Set([
-    "in progress", "en progreso", "actividades en curso", "activo", "en curso",
-    "analizado", "identificado",
-  ]);
+  const DONE_STATUS_NAMES = new Set(["finalizada", "done", "cerrado", "closed", "cumplido", "cumplido (entregable)", "resuelto", "resolved", "completado", "completed", "terminado"]);
+  const IN_PROGRESS_STATUS_NAMES = new Set(["in progress", "en progreso", "actividades en curso", "activo", "en curso", "analizado", "identificado"]);
 
   // First pass: classify all issues
   for (const issue of allIssues) {
@@ -1170,27 +1393,61 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
     const assigneeName = issue.fields.assignee?.displayName ?? "Sin asignar";
     const assigneeId = issue.fields.assignee?.accountId ?? "unassigned";
     const assigneeAvatar = issue.fields.assignee?.avatarUrls?.["48x48"];
-    if (!assigneeMap[assigneeId]) assigneeMap[assigneeId] = { name: assigneeName, accountId: assigneeId, avatar: assigneeAvatar, total: 0, done: 0, inProgress: 0, types: {} };
+    if (!assigneeMap[assigneeId])
+      assigneeMap[assigneeId] = {
+        name: assigneeName,
+        accountId: assigneeId,
+        avatar: assigneeAvatar,
+        total: 0,
+        done: 0,
+        inProgress: 0,
+        types: {},
+      };
     assigneeMap[assigneeId].total++;
     assigneeMap[assigneeId].types[typeName] = (assigneeMap[assigneeId].types[typeName] || 0) + 1;
     // Use corrected classification for assignee tracking
-    const effectiveCat = (cat === "Done" || DONE_STATUS_NAMES.has(statusNameLower)) ? "Done"
-      : (cat === "In Progress" || IN_PROGRESS_STATUS_NAMES.has(statusNameLower)) ? "In Progress"
-      : "To Do";
+    const effectiveCat = cat === "Done" || DONE_STATUS_NAMES.has(statusNameLower) ? "Done" : cat === "In Progress" || IN_PROGRESS_STATUS_NAMES.has(statusNameLower) ? "In Progress" : "To Do";
     if (effectiveCat === "Done") assigneeMap[assigneeId].done++;
     else if (effectiveCat === "In Progress") assigneeMap[assigneeId].inProgress++;
 
     // Classify by issue type using corrected statusCategory
     const typeNorm = typeName.toLowerCase();
     if (typeNorm === "epic" || typeNorm === "épica") {
-      epics.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, doneSubtasks: 0, totalSubtasks: 0 });
+      epics.push({
+        key: issue.key,
+        summary: issue.fields.summary,
+        status: statusName,
+        statusCategory: effectiveCat,
+        doneSubtasks: 0,
+        totalSubtasks: 0,
+      });
     } else if (typeNorm.includes("hito") || typeNorm.includes("milestone")) {
       const pctMatch = issue.fields.summary.match(/(\d+)%/);
-      milestones.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, percentage: pctMatch?.[1], duedate: (issue.fields as any).duedate ?? null, resolutiondate: (issue.fields as any).resolutiondate ?? null });
+      milestones.push({
+        key: issue.key,
+        summary: issue.fields.summary,
+        status: statusName,
+        statusCategory: effectiveCat,
+        percentage: pctMatch?.[1],
+        duedate: (issue.fields as any).duedate ?? null,
+        resolutiondate: (issue.fields as any).resolutiondate ?? null,
+      });
     } else if (typeNorm.includes("riesgo") || typeNorm.includes("risk")) {
-      risks.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, priority });
+      risks.push({
+        key: issue.key,
+        summary: issue.fields.summary,
+        status: statusName,
+        statusCategory: effectiveCat,
+        priority,
+      });
     } else if (typeNorm.includes("cambio") || typeNorm.includes("change") || typeNorm.includes("avance")) {
-      scopeChanges.push({ key: issue.key, summary: issue.fields.summary, status: statusName, statusCategory: effectiveCat, priority });
+      scopeChanges.push({
+        key: issue.key,
+        summary: issue.fields.summary,
+        status: statusName,
+        statusCategory: effectiveCat,
+        priority,
+      });
     }
   }
 
@@ -1213,7 +1470,11 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
   const team = Object.values(assigneeMap)
     .filter(a => a.accountId !== "unassigned")
     .map(a => {
-      const topTypes = Object.entries(a.types).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([t, c]) => t).join(", ");
+      const topTypes = Object.entries(a.types)
+        .sort((x, y) => y[1] - x[1])
+        .slice(0, 3)
+        .map(([t, c]) => t)
+        .join(", ");
       const status = a.total === a.done ? "Completado" : a.inProgress > 0 ? "Trabajo activo" : "Pendiente";
       return {
         name: a.name,
@@ -1230,12 +1491,7 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
 
   const milestonesCumplidos = milestones.filter(m => m.statusCategory === "Done").length;
   const milestonesPendientes = milestones.filter(m => m.statusCategory !== "Done").length;
-  const {
-    milestoneCompletionPct,
-    issueCompletionPct,
-    primaryProgressPct,
-    primaryProgressSource,
-  } = calculateExecutiveProgress(milestones.length, milestonesCumplidos, total, doneCount);
+  const { milestoneCompletionPct, issueCompletionPct, primaryProgressPct, primaryProgressSource } = calculateExecutiveProgress(milestones.length, milestonesCumplidos, total, doneCount);
   // Note: effectiveCat is already used above, so milestones now correctly use the overridden category
 
   return {
@@ -1269,7 +1525,11 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
 
 // ==================== Health Check ====================
 
-export async function jiraHealthCheck(): Promise<{ ok: boolean; projectCount?: number; error?: string }> {
+export async function jiraHealthCheck(): Promise<{
+  ok: boolean;
+  projectCount?: number;
+  error?: string;
+}> {
   try {
     const projects = await listJiraProjects();
     return { ok: true, projectCount: projects.length };

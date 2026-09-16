@@ -1,0 +1,22 @@
+CREATE TABLE `recurring_service_jsm_sync_runs` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`runId` varchar(191) NOT NULL,
+	`serviceId` int NOT NULL,
+	`status` enum('running','ready','blocked','applying','applied','partial','stale','error') NOT NULL,
+	`fingerprint` varchar(64) NOT NULL,
+	`projectId` varchar(50) NOT NULL,
+	`projectKey` varchar(50) NOT NULL,
+	`serviceDeskId` varchar(50),
+	`mappingsSnapshot` json NOT NULL,
+	`plan` json NOT NULL,
+	`result` json,
+	`errorMessage` text,
+	`triggeredBy` int,
+	`triggeredByName` varchar(200),
+	`startedAt` timestamp NOT NULL DEFAULT (now()),
+	`finishedAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `recurring_service_jsm_sync_runs_id` PRIMARY KEY(`id`),
+	CONSTRAINT `recurring_service_jsm_sync_runs_runId_unique` UNIQUE(`runId`),
+	CONSTRAINT `recurring_jsm_sync_service_fingerprint_uq` UNIQUE(`serviceId`,`fingerprint`)
+);

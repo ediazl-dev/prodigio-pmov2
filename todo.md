@@ -186,10 +186,11 @@
 - [x] Aplicar el reemplazo quirúrgico en el componente usando script de sustitución exacta.
 - [x] Actualizar las pruebas de aceptación para reflejar la nueva estructura del Gantt.
 - [x] Validar compilación TypeScript y pruebas focales del Gantt.
-- [x] Corregir tipos implícitos del bloque Gantt (getTime, Date | null) y añadir el sistema de clases edv2-gantt-* a index.css.
+- [x] Corregir tipos implícitos del bloque Gantt (getTime, Date | null) y añadir el sistema de clases edv2-gantt-\* a index.css.
 - [x] Publicar checkpoint con el Gantt contractual implementado.
 
 ## Línea base contractual desde carta Gantt Tanner (2026-08-18)
+
 - [x] Analizar la carta Gantt Excel de Tanner y extraer hitos baseline y hitos de pago.
 - [x] Mapear hitos BD (M01-M10) contra fechas baseline de la Gantt e identificar ambigüedades.
 - [x] Confirmar con el usuario el mapeo ambiguo de M07 (Iniciador de Pagos), M08 y M09 (desfase numeración sprints).
@@ -202,6 +203,7 @@
 - [x] Validar TypeScript, pruebas focales y publicar checkpoint con la línea base contractual.
 
 ## Mejora Gantt contractual — tooltips, estados y acta por hito (2026-08-19)
+
 - [x] Analizar captura FireShot del dashboard en producción e identificar problemas del Gantt.
 - [x] Confirmar con el usuario la regla de clasificación: VENCIDO (fecha pasada sin acta) vs. EN_RIESGO (futuro probable incumplimiento). Opción C: próximo a vencer O con deriva positiva.
 - [x] Corregir `classifyMilestoneTimeline` en el motor cardinal: fecha Jira vencida sin acta → VENCIDO, no EN_RIESGO. EN_RIESGO = próximo a vencer (<=7d) O deriva positiva vs. baseline.
@@ -231,14 +233,16 @@
 - [x] Validar TypeScript, pruebas focales y publicar checkpoint.
 
 ## Ejecución de los 3 puntos aprobados (2026-08-19)
+
 - [x] Verificar dashboard financiero de Tanner con datos sincronizados (KPIs actualizados).
 - [x] Leer skills de automatización y programar sincronización financiera recurrente (Heartbeat diario 03:00 UTC).
 - [x] Limpiar directorio temporal tmp_sync (XLSX respaldado en webdev-static-assets) y cerrar todo.md.
 
 ## Automatización de la sincronización financiera (Opción B — Heartbeat en el servidor)
+
 - [x] Aplicar parche legacy del SDK (manusTypes.ts taskUid + sdk.ts cron short-circuit).
 - [x] Crear módulo server/financialSync.ts (descarga Drive API + parseo XLSX + UPSERT por Deal ID).
-- [x] Montar handler POST /api/scheduled/syncFinancial en server/_core/index.ts y validar TypeScript.
+- [x] Montar handler POST /api/scheduled/syncFinancial en server/\_core/index.ts y validar TypeScript.
 - [x] Inyectar secret GOOGLE_DRIVE_TOKEN a producción (usa token del conector Google Workspace) y guardar checkpoint (deploy).
 - [x] Crear cron diario 03:00 UTC con manus-heartbeat (task_uid koZvKFb8FE7TZ6hy8GAnvM; primera ejecución programada mañana 03:00 UTC).
 
@@ -253,11 +257,13 @@
 - [x] Validar TypeScript y pruebas; guardar checkpoint.
 
 ## Botón Sincronizar ahora en historial de sincronizaciones
+
 - [x] Crear procedure tRPC syncNow (admin) que ejecuta runFinancialSync manualmente.
 - [x] Agregar botón Sincronizar ahora en AdminFinancialSync con estados de carga, resultado y refresco del historial.
 - [x] Validar TypeScript y pruebas; guardar checkpoint.
 
 ## Cierre de proyectos finalizados y limpieza de prueba (2026-08-19)
+
 - [x] Identificar proyectos MaxAgro (Deal 4532), Ruta Pass (Deal 1996) y proyectos de prueba.
 - [x] Crear respaldo previo auditable de los datos afectados.
 - [x] Marcar como cerrados los proyectos MaxAgro y Ruta Pass.
@@ -265,16 +271,19 @@
 - [x] Verificar resultado final y reportar.
 
 ## Cierre de pipeline de etapas — MaxAgro y Ruta Pass
+
 - [x] Analizar modelo de etapas (project_stages, stage_closures, currentStage) y lógica de cierre
 - [x] Diagnosticar estado real de las etapas de MaxAgro (210001) y Ruta Pass (300001)
 - [x] Presentar plan de cierre de pipeline al usuario
 
 ## Ejecución del cierre de pipeline — MaxAgro y Ruta Pass
+
 - [x] Crear respaldo previo de las filas de project_stages afectadas
 - [x] Ejecutar cierre del pipeline en transacción (design + closure + currentStage + auditoría)
 - [x] Verificar resultado final en BD y reportar
 
 ## Consola de Gobierno PMO — Fase A (nueva página de inicio /consola)
+
 - [x] Releer HTML de referencia y extraer especificación visual de Zonas 0-2
 - [x] Crear procedure tRPC portfolioConsole (agrega salud y prioridad por proyecto activo)
 - [x] Construir página /consola con Zona 0 (barra de corte), Zona 1 (KPIs), Zona 2 (cola priorizada)
@@ -283,7 +292,7 @@
 
 ## Consola de Gobierno PMO — Fase A mejorada (fidelidad visual total)
 
-- [x] Crear sistema CSS cg-* con variables del HTML de referencia (paleta oscura, tipografía DM Sans/JetBrains Mono)
+- [x] Crear sistema CSS cg-\* con variables del HTML de referencia (paleta oscura, tipografía DM Sans/JetBrains Mono)
 - [x] Mejorar Zona 0: barra proporcional de colores + pie de métricas globales (exposición UF, P0 vencidas, PRD vencidos, deteriorados, mejorados)
 - [x] Mejorar Zona 2: motivo ejecutivo con cifra en negrita, señales de mora, tooltip PA con desglose de fórmula
 - [x] Corregir contraste de texto invisible (texto-3 sobre fondo oscuro)
@@ -296,7 +305,7 @@
 - [x] Zona 5: Higiene de gobierno (4 contadores accionables + hallazgo estructural)
 - [x] Zona 6: Resto del portafolio (tabla colapsable de proyectos estables)
 - [x] Procedure portfolioConsole extendido con datos de Zonas 3-6
-- [x] Estilos CSS cg-* para Zonas 3-6 (grid2, cards, hig, resto)
+- [x] Estilos CSS cg-\* para Zonas 3-6 (grid2, cards, hig, resto)
 - [x] Validación TypeScript y pruebas Vitest
 
 ## Fase C+D — Consola de Gobierno PMO (Motor + Datos)
@@ -308,6 +317,7 @@
 - [x] Validación TypeScript y pruebas Vitest
 
 ## Fase C+D — Motor PA completo + snapshot de salud (COMPLETADA)
+
 - [x] Tabla `project_health_snapshot` creada (migración 0033)
 - [x] Job/cron para capturar snapshot diario de salud por proyecto (módulo healthSnapshot.ts)
 - [x] Cálculo de deterioro real (ΔIGE vs corte anterior) en procedure portfolioConsole
@@ -339,13 +349,16 @@
 - [x] Validación: TypeScript limpio + suite completa + 7 proyectos visibles en consola
 
 ## Consola: filtro de proyectos cerrados (2026-08-20)
+
 - [x] Backend: portfolioConsole retorna también proyectos completados con estado final
 - [x] Frontend: filtro/pestaña "Cerrados" en la cola priorizada con lista de proyectos cerrados
 - [x] Tests + validación TypeScript + suite completa
 - [x] Checkpoint publicado (383f1de4)
 
 ## Consolidado de Facturación — Primera iteración (F0+F1+F3+F4) (2026-08-20)
+
 Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONFIRMAR]) / curvas de pago como línea base desde billing_milestones / roles actuales (admin/pmo/pm/consulta)
+
 - [x] F0: Auditoría de origen documentada + reclasificación inversión interna (360001, 390001, 450001)
 - [x] F1: Migración 0034 — tablas contract, payment_schedule_item, revenue_event, invoice, credit_note, payment, uf_value, internal_investment
 - [x] F1: Migración de datos — contratos desde financial_data, curvas de pago desde billing_milestones (línea base)
@@ -357,16 +370,23 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Checkpoint publicado
 
 ## Corrección: Eliminar sidebar propio del Consolidado de Facturación
+
 - [x] Eliminar el sidebar propio (df-side) de FinancialConsolidated.tsx para que solo use el sidebar del layout de administración
+
 ## Consolidado de Facturación — Tema claro (2026-08-20)
-- [x] Cambiar sistema CSS df-* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
+
+- [x] Cambiar sistema CSS df-\* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
 - [x] Verificar tabla detalle por contrato y todos los cuerpos/zonas con el nuevo tema
 - [x] Checkpoint publicado
+
 ## Consola de Gobierno — Tema claro (2026-08-20)
-- [x] Cambiar sistema CSS cg-* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
+
+- [x] Cambiar sistema CSS cg-\* de tema oscuro a tema claro (fondo blanco, texto oscuro con contraste)
 - [x] Verificar contraste de fonts en todas las zonas (triage, cola priorizada, decisiones, causa raíz, higiene, estables, cerrados)
 - [x] Checkpoint publicado
+
 ## Fix permisos baseline ejecutivo para PM (2026-08-20)
+
 - [x] Corregir status de Eduardo Mercado de invitado a activo en BD
 - [x] Cambiar updateMilestoneBaseline y createBaselineFromJira de adminOrPmo a adminOrPmoOrPm
 - [x] Agregar middleware adminOrPmoOrPm en routers.ts
@@ -374,6 +394,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Checkpoint publicado
 
 ## F2: Integración UF del día (2026-08-20)
+
 - [x] Guardar secreto BCCH_API_TOKEN en el proyecto (guardado pero truncado a 30 chars por el sistema de secretos — findic.cl usado como fuente principal sin token)
 - [x] Crear server/ufService.ts — fetch findic.cl (principal) + BCCh (fallback) + caché en uf_value
 - [x] Agregar procedure tRPC portfolioConsole.ufDelDia
@@ -444,7 +465,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J1: ampliar el modelo con origen, nombre, URLs separadas, verificación, mapeos y corridas auditables; aplicar migración aditiva e índices seguros.
 - [x] J2: implementar lectores paginados de Service Desks, detalle, permisos, proyecto e issue types usando solo operaciones GET.
 - [x] J3: implementar listado, preflight, asociación idempotente, revalidación, auditoría y desvinculación controlada.
-- [ ] J4: implementar mapeos explícitos de issue types, dry-run y sincronización segura sin asociación por título.
+- [x] J4: implementar mapeos explícitos de issue types, dry-run y sincronización segura sin asociación por título.
+- [x] J4: definir y persistir mappings activos `work_plan` y `billing` usando únicamente issue types disponibles del proyecto JSM vinculado.
+- [x] J4: implementar dry-run determinista que clasifique elementos pendientes, ya sincronizados, bloqueados y errores antes de cualquier POST Jira.
+- [x] J4: reemplazar la dependencia fija de `Task` y desactivar fallbacks implícitos al sincronizar elementos recurrentes.
+- [x] J4: ejecutar la sincronización solo mediante confirmación explícita asociada a un dry-run vigente, con idempotencia y auditoría.
+- [x] J4: alinear la validación de cierre de `jira_setup` para exigir todos los elementos aplicables de plan de trabajo y facturación.
+- [x] J4: cubrir mappings, dry-run, vínculo por `jiraIssueKey`, no-asociación por título, guardas de cierre y ausencia de escrituras antes de confirmar.
 - [ ] J5: construir el flujo Crear/Vincular en JSM Setup con búsqueda, diagnóstico, confirmación y estados accesibles.
 - [ ] J6: crear Administración > Spaces JSM con inventario, filtros, vínculo visible, salud y permisos Admin/PMO.
 - [ ] J7: ejecutar pruebas unitarias y persistentes focales, TypeScript/build, validación visual, documentación y publicación final.
