@@ -12,7 +12,10 @@ import {
   recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem,
   recurringServicePenalties, InsertRecurringServicePenalty,
   recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis,
+  recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun,
+  recurringServiceJsmIssueTypeMappings,
 } from "../drizzle/schema";
+import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
 // ─── Service CRUD ────────────────────────────────────────────────────────────
@@ -55,6 +58,353 @@ export async function updateRecurringService(id: number, data: Partial<InsertRec
   const db = await getDb();
   if (!db) return;
   await db.update(recurringServices).set(data).where(eq(recurringServices.id, id));
+}
+
+// ─── Existing JSM Space linking ───────────────────────────────────────────────
+
+export type ExistingJsmIdentity = {
+  projectId?: string | null;
+  projectKey?: string | null;
+  serviceDeskId?: string | null;
+};
+
+export class RecurringServiceJsmDbError extends Error {
+  constructor(
+    public readonly code:
+      | "SERVICE_NOT_FOUND"
+      | "SERVICE_ALREADY_LINKED"
+      | "JSM_IDENTITY_CONFLICT"
+      | "RUN_ID_CONFLICT"
+      | "SYNCED_ISSUES_BLOCK_UNLINK",
+    message: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "RecurringServiceJsmDbError";
+  }
+}
+
+function sameJsmIdentity(row: ExistingJsmIdentity, identity: ExistingJsmIdentity) {
+  return Boolean(
+    (identity.serviceDeskId && row.serviceDeskId === identity.serviceDeskId)
+    || (identity.projectId && row.projectId === identity.projectId)
+    || (identity.projectKey && row.projectKey?.toUpperCase() === identity.projectKey.toUpperCase()),
+  );
+}
+
+function isDuplicateEntryError(error: unknown) {
+  const candidate = error as { code?: string; errno?: number; message?: string };
+  return candidate?.code === "ER_DUP_ENTRY"
+    || candidate?.errno === 1062
+    || /duplicate entry/i.test(candidate?.message ?? "");
+}
+
+export async function findRecurringServiceJsmOwner(identity: ExistingJsmIdentity, excludeServiceId?: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({
+    id: recurringServices.id,
+    serviceName: recurringServices.serviceName,
+    clientName: recurringServices.clientName,
+    jsmProjectId: recurringServices.jsmProjectId,
+    jsmProjectKey: recurringServices.jsmProjectKey,
+    jsmServiceDeskId: recurringServices.jsmServiceDeskId,
+  }).from(recurringServices);
+  return rows.find(row => row.id !== excludeServiceId && sameJsmIdentity({
+    projectId: row.jsmProjectId,
+    projectKey: row.jsmProjectKey,
+    serviceDeskId: row.jsmServiceDeskId,
+  }, identity)) ?? null;
+}
+
+export async function listRecurringServiceJsmOwners() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    id: recurringServices.id,
+    serviceName: recurringServices.serviceName,
+    clientName: recurringServices.clientName,
+    jsmProjectId: recurringServices.jsmProjectId,
+    jsmProjectKey: recurringServices.jsmProjectKey,
+    jsmServiceDeskId: recurringServices.jsmServiceDeskId,
+    jsmLinkHealth: recurringServices.jsmLinkHealth,
+  }).from(recurringServices);
+  return rows.filter(row => row.jsmProjectId || row.jsmProjectKey || row.jsmServiceDeskId);
+}
+
+export async function listActiveJsmIssueTypeMappings(serviceId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(recurringServiceJsmIssueTypeMappings)
+    .where(and(
+      eq(recurringServiceJsmIssueTypeMappings.serviceId, serviceId),
+      eq(recurringServiceJsmIssueTypeMappings.status, "active"),
+    ))
+    .orderBy(asc(recurringServiceJsmIssueTypeMappings.category));
+}
+
+export async function listJsmLinkRuns(serviceId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(recurringServiceJsmLinkRuns)
+    .where(eq(recurringServiceJsmLinkRuns.serviceId, serviceId))
+    .orderBy(desc(recurringServiceJsmLinkRuns.startedAt), desc(recurringServiceJsmLinkRuns.id))
+    .limit(Math.min(Math.max(limit, 1), 100));
+}
+
+export async function getJsmLinkRunByRunId(runId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(recurringServiceJsmLinkRuns)
+    .where(eq(recurringServiceJsmLinkRuns.runId, runId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getJsmLinkRunByFingerprint(serviceId: number, fingerprint: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(recurringServiceJsmLinkRuns)
+    .where(and(
+      eq(recurringServiceJsmLinkRuns.serviceId, serviceId),
+      eq(recurringServiceJsmLinkRuns.fingerprint, fingerprint),
+    ))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function createOrReuseJsmLinkRun(data: InsertRecurringServiceJsmLinkRun) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existingRunId = await getJsmLinkRunByRunId(data.runId);
+  if (existingRunId) {
+    const sameOperation = existingRunId.serviceId === data.serviceId
+      && existingRunId.source === data.source
+      && existingRunId.candidateServiceDeskId === (data.candidateServiceDeskId ?? null)
+      && existingRunId.candidateProjectId === (data.candidateProjectId ?? null);
+    if (!sameOperation) {
+      throw new RecurringServiceJsmDbError(
+        "RUN_ID_CONFLICT",
+        "El identificador de operación ya fue utilizado para otra acción o candidato JSM.",
+      );
+    }
+    return { run: existingRunId, reused: true };
+  }
+
+  if (data.fingerprint) {
+    const existing = await getJsmLinkRunByFingerprint(data.serviceId, data.fingerprint);
+    if (existing) return { run: existing, reused: true };
+  }
+
+  try {
+    const [result] = await db.insert(recurringServiceJsmLinkRuns).values(data);
+    const [inserted] = await db.select().from(recurringServiceJsmLinkRuns)
+      .where(eq(recurringServiceJsmLinkRuns.id, Number(result.insertId)))
+      .limit(1);
+    if (!inserted) throw new Error("No fue posible recuperar la corrida JSM creada.");
+    return { run: inserted, reused: false };
+  } catch (error) {
+    if (!isDuplicateEntryError(error)) throw error;
+    const existing = data.fingerprint
+      ? await getJsmLinkRunByFingerprint(data.serviceId, data.fingerprint)
+      : await getJsmLinkRunByRunId(data.runId);
+    if (existing && existing.serviceId === data.serviceId) return { run: existing, reused: true };
+    throw new RecurringServiceJsmDbError(
+      "RUN_ID_CONFLICT",
+      "La operación JSM colisionó con una corrida existente y no puede reutilizarse de forma segura.",
+    );
+  }
+}
+
+export async function finishJsmLinkRun(
+  runId: string,
+  status: JsmLinkRunStatus,
+  data: { checks?: unknown; snapshot?: unknown; errorMessage?: string | null } = {},
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(recurringServiceJsmLinkRuns).set({
+    status,
+    checks: data.checks,
+    snapshot: data.snapshot,
+    errorMessage: data.errorMessage ?? null,
+    finishedAt: new Date(),
+  }).where(eq(recurringServiceJsmLinkRuns.runId, runId));
+  return getJsmLinkRunByRunId(runId);
+}
+
+export async function linkExistingJsmSpaceLocal(input: {
+  serviceId: number;
+  snapshot: JsmExistingSpaceSnapshot;
+  linkedBy: number;
+  health: JsmLinkHealth;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  try {
+    return await db.transaction(async tx => {
+      const [service] = await tx.select().from(recurringServices)
+        .where(eq(recurringServices.id, input.serviceId))
+        .limit(1);
+      if (!service) {
+        throw new RecurringServiceJsmDbError("SERVICE_NOT_FOUND", "Servicio recurrente no encontrado.");
+      }
+
+      const identity: ExistingJsmIdentity = {
+        projectId: input.snapshot.projectId,
+        projectKey: input.snapshot.projectKey,
+        serviceDeskId: input.snapshot.serviceDeskId,
+      };
+      const allServices = await tx.select({
+        id: recurringServices.id,
+        serviceName: recurringServices.serviceName,
+        jsmProjectId: recurringServices.jsmProjectId,
+        jsmProjectKey: recurringServices.jsmProjectKey,
+        jsmServiceDeskId: recurringServices.jsmServiceDeskId,
+      }).from(recurringServices);
+      const owner = allServices.find(row => row.id !== input.serviceId && sameJsmIdentity({
+        projectId: row.jsmProjectId,
+        projectKey: row.jsmProjectKey,
+        serviceDeskId: row.jsmServiceDeskId,
+      }, identity));
+      if (owner) {
+        throw new RecurringServiceJsmDbError(
+          "JSM_IDENTITY_CONFLICT",
+          `El Space JSM ya está vinculado al servicio recurrente ${owner.id}.`,
+          { ownerServiceId: owner.id, ownerServiceName: owner.serviceName },
+        );
+      }
+
+      const incompatibleCurrentLink = Boolean(
+        (service.jsmProjectId && service.jsmProjectId !== input.snapshot.projectId)
+        || (service.jsmProjectKey && service.jsmProjectKey.toUpperCase() !== input.snapshot.projectKey.toUpperCase())
+        || (service.jsmServiceDeskId && service.jsmServiceDeskId !== input.snapshot.serviceDeskId),
+      );
+      if (incompatibleCurrentLink) {
+        throw new RecurringServiceJsmDbError(
+          "SERVICE_ALREADY_LINKED",
+          "El servicio recurrente ya está vinculado a otro Space JSM. Desvincúlelo antes de continuar.",
+        );
+      }
+
+      const reused = service.jsmProjectId === input.snapshot.projectId
+        && service.jsmProjectKey?.toUpperCase() === input.snapshot.projectKey.toUpperCase()
+        && service.jsmServiceDeskId === input.snapshot.serviceDeskId;
+      if (reused) return { reused: true, serviceName: service.serviceName };
+      const now = new Date();
+      await tx.update(recurringServices).set({
+        jsmPlatform: "prodigio",
+        jsmLinkSource: "linked",
+        jsmProjectId: input.snapshot.projectId,
+        jsmProjectKey: input.snapshot.projectKey,
+        jsmProjectName: input.snapshot.projectName,
+        jsmServiceDeskId: input.snapshot.serviceDeskId,
+        jsmAgentUrl: input.snapshot.agentUrl,
+        jsmPortalUrl: input.snapshot.portalUrl,
+        jsmLinkHealth: input.health,
+        jsmLastVerifiedAt: now,
+        jsmLinkedAt: service.jsmLinkedAt ?? now,
+        jsmLinkedBy: service.jsmLinkedBy ?? input.linkedBy,
+        jsmClientPlatformUrl: null,
+      }).where(eq(recurringServices.id, input.serviceId));
+
+      return { reused, serviceName: service.serviceName };
+    });
+  } catch (error) {
+    if (error instanceof RecurringServiceJsmDbError) throw error;
+    if (isDuplicateEntryError(error)) {
+      throw new RecurringServiceJsmDbError(
+        "JSM_IDENTITY_CONFLICT",
+        "El proyecto Jira o Service Desk ya está vinculado a otro servicio recurrente.",
+      );
+    }
+    throw error;
+  }
+}
+
+export async function updateExistingJsmVerification(input: {
+  serviceId: number;
+  health: JsmLinkHealth;
+  snapshot?: JsmExistingSpaceSnapshot;
+  updateIdentityMetadata?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const patch: Partial<InsertRecurringService> = {
+    jsmLinkHealth: input.health,
+    jsmLastVerifiedAt: new Date(),
+  };
+  if (input.snapshot && input.updateIdentityMetadata) {
+    patch.jsmProjectName = input.snapshot.projectName;
+    patch.jsmAgentUrl = input.snapshot.agentUrl;
+    patch.jsmPortalUrl = input.snapshot.portalUrl;
+  }
+  await db.update(recurringServices).set(patch).where(eq(recurringServices.id, input.serviceId));
+}
+
+export async function unlinkExistingJsmSpaceLocal(serviceId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async tx => {
+    const [service] = await tx.select().from(recurringServices)
+      .where(eq(recurringServices.id, serviceId))
+      .limit(1);
+    if (!service) {
+      throw new RecurringServiceJsmDbError("SERVICE_NOT_FOUND", "Servicio recurrente no encontrado.");
+    }
+
+    const [workItems, billingMonths] = await Promise.all([
+      tx.select({ jiraIssueKey: recurringServiceWorkPlan.jiraIssueKey })
+        .from(recurringServiceWorkPlan)
+        .where(eq(recurringServiceWorkPlan.serviceId, serviceId)),
+      tx.select({ jiraIssueKey: recurringServiceBillingMonths.jiraIssueKey })
+        .from(recurringServiceBillingMonths)
+        .where(eq(recurringServiceBillingMonths.serviceId, serviceId)),
+    ]);
+    const workPlanKeys = workItems.filter(item => Boolean(item.jiraIssueKey)).length;
+    const billingKeys = billingMonths.filter(item => Boolean(item.jiraIssueKey)).length;
+    if (workPlanKeys + billingKeys > 0) {
+      throw new RecurringServiceJsmDbError(
+        "SYNCED_ISSUES_BLOCK_UNLINK",
+        "No se puede desvincular mientras existan actividades o hitos de facturación con jiraIssueKey.",
+        { workPlanKeys, billingKeys },
+      );
+    }
+
+    const priorIdentity = {
+      projectId: service.jsmProjectId,
+      projectKey: service.jsmProjectKey,
+      projectName: service.jsmProjectName,
+      serviceDeskId: service.jsmServiceDeskId,
+      agentUrl: service.jsmAgentUrl,
+      portalUrl: service.jsmPortalUrl,
+    };
+    const reused = !service.jsmProjectId && !service.jsmProjectKey && !service.jsmServiceDeskId;
+    if (!reused) {
+      await tx.update(recurringServices).set({
+        jsmLinkSource: null,
+        jsmProjectKey: null,
+        jsmProjectId: null,
+        jsmProjectName: null,
+        jsmAgentUrl: null,
+        jsmPortalUrl: null,
+        jsmOrganizationId: null,
+        jsmServiceDeskId: null,
+        jsmLinkHealth: null,
+        jsmLastVerifiedAt: null,
+        jsmLinkedAt: null,
+        jsmLinkedBy: null,
+      }).where(eq(recurringServices.id, serviceId));
+      await tx.update(recurringServiceJsmIssueTypeMappings).set({ status: "superseded" })
+        .where(and(
+          eq(recurringServiceJsmIssueTypeMappings.serviceId, serviceId),
+          eq(recurringServiceJsmIssueTypeMappings.status, "active"),
+        ));
+    }
+    return { reused, serviceName: service.serviceName, priorIdentity, workPlanKeys, billingKeys };
+  });
 }
 
 // ─── Stages ──────────────────────────────────────────────────────────────────

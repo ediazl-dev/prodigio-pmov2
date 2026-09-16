@@ -19,9 +19,19 @@ import {
   getPenalties, insertPenalty, updatePenaltyJiraKey, updatePenaltyStatus,
   getDashboardKpisData,
   insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory,
+  RecurringServiceJsmDbError,
 } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
+import {
+  getExistingJsmLinkState,
+  JsmExistingSpaceRunnerError,
+  linkExistingJsmSpace,
+  listExistingJsmSpaces,
+  preflightExistingJsmSpace,
+  revalidateExistingJsmSpace,
+  unlinkExistingJsmSpace,
+} from "./jsmExistingSpaceLinkRunner";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +43,18 @@ const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
 
 function audit(ctx: { user: { id: number; name: string | null; role: string } }, action: string, entity: string, entityId?: string | number | null, entityName?: string | null, details?: Record<string, any> | null) {
   return createAuditLog({ action, entity, entityId, entityName, userId: ctx.user.id, userName: ctx.user.name ?? "Unknown", userRole: ctx.user.role, details });
+}
+
+function throwExistingJsmError(error: unknown): never {
+  if (error instanceof TRPCError) throw error;
+  if (error instanceof JsmExistingSpaceRunnerError || error instanceof RecurringServiceJsmDbError) {
+    throw new TRPCError({
+      code: error.code === "SERVICE_NOT_FOUND" ? "NOT_FOUND" : "BAD_REQUEST",
+      message: error.message,
+      cause: error,
+    });
+  }
+  throw error;
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -777,6 +799,143 @@ Responde en JSON con este formato:
         jsmClientPlatformUrl: input.clientPlatformUrl,
       });
       await audit(ctx, "set_platform", "recurring_service", input.serviceId, svc.serviceName, { platform: input.platform });
+    }),
+
+  listExistingJsmSpaces: protectedProcedure
+    .input(z.object({
+      search: z.string().trim().max(100).optional(),
+      page: z.number().int().positive().default(1),
+      pageSize: z.number().int().min(1).max(100).default(25),
+    }).optional())
+    .query(async ({ input }) => {
+      return listExistingJsmSpaces(input ?? {});
+    }),
+
+  getExistingJsmLinkState: protectedProcedure
+    .input(z.object({
+      serviceId: z.number().int().positive(),
+      limit: z.number().int().min(1).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      try {
+        return await getExistingJsmLinkState(input.serviceId, input.limit);
+      } catch (error) {
+        return throwExistingJsmError(error);
+      }
+    }),
+
+  preflightExistingJsmSpace: adminOrPmo
+    .input(z.object({
+      serviceId: z.number().int().positive(),
+      serviceDeskId: z.string().trim().min(1).max(50),
+      operationId: z.string().trim().min(8).max(191).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
+      try {
+        const result = await preflightExistingJsmSpace({ ...input, actor });
+        await audit(ctx, "jsm_existing_preflight", "recurring_service", input.serviceId, null, {
+          runId: result.runId,
+          serviceDeskId: input.serviceDeskId,
+          status: result.preflight.status,
+          canLink: result.preflight.canLink,
+          reused: result.reused,
+        });
+        return result;
+      } catch (error) {
+        await audit(ctx, "jsm_existing_preflight_failed", "recurring_service", input.serviceId, null, {
+          serviceDeskId: input.serviceDeskId,
+          errorCode: error instanceof JsmExistingSpaceRunnerError ? error.code : "unknown",
+        }).catch(() => undefined);
+        return throwExistingJsmError(error);
+      }
+    }),
+
+  linkExistingJsmSpace: adminOrPmo
+    .input(z.object({
+      serviceId: z.number().int().positive(),
+      preflightRunId: z.string().trim().min(8).max(191),
+      operationId: z.string().trim().min(8).max(191).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
+      try {
+        const result = await linkExistingJsmSpace({ ...input, actor });
+        await audit(ctx, "jsm_existing_link", "recurring_service", input.serviceId, null, {
+          runId: result.runId,
+          preflightRunId: input.preflightRunId,
+          projectId: result.preflight.snapshot.projectId,
+          projectKey: result.preflight.snapshot.projectKey,
+          serviceDeskId: result.preflight.snapshot.serviceDeskId,
+          health: result.preflight.warnings.length > 0 ? "warning" : "healthy",
+          reused: result.reused,
+        });
+        return result;
+      } catch (error) {
+        await audit(ctx, "jsm_existing_link_failed", "recurring_service", input.serviceId, null, {
+          preflightRunId: input.preflightRunId,
+          errorCode: error instanceof JsmExistingSpaceRunnerError || error instanceof RecurringServiceJsmDbError
+            ? error.code
+            : "unknown",
+        }).catch(() => undefined);
+        return throwExistingJsmError(error);
+      }
+    }),
+
+  revalidateExistingJsmSpace: adminOrPmo
+    .input(z.object({
+      serviceId: z.number().int().positive(),
+      operationId: z.string().trim().min(8).max(191).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
+      try {
+        const result = await revalidateExistingJsmSpace({ ...input, actor });
+        await audit(ctx, "jsm_existing_revalidate", "recurring_service", input.serviceId, null, {
+          runId: result.runId,
+          status: result.preflight.status,
+          health: result.preflight.canLink
+            ? (result.preflight.warnings.length > 0 ? "warning" : "healthy")
+            : "blocked",
+          reused: result.reused,
+        });
+        return result;
+      } catch (error) {
+        await audit(ctx, "jsm_existing_revalidate_failed", "recurring_service", input.serviceId, null, {
+          errorCode: error instanceof JsmExistingSpaceRunnerError ? error.code : "unknown",
+        }).catch(() => undefined);
+        return throwExistingJsmError(error);
+      }
+    }),
+
+  unlinkExistingJsmSpace: adminOrPmo
+    .input(z.object({
+      serviceId: z.number().int().positive(),
+      reason: z.string().trim().min(10).max(500),
+      operationId: z.string().trim().min(8).max(191).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
+      try {
+        const result = await unlinkExistingJsmSpace({ ...input, actor });
+        await audit(ctx, "jsm_existing_unlink", "recurring_service", input.serviceId, null, {
+          runId: result.runId,
+          projectId: result.priorIdentity.projectId,
+          projectKey: result.priorIdentity.projectKey,
+          serviceDeskId: result.priorIdentity.serviceDeskId,
+          reason: input.reason,
+          reused: result.reused,
+        });
+        return result;
+      } catch (error) {
+        await audit(ctx, "jsm_existing_unlink_failed", "recurring_service", input.serviceId, null, {
+          reason: input.reason,
+          errorCode: error instanceof JsmExistingSpaceRunnerError || error instanceof RecurringServiceJsmDbError
+            ? error.code
+            : "unknown",
+        }).catch(() => undefined);
+        return throwExistingJsmError(error);
+      }
     }),
 
   createJsmProject: adminOrPmo

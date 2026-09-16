@@ -104,3 +104,41 @@ El evaluador puro `inspectJsmExistingSpace` clasifica candidatos válidos, proye
 ## Próximo bloque J3
 
 Persistir corridas de preflight, exponer listado/diagnóstico por API, asociar de forma transaccional e idempotente, revalidar y auditar, manteniendo Jira/JSM en modo de solo lectura.
+
+## J3 — API, persistencia y asociación local segura
+
+**Estado:** completado.
+
+Se implementó un orquestador de vínculo que combina el evaluador puro J2 con persistencia local. El preflight vuelve a leer JSM, construye un fingerprint SHA-256 estable sin incluir la hora de inspección, persiste o reutiliza una corrida y clasifica el resultado como `ready`, `blocked` o `error`. El mismo `operationId` no puede reutilizarse para otra acción, servicio o candidato.
+
+La confirmación exige una corrida de preflight `ready`, revalida el Service Desk contra Jira/JSM y compara el fingerprint nuevo con el aprobado. Si la identidad o el diagnóstico cambian, la operación queda bloqueada como `STALE_PREFLIGHT`. Solo después de esa comprobación se actualiza `recurring_services` dentro de una transacción local. La transacción impide tanto que otro servicio posea la identidad candidata como que el servicio actual cambie directamente desde un Space ya vinculado hacia otro.
+
+| Operación API | Acceso | Efecto |
+|---|---|---|
+| `listExistingJsmSpaces` | `protectedProcedure` | Lista y filtra Service Desks accesibles; muestra vínculo PMO si existe |
+| `getExistingJsmLinkState` | `protectedProcedure` | Devuelve vínculo, mappings activos e historial de corridas |
+| `preflightExistingJsmSpace` | `adminOrPmo` | Diagnóstico GET-only y corrida auditable |
+| `linkExistingJsmSpace` | `adminOrPmo` | Revalidación y vínculo únicamente en PMO |
+| `revalidateExistingJsmSpace` | `adminOrPmo` | Actualiza salud y metadatos verificados |
+| `unlinkExistingJsmSpace` | `adminOrPmo` | Desvincula solo si no hay `jiraIssueKey`; exige motivo |
+
+Las operaciones registran acciones explícitas en `audit_logs`: `jsm_existing_preflight`, `jsm_existing_link`, `jsm_existing_revalidate` y `jsm_existing_unlink`. Los errores de dominio y de unicidad se convierten en respuestas `BAD_REQUEST` legibles; los errores desconocidos no se ocultan. La desvinculación deja los mappings en estado `superseded` y conserva en la corrida la identidad anterior para trazabilidad.
+
+### Evidencia J3
+
+| Control | Resultado |
+|---|---|
+| Pruebas focales J2–J3 | 16 de 16 aprobadas |
+| Prueba persistente opt-in J3 | 1 de 1 aprobada contra la base real |
+| Limpieza de fixtures | 0 servicios, corridas, mappings, actividades y facturaciones residuales |
+| Idempotencia | Validada por fingerprint y `operationId`; colisiones incompatibles rechazadas |
+| Cardinalidad | Bloqueo de identidad ocupada y de segundo Space sobre el mismo servicio |
+| Desvinculación | Bloqueada con `jiraIssueKey` en plan de trabajo o facturación; permitida sin asociaciones |
+| Métodos Jira/JSM de escritura | Ninguno invocado por J3 |
+| Cierre de `jira_setup` | No se ejecuta ni se modifica |
+| Build | Exitoso |
+| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
+
+## Próximo bloque J4
+
+Configurar mappings explícitos para `work_plan` y `billing`, sustituir la dependencia fija de `Task`, incorporar un dry-run de sincronización, impedir asociaciones por título y alinear la regla de cierre de `jira_setup` entre servidor e interfaz. J4 seguirá siendo una acción separada del vínculo y será el primer bloque autorizado para crear issues únicamente mediante confirmación explícita.

@@ -443,7 +443,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J0: confirmar contrato canónico, cardinalidad uno-a-uno, alcance sin importación automática y política de desvinculación.
 - [x] J1: ampliar el modelo con origen, nombre, URLs separadas, verificación, mapeos y corridas auditables; aplicar migración aditiva e índices seguros.
 - [x] J2: implementar lectores paginados de Service Desks, detalle, permisos, proyecto e issue types usando solo operaciones GET.
-- [ ] J3: implementar listado, preflight, asociación idempotente, revalidación, auditoría y desvinculación controlada.
+- [x] J3: implementar listado, preflight, asociación idempotente, revalidación, auditoría y desvinculación controlada.
 - [ ] J4: implementar mapeos explícitos de issue types, dry-run y sincronización segura sin asociación por título.
 - [ ] J5: construir el flujo Crear/Vincular en JSM Setup con búsqueda, diagnóstico, confirmación y estados accesibles.
 - [ ] J6: crear Administración > Spaces JSM con inventario, filtros, vínculo visible, salud y permisos Admin/PMO.
