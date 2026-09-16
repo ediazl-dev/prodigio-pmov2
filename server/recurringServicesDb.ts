@@ -3,7 +3,7 @@
  * Follows same patterns as server/db.ts — returns raw Drizzle rows.
  */
 import { eq, and, desc, asc } from "drizzle-orm";
-import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun } from "../drizzle/schema";
+import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialData } from "../drizzle/schema";
 import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
@@ -813,4 +813,56 @@ export async function getDashboardKpisData() {
   const [services, billingMonths, slaConfigs, penalties] = await Promise.all([db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)), db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)), db.select().from(recurringServiceSlaConfig), db.select().from(recurringServicePenalties)]);
 
   return { services, billingMonths, slaConfigs, penalties };
+}
+
+export async function getRecurringDashboardV2Data() {
+  const db = await getDb();
+  if (!db) {
+    return {
+      services: [],
+      billingMonths: [],
+      workPlanItems: [],
+      documents: [],
+      documentControls: [],
+      reportEvidence: [],
+      financialEvidence: [],
+      slaConfigs: [],
+      jsmSnapshots: [],
+      financialReferences: [],
+    };
+  }
+
+  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, jsmSnapshots, financialReferences] = await Promise.all([
+    db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)),
+    db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)),
+    db.select().from(recurringServiceWorkPlan).orderBy(asc(recurringServiceWorkPlan.dueDate)),
+    db.select().from(recurringServiceDocuments),
+    db.select().from(recurringServiceDocumentControls),
+    db.select().from(recurringServiceReportEvidence).orderBy(asc(recurringServiceReportEvidence.dueDate)),
+    db.select().from(recurringServiceFinancialEvidence).orderBy(asc(recurringServiceFinancialEvidence.occurredAt)),
+    db.select().from(recurringServiceSlaConfig),
+    db.select().from(recurringServiceJsmSnapshots).orderBy(desc(recurringServiceJsmSnapshots.capturedAt)),
+    db
+      .select({
+        id: financialData.id,
+        dealId: financialData.dealId,
+        clientName: financialData.clientName,
+        projectName: financialData.projectName,
+        valorVentaUF: financialData.valorVentaUF,
+      })
+      .from(financialData),
+  ]);
+
+  return {
+    services,
+    billingMonths,
+    workPlanItems,
+    documents,
+    documentControls,
+    reportEvidence,
+    financialEvidence,
+    slaConfigs,
+    jsmSnapshots,
+    financialReferences,
+  };
 }

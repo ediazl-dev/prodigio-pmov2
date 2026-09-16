@@ -9,11 +9,12 @@ import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { createAuditLog } from "./db";
 import { buildJsmProjectUrls, createJiraSpace, createJiraIssue, CreateIssueInput, listJsmServiceDesks, searchJiraIssues } from "./jiraClient";
-import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, insertPenalty, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, RecurringServiceJsmDbError } from "./recurringServicesDb";
+import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, insertPenalty, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, RecurringServiceJsmDbError } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSpace, listExistingJsmSpaces, preflightExistingJsmSpace, revalidateExistingJsmSpace, unlinkExistingJsmSpace } from "./jsmExistingSpaceLinkRunner";
 import { associateExistingJiraIssue, calculateJsmSetupReadiness, configureJsmIssueTypeMappings, confirmJsmSync, dryRunJsmSync, getJsmSyncConfiguration, JsmRecurringSyncError } from "./jsmRecurringSyncRunner";
+import { buildRecurringServicesDashboardV2 } from "./recurringServicesDashboardV2";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -250,6 +251,36 @@ export const recurringServicesRouter = router({
       servicesSummary,
     };
   }),
+
+  dashboardV2: protectedProcedure
+    .input(
+      z
+        .object({
+          cutOffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          clientName: z.string().min(1).optional(),
+          status: z.string().min(1).optional(),
+          serviceType: recurringServiceTypeSchema.optional(),
+          health: z.enum(["critical", "attention", "stable", "no_data"]).optional(),
+          currency: z.string().min(1).max(10).optional(),
+          search: z.string().max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const source = await getRecurringDashboardV2Data();
+      const cutOffDate = input?.cutOffDate ?? new Date().toISOString().slice(0, 10);
+      return buildRecurringServicesDashboardV2(source as any, {
+        cutOffDate,
+        filters: {
+          clientName: input?.clientName,
+          status: input?.status,
+          serviceType: input?.serviceType,
+          health: input?.health,
+          currency: input?.currency,
+          search: input?.search,
+        },
+      });
+    }),
 
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
     const service = await getRecurringServiceById(input.id);

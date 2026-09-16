@@ -33,7 +33,8 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | D0 — Contrato de métricas | Completada |
 | D1 — Calidad y reconciliación | Completada |
 | D2 — Modelo de evidencias y snapshots | Completada |
-| D3–D10 | Pendientes |
+| D3 — API consolidada de portafolio | Completada |
+| D4–D10 | Pendientes |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -89,3 +90,21 @@ Durante la aplicación inicial, la última sentencia de creación quedó incompl
 | `recurring_service_jsm_snapshots` | Incidentes y cumplimiento SLA histórico | 0 |
 
 La prueba opt-in `recurringDashboardV2Persistence.test.ts` insertó un servicio aislado y registros de las cuatro entidades, validó unicidad de períodos y snapshots, y eliminó todos los datos de prueba. El control posterior confirmó cero residuos. La reversión segura quedó documentada en `docs/migrations/0045-dashboard-recurrente-v2-rollback.md` y exige respaldo/autorización si las tablas ya contienen evidencia real.
+
+## D3 — API consolidada del portafolio
+
+Se agregó el procedimiento protegido `recurringServices.dashboardV2`, manteniendo intacto `dashboardKpis` para permitir convivencia V1/V2. El endpoint acepta fecha de corte y filtros por cliente, estado, tipo, salud, moneda y texto; todos los KPIs se recalculan sobre el universo filtrado en el servidor.
+
+La capa de datos obtiene por separado servicios, cuotas, plan de trabajo, documentos, controles documentales, evidencias mensuales, evidencias financieras, reglas SLA, snapshots JSM y referencias financieras. Esto evita multiplicación de montos por joins uno-a-muchos. El agregador puro integra el contrato D0 y el diagnóstico D1, selecciona el snapshot JSM más reciente por servicio y lo marca obsoleto cuando excede 36 horas.
+
+| Salida D3 | Contenido |
+|---|---|
+| `metadata` | Versión, fecha de corte, filtros, universo y frescura JSM |
+| `filterOptions` | Clientes, estados, tipos, monedas y salud disponibles |
+| `kpis` | Cartera, finanzas por moneda, reportes, formalidad, incidentes, SLA y calidad |
+| `trends` | Series financieras por moneda, reportes e incidentes |
+| `matrix` | Fila 360 resumida y ordenada por criticidad para cada servicio |
+| `quality` | Diagnóstico por dimensión y resumen del portafolio |
+| `evidenceInventory` | Cobertura de las cuatro entidades D2 |
+
+Las pruebas unitarias D3 cubren filtros, búsqueda, snapshot vigente/obsoleto, salud, calidad y series multimoneda. La prueba de integración opt-in consultó la base real en modo solo lectura y construyó el portafolio completo sin sumar monedas distintas. Resultado acumulado: 19 pruebas unitarias D0–D3 y 1 prueba de integración aprobadas; no se agregaron errores TypeScript a los cinco heredados.
