@@ -31,7 +31,8 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 |---|---|
 | R0 — Línea base y salvaguardas | Completada |
 | D0 — Contrato de métricas | Completada |
-| D1–D10 | Pendientes |
+| D1 — Calidad y reconciliación | Completada |
+| D2–D10 | Pendientes |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -52,3 +53,23 @@ La configuración SLA quedó separada del cumplimiento real. Cuando no existe sn
 | Suite focal | 7 pruebas aprobadas |
 
 La suite `server/recurringServicesMetricsEngine.test.ts` cubre separación financiera, fecha de corte, N/D de SLA, multimoneda, cumplimiento medido, salud estable y ausencia total de evidencia. Los cinco errores TypeScript heredados de la línea base permanecen fuera de este incremento.
+
+## D1 — Calidad y reconciliación de datos
+
+Se implementó `recurringServicesQualityEngine.ts`, que diagnostica seis dimensiones por servicio: **Deal, moneda, tipología, contrato, documentación y JSM**. La salida distingue condiciones informativas, advertencias y bloqueos de métricas confiables; normaliza la identidad del Deal sin modificarla y solo propone correcciones cuando existe evidencia no contradictoria.
+
+El diagnóstico productivo confirmó que los tres planes de facturación coinciden exactamente con sus montos contractuales y monedas locales, y que cada servicio posee contrato y SoW. Camanchaca coincide de forma única con `financial_data`; los Deals 4687 y 4727 todavía no aparecen en esa fuente y quedan como brecha visible, no como error corregido. Ningún servicio tiene aún un `serviceDeskId` JSM confirmado, por lo que incidentes y SLA continuarán como N/D hasta D7.
+
+Los servicios 2040001 y 2070001 contenían la palabra **Staffing** de forma explícita en su denominación persistida, pero estaban clasificados como `soporte_incidentes` y `requerimientos`. Se corrigieron exclusivamente esos dos IDs a `staffing` dentro de una transacción. La tabla `backup_recurring_dashboard_v2_20260916_services` conserva los valores originales y `audit_logs` contiene una entrada D1 por cada corrección. No se modificaron monedas, montos, cuotas, documentos ni vínculos JSM.
+
+| Control D1 | Resultado |
+|---|---|
+| Servicios diagnosticados | 3 |
+| Plan contractual versus cuotas | 3 de 3 coincidentes |
+| Moneda servicio versus cuotas | 3 de 3 coincidentes |
+| Contrato + SoW | 3 de 3 completos |
+| Deal reconciliado con fuente financiera | 1 de 3 |
+| Service Desk JSM confirmado | 0 de 3 |
+| Tipologías Staffing corregidas | 2 |
+| Registros de auditoría | 2 |
+| Pruebas de calidad | 6 aprobadas |
