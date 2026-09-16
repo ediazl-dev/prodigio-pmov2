@@ -508,3 +508,15 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Documentar el inventario, respaldo, eliminación y controles ejecutados.
 - [x] Conservar las 15 tablas físicas `backup_cleanup_acme_20260916_*`, incluido el manifiesto y el registro de ejecución, sin eliminarlas.
 - [x] Confirmar 0 referencias productivas a los usuarios eliminados y preservar las 7 cuentas reales `@prodigio.tech`.
+
+## Rediseño radical del dashboard de servicios recurrentes — planificación
+
+- [x] Auditar el dashboard actual de servicios recurrentes y documentar qué preguntas de gestión responde y cuáles no.
+- [x] Inventariar las fuentes reales disponibles para cartera, compromisos de facturación, facturación ejecutada, entregables mensuales, formalidad contractual, incidentes, SLA y tipología de servicio.
+- [x] Evaluar calidad, completitud, periodicidad y trazabilidad de cada dato, sin inventar indicadores ausentes.
+- [x] Definir el modelo ejecutivo objetivo con KPIs, semáforos, tendencias, segmentaciones, alertas y navegación al detalle.
+- [x] Establecer reglas deterministas para salud del servicio, cumplimiento de reportes, cumplimiento SLA, exposición financiera y formalidad documental.
+- [x] Diseñar la arquitectura de información y las zonas visuales del nuevo dashboard para vista portafolio y vista por servicio.
+- [x] Preparar un backlog de implementación por fases con dependencias, migraciones, procedimientos, componentes, pruebas y guardrails de sincronización.
+- [x] Definir criterios de aceptación funcionales, de datos, permisos, rendimiento, accesibilidad y validación visual.
+- [x] Presentar el plan recomendado al usuario para aprobación antes de realizar cambios funcionales.
