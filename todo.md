@@ -486,4 +486,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J6: crear la ruta y navegación Administración > Spaces JSM manteniendo la arquitectura visual existente.
 - [x] J6: permitir acceso al servicio recurrente vinculado y mostrar acciones administrativas solo a Admin/PMO.
 - [x] J6: validar permisos, filtros, datos heredados, responsive, TypeScript/build y revisión visual sin modificar Jira/JSM.
-- [ ] J7: ejecutar pruebas unitarias y persistentes focales, TypeScript/build, validación visual, documentación y publicación final.
+- [x] J7: ejecutar pruebas unitarias y persistentes focales, TypeScript/build, validación visual, documentación y publicación final.
+- [x] J7: ejecutar la matriz integral J0–J6 con pruebas unitarias, persistentes aisladas y lectores live GET-only.
+- [x] J7: verificar por SQL la limpieza total de fixtures y la integridad de vínculos productivos sin asociar ni modificar Spaces reales.
+- [x] J7: revisar permisos, cardinalidad, idempotencia, stale-preflight, no-importación automática, no-autocierre y desvinculación protegida.
+- [x] J7: validar en escritorio y móvil JSM Setup e inventario Spaces JSM, incluyendo carga, error, vacío y solo lectura.
+- [x] J7: consolidar manual operativo para crear, vincular, mapear, simular, sincronizar, revalidar y desvincular de forma segura.
+- [x] J7: registrar resultados, limitaciones y deudas heredadas, cerrar el backlog J0–J7 y publicar el checkpoint final.

@@ -201,16 +201,16 @@ Admin y PMO pueden revalidar o solicitar la desvinculación. Esta última exige 
 
 ### Evidencia J5
 
-| Control | Resultado |
-|---|---|
-| Pruebas focales J2–J5 | 29 de 29 aprobadas |
-| Permisos de interfaz | Admin/PMO modifican; PM/consulta solo lectura |
-| Confirmación | Deshabilitada sin permiso, corrida, resultado linkable o durante una operación pendiente |
-| Build de producción | Exitoso |
-| Revisión visual | Aprobada en servicio vinculado heredado 2100001 y servicio sin vínculo 2070001 |
-| Consola y red | Sin errores nuevos; consulta de estado JSM respondió HTTP 200 |
-| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
-| Escrituras Jira/JSM de validación | Ninguna |
+| Control                           | Resultado                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Pruebas focales J2–J5             | 29 de 29 aprobadas                                                                             |
+| Permisos de interfaz              | Admin/PMO modifican; PM/consulta solo lectura                                                  |
+| Confirmación                      | Deshabilitada sin permiso, corrida, resultado linkable o durante una operación pendiente       |
+| Build de producción               | Exitoso                                                                                        |
+| Revisión visual                   | Aprobada en servicio vinculado heredado 2100001 y servicio sin vínculo 2070001                 |
+| Consola y red                     | Sin errores nuevos; consulta de estado JSM respondió HTTP 200                                  |
+| TypeScript                        | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
+| Escrituras Jira/JSM de validación | Ninguna                                                                                        |
 
 ## Próximo bloque J6
 
@@ -224,31 +224,81 @@ Se incorporó la ruta **Administración > Spaces JSM** al menú lateral. Admin, 
 
 El inventario cruza los Service Desks visibles en Jira con los metadatos persistidos en PMO. Para cada Space muestra nombre, project key, Project ID, Service Desk ID, estado de vínculo, servicio recurrente asociado, cliente, etapa, origen, salud, fecha de vínculo y última verificación. Los vínculos históricos sin `jsmLinkSource` se identifican como **Vínculo heredado** en vez de inferir un origen inexistente.
 
-| Filtro o indicador | Comportamiento |
-|---|---|
-| Búsqueda | Nombre, key, IDs, servicio o cliente |
-| Estado de vínculo | Todos, vinculados o disponibles |
-| Condición | Saludable, advertencia, bloqueado o pendiente |
-| Origen | Creado por PMO, vinculado existente o heredado |
-| KPIs | Total, vinculados, disponibles, saludables y requieren atención |
+| Filtro o indicador | Comportamiento                                                  |
+| ------------------ | --------------------------------------------------------------- |
+| Búsqueda           | Nombre, key, IDs, servicio o cliente                            |
+| Estado de vínculo  | Todos, vinculados o disponibles                                 |
+| Condición          | Saludable, advertencia, bloqueado o pendiente                   |
+| Origen             | Creado por PMO, vinculado existente o heredado                  |
+| KPIs               | Total, vinculados, disponibles, saludables y requieren atención |
 
 La API aplica filtros y paginación en servidor y devuelve contadores del universo consultado. La interfaz incluye actualización manual, estados de carga, error con reintento, vacío filtrado, paginación, enlaces separados a vista de agentes y portal de clientes, acceso al servicio relacionado y botón **Revalidar** solo cuando corresponde.
 
 ### Evidencia J6
 
-| Control | Resultado |
-|---|---|
-| Pruebas focales J2–J6 | 30 de 30 aprobadas |
-| Catálogo real GET-only | 15 Service Desks; HTTP 200 en 2,6–2,7 segundos |
-| Filtros y métricas | Validados con catálogo simulado y datos reales |
-| Permisos | Lectura para los cuatro roles; acción solo Admin/PMO |
-| Vista escritorio | Validada con datos reales y 15 tarjetas |
-| Vista móvil | Validada a 390 × 844 px con filtros apilados y tarjetas legibles |
-| Consola/servidor | Sin errores nuevos durante navegación y carga |
-| Build de producción | Exitoso |
-| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
-| Escrituras Jira/JSM | Ninguna |
+| Control                | Resultado                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| Pruebas focales J2–J6  | 30 de 30 aprobadas                                                                             |
+| Catálogo real GET-only | 15 Service Desks; HTTP 200 en 2,6–2,7 segundos                                                 |
+| Filtros y métricas     | Validados con catálogo simulado y datos reales                                                 |
+| Permisos               | Lectura para los cuatro roles; acción solo Admin/PMO                                           |
+| Vista escritorio       | Validada con datos reales y 15 tarjetas                                                        |
+| Vista móvil            | Validada a 390 × 844 px con filtros apilados y tarjetas legibles                               |
+| Consola/servidor       | Sin errores nuevos durante navegación y carga                                                  |
+| Build de producción    | Exitoso                                                                                        |
+| TypeScript             | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
+| Escrituras Jira/JSM    | Ninguna                                                                                        |
 
 ## Próximo bloque J7
 
 Ejecutar la validación integral de J0–J6, consolidar documentación y manual operativo, verificar reglas no negociables, revisar el flujo completo con datos controlados y publicar la versión final sin asociar ningún Space productivo durante las pruebas.
+
+## J7 — Certificación integral y manual operativo
+
+**Estado:** completado.
+
+J7 certificó el recorrido completo implementado en J0–J6 sin ejecutar asociaciones productivas ni escrituras Jira/JSM. La validación combinó contratos unitarios, persistencia aislada, lectores live GET-only, inspección SQL, build de producción y revisión visual en escritorio y móvil.
+
+### Matriz de evidencia J7
+
+| Control                                   | Resultado                                                                                             |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Matriz focal J1–J6                        | 33 pruebas aprobadas y 1 prueba persistente opt-in omitida por defecto                                |
+| Persistencia real aislada                 | Suites J1, J3 y J4 aprobadas con fixtures independientes y limpieza en `finally`                      |
+| Limpieza SQL                              | Cero servicios, corridas, mappings, actividades o facturación de fixture; cero vínculos JSM huérfanos |
+| Lectores live                             | Dos suites GET-only aprobadas contra Jira/JSM real para catálogo, permisos, proyecto e issue types    |
+| Catálogo real                             | 15 Service Desks visibles, sin escrituras externas                                                    |
+| Build de producción                       | Exitoso                                                                                               |
+| TypeScript                                | Sin regresiones JSM; permanecen exactamente cinco deudas heredadas fuera del alcance                  |
+| Revisión visual                           | JSM Setup e inventario validados a 1440 × 1000 px y 390 × 844 px                                      |
+| Escrituras Jira/JSM durante certificación | Ninguna                                                                                               |
+| Vínculos productivos modificados          | Ninguno                                                                                               |
+
+### Reglas certificadas
+
+| Regla                      | Evidencia                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Cardinalidad uno-a-uno     | Índices únicos y bloqueos de conflicto para Project ID, key y Service Desk ID                                     |
+| Identidad estable          | Persistencia separada de Jira Project ID y JSM Service Desk ID; nunca se asocia por título                        |
+| Preflight de solo lectura  | Catálogo, Service Desk, proyecto, permisos e issue types consultados exclusivamente mediante GET                  |
+| Confirmación vigente       | El vínculo y la sincronización exigen corrida/fingerprint vigente y rechazan resultados obsoletos                 |
+| Idempotencia               | Repetir operationId, preflight, vínculo o confirmación no duplica corridas, asociaciones ni issues                |
+| Sin importación automática | Vincular un Space no importa tickets existentes ni crea issues                                                    |
+| Sin autocierre             | Vincular, revalidar o sincronizar no cierra `jira_setup`; el cierre continúa siendo explícito                     |
+| Mappings explícitos        | `work_plan` y `billing` usan issue type ID existente y validado en el proyecto JSM                                |
+| Sin fallback `Task`        | El flujo seguro rechaza mappings ausentes o inválidos y no inventa tipos                                          |
+| Desvinculación protegida   | Se bloquea cuando plan de trabajo o facturación contienen `jiraIssueKey`                                          |
+| Permisos                   | Admin/PMO modifican; PM/consulta acceden en modo lectura                                                          |
+| Auditoría                  | Preflight, vínculo, revalidación, desvinculación, mappings, dry-run y sync dejan acciones explícitas sin secretos |
+
+### Documentación entregada
+
+Se creó `docs/MANUAL_OPERATIVO_VINCULACION_SPACES_JSM_EXISTENTES_2026-09-16.md`, que cubre creación, vinculación, preflight, mappings, dry-run, confirmación de sincronización, revalidación, inventario administrativo, cierre y desvinculación segura.
+
+### Deudas y límites conocidos
+
+El chequeo TypeScript global conserva cinco errores preexistentes: cuatro en `server/jiraMilestoneSync.ts` y uno en `server/routers.ts`. Ninguno corresponde al alcance JSM J0–J7. El build de producción finaliza correctamente. La certificación no creó, modificó, renombró, convirtió ni archivó ningún Space real y no utilizó `PSCSC4S`, que continúa identificado como proyecto Jira `business` y no como JSM.
+
+## Cierre del backlog J0–J7
+
+Las fases J0–J7 quedan completadas. La funcionalidad permite descubrir, diagnosticar, vincular y administrar un Service Desk existente desde Servicios Recurrentes, manteniendo separadas la asociación local PMO y la creación explícita posterior de issues Jira/JSM.
