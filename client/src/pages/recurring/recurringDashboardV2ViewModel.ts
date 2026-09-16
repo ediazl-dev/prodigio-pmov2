@@ -54,6 +54,13 @@ export function formatCutOffDate(value: string): string {
   });
 }
 
+export function formatRecurringMonth(value: string): string {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return "Sin fecha";
+  const date = new Date(`${value}-01T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return "Sin fecha";
+  return new Intl.DateTimeFormat("es-CL", { month: "short", year: "2-digit", timeZone: "UTC" }).format(date);
+}
+
 export function countActiveFilters(filters: Record<string, string>): number {
   return Object.entries(filters).filter(([key, value]) => key !== "cutOffDate" && value !== "all" && value.trim() !== "").length;
 }

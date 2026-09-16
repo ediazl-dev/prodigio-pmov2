@@ -33,6 +33,7 @@ import {
   countActiveFilters,
   currencyRows,
   formatCutOffDate,
+  formatRecurringMonth,
   formatRecurringMoney,
   formatRecurringPercent,
   RECURRING_HEALTH_UI,
@@ -64,16 +65,37 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function monthLabel(month: string) {
-  return new Intl.DateTimeFormat("es-CL", { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
-}
-
 const RECONCILIATION_LABELS: Record<string, { label: string; className: string }> = {
   comparable: { label: "Conciliado y comparable", className: "bg-emerald-50 text-emerald-800" },
   reference_not_comparable: { label: "Referencia UF no comparable", className: "bg-blue-50 text-blue-800" },
   missing_reference: { label: "Sin referencia corporativa", className: "bg-amber-50 text-amber-900" },
   ambiguous: { label: "Deal ambiguo", className: "bg-red-50 text-red-800" },
   no_deal: { label: "Sin Deal", className: "bg-red-50 text-red-800" },
+};
+
+const REPORT_STATUS_UI: Record<string, { label: string; shortLabel: string; className: string }> = {
+  accepted: { label: "Aceptado por cliente", shortLabel: "Aceptado", className: "border-emerald-200 bg-emerald-100 text-emerald-900" },
+  delivered: { label: "Entregado, pendiente de aceptación", shortLabel: "Entregado", className: "border-blue-200 bg-blue-100 text-blue-900" },
+  completed_without_evidence: { label: "Completado sin evidencia", shortLabel: "Sin evidencia", className: "border-amber-300 bg-amber-100 text-amber-950" },
+  rejected: { label: "Rechazado", shortLabel: "Rechazado", className: "border-red-300 bg-red-100 text-red-900" },
+  waived: { label: "No exigible", shortLabel: "Eximido", className: "border-slate-200 bg-slate-100 text-slate-700" },
+  overdue: { label: "Vencido sin entrega", shortLabel: "Vencido", className: "border-red-300 bg-red-50 text-red-900" },
+  planned: { label: "Planificado", shortLabel: "Planificado", className: "border-slate-200 bg-white text-slate-600" },
+  unscheduled_evidence: { label: "Evidencia sin hito asociado", shortLabel: "No asociado", className: "border-violet-200 bg-violet-50 text-violet-900" },
+};
+
+const DOCUMENT_STATUS_UI: Record<string, { label: string; className: string }> = {
+  valid: { label: "Vigente y validado", className: "bg-emerald-50 text-emerald-800" },
+  pending: { label: "Validación pendiente", className: "bg-amber-50 text-amber-900" },
+  unvalidated: { label: "Presente sin control", className: "bg-slate-100 text-slate-700" },
+  expired: { label: "Vencido", className: "bg-red-50 text-red-800" },
+  rejected: { label: "Rechazado", className: "bg-red-50 text-red-800" },
+  missing: { label: "Faltante", className: "bg-red-50 text-red-800" },
+};
+
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  contrato: "Contrato",
+  sow: "SoW",
 };
 
 function KpiCard({
@@ -180,7 +202,7 @@ export default function RecurringServicesDashboardV2() {
     );
   }
 
-  const { kpis, metadata, filterOptions, matrix, quality, evidenceInventory, financeAnalytics, trends } = data;
+  const { kpis, metadata, filterOptions, matrix, quality, evidenceInventory, financeAnalytics, deliverables, documents, trends } = data;
   const finance = currencyRows(kpis.financeByCurrency);
   const activeFilterCount = countActiveFilters(filters);
   const requiresAttention = kpis.healthCounts.critical + kpis.healthCounts.attention;
@@ -401,7 +423,7 @@ export default function RecurringServicesDashboardV2() {
                   const maxValue = Math.max(item.scheduled, item.invoiced, item.collected, 1);
                   return (
                     <div key={`${item.month}-${item.currency}`} className="rounded-xl border border-slate-200 p-3">
-                      <div className="flex items-center justify-between"><b className="text-xs text-slate-900">{monthLabel(item.month)}</b><span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">{item.currency}</span></div>
+                      <div className="flex items-center justify-between"><b className="text-xs text-slate-900">{formatRecurringMonth(item.month)}</b><span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">{item.currency}</span></div>
                       <div className="mt-3 space-y-2 text-[10px] font-semibold text-slate-600">
                         {[
                           ["Programado", item.scheduled, "#94A3B8"],
@@ -465,6 +487,98 @@ export default function RecurringServicesDashboardV2() {
               })}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+        <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Entrega y aceptación</p>
+              <h3 className="mt-1 text-lg font-black text-slate-950">Reportes mensuales y formalidad contractual</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">La entrega requiere evidencia registrada. Un hito marcado como completado sin respaldo queda visible como excepción.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Exigibles</p><p className="mt-1 text-lg font-black text-slate-950">{deliverables.summary.due}</p></div>
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Entrega</p><p className="mt-1 text-lg font-black text-[#175CD3]">{formatRecurringPercent(deliverables.summary.deliveryRate)}</p></div>
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">Aceptación</p><p className="mt-1 text-lg font-black text-emerald-700">{formatRecurringPercent(deliverables.summary.acceptanceRate)}</p></div>
+              <div className="rounded-xl bg-white px-3 py-2 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-500">En plazo</p><p className="mt-1 text-lg font-black text-slate-950">{formatRecurringPercent(deliverables.summary.onTimeRate)}</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid xl:grid-cols-[1.35fr_0.65fr]">
+          <div className="min-w-0 border-b border-slate-200 p-5 sm:p-6 xl:border-b-0 xl:border-r">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm font-black text-slate-900"><CalendarDays size={16} className="text-[#175CD3]" /> Calendario de cumplimiento</div>
+              <div className="flex flex-wrap gap-2 text-[9px] font-bold">
+                {Object.entries(REPORT_STATUS_UI).slice(0, 5).map(([key, item]) => <span key={key} className={`rounded-full border px-2 py-1 ${item.className}`}>{item.shortLabel}</span>)}
+              </div>
+            </div>
+            {deliverables.periods.length === 0 ? (
+              <div className="mt-5"><EmptyValue text="No existen reportes mensuales planificados" /></div>
+            ) : (
+              <div className="mt-4 overflow-x-auto pb-2">
+                <div className="min-w-max">
+                  <div className="grid items-center gap-2" style={{ gridTemplateColumns: `minmax(230px, 1fr) repeat(${deliverables.periods.length}, 88px)` }}>
+                    <span className="px-2 text-[9px] font-black uppercase tracking-wide text-slate-400">Servicio</span>
+                    {deliverables.periods.map(period => <span key={period} className="text-center text-[9px] font-black uppercase text-slate-500">{formatRecurringMonth(period)}</span>)}
+                    {deliverables.rows.flatMap(row => [
+                      <button key={`${row.serviceId}-name`} onClick={() => navigate(`/recurring-services/${row.serviceId}`)} className="rounded-lg px-2 py-2 text-left hover:bg-slate-50">
+                        <span className="block max-w-[230px] truncate text-xs font-black text-slate-900">{row.serviceName}</span>
+                        <span className="mt-0.5 block text-[10px] text-slate-500">{row.clientName}</span>
+                      </button>,
+                      ...deliverables.periods.map(period => {
+                        const cell = row.cells.find(item => item.period === period);
+                        if (!cell) return <div key={`${row.serviceId}-${period}`} className="h-12 rounded-lg border border-dashed border-slate-200 bg-slate-50/40" title="Sin reporte planificado" />;
+                        const visual = REPORT_STATUS_UI[cell.status] ?? REPORT_STATUS_UI.planned;
+                        const timing = cell.deliveryTiming === "late" ? " · entrega tardía" : cell.deliveryTiming === "on_time" ? " · en plazo" : "";
+                        return (
+                          <div key={`${row.serviceId}-${period}`} title={`${visual.label}${timing}${cell.dueDate ? ` · vence ${cell.dueDate}` : ""}`} className={`grid h-12 place-items-center rounded-lg border px-1 text-center text-[9px] font-black ${visual.className}`}>
+                            {visual.shortLabel}
+                          </div>
+                        );
+                      }),
+                    ])}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-200 pt-3 text-[10px] text-slate-600">
+              <span><b>{deliverables.summary.deliveredWithEvidence}</b> entregados con evidencia</span>
+              <span><b>{deliverables.summary.accepted}</b> aceptados</span>
+              <span className={deliverables.summary.overdue > 0 ? "font-semibold text-red-700" : ""}><b>{deliverables.summary.overdue}</b> excepciones vencidas</span>
+              <span><b>{deliverables.summary.completedWithoutEvidence}</b> completados sin respaldo</span>
+            </div>
+          </div>
+
+          <aside className="p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-black text-slate-900"><ShieldCheck size={16} className="text-[#E91E8C]" /> Formalidad documental</div>
+              <span className="text-[10px] font-semibold text-slate-500">Contrato + SoW</span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-emerald-50 p-2.5"><p className="text-[9px] font-bold uppercase text-emerald-700">Vigentes</p><p className="mt-1 text-xl font-black text-emerald-900">{documents.summary.valid}</p></div>
+              <div className="rounded-lg bg-amber-50 p-2.5"><p className="text-[9px] font-bold uppercase text-amber-700">Por validar</p><p className="mt-1 text-xl font-black text-amber-900">{documents.summary.pendingValidation}</p></div>
+              <div className="rounded-lg bg-red-50 p-2.5"><p className="text-[9px] font-bold uppercase text-red-700">En riesgo</p><p className="mt-1 text-xl font-black text-red-900">{documents.summary.missing + documents.summary.expiredOrRejected}</p></div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {documents.services.map(service => (
+                <button key={service.serviceId} onClick={() => navigate(`/recurring-services/${service.serviceId}`)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-slate-300 hover:bg-slate-50">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-xs font-black text-slate-900">{service.serviceName}</span>
+                    {service.status === "valid" ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <FileWarning size={15} className="shrink-0 text-amber-600" />}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {service.documents.map(document => {
+                      const visual = DOCUMENT_STATUS_UI[document.status] ?? DOCUMENT_STATUS_UI.unvalidated;
+                      return <span key={document.docType} title={visual.label} className={`rounded-full px-2 py-1 text-[9px] font-black ${visual.className}`}>{DOCUMENT_TYPE_LABELS[document.docType] ?? document.docType}: {visual.label}</span>;
+                    })}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
         </div>
       </section>
 

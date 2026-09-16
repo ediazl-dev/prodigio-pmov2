@@ -46,8 +46,28 @@ export interface RecurringDashboardV2Source
   billingMonths: Array<RecurringServicesMetricsInput["billingMonths"][number] & RecurringServicesQualityInput["billingMonths"][number]>;
   documents: Array<RecurringServicesMetricsInput["documents"][number] & RecurringServicesQualityInput["documents"][number]>;
   jsmSnapshots: DashboardV2JsmSnapshot[];
-  documentControls: Array<{ serviceId: number }>;
-  reportEvidence: Array<{ serviceId: number; periodStart: string; dueDate: string; status: string; deliveredAt: Date | string | null; acceptedAt: Date | string | null }>;
+  documentControls: Array<{
+    id?: number;
+    serviceId: number;
+    documentId: number;
+    validationStatus: "pending" | "valid" | "expired" | "rejected";
+    validFrom: string | null;
+    validUntil: string | null;
+    validatedAt: Date | string | null;
+  }>;
+  reportEvidence: Array<{
+    id?: number;
+    serviceId: number;
+    workPlanItemId: number | null;
+    periodStart: string;
+    periodEnd: string;
+    dueDate: string;
+    status: "pending" | "delivered" | "accepted" | "rejected" | "waived";
+    deliveredAt: Date | string | null;
+    acceptedAt: Date | string | null;
+    evidenceDocumentId: number | null;
+    source?: "manual" | "jsm" | "import";
+  }>;
   financialEvidence: Array<{ serviceId: number; evidenceType: string; status: string; amount: string | number; currency: string; occurredAt: Date | string }>;
 }
 
@@ -284,6 +304,184 @@ function financialAnalytics(
   };
 }
 
+type ReportCellStatus =
+  | "accepted"
+  | "delivered"
+  | "completed_without_evidence"
+  | "rejected"
+  | "waived"
+  | "overdue"
+  | "planned"
+  | "unscheduled_evidence";
+
+interface ReportCell {
+  workPlanItemId: number | null;
+  evidenceId: number | null;
+  period: string;
+  dueDate: string | null;
+  status: ReportCellStatus;
+  evidenceStatus: string | null;
+  deliveredAt: string | null;
+  acceptedAt: string | null;
+  evidenceDocumentId: number | null;
+  deliveryTiming: "unknown" | "on_time" | "late";
+}
+
+function dateOnly(value: Date | string | null): string | null {
+  if (!value) return null;
+  return isoDate(value).slice(0, 10);
+}
+
+function reportCellStatus(
+  evidence: RecurringDashboardV2Source["reportEvidence"][number] | undefined,
+  workPlanStatus: string | null,
+  dueDate: string | null,
+  cutOffDate: string,
+): ReportCellStatus {
+  if (evidence?.status === "accepted") return "accepted";
+  if (evidence?.status === "delivered") return "delivered";
+  if (evidence?.status === "rejected") return "rejected";
+  if (evidence?.status === "waived") return "waived";
+  if (workPlanStatus === "completado") return "completed_without_evidence";
+  if (dueDate && dueDate <= cutOffDate) return "overdue";
+  return evidence ? "unscheduled_evidence" : "planned";
+}
+
+function deliverablesAnalytics(source: RecurringDashboardV2Source, cutOffDate: string) {
+  const plannedReports = source.workPlanItems.filter(item => item.itemType === "informe_mensual");
+  const usedEvidence = new Set<number>();
+  const rows = source.services.map(service => {
+    const items = plannedReports.filter(item => item.serviceId === service.id);
+    const serviceEvidence = source.reportEvidence.filter(item => item.serviceId === service.id);
+    const cells: ReportCell[] = items.map(item => {
+      const dueMonth = monthKey(item.dueDate);
+      const evidence = serviceEvidence.find(candidate => candidate.workPlanItemId === item.id)
+        ?? serviceEvidence.find(candidate => !candidate.workPlanItemId && monthKey(candidate.periodStart) === dueMonth);
+      if (evidence?.id !== undefined) usedEvidence.add(evidence.id);
+      const deliveredDate = dateOnly(evidence?.deliveredAt ?? null);
+      const dueDate = item.dueDate ?? evidence?.dueDate ?? null;
+      return {
+        workPlanItemId: item.id,
+        evidenceId: evidence?.id ?? null,
+        period: dueMonth ?? monthKey(evidence?.periodStart ?? null) ?? "sin-fecha",
+        dueDate,
+        status: reportCellStatus(evidence, item.status, dueDate, cutOffDate),
+        evidenceStatus: evidence?.status ?? null,
+        deliveredAt: evidence?.deliveredAt ? isoDate(evidence.deliveredAt) : null,
+        acceptedAt: evidence?.acceptedAt ? isoDate(evidence.acceptedAt) : null,
+        evidenceDocumentId: evidence?.evidenceDocumentId ?? null,
+        deliveryTiming: !deliveredDate || !dueDate ? "unknown" : deliveredDate <= dueDate ? "on_time" : "late",
+      };
+    });
+
+    for (const evidence of serviceEvidence) {
+      if (evidence.id !== undefined && usedEvidence.has(evidence.id)) continue;
+      const deliveredDate = dateOnly(evidence.deliveredAt);
+      cells.push({
+        workPlanItemId: evidence.workPlanItemId,
+        evidenceId: evidence.id ?? null,
+        period: monthKey(evidence.periodStart) ?? "sin-fecha",
+        dueDate: evidence.dueDate,
+        status: reportCellStatus(evidence, null, evidence.dueDate, cutOffDate),
+        evidenceStatus: evidence.status,
+        deliveredAt: evidence.deliveredAt ? isoDate(evidence.deliveredAt) : null,
+        acceptedAt: evidence.acceptedAt ? isoDate(evidence.acceptedAt) : null,
+        evidenceDocumentId: evidence.evidenceDocumentId,
+        deliveryTiming: !deliveredDate ? "unknown" : deliveredDate <= evidence.dueDate ? "on_time" : "late",
+      });
+    }
+
+    cells.sort((a, b) => a.period.localeCompare(b.period));
+    return { serviceId: service.id, clientName: service.clientName, serviceName: service.serviceName, cells };
+  });
+
+  const cells = rows.flatMap(row => row.cells);
+  const dueCells = cells.filter(cell => cell.dueDate !== null && cell.dueDate <= cutOffDate && cell.status !== "waived");
+  const deliveredCells = dueCells.filter(cell => cell.status === "delivered" || cell.status === "accepted");
+  const timedDeliveries = deliveredCells.filter(cell => cell.deliveryTiming !== "unknown");
+  return {
+    periods: distinctSorted(cells.map(cell => cell.period)),
+    summary: {
+      planned: cells.filter(cell => cell.workPlanItemId !== null).length,
+      due: dueCells.length,
+      deliveredWithEvidence: deliveredCells.length,
+      accepted: dueCells.filter(cell => cell.status === "accepted").length,
+      overdue: dueCells.filter(cell => ["overdue", "rejected", "completed_without_evidence"].includes(cell.status)).length,
+      completedWithoutEvidence: dueCells.filter(cell => cell.status === "completed_without_evidence").length,
+      deliveryRate: dueCells.length > 0 ? Math.round((deliveredCells.length / dueCells.length) * 1000) / 10 : null,
+      acceptanceRate: dueCells.length > 0 ? Math.round((dueCells.filter(cell => cell.status === "accepted").length / dueCells.length) * 1000) / 10 : null,
+      onTimeRate: timedDeliveries.length > 0 ? Math.round((timedDeliveries.filter(cell => cell.deliveryTiming === "on_time").length / timedDeliveries.length) * 1000) / 10 : null,
+    },
+    rows,
+  };
+}
+
+function documentAnalytics(source: RecurringDashboardV2Source, cutOffDate: string) {
+  const requiredTypes = ["contrato", "sow"] as const;
+  type DocumentStatus = "valid" | "pending" | "unvalidated" | "expired" | "rejected" | "missing";
+  type RequiredDocumentRow = {
+    documentId: number | null;
+    docType: (typeof requiredTypes)[number];
+    status: DocumentStatus;
+    validUntil: string | null;
+    validatedAt: string | null;
+  };
+  const statusRank = { valid: 5, pending: 4, unvalidated: 3, expired: 2, rejected: 1, missing: 0 } as const;
+  const services = source.services.map(service => {
+    const serviceDocuments = source.documents.filter(document => document.serviceId === service.id);
+    const documents: RequiredDocumentRow[] = requiredTypes.map(docType => {
+      const candidates = serviceDocuments
+        .filter(document => document.docType === docType)
+        .map(document => {
+          const control = source.documentControls.find(item => item.documentId === document.id);
+          const status: DocumentStatus = !control
+            ? "unvalidated"
+            : control.validationStatus === "valid" && control.validUntil && control.validUntil < cutOffDate
+              ? "expired"
+              : control.validationStatus;
+          return {
+            documentId: document.id,
+            docType,
+            status,
+            validUntil: control?.validUntil ?? null,
+            validatedAt: control?.validatedAt ? isoDate(control.validatedAt) : null,
+          };
+        })
+        .sort((a, b) => statusRank[b.status] - statusRank[a.status]);
+      return candidates.length > 0
+        ? candidates[0]
+        : { documentId: null, docType, status: "missing", validUntil: null, validatedAt: null };
+    });
+    const status = documents.every(item => item.status === "valid")
+      ? "valid"
+      : documents.some(item => item.status === "missing" || item.status === "expired" || item.status === "rejected")
+        ? "at_risk"
+        : "pending_validation";
+    return {
+      serviceId: service.id,
+      clientName: service.clientName,
+      serviceName: service.serviceName,
+      status,
+      documents,
+      additionalDocuments: serviceDocuments.filter(document => !requiredTypes.includes(document.docType as typeof requiredTypes[number])).length,
+    };
+  });
+  const requiredDocuments = services.flatMap(service => service.documents);
+  return {
+    requiredTypes,
+    summary: {
+      required: requiredDocuments.length,
+      present: requiredDocuments.filter(item => item.status !== "missing").length,
+      valid: requiredDocuments.filter(item => item.status === "valid").length,
+      pendingValidation: requiredDocuments.filter(item => item.status === "pending" || item.status === "unvalidated").length,
+      expiredOrRejected: requiredDocuments.filter(item => item.status === "expired" || item.status === "rejected").length,
+      missing: requiredDocuments.filter(item => item.status === "missing").length,
+      validServices: services.filter(service => service.status === "valid").length,
+    },
+    services,
+  };
+}
+
 function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   const buckets = new Map<string, { month: string; planned: number; due: number; completedDue: number; overdue: number }>();
   for (const row of source.workPlanItems.filter(item => item.itemType === "informe_mensual")) {
@@ -368,6 +566,8 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     .sort()
     .at(-1) ?? null;
   const financeAnalytics = financialAnalytics(filteredSource, metrics.services, options.cutOffDate);
+  const deliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
+  const documents = documentAnalytics(filteredSource, options.cutOffDate);
 
   return {
     metadata: {
@@ -394,6 +594,8 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       incidents: incidentTrend(filteredSource),
     },
     financeAnalytics,
+    deliverables,
+    documents,
     matrix,
     quality,
     evidenceInventory: {

@@ -36,7 +36,8 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | D3 — API consolidada de portafolio | Completada |
 | D4 — Torre de Control V2 | Completada |
 | D5 — Analítica financiera recurrente | Completada |
-| D6–D10 | Pendientes |
+| D6 — Reportes y formalidad documental | Completada |
+| D7–D10 | Pendientes |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -148,3 +149,22 @@ La conciliación separa cinco estados: comparable en UF, referencia existente pe
 | Errores TypeScript nuevos | 0 |
 
 La revisión visual en escritorio confirmó legibilidad de la tendencia, las tres conciliaciones y la separación entre plan local y referencia corporativa. El servicio Camanchaca aparece correctamente como referencia UF no comparable con su contrato local USD; los Deals 4687 y 4727 muestran la brecha sin fabricar equivalencias.
+
+## D6 — Reportes mensuales y formalidad documental
+
+La API V2 entrega ahora un calendario consolidado de reportes mensuales por servicio y período. Cada celda distingue planificado, vencido, completado sin evidencia, entregado, aceptado, rechazado, eximido o evidencia sin hito asociado. La puntualidad se calcula con la fecha real de entrega contra la fecha exigible y los porcentajes permanecen en N/D cuando no existe un denominador verificable.
+
+La Torre V2 incorpora un heatmap horizontal navegable y un panel de formalidad para contrato y SoW. El control documental diferencia documento faltante, presente sin validación, pendiente, vigente, vencido y rechazado; por tanto, la presencia de un archivo ya no equivale a vigencia formal. Cada fila conduce al detalle del servicio para gestionar la evidencia.
+
+| Control D6 | Resultado actual |
+|---|---|
+| Reportes exigibles al corte | 0 |
+| Entregas con evidencia | 0; porcentaje N/D |
+| Aceptaciones verificadas | 0; porcentaje N/D |
+| Contratos/SoW presentes | 6 de 6 |
+| Contratos/SoW formalmente validados | 0 de 6 |
+| Estado visible | Presente sin control, no falsamente “vigente” |
+| Pruebas focales acumuladas | 30 aprobadas |
+| Build | Exitoso |
+
+La primera revisión visual detectó una excepción `RangeError` al representar períodos sin fecha. Se corrigió mediante un formateador tolerante y se añadió una prueba de regresión; la segunda captura confirmó la carga completa del dashboard y de sus nuevos módulos.

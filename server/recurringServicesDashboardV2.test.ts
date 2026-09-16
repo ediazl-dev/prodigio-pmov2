@@ -91,8 +91,13 @@ const source: RecurringDashboardV2Source = {
       priorityBreakdown: { high: 0 },
     },
   ],
-  documentControls: [{ serviceId: 1 }],
-  reportEvidence: [],
+  documentControls: [
+    { id: 1, serviceId: 1, documentId: 1, validationStatus: "valid", validFrom: "2026-01-01", validUntil: "2026-12-31", validatedAt: "2026-01-02T12:00:00.000Z" },
+    { id: 2, serviceId: 1, documentId: 2, validationStatus: "valid", validFrom: "2026-01-01", validUntil: "2026-12-31", validatedAt: "2026-01-02T12:00:00.000Z" },
+  ],
+  reportEvidence: [
+    { id: 1, serviceId: 1, workPlanItemId: 1, periodStart: "2026-01-01", periodEnd: "2026-01-31", dueDate: "2026-01-31", status: "accepted", deliveredAt: "2026-01-30T12:00:00.000Z", acceptedAt: "2026-02-02T12:00:00.000Z", evidenceDocumentId: 10, source: "manual" },
+  ],
   financialEvidence: [
     { serviceId: 1, evidenceType: "invoice", status: "confirmed", amount: "60", currency: "UF", occurredAt: "2026-01-31T12:00:00.000Z" },
     { serviceId: 1, evidenceType: "payment", status: "confirmed", amount: "60", currency: "UF", occurredAt: "2026-02-05T12:00:00.000Z" },
@@ -215,5 +220,49 @@ describe("buildRecurringServicesDashboardV2", () => {
     expect(service?.reconciliationStatus).toBe("reference_not_comparable");
     expect(service?.localCurrencies[0].currency).toBe("USD");
     expect(service?.corporateReference?.valorVentaUF).toBe(55);
+  });
+
+  it("construye el heatmap de reportes con entrega, aceptación, mora y falta de evidencia", () => {
+    const result = buildRecurringServicesDashboardV2(source, { cutOffDate: "2026-03-16" });
+    const service = result.deliverables.rows.find(item => item.serviceId === 1);
+
+    expect(result.deliverables.periods).toEqual(["2026-01", "2026-02"]);
+    expect(result.deliverables.summary).toMatchObject({
+      planned: 2,
+      due: 2,
+      deliveredWithEvidence: 1,
+      accepted: 1,
+      overdue: 1,
+      completedWithoutEvidence: 0,
+      deliveryRate: 50,
+      acceptanceRate: 50,
+      onTimeRate: 100,
+    });
+    expect(service?.cells.map(cell => cell.status)).toEqual(["accepted", "overdue"]);
+  });
+
+  it("distingue documentos presentes sin validar de documentos vigentes y faltantes", () => {
+    const result = buildRecurringServicesDashboardV2(source, { cutOffDate: "2026-03-16" });
+    const complete = result.documents.services.find(item => item.serviceId === 1);
+    const unvalidated = result.documents.services.find(item => item.serviceId === 2);
+
+    expect(result.documents.summary).toMatchObject({ required: 4, present: 4, valid: 2, pendingValidation: 2, missing: 0, validServices: 1 });
+    expect(complete?.status).toBe("valid");
+    expect(unvalidated?.status).toBe("pending_validation");
+    expect(unvalidated?.documents.every(document => document.status === "unvalidated")).toBe(true);
+  });
+
+  it("marca un documento como vencido por fecha aunque el control persista como válido", () => {
+    const result = buildRecurringServicesDashboardV2(
+      {
+        ...source,
+        documentControls: source.documentControls.map(control => control.documentId === 1 ? { ...control, validUntil: "2026-02-28" } : control),
+      },
+      { cutOffDate: "2026-03-16" },
+    );
+
+    const service = result.documents.services.find(item => item.serviceId === 1);
+    expect(service?.status).toBe("at_risk");
+    expect(service?.documents.find(document => document.docType === "contrato")?.status).toBe("expired");
   });
 });

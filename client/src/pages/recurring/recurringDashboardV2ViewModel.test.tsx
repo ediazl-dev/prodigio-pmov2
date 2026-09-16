@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   countActiveFilters,
   currencyRows,
+  formatRecurringMonth,
   formatRecurringMoney,
   formatRecurringPercent,
   RECURRING_HEALTH_UI,
@@ -25,6 +26,11 @@ describe("recurring dashboard V2 view model", () => {
   it("formatea montos sin convertir ni ocultar la moneda", () => {
     expect(formatRecurringMoney(1200, "USD")).toContain("USD");
     expect(formatRecurringMoney(950000, "CLP")).toContain("CLP");
+  });
+
+  it("representa períodos inválidos sin lanzar errores de fecha", () => {
+    expect(formatRecurringMonth("2026-09")).toMatch(/sept|sep/i);
+    expect(formatRecurringMonth("sin-fecha")).toBe("Sin fecha");
   });
 
   it("cuenta filtros ejecutivos y excluye la fecha de corte", () => {
