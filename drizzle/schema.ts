@@ -12,6 +12,15 @@ import {
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { RECURRING_SERVICE_TYPE_VALUES } from "../shared/recurringServiceTypes";
+import {
+  JSM_ISSUE_MAPPING_CATEGORY_VALUES,
+  JSM_ISSUE_MAPPING_SOURCE_VALUES,
+  JSM_ISSUE_MAPPING_STATUS_VALUES,
+  JSM_LINK_HEALTH_VALUES,
+  JSM_LINK_RUN_SOURCE_VALUES,
+  JSM_LINK_RUN_STATUS_VALUES,
+  JSM_LINK_SOURCE_VALUES,
+} from "../shared/jsmExistingSpace";
 
 // ==================== USERS ====================
 export const users = mysqlTable("users", {
@@ -930,12 +939,19 @@ export const recurringServices = mysqlTable("recurring_services", {
   pipedriveClientConcerns: text("pipedriveClientConcerns"),
   // Integración JSM
   jsmPlatform: mysqlEnum("jsmPlatform", ["prodigio", "cliente"]).default("prodigio"),
+  jsmLinkSource: mysqlEnum("jsmLinkSource", [...JSM_LINK_SOURCE_VALUES]),
   jsmProjectKey: varchar("jsmProjectKey", { length: 50 }),
   jsmProjectId: varchar("jsmProjectId", { length: 50 }),
+  jsmProjectName: varchar("jsmProjectName", { length: 255 }),
+  jsmAgentUrl: varchar("jsmAgentUrl", { length: 500 }),
   jsmPortalUrl: varchar("jsmPortalUrl", { length: 500 }),
   jsmOrganizationId: varchar("jsmOrganizationId", { length: 50 }),
   jsmServiceDeskId: varchar("jsmServiceDeskId", { length: 50 }),
   jsmClientPlatformUrl: varchar("jsmClientPlatformUrl", { length: 500 }),
+  jsmLinkHealth: mysqlEnum("jsmLinkHealth", [...JSM_LINK_HEALTH_VALUES]),
+  jsmLastVerifiedAt: timestamp("jsmLastVerifiedAt"),
+  jsmLinkedAt: timestamp("jsmLinkedAt"),
+  jsmLinkedBy: int("jsmLinkedBy"),
   // Flujo de inicialización (2 pasos)
   initStep1Confirmed: boolean("initStep1Confirmed").default(false),
   pipedriveAiRecommendations: text("pipedriveAiRecommendations"),
@@ -950,9 +966,60 @@ export const recurringServices = mysqlTable("recurring_services", {
   createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  jsmProjectKeyUnique: uniqueIndex("recurring_services_jsm_project_key_uq").on(table.jsmProjectKey),
+  jsmProjectIdUnique: uniqueIndex("recurring_services_jsm_project_id_uq").on(table.jsmProjectId),
+  jsmServiceDeskIdUnique: uniqueIndex("recurring_services_jsm_service_desk_id_uq").on(table.jsmServiceDeskId),
+}));
 export type RecurringService = typeof recurringServices.$inferSelect;
 export type InsertRecurringService = typeof recurringServices.$inferInsert;
+
+// ==================== RECURRING SERVICE JSM LINK RUNS ====================
+export const recurringServiceJsmLinkRuns = mysqlTable("recurring_service_jsm_link_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  runId: varchar("runId", { length: 191 }).notNull().unique(),
+  serviceId: int("serviceId").notNull(),
+  source: mysqlEnum("source", [...JSM_LINK_RUN_SOURCE_VALUES]).notNull(),
+  status: mysqlEnum("status", [...JSM_LINK_RUN_STATUS_VALUES]).notNull(),
+  candidateProjectId: varchar("candidateProjectId", { length: 50 }),
+  candidateProjectKey: varchar("candidateProjectKey", { length: 50 }),
+  candidateProjectName: varchar("candidateProjectName", { length: 255 }),
+  candidateServiceDeskId: varchar("candidateServiceDeskId", { length: 50 }),
+  fingerprint: varchar("fingerprint", { length: 64 }),
+  checks: json("checks"),
+  snapshot: json("snapshot"),
+  errorMessage: text("errorMessage"),
+  triggeredBy: int("triggeredBy"),
+  triggeredByName: varchar("triggeredByName", { length: 200 }),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  serviceFingerprintUnique: uniqueIndex("recurring_jsm_link_service_fingerprint_uq").on(table.serviceId, table.fingerprint),
+}));
+
+export type RecurringServiceJsmLinkRun = typeof recurringServiceJsmLinkRuns.$inferSelect;
+export type InsertRecurringServiceJsmLinkRun = typeof recurringServiceJsmLinkRuns.$inferInsert;
+
+// ==================== RECURRING SERVICE JSM ISSUE TYPE MAPPINGS ====================
+export const recurringServiceJsmIssueTypeMappings = mysqlTable("recurring_service_jsm_issue_type_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  serviceId: int("serviceId").notNull(),
+  category: mysqlEnum("category", [...JSM_ISSUE_MAPPING_CATEGORY_VALUES]).notNull(),
+  issueTypeId: varchar("issueTypeId", { length: 50 }).notNull(),
+  issueTypeName: varchar("issueTypeName", { length: 100 }).notNull(),
+  source: mysqlEnum("source", [...JSM_ISSUE_MAPPING_SOURCE_VALUES]).default("selected").notNull(),
+  status: mysqlEnum("status", [...JSM_ISSUE_MAPPING_STATUS_VALUES]).default("active").notNull(),
+  configuredBy: int("configuredBy"),
+  configuredByName: varchar("configuredByName", { length: 200 }),
+  configuredAt: timestamp("configuredAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  serviceCategoryUnique: uniqueIndex("recurring_jsm_issue_mapping_service_category_uq").on(table.serviceId, table.category),
+}));
+
+export type RecurringServiceJsmIssueTypeMapping = typeof recurringServiceJsmIssueTypeMappings.$inferSelect;
+export type InsertRecurringServiceJsmIssueTypeMapping = typeof recurringServiceJsmIssueTypeMappings.$inferInsert;
 
 // ==================== RECURRING SERVICE BILLING MONTHS ====================
 export const recurringServiceBillingMonths = mysqlTable("recurring_service_billing_months", {

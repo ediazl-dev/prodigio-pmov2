@@ -41,3 +41,39 @@ El preflight será de solo lectura y tendrá estados explícitos para candidato 
 ## Próximo bloque
 
 J1 implementará exclusivamente el modelo de datos e integridad: origen del vínculo, snapshot de nombre, URLs diferenciadas, metadatos de verificación, mapeos de issue types y corridas de preflight. La migración será aditiva y se revisará antes de aplicarla.
+
+## J1 — Modelo de datos e integridad
+
+**Estado:** completado.
+
+Se amplió `recurring_services` con origen del vínculo, nombre del proyecto, URL de agente separada del portal, salud, fecha de verificación, fecha de asociación y actor. Se conservaron los campos existentes `jsmProjectKey`, `jsmProjectId`, `jsmServiceDeskId` y `jsmPortalUrl` para mantener compatibilidad.
+
+Se añadieron índices únicos para `jsmProjectKey`, `jsmProjectId` y `jsmServiceDeskId`. La auditoría previa confirmó que no existían duplicados no nulos, por lo que la migración se aplicó sin modificar registros existentes.
+
+| Entidad | Propósito |
+|---|---|
+| `recurring_service_jsm_link_runs` | Corridas idempotentes de preflight, vínculo, revalidación y desvinculación |
+| `recurring_service_jsm_issue_type_mappings` | Mapeos separados para plan de trabajo y facturación |
+
+El contrato compartido se centralizó en `shared/jsmExistingSpace.ts` para que esquema, servidor y cliente utilicen los mismos valores.
+
+### Evidencia J1
+
+| Control | Resultado |
+|---|---|
+| Migración | `0043_sudden_jetstream.sql`, revisada y aplicada |
+| Prueba unitaria | 1 de 1 aprobada |
+| Prueba persistente opt-in | 1 de 1 aprobada |
+| Unicidad de identidad JSM | Validada para proyecto y Service Desk |
+| Unicidad de corrida | Validada por `runId` y fingerprint por servicio |
+| Unicidad de mapping | Validada por servicio y categoría |
+| Limpieza de fixtures | 0 servicios, corridas y mapeos residuales |
+| Build | Exitoso |
+| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
+| Escrituras Jira/JSM | Ninguna |
+
+El único vínculo JSM previo conserva sus datos sin inferencias. La recuperación de `serviceDeskId`, nombre y URLs faltantes se realizará mediante los lectores J2 y una revalidación explícita; no se completarán campos por suposición.
+
+## Próximo bloque J2
+
+Implementar lectores paginados y de detalle para Service Desks, proyecto Jira subyacente, permisos e issue types. Todas las operaciones serán de lectura y tendrán pruebas que impidan llamadas de escritura.

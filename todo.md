@@ -441,7 +441,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Implementación de vinculación de Spaces JSM existentes (J0–J7)
 
 - [x] J0: confirmar contrato canónico, cardinalidad uno-a-uno, alcance sin importación automática y política de desvinculación.
-- [ ] J1: ampliar el modelo con origen, nombre, URLs separadas, verificación, mapeos y corridas auditables; aplicar migración aditiva e índices seguros.
+- [x] J1: ampliar el modelo con origen, nombre, URLs separadas, verificación, mapeos y corridas auditables; aplicar migración aditiva e índices seguros.
 - [ ] J2: implementar lectores paginados de Service Desks, detalle, permisos, proyecto e issue types usando solo operaciones GET.
 - [ ] J3: implementar listado, preflight, asociación idempotente, revalidación, auditoría y desvinculación controlada.
 - [ ] J4: implementar mapeos explícitos de issue types, dry-run y sincronización segura sin asociación por título.
