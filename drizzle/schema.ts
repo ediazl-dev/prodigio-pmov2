@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, decimal, date, uniqueIndex } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, decimal, date, index, uniqueIndex } from "drizzle-orm/mysql-core";
 import { RECURRING_SERVICE_TYPE_VALUES } from "../shared/recurringServiceTypes";
 import { JSM_ISSUE_MAPPING_CATEGORY_VALUES, JSM_ISSUE_MAPPING_SOURCE_VALUES, JSM_ISSUE_MAPPING_STATUS_VALUES, JSM_LINK_HEALTH_VALUES, JSM_LINK_RUN_SOURCE_VALUES, JSM_LINK_RUN_STATUS_VALUES, JSM_LINK_SOURCE_VALUES, JSM_SYNC_RUN_STATUS_VALUES } from "../shared/jsmExistingSpace";
 
@@ -1123,6 +1123,133 @@ export const recurringServiceDocuments = mysqlTable("recurring_service_documents
 });
 export type RecurringServiceDocument = typeof recurringServiceDocuments.$inferSelect;
 export type InsertRecurringServiceDocument = typeof recurringServiceDocuments.$inferInsert;
+
+// ==================== RECURRING SERVICE DOCUMENT CONTROLS ====================
+export const recurringServiceDocumentControls = mysqlTable(
+  "recurring_service_document_controls",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    serviceId: int("serviceId").notNull(),
+    documentId: int("documentId").notNull(),
+    validationStatus: mysqlEnum("validationStatus", ["pending", "valid", "expired", "rejected"])
+      .default("pending")
+      .notNull(),
+    validFrom: date("validFrom", { mode: "string" }),
+    validUntil: date("validUntil", { mode: "string" }),
+    validatedAt: timestamp("validatedAt"),
+    validatedBy: int("validatedBy"),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    documentUnique: uniqueIndex("recurring_document_controls_document_uq").on(table.documentId),
+    serviceStatusIdx: index("recurring_document_controls_service_status_idx").on(table.serviceId, table.validationStatus),
+  })
+);
+export type RecurringServiceDocumentControl = typeof recurringServiceDocumentControls.$inferSelect;
+export type InsertRecurringServiceDocumentControl = typeof recurringServiceDocumentControls.$inferInsert;
+
+// ==================== RECURRING SERVICE REPORT EVIDENCE ====================
+export const recurringServiceReportEvidence = mysqlTable(
+  "recurring_service_report_evidence",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    serviceId: int("serviceId").notNull(),
+    workPlanItemId: int("workPlanItemId"),
+    periodStart: date("periodStart", { mode: "string" }).notNull(),
+    periodEnd: date("periodEnd", { mode: "string" }).notNull(),
+    dueDate: date("dueDate", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", ["pending", "delivered", "accepted", "rejected", "waived"])
+      .default("pending")
+      .notNull(),
+    deliveredAt: timestamp("deliveredAt"),
+    acceptedAt: timestamp("acceptedAt"),
+    evidenceDocumentId: int("evidenceDocumentId"),
+    source: mysqlEnum("source", ["manual", "jsm", "import"]).default("manual").notNull(),
+    notes: text("notes"),
+    recordedBy: int("recordedBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    servicePeriodUnique: uniqueIndex("recurring_report_evidence_service_period_uq").on(table.serviceId, table.periodStart, table.periodEnd),
+    serviceDueIdx: index("recurring_report_evidence_service_due_idx").on(table.serviceId, table.dueDate),
+    workPlanIdx: index("recurring_report_evidence_work_plan_idx").on(table.workPlanItemId),
+  })
+);
+export type RecurringServiceReportEvidence = typeof recurringServiceReportEvidence.$inferSelect;
+export type InsertRecurringServiceReportEvidence = typeof recurringServiceReportEvidence.$inferInsert;
+
+// ==================== RECURRING SERVICE FINANCIAL EVIDENCE ====================
+export const recurringServiceFinancialEvidence = mysqlTable(
+  "recurring_service_financial_evidence",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    serviceId: int("serviceId").notNull(),
+    billingMonthId: int("billingMonthId"),
+    evidenceType: mysqlEnum("evidenceType", ["invoice", "payment", "credit_note", "other"]).notNull(),
+    status: mysqlEnum("status", ["pending_validation", "confirmed", "void"])
+      .default("pending_validation")
+      .notNull(),
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 10 }).notNull(),
+    occurredAt: timestamp("occurredAt").notNull(),
+    referenceNumber: varchar("referenceNumber", { length: 191 }),
+    evidenceDocumentId: int("evidenceDocumentId"),
+    source: mysqlEnum("source", ["manual", "financial_sync", "import"]).default("manual").notNull(),
+    sourceReference: varchar("sourceReference", { length: 191 }),
+    notes: text("notes"),
+    recordedBy: int("recordedBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    sourceReferenceUnique: uniqueIndex("recurring_financial_evidence_source_ref_uq").on(table.source, table.sourceReference),
+    serviceOccurredIdx: index("recurring_financial_evidence_service_occurred_idx").on(table.serviceId, table.occurredAt),
+    billingMonthIdx: index("recurring_financial_evidence_billing_month_idx").on(table.billingMonthId),
+  })
+);
+export type RecurringServiceFinancialEvidence = typeof recurringServiceFinancialEvidence.$inferSelect;
+export type InsertRecurringServiceFinancialEvidence = typeof recurringServiceFinancialEvidence.$inferInsert;
+
+// ==================== RECURRING SERVICE JSM/SLA SNAPSHOTS ====================
+export const recurringServiceJsmSnapshots = mysqlTable(
+  "recurring_service_jsm_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    serviceId: int("serviceId").notNull(),
+    serviceDeskId: varchar("serviceDeskId", { length: 50 }),
+    projectKey: varchar("projectKey", { length: 50 }),
+    capturedAt: timestamp("capturedAt").notNull(),
+    source: mysqlEnum("source", ["manual", "scheduled"]).notNull(),
+    status: mysqlEnum("status", ["success", "partial", "error", "not_configured"]).notNull(),
+    incidentCount: int("incidentCount"),
+    openIncidentCount: int("openIncidentCount"),
+    criticalOpenCount: int("criticalOpenCount"),
+    overdueIncidentCount: int("overdueIncidentCount"),
+    unresolvedOver30DaysCount: int("unresolvedOver30DaysCount"),
+    firstResponseMeasuredCount: int("firstResponseMeasuredCount"),
+    firstResponseMetCount: int("firstResponseMetCount"),
+    firstResponseCompliancePct: decimal("firstResponseCompliancePct", { precision: 5, scale: 2 }),
+    resolutionMeasuredCount: int("resolutionMeasuredCount"),
+    resolutionMetCount: int("resolutionMetCount"),
+    resolutionCompliancePct: decimal("resolutionCompliancePct", { precision: 5, scale: 2 }),
+    priorityBreakdown: json("priorityBreakdown"),
+    issueTypeBreakdown: json("issueTypeBreakdown"),
+    dataFingerprint: varchar("dataFingerprint", { length: 64 }),
+    errorCode: varchar("errorCode", { length: 100 }),
+    errorMessage: text("errorMessage"),
+    triggeredBy: int("triggeredBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    serviceCapturedIdx: index("recurring_jsm_snapshots_service_captured_idx").on(table.serviceId, table.capturedAt),
+    serviceFingerprintUnique: uniqueIndex("recurring_jsm_snapshots_service_fingerprint_uq").on(table.serviceId, table.dataFingerprint),
+  })
+);
+export type RecurringServiceJsmSnapshot = typeof recurringServiceJsmSnapshots.$inferSelect;
+export type InsertRecurringServiceJsmSnapshot = typeof recurringServiceJsmSnapshots.$inferInsert;
 
 // ==================== RECURRING SERVICE STAGES ====================
 export const recurringServiceStages = mysqlTable("recurring_service_stages", {

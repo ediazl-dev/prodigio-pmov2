@@ -529,8 +529,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D0: cubrir con pruebas unitarias las reglas multimoneda, fecha de corte, estados N/D y semáforo determinista.
 - [x] D1: implementar diagnóstico de calidad por servicio para Deal, moneda, tipo, contrato, documentos y vínculo JSM.
 - [x] D1: corregir únicamente inconsistencias productivas confirmadas, con respaldo, auditoría y verificación posterior.
-- [ ] D2: ampliar de forma aditiva el modelo para evidencias de reportes, formalidad documental, facturación/cobro verificable y snapshots JSM/SLA.
-- [ ] D2: aplicar y verificar una migración reversible con índices, relaciones, auditoría y pruebas persistentes aisladas.
+- [x] D2: ampliar de forma aditiva el modelo para evidencias de reportes, formalidad documental, facturación/cobro verificable y snapshots JSM/SLA.
+- [x] D2: aplicar y verificar una migración reversible con índices, relaciones, auditoría y pruebas persistentes aisladas.
 - [ ] D3: construir una API consolidada de portafolio con filtros, fecha de corte, KPIs, series, matriz y calidad de datos calculados en servidor.
 - [ ] D3: eliminar semánticas ambiguas de “Facturado” y “Cumplimiento SLA” y cubrir las fórmulas con pruebas.
 - [ ] D4: construir la Torre de Control V2 con filtros persistentes, KPIs trazables, matriz maestra y bandeja de excepciones.

@@ -32,7 +32,8 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | R0 — Línea base y salvaguardas | Completada |
 | D0 — Contrato de métricas | Completada |
 | D1 — Calidad y reconciliación | Completada |
-| D2–D10 | Pendientes |
+| D2 — Modelo de evidencias y snapshots | Completada |
+| D3–D10 | Pendientes |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -73,3 +74,18 @@ Los servicios 2040001 y 2070001 contenían la palabra **Staffing** de forma expl
 | Tipologías Staffing corregidas | 2 |
 | Registros de auditoría | 2 |
 | Pruebas de calidad | 6 aprobadas |
+
+## D2 — Evidencia verificable e historial operacional
+
+La migración aditiva `0045_cute_may_parker.sql` incorporó cuatro entidades nuevas sin alterar los registros productivos existentes: control de vigencia documental, evidencia mensual de entrega y aceptación, evidencia financiera de factura/pago/nota de crédito y snapshots históricos JSM/SLA. Las tablas usan claves e índices para impedir duplicidad por documento, período y fingerprint de snapshot.
+
+Durante la aplicación inicial, la última sentencia de creación quedó incompleta por un corte en la consulta enviada. La diferencia fue detectada inmediatamente con `information_schema` cuando las cuatro tablas tenían **cero filas**. Se completaron las columnas, enums, clave primaria e índices antes de insertar cualquier dato. La estructura final coincide con el esquema y la migración generada: 11, 16, 25 y 15 columnas respectivamente, con todos los índices declarados.
+
+| Tabla D2 | Propósito | Filas productivas al cierre |
+|---|---|---:|
+| `recurring_service_document_controls` | Vigencia y validación de documentos | 0 |
+| `recurring_service_report_evidence` | Período, entrega, aceptación y evidencia mensual | 0 |
+| `recurring_service_financial_evidence` | Factura, pago, nota de crédito y trazabilidad | 0 |
+| `recurring_service_jsm_snapshots` | Incidentes y cumplimiento SLA histórico | 0 |
+
+La prueba opt-in `recurringDashboardV2Persistence.test.ts` insertó un servicio aislado y registros de las cuatro entidades, validó unicidad de períodos y snapshots, y eliminó todos los datos de prueba. El control posterior confirmó cero residuos. La reversión segura quedó documentada en `docs/migrations/0045-dashboard-recurrente-v2-rollback.md` y exige respaldo/autorización si las tablas ya contienen evidencia real.
