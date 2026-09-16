@@ -77,3 +77,30 @@ El único vínculo JSM previo conserva sus datos sin inferencias. La recuperaci�
 ## Próximo bloque J2
 
 Implementar lectores paginados y de detalle para Service Desks, proyecto Jira subyacente, permisos e issue types. Todas las operaciones serán de lectura y tendrán pruebas que impidan llamadas de escritura.
+
+## J2 — Lectores JSM y preflight de solo lectura
+
+**Estado:** completado.
+
+Se incorporaron lectores para listar todos los Service Desks accesibles con paginación, obtener un Service Desk por ID, validar el proyecto Jira subyacente, consultar permisos efectivos y recuperar los tipos de issue disponibles. También se separó la construcción de la URL de agente y la URL del portal de clientes.
+
+El evaluador puro `inspectJsmExistingSpace` clasifica candidatos válidos, proyectos no JSM, Spaces archivados, cambios de identidad, falta de acceso, falta de permiso para crear issues, conflictos con otro servicio, vínculo idempotente y mappings de issue types obsoletos.
+
+### Evidencia J2
+
+| Control | Resultado |
+|---|---|
+| Pruebas focales J1–J2 | 7 aprobadas; 1 persistente opt-in omitida en batería normal |
+| Integración real read-only | 1 de 1 aprobada contra el tenant configurado |
+| Paginación | Validada en más de una página simulada |
+| Método HTTP del catálogo JSM | Solo `GET`, afirmado por prueba |
+| Tipo de proyecto | Validación explícita `service_desk` |
+| Permisos | `BROWSE_PROJECTS` y `CREATE_ISSUES` consultados |
+| Issue types | Recuperados por `projectId` |
+| Build | Exitoso |
+| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas |
+| Escrituras Jira/JSM | Ninguna |
+
+## Próximo bloque J3
+
+Persistir corridas de preflight, exponer listado/diagnóstico por API, asociar de forma transaccional e idempotente, revalidar y auditar, manteniendo Jira/JSM en modo de solo lectura.

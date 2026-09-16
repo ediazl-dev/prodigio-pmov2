@@ -42,6 +42,33 @@ async function jiraFetch<T = any>(path: string, options: JiraRequestOptions = {}
   return {} as T;
 }
 
+async function jiraServiceDeskFetch<T = any>(path: string, params?: Record<string, string>): Promise<T> {
+  let url = `${JIRA_BASE}/rest/servicedeskapi${path}`;
+  if (params) {
+    const qs = new URLSearchParams(params).toString();
+    url += `?${qs}`;
+  }
+
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Basic ${JIRA_AUTH}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`JSM API error ${resp.status}: ${text}`);
+  }
+
+  const contentType = resp.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return resp.json() as Promise<T>;
+  }
+  return {} as T;
+}
+
 // ==================== Projects ====================
 
 export interface JiraProject {
@@ -52,6 +79,8 @@ export interface JiraProject {
   style: string;
   avatarUrls: Record<string, string>;
   lead?: { displayName: string; accountId: string };
+  archived?: boolean;
+  simplified?: boolean;
 }
 
 export async function listJiraProjects(): Promise<JiraProject[]> {
@@ -60,6 +89,94 @@ export async function listJiraProjects(): Promise<JiraProject[]> {
 
 export async function getJiraProject(keyOrId: string): Promise<JiraProject & { issueTypes: any[] }> {
   return jiraFetch(`/project/${keyOrId}`);
+}
+
+// ==================== Jira Service Management (read only) ====================
+
+export interface JsmServiceDesk {
+  id: string;
+  projectId: string;
+  projectName: string;
+  projectKey: string;
+  _links?: { self?: string };
+}
+
+interface JsmPagedResponse<T> {
+  size: number;
+  start: number;
+  limit: number;
+  isLastPage: boolean;
+  values: T[];
+  _links?: { base?: string; context?: string; next?: string; self?: string };
+}
+
+export interface JiraProjectPermission {
+  id?: string;
+  key: string;
+  name?: string;
+  type?: string;
+  description?: string;
+  havePermission: boolean;
+}
+
+export interface JiraProjectIssueType {
+  id: string;
+  name: string;
+  description?: string;
+  subtask?: boolean;
+}
+
+/** Lists every Service Desk visible to the configured technical identity. Read-only. */
+export async function listJsmServiceDesks(options: { pageSize?: number; maxItems?: number } = {}): Promise<JsmServiceDesk[]> {
+  const pageSize = Math.min(Math.max(options.pageSize ?? 50, 1), 100);
+  const maxItems = Math.min(Math.max(options.maxItems ?? 1000, 1), 5000);
+  const serviceDesks: JsmServiceDesk[] = [];
+  let start = 0;
+
+  while (serviceDesks.length < maxItems) {
+    const page = await jiraServiceDeskFetch<JsmPagedResponse<JsmServiceDesk>>("/servicedesk", {
+      start: String(start),
+      limit: String(pageSize),
+    });
+    const values = Array.isArray(page.values) ? page.values : [];
+    serviceDesks.push(...values.slice(0, maxItems - serviceDesks.length));
+
+    if (page.isLastPage || values.length === 0) break;
+    start = page.start + page.limit;
+  }
+
+  return serviceDesks;
+}
+
+/** Reads one Service Desk by its JSM identifier. Read-only. */
+export async function getJsmServiceDesk(serviceDeskId: string): Promise<JsmServiceDesk> {
+  return jiraServiceDeskFetch<JsmServiceDesk>(`/servicedesk/${encodeURIComponent(serviceDeskId)}`);
+}
+
+/** Reads effective project permissions for the configured technical identity. Read-only. */
+export async function getJiraProjectPermissions(projectKey: string): Promise<Record<string, JiraProjectPermission>> {
+  const result = await jiraFetch<{ permissions: Record<string, JiraProjectPermission> }>("/mypermissions", {
+    params: {
+      projectKey,
+      permissions: "BROWSE_PROJECTS,CREATE_ISSUES",
+    },
+  });
+  return result.permissions ?? {};
+}
+
+/** Reads issue types enabled for the Jira project. Read-only. */
+export async function getJiraProjectIssueTypes(projectId: string): Promise<JiraProjectIssueType[]> {
+  const issueTypes = await jiraFetch<JiraProjectIssueType[]>("/issuetype/project", {
+    params: { projectId },
+  });
+  return Array.isArray(issueTypes) ? issueTypes : [];
+}
+
+export function buildJsmProjectUrls(projectKey: string, serviceDeskId: string) {
+  return {
+    agentUrl: `${JIRA_BASE}/jira/servicedesk/projects/${encodeURIComponent(projectKey)}/boards`,
+    portalUrl: `${JIRA_BASE}/servicedesk/customer/portal/${encodeURIComponent(serviceDeskId)}`,
+  };
 }
 
 // ==================== Issues (Search) ====================
