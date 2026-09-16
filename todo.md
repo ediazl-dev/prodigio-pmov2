@@ -493,3 +493,18 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J7: validar en escritorio y móvil JSM Setup e inventario Spaces JSM, incluyendo carga, error, vacío y solo lectura.
 - [x] J7: consolidar manual operativo para crear, vincular, mapear, simular, sincronizar, revalidar y desvincular de forma segura.
 - [x] J7: registrar resultados, limitaciones y deudas heredadas, cerrar el backlog J0–J7 y publicar el checkpoint final.
+
+## Limpieza controlada de datos de prueba — ACME y usuarios
+
+- [x] Inventariar servicios recurrentes asociados inequívocamente a ACME y todas sus dependencias, sin modificar datos.
+- [x] Inventariar cuentas inequívocamente de prueba y separar cuentas ambiguas o con actividad real.
+- [x] Identificar los registros visibles en las capturas 323 y 324 y cruzarlos con sus IDs reales en la base.
+- [x] Clasificar cada registro mostrado como eliminable, ambiguo o protegido según dependencias y actividad.
+- [x] Presentar al usuario el diagnóstico de eliminación antes de ejecutar cualquier borrado.
+- [x] Generar un respaldo exportable de los registros candidatos y sus relaciones antes de eliminar.
+- [x] Eliminar en orden seguro las dependencias y servicios recurrentes ACME seleccionados, registrando auditoría.
+- [x] Eliminar o desactivar, según integridad referencial, las cuentas de prueba seleccionadas sin afectar usuarios reales.
+- [x] Verificar por SQL que no quedan candidatos ni registros huérfanos y validar el funcionamiento de la aplicación.
+- [x] Documentar el inventario, respaldo, eliminación y controles ejecutados.
+- [x] Conservar las 15 tablas físicas `backup_cleanup_acme_20260916_*`, incluido el manifiesto y el registro de ejecución, sin eliminarlas.
+- [x] Confirmar 0 referencias productivas a los usuarios eliminados y preservar las 7 cuentas reales `@prodigio.tech`.
