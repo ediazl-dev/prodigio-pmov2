@@ -30,6 +30,25 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | Fase | Estado |
 |---|---|
 | R0 — Línea base y salvaguardas | Completada |
-| D0 — Contrato de métricas | En ejecución |
+| D0 — Contrato de métricas | Completada |
 | D1–D10 | Pendientes |
 
+## D0 — Contrato de métricas y salud determinista
+
+Se implementó `recurringServicesMetricsEngine.ts` como motor puro y versionado `2.0`. El contrato separa **contratado, programado, facturado, cobrado, cuentas por cobrar, pendiente y vencido** por moneda. No existe un total monetario transversal que sume USD, CLP, UF u otras monedas. El motor usa una fecha de corte explícita y solo considera facturada una cuota cuyo estado sea `facturado` o `pagado`; solo considera cobrada una cuota `pagado`.
+
+La configuración SLA quedó separada del cumplimiento real. Cuando no existe snapshot operacional medible, incidentes y porcentajes SLA se entregan como `null`, con estado de evidencia `not_configured`, `stale` o `error`. El semáforo combina reglas auditables para cuotas vencidas, reportes exigibles pendientes, formalidad documental, incidentes críticos y mediciones SLA. Si no existe ninguna dimensión medible, el resultado es `no_data` en vez de fabricar un estado favorable.
+
+| Regla D0 | Resultado verificable |
+|---|---|
+| Contrato de salida | Versionado como `2.0` |
+| Monedas | Agregación independiente por código monetario |
+| Facturado | Estados `facturado` + `pagado` |
+| Cobrado | Solo estado `pagado` |
+| Vencido financiero | `pendiente` con fecha anterior al corte |
+| Reporte exigible | Fecha menor o igual al corte |
+| SLA sin evidencia | `null`, nunca inferido desde configuración |
+| Salud sin evidencia | `no_data` |
+| Suite focal | 7 pruebas aprobadas |
+
+La suite `server/recurringServicesMetricsEngine.test.ts` cubre separación financiera, fecha de corte, N/D de SLA, multimoneda, cumplimiento medido, salud estable y ausencia total de evidencia. Los cinco errores TypeScript heredados de la línea base permanecen fuera de este incremento.

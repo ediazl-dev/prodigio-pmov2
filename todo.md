@@ -525,8 +525,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 - [x] R0: verificar rama, HEAD, remotos, árbol local, migraciones y estado de la base antes de modificar código o datos.
 - [x] R0: fijar una línea base reproducible de los tres servicios productivos y crear salvaguarda antes de cualquier reconciliación.
-- [ ] D0: implementar un contrato versionado de métricas para contratado, programado, facturado, cobrado, vencido, reportes, SLA, incidentes, formalidad y salud.
-- [ ] D0: cubrir con pruebas unitarias las reglas multimoneda, fecha de corte, estados N/D y semáforo determinista.
+- [x] D0: implementar un contrato versionado de métricas para contratado, programado, facturado, cobrado, vencido, reportes, SLA, incidentes, formalidad y salud.
+- [x] D0: cubrir con pruebas unitarias las reglas multimoneda, fecha de corte, estados N/D y semáforo determinista.
 - [ ] D1: implementar diagnóstico de calidad por servicio para Deal, moneda, tipo, contrato, documentos y vínculo JSM.
 - [ ] D1: corregir únicamente inconsistencias productivas confirmadas, con respaldo, auditoría y verificación posterior.
 - [ ] D2: ampliar de forma aditiva el modelo para evidencias de reportes, formalidad documental, facturación/cobro verificable y snapshots JSM/SLA.
