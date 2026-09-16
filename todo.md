@@ -427,3 +427,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Mostrar Staffing en el formulario de creación, filtros, listados, detalle y métricas del módulo.
 - [x] Añadir pruebas de regresión para creación, persistencia, filtrado y conteo de servicios Staffing.
 - [x] Ejecutar validación focal, TypeScript/build y revisión visual antes de guardar el checkpoint.
+
+## Vinculación de Spaces JSM existentes a servicios recurrentes (2026-09-16)
+
+- [x] Auditar el flujo actual de Administración > Spaces Jira y determinar qué componentes pueden reutilizarse para JSM.
+- [x] Auditar la etapa JSM Setup del servicio recurrente, su modelo de datos, permisos, sincronización de tareas y condiciones de cierre.
+- [x] Definir el preflight de solo lectura para descubrir, validar y clasificar Spaces JSM existentes sin modificar Jira/JSM.
+- [x] Definir reglas de asociación, unicidad, idempotencia, desvinculación controlada, auditoría y tratamiento de conflictos.
+- [x] Diseñar la experiencia de usuario para buscar, revisar y confirmar el vínculo de un Space JSM desde el servicio recurrente.
+- [x] Preparar un backlog por fases con archivos, dependencias, pruebas, migraciones, criterios de aceptación y controles anti-loop.
+- [x] Documentar y presentar la recomendación para aprobación antes de implementar cambios funcionales.
