@@ -3,11 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, CheckCircle2, ExternalLink, Loader2, Settings, Upload, ListChecks, AlertCircle, RefreshCw, FileText, DollarSign } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation, useParams } from "wouter";
+import { RSExistingJsmLinkPanel } from "./RSExistingJsmLinkPanel";
+import { canManageExistingJsmSpace } from "./jsmExistingSpaceUi";
 
 const C = {
   navy: "#0B1A2E",
@@ -28,6 +31,8 @@ export default function RSJsmSetupStage() {
   const id = Number(params.id);
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const canManage = canManageExistingJsmSpace((user as any)?.role);
 
   const { data: svcData } = trpc.recurringServices.getById.useQuery({ id });
   const { data: stagesData } = trpc.recurringServices.getStages.useQuery({
@@ -84,6 +89,11 @@ export default function RSJsmSetupStage() {
         toast.error(r.error ?? "Error al crear proyecto");
       }
       utils.recurringServices.getById.invalidate({ id });
+      utils.recurringServices.getExistingJsmLinkState.invalidate({
+        serviceId: id,
+        limit: 10,
+      });
+      utils.recurringServices.listExistingJsmSpaces.invalidate();
     },
     onError: e => toast.error(e.message),
   });
@@ -379,7 +389,7 @@ export default function RSJsmSetupStage() {
           </div>
         ) : null}
 
-        {isActive && !svc.jsmPlatform && (
+        {isActive && !svc.jsmPlatform && canManage && (
           <div style={{ marginTop: 16 }}>
             {platform === "cliente" && (
               <div style={{ marginBottom: 12 }}>
@@ -403,33 +413,22 @@ export default function RSJsmSetupStage() {
             </Button>
           </div>
         )}
+
+        {isActive && !svc.jsmPlatform && !canManage && (
+          <p style={{ marginTop: 14, fontSize: 11, color: C.textSecondary }}>
+            Solo Admin o PMO puede seleccionar la plataforma de gestión.
+          </p>
+        )}
       </div>
 
-      {/* Create JSM Project */}
-      {svc.jsmPlatform === "prodigio" && !svc.jsmProjectKey && isActive && (
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: 12,
-            border: `1px solid ${C.border}`,
-            padding: "20px 24px",
-            marginBottom: 16,
-          }}
-        >
-          <h3
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: C.navy,
-              marginBottom: 12,
-            }}
-          >
-            Crear Proyecto JSM
-          </h3>
-          <Button size="sm" onClick={() => setShowCreateDialog(true)} style={{ background: C.accent, color: "#fff" }}>
-            <Settings size={14} className="mr-1" /> Crear Proyecto en JIRA
-          </Button>
-        </div>
+      {svc.jsmPlatform === "prodigio" && (isActive || isCompleted) && (
+        <RSExistingJsmLinkPanel
+          serviceId={id}
+          service={svc}
+          isActive={isActive}
+          canManage={canManage}
+          onCreateNew={() => setShowCreateDialog(true)}
+        />
       )}
 
       {/* Configuración y sincronización segura */}
@@ -1169,7 +1168,13 @@ export default function RSJsmSetupStage() {
       )}
 
       {/* Create JSM Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog
+        open={showCreateDialog}
+        onOpenChange={open => {
+          if (!canManage || !isActive) return setShowCreateDialog(false);
+          setShowCreateDialog(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Crear Proyecto JSM</DialogTitle>

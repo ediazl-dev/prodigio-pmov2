@@ -472,6 +472,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J4: ejecutar la sincronización solo mediante confirmación explícita asociada a un dry-run vigente, con idempotencia y auditoría.
 - [x] J4: alinear la validación de cierre de `jira_setup` para exigir todos los elementos aplicables de plan de trabajo y facturación.
 - [x] J4: cubrir mappings, dry-run, vínculo por `jiraIssueKey`, no-asociación por título, guardas de cierre y ausencia de escrituras antes de confirmar.
-- [ ] J5: construir el flujo Crear/Vincular en JSM Setup con búsqueda, diagnóstico, confirmación y estados accesibles.
+- [x] J5: construir el flujo Crear/Vincular en JSM Setup con búsqueda, diagnóstico, confirmación y estados accesibles.
+- [x] J5: presentar una elección inequívoca entre crear un Space nuevo y vincular un Service Desk existente, sin ejecutar acciones al seleccionar una opción.
+- [x] J5: implementar búsqueda del catálogo JSM con estados de carga, vacío, error, vínculo ocupado y selección accesible.
+- [x] J5: mostrar el preflight completo del candidato, sus bloqueos, advertencias, permisos, identidad y mappings faltantes antes de habilitar la confirmación.
+- [x] J5: exigir confirmación explícita y usar la corrida vigente para asociar localmente el Space sin escribir en Jira/JSM.
+- [x] J5: mostrar el vínculo activo con origen, salud, última verificación, URLs separadas y acciones de revalidar/desvincular según rol.
+- [x] J5: exigir motivo al desvincular y presentar de forma accionable el bloqueo por `jiraIssueKey`, sin cerrar `jira_setup` automáticamente.
+- [x] J5: validar estados de interfaz y permisos Admin/PMO versus PM/consulta con pruebas focales, build y revisión visual.
 - [ ] J6: crear Administración > Spaces JSM con inventario, filtros, vínculo visible, salud y permisos Admin/PMO.
 - [ ] J7: ejecutar pruebas unitarias y persistentes focales, TypeScript/build, validación visual, documentación y publicación final.

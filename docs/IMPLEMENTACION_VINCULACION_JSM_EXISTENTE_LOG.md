@@ -184,3 +184,34 @@ La pantalla JSM Setup permite seleccionar tipos reales, guardar mappings, ejecut
 ## Próximo bloque J5
 
 Construir en JSM Setup la elección explícita **Crear nuevo Space** o **Vincular Space existente**, con búsqueda, preflight visible, confirmación informada, estado de vínculo, revalidación y desvinculación controlada. J5 reutilizará las APIs J3/J4 y no ampliará permisos ni modificará las reglas de seguridad ya publicadas.
+
+## J5 — Flujo Crear o Vincular en JSM Setup
+
+**Estado:** completado.
+
+La etapa JSM Setup ahora presenta una decisión explícita entre **Crear nuevo Space** y **Vincular Space existente**. Seleccionar una alternativa no ejecuta cambios. La creación conserva su diálogo confirmado y advierte que sí realizará una escritura; el vínculo existente utiliza exclusivamente las operaciones GET-only de descubrimiento y preflight publicadas en J3.
+
+El modo de vínculo incorpora búsqueda por nombre, project key, Project ID o Service Desk ID, con estados diferenciados de carga, vacío y error recuperable. Cada resultado identifica el Service Desk y muestra si ya pertenece a otro servicio recurrente. Seleccionar un candidato invalida cualquier diagnóstico anterior y exige ejecutar un preflight nuevo.
+
+El resultado del preflight expone estado, permisos Browse/Create, tipo de proyecto, número de issue types, bloqueos y advertencias. La confirmación solo queda habilitada para Admin/PMO cuando existe una corrida linkable. Antes de persistir, el backend vuelve a inspeccionar Jira/JSM y rechaza un diagnóstico obsoleto. La confirmación únicamente vincula metadatos en PMO: no importa tickets, no crea issues y no cierra `jira_setup`.
+
+Cuando existe un vínculo, la pantalla muestra origen, salud, project key, Project ID, Service Desk ID, fecha de verificación y accesos separados a vista de agentes y portal de clientes. Los registros heredados sin origen se identifican expresamente y, si falta Service Desk ID, la interfaz explica por qué no pueden revalidarse todavía.
+
+Admin y PMO pueden revalidar o solicitar la desvinculación. Esta última exige un motivo de al menos diez caracteres y advierte que cualquier `jiraIssueKey` asociado bloqueará la operación. PM y consulta reciben la misma información en modo de solo lectura, sin controles de mutación.
+
+### Evidencia J5
+
+| Control | Resultado |
+|---|---|
+| Pruebas focales J2–J5 | 29 de 29 aprobadas |
+| Permisos de interfaz | Admin/PMO modifican; PM/consulta solo lectura |
+| Confirmación | Deshabilitada sin permiso, corrida, resultado linkable o durante una operación pendiente |
+| Build de producción | Exitoso |
+| Revisión visual | Aprobada en servicio vinculado heredado 2100001 y servicio sin vínculo 2070001 |
+| Consola y red | Sin errores nuevos; consulta de estado JSM respondió HTTP 200 |
+| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
+| Escrituras Jira/JSM de validación | Ninguna |
+
+## Próximo bloque J6
+
+Crear **Administración > Spaces JSM** como inventario operativo con filtros, vínculo visible, origen, salud, trazabilidad y acceso al servicio relacionado. Las acciones de modificación seguirán restringidas a Admin/PMO y reutilizarán las APIs controladas ya publicadas.
