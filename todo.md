@@ -520,3 +520,26 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Preparar un backlog de implementación por fases con dependencias, migraciones, procedimientos, componentes, pruebas y guardrails de sincronización.
 - [x] Definir criterios de aceptación funcionales, de datos, permisos, rendimiento, accesibilidad y validación visual.
 - [x] Presentar el plan recomendado al usuario para aprobación antes de realizar cambios funcionales.
+
+## Implementación Dashboard de Servicios Recurrentes V2 — D0–D10
+
+- [x] R0: verificar rama, HEAD, remotos, árbol local, migraciones y estado de la base antes de modificar código o datos.
+- [x] R0: fijar una línea base reproducible de los tres servicios productivos y crear salvaguarda antes de cualquier reconciliación.
+- [ ] D0: implementar un contrato versionado de métricas para contratado, programado, facturado, cobrado, vencido, reportes, SLA, incidentes, formalidad y salud.
+- [ ] D0: cubrir con pruebas unitarias las reglas multimoneda, fecha de corte, estados N/D y semáforo determinista.
+- [ ] D1: implementar diagnóstico de calidad por servicio para Deal, moneda, tipo, contrato, documentos y vínculo JSM.
+- [ ] D1: corregir únicamente inconsistencias productivas confirmadas, con respaldo, auditoría y verificación posterior.
+- [ ] D2: ampliar de forma aditiva el modelo para evidencias de reportes, formalidad documental, facturación/cobro verificable y snapshots JSM/SLA.
+- [ ] D2: aplicar y verificar una migración reversible con índices, relaciones, auditoría y pruebas persistentes aisladas.
+- [ ] D3: construir una API consolidada de portafolio con filtros, fecha de corte, KPIs, series, matriz y calidad de datos calculados en servidor.
+- [ ] D3: eliminar semánticas ambiguas de “Facturado” y “Cumplimiento SLA” y cubrir las fórmulas con pruebas.
+- [ ] D4: construir la Torre de Control V2 con filtros persistentes, KPIs trazables, matriz maestra y bandeja de excepciones.
+- [ ] D4: mantener convivencia V1/V2 durante el piloto y validar navegación, permisos, responsive, accesibilidad y estados vacíos/error.
+- [ ] D5: implementar programado vs. facturado vs. cobrado, vencimientos, tendencia mensual, moneda y reconciliación financiera por Deal.
+- [ ] D6: implementar heatmap de reportes, evidencia de entrega/aceptación y panel de formalidad documental.
+- [ ] D7: implementar lectura JSM de incidentes, prioridades, antigüedad, primera respuesta y resolución, sin fabricar cumplimiento cuando falten datos.
+- [ ] D7: persistir snapshots e historial de SLA/incidentes con degradación explícita por falta de vínculo, permiso o timeout.
+- [ ] D8: construir la vista 360° por servicio con Resumen, Finanzas, Entregables, Incidentes y SLA, y Documentación.
+- [ ] D9: incorporar actualización manual idempotente, actualización diaria controlada, historial, frescura y errores parciales por servicio.
+- [ ] D10: ejecutar pruebas unitarias, persistentes y funcionales, revisión visual responsive, seguridad de roles, rendimiento y no regresión.
+- [ ] D10: documentar operación, resultados, limitaciones y rollback; guardar y publicar el checkpoint final certificado.
