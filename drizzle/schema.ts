@@ -11,6 +11,7 @@ import {
   date,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
+import { RECURRING_SERVICE_TYPE_VALUES } from "../shared/recurringServiceTypes";
 
 // ==================== USERS ====================
 export const users = mysqlTable("users", {
@@ -895,7 +896,7 @@ export const recurringServices = mysqlTable("recurring_services", {
   clientName: varchar("clientName", { length: 255 }).notNull(),
   dealId: varchar("dealId", { length: 100 }),
   serviceName: varchar("serviceName", { length: 255 }).notNull(),
-  serviceType: mysqlEnum("serviceType", ["soporte_incidentes", "requerimientos", "evolutivos", "mixto"]).notNull(),
+  serviceType: mysqlEnum("serviceType", [...RECURRING_SERVICE_TYPE_VALUES]).notNull(),
   durationMonths: int("durationMonths").notNull(),
   estimatedStartDate: date("estimatedStartDate", { mode: "string" }),
   formalStartDate: date("formalStartDate", { mode: "string" }),

@@ -21,6 +21,7 @@ import {
   insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory,
 } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
+import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -210,7 +211,7 @@ export const recurringServicesRouter = router({
     .input(z.object({
       clientName: z.string().min(1),
       serviceName: z.string().min(1),
-      serviceType: z.enum(["soporte_incidentes", "requerimientos", "evolutivos", "mixto"]),
+      serviceType: recurringServiceTypeSchema,
       durationMonths: z.number().min(1).max(120),
       billingType: z.enum(["cuota_fija", "cuotas_variables"]),
       fixedMonthlyAmount: z.number().optional(),
@@ -235,7 +236,7 @@ export const recurringServicesRouter = router({
       data: z.object({
         clientName: z.string().optional(),
         serviceName: z.string().optional(),
-        serviceType: z.enum(["soporte_incidentes", "requerimientos", "evolutivos", "mixto"]).optional(),
+        serviceType: recurringServiceTypeSchema.optional(),
         durationMonths: z.number().optional(),
         billingType: z.enum(["cuota_fija", "cuotas_variables"]).optional(),
         fixedMonthlyAmount: z.number().optional(),

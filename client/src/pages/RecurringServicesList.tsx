@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
+import {
+  RECURRING_SERVICE_TYPE_LABELS,
+  RECURRING_SERVICE_TYPE_OPTIONS,
+} from "@shared/recurringServiceTypes";
 
 const C = {
   navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
@@ -28,13 +32,6 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; fg: string; ico
   pausado:    { label: "Pausado",    bg: "#FEF3C7", fg: "#92400E", icon: Pause },
   completado: { label: "Completado", bg: "#DBEAFE", fg: "#1E40AF", icon: CheckCircle2 },
   cancelado:  { label: "Cancelado",  bg: "#FEE2E2", fg: "#991B1B", icon: XCircle },
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  soporte_incidentes: "Soporte e Incidentes",
-  requerimientos: "Requerimientos",
-  evolutivos: "Evolutivos",
-  mixto: "Mixto",
 };
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
@@ -446,16 +443,11 @@ export default function RecurringServicesList() {
           }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 16 }}>Distribución por Tipo</h3>
             <div style={{ display: "grid", gap: 8 }}>
-              {[
-                { key: "soporte_incidentes", label: "Soporte e Incidentes", color: C.accent },
-                { key: "requerimientos", label: "Requerimientos", color: C.teal2 },
-                { key: "evolutivos", label: "Evolutivos", color: "#8B5CF6" },
-                { key: "mixto", label: "Mixto", color: C.gold2 },
-              ].map(t => {
-                const count = kpis.typeCounts[t.key] || 0;
+              {RECURRING_SERVICE_TYPE_OPTIONS.map(t => {
+                const count = kpis.typeCounts[t.value] || 0;
                 const pct = kpis.statusCounts.total > 0 ? Math.round((count / kpis.statusCounts.total) * 100) : 0;
                 return (
-                  <div key={t.key}>
+                  <div key={t.value}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: C.g400 }}>{t.label}</span>
                       <span style={{ fontSize: 11, fontWeight: 800, color: C.navy }}>{count}</span>
@@ -581,10 +573,9 @@ export default function RecurringServicesList() {
                 <SelectTrigger style={{ width: 200, background: "#fff" }}><SelectValue placeholder="Tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los tipos</SelectItem>
-                  <SelectItem value="soporte_incidentes">Soporte e Incidentes</SelectItem>
-                  <SelectItem value="requerimientos">Requerimientos</SelectItem>
-                  <SelectItem value="evolutivos">Evolutivos</SelectItem>
-                  <SelectItem value="mixto">Mixto</SelectItem>
+                  {RECURRING_SERVICE_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -648,7 +639,7 @@ export default function RecurringServicesList() {
                             fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
                             background: C.g150, color: C.g400,
                           }}>
-                            {TYPE_LABELS[svc.serviceType] ?? svc.serviceType}
+                            {RECURRING_SERVICE_TYPE_LABELS[svc.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? svc.serviceType}
                           </span>
                         </div>
                         <h3 style={{ fontSize: 15, fontWeight: 700, color: C.navy, marginBottom: 2 }}>

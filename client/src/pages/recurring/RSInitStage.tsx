@@ -23,6 +23,7 @@ import {
   badgeStyle, headerKpiCard, headerKpiLabel, headerKpiValue,
   thStyle, tdStyle,
 } from "@/pages/admin/adminStyles";
+import { RECURRING_SERVICE_TYPE_LABELS } from "@shared/recurringServiceTypes";
 
 /* ─── Step indicator ─────────────────────────────────────────────── */
 function StepIndicator({ currentStep, step1Done }: { currentStep: 1 | 2; step1Done: boolean }) {
@@ -280,7 +281,7 @@ export default function RSInitStage() {
               </div>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em", marginBottom: 4 }}>Tipo de Servicio</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>{svc.serviceType.replace("_", " ")}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>{RECURRING_SERVICE_TYPE_LABELS[svc.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? svc.serviceType}</div>
               </div>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em", marginBottom: 4 }}>Duración</div>

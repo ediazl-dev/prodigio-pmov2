@@ -418,3 +418,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Trazar la ruta `createJsmProject` desde la interfaz hasta `createJiraSpace`, incluyendo logs y auditoría del intento fallido.
 - [x] Determinar si la causa es un reintento no idempotente, una colisión legítima o una creación Jira exitosa con persistencia local incompleta.
 - [x] Diseñar un plan de remediación seguro con preflight de unicidad, recuperación/vinculación controlada y mensajes de error accionables, sin modificar Jira durante el diagnóstico.
+
+## Nueva categoría Staffing en servicios recurrentes (2026-09-16)
+
+- [x] Auditar el contrato actual de `serviceType` en esquema, procedimientos, formularios, filtros y KPIs.
+- [x] Incorporar el valor interno `staffing` mediante un cambio de esquema aditivo compatible con los registros existentes.
+- [x] Aceptar y persistir `staffing` en los procedimientos de creación y edición de servicios recurrentes.
+- [x] Mostrar Staffing en el formulario de creación, filtros, listados, detalle y métricas del módulo.
+- [x] Añadir pruebas de regresión para creación, persistencia, filtrado y conteo de servicios Staffing.
+- [x] Ejecutar validación focal, TypeScript/build y revisión visual antes de guardar el checkpoint.

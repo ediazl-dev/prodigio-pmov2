@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { useLocation, useParams } from "wouter";
+import { RECURRING_SERVICE_TYPE_LABELS } from "@shared/recurringServiceTypes";
 
 const C = {
   navy: "#0B1A2E", navy2: "#132B4A", navy3: "#1A3358",
@@ -31,13 +32,6 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; fg: string }> =
   pausado:    { label: "Pausado",    bg: "#FEF3C7", fg: "#92400E" },
   completado: { label: "Completado", bg: "#DBEAFE", fg: "#1E40AF" },
   cancelado:  { label: "Cancelado",  bg: "#FEE2E2", fg: "#991B1B" },
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  soporte_incidentes: "Soporte e Incidentes",
-  requerimientos: "Requerimientos",
-  evolutivos: "Evolutivos",
-  mixto: "Mixto",
 };
 
 export default function RecurringServiceDetail() {
@@ -112,7 +106,7 @@ export default function RecurringServiceDetail() {
               <span style={{
                 fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
                 background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.6)",
-              }}>{TYPE_LABELS[svc.serviceType] ?? svc.serviceType}</span>
+              }}>{RECURRING_SERVICE_TYPE_LABELS[svc.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? svc.serviceType}</span>
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", margin: "4px 0 2px" }}>
               {svc.serviceName}

@@ -1,0 +1,1 @@
+ALTER TABLE `recurring_services` MODIFY COLUMN `serviceType` enum('soporte_incidentes','requerimientos','evolutivos','mixto','staffing') NOT NULL;

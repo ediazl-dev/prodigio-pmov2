@@ -10,6 +10,10 @@ import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import {
+  RECURRING_SERVICE_TYPE_OPTIONS,
+  type RecurringServiceType,
+} from "@shared/recurringServiceTypes";
 
 const C = {
   navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
@@ -31,7 +35,7 @@ export default function RecurringServiceCreate() {
   const [form, setForm] = useState({
     clientName: "",
     serviceName: "",
-    serviceType: "soporte_incidentes" as "soporte_incidentes" | "requerimientos" | "evolutivos" | "mixto",
+    serviceType: "soporte_incidentes" as RecurringServiceType,
     durationMonths: 12,
     billingType: "cuota_fija" as "cuota_fija" | "cuotas_variables",
     fixedMonthlyAmount: 0,
@@ -110,10 +114,9 @@ export default function RecurringServiceCreate() {
               <Select value={form.serviceType} onValueChange={(v: any) => setForm({ ...form, serviceType: v })}>
                 <SelectTrigger style={{ marginTop: 4 }}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="soporte_incidentes">Soporte e Incidentes</SelectItem>
-                  <SelectItem value="requerimientos">Requerimientos</SelectItem>
-                  <SelectItem value="evolutivos">Evolutivos</SelectItem>
-                  <SelectItem value="mixto">Mixto</SelectItem>
+                  {RECURRING_SERVICE_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
