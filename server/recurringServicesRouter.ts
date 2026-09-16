@@ -942,6 +942,9 @@ Responde en JSON con este formato:
           search: z.string().trim().max(100).optional(),
           page: z.number().int().positive().default(1),
           pageSize: z.number().int().min(1).max(100).default(25),
+          linkStatus: z.enum(["all", "linked", "available"]).default("all"),
+          health: z.enum(["all", "pending", "healthy", "warning", "blocked"]).default("all"),
+          origin: z.enum(["all", "created", "linked", "legacy"]).default("all"),
         })
         .optional()
     )

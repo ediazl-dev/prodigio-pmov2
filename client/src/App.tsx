@@ -25,6 +25,7 @@ import AdminDeadlines from "./pages/admin/AdminDeadlines";
 import ComplianceReport from "./pages/admin/ComplianceReport";
 import AdminAuditLog from "./pages/admin/AdminAuditLog";
 import JiraSpacesPage from "./pages/admin/JiraSpaces";
+import JsmSpacesPage from "./pages/admin/JsmSpaces";
 import AdminJiraToken from "./pages/admin/AdminJiraToken";
 import AdminFinancialSync from "./pages/admin/AdminFinancialSync";
 import FinancialConsolidated from "./pages/FinancialConsolidated";
@@ -49,6 +50,17 @@ function AdminGuard({ children }: { children: ReactNode }) {
   if (loading) return null;
   const role = (user as any)?.role;
   if (role !== "admin") {
+    return <Redirect to="/" />;
+  }
+  return <>{children}</>;
+}
+
+/** Guard for read-only JSM administration shared by the canonical PMO roles. */
+function JsmViewerGuard({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  const role = (user as any)?.role;
+  if (!(["admin", "pmo", "pm", "consulta"] as string[]).includes(role)) {
     return <Redirect to="/" />;
   }
   return <>{children}</>;
@@ -85,6 +97,7 @@ function Router() {
             <Route path="/admin/compliance">{() => <AdminGuard><ComplianceReport /></AdminGuard>}</Route>
             <Route path="/admin/audit">{() => <AdminGuard><AdminAuditLog /></AdminGuard>}</Route>
             <Route path="/admin/jira-spaces">{() => <AdminGuard><JiraSpacesPage /></AdminGuard>}</Route>
+            <Route path="/admin/jsm-spaces">{() => <JsmViewerGuard><JsmSpacesPage /></JsmViewerGuard>}</Route>
             <Route path="/admin/jira-token">{() => <AdminGuard><AdminJiraToken /></AdminGuard>}</Route>
             <Route path="/admin/financial-sync">{() => <AdminGuard><AdminFinancialSync /></AdminGuard>}</Route>
             <Route path="/admin/financial-consolidated">{() => <AdminGuard><FinancialConsolidated /></AdminGuard>}</Route>

@@ -480,5 +480,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J5: mostrar el vínculo activo con origen, salud, última verificación, URLs separadas y acciones de revalidar/desvincular según rol.
 - [x] J5: exigir motivo al desvincular y presentar de forma accionable el bloqueo por `jiraIssueKey`, sin cerrar `jira_setup` automáticamente.
 - [x] J5: validar estados de interfaz y permisos Admin/PMO versus PM/consulta con pruebas focales, build y revisión visual.
-- [ ] J6: crear Administración > Spaces JSM con inventario, filtros, vínculo visible, salud y permisos Admin/PMO.
+- [x] J6: crear Administración > Spaces JSM con inventario, filtros, vínculo visible, salud y permisos Admin/PMO.
+- [x] J6: exponer un inventario protegido que combine catálogo JSM, vínculos PMO, salud, origen y servicio asociado sin escrituras externas.
+- [x] J6: agregar filtros por texto, estado de vínculo, salud y origen con contadores consistentes y estados de carga/error/vacío.
+- [x] J6: crear la ruta y navegación Administración > Spaces JSM manteniendo la arquitectura visual existente.
+- [x] J6: permitir acceso al servicio recurrente vinculado y mostrar acciones administrativas solo a Admin/PMO.
+- [x] J6: validar permisos, filtros, datos heredados, responsive, TypeScript/build y revisión visual sin modificar Jira/JSM.
 - [ ] J7: ejecutar pruebas unitarias y persistentes focales, TypeScript/build, validación visual, documentación y publicación final.

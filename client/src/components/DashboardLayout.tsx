@@ -38,6 +38,7 @@ import {
   Clock,
   FolderKanban,
   KeyRound,
+  Headphones,
   LayoutDashboard,
   LogOut,
   PanelLeft,
@@ -87,6 +88,7 @@ const adminMenuItems = [
   { icon: TrendingUp, label: "Cumplimiento", path: "/admin/compliance" },
   { icon: Shield, label: "Auditoría", path: "/admin/audit" },
   { icon: Building2, label: "Spaces JIRA", path: "/admin/jira-spaces" },
+  { icon: Headphones, label: "Spaces JSM", path: "/admin/jsm-spaces" },
   { icon: BookOpen, label: "Plantillas", path: "/admin/templates" },
   { icon: KeyRound, label: "Token JIRA", path: "/admin/jira-token" },
   { icon: Settings, label: "Configuración", path: "/admin/settings" },
@@ -294,6 +296,10 @@ function DashboardLayoutContent({
   const isMobile = useIsMobile();
   const role = (user as any)?.role ?? "consulta";
   const isAdmin = role === "admin";
+  const canViewJsm = ["admin", "pmo", "pm", "consulta"].includes(role);
+  const visibleAdminMenuItems = isAdmin
+    ? adminMenuItems
+    : adminMenuItems.filter(item => item.path === "/admin/jsm-spaces");
   const roleInfo = ROLE_LABELS[role] ?? ROLE_LABELS.consulta;
 
   const [sections, setSections] = useState<SectionState>(loadSectionState);
@@ -407,18 +413,18 @@ function DashboardLayoutContent({
               count={reportMenuItems.length}
             />
 
-            {isAdmin && (
+            {canViewJsm && (
               <>
                 {!isCollapsed && <div className="h-px bg-white/[0.06] mx-4 my-2" />}
                 <SidebarSection
                   title="Administración"
-                  items={adminMenuItems}
+                  items={visibleAdminMenuItems}
                   isOpen={sections.admin}
                   onToggle={() => toggleSection("admin")}
                   isCollapsed={isCollapsed}
                   isActive={isActive}
                   onNavigate={setLocation}
-                  count={adminMenuItems.length}
+                  count={visibleAdminMenuItems.length}
                 />
               </>
             )}

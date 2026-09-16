@@ -118,10 +118,18 @@ export async function listRecurringServiceJsmOwners() {
       id: recurringServices.id,
       serviceName: recurringServices.serviceName,
       clientName: recurringServices.clientName,
+      status: recurringServices.status,
+      currentStage: recurringServices.currentStage,
+      jsmLinkSource: recurringServices.jsmLinkSource,
       jsmProjectId: recurringServices.jsmProjectId,
       jsmProjectKey: recurringServices.jsmProjectKey,
+      jsmProjectName: recurringServices.jsmProjectName,
       jsmServiceDeskId: recurringServices.jsmServiceDeskId,
+      jsmAgentUrl: recurringServices.jsmAgentUrl,
+      jsmPortalUrl: recurringServices.jsmPortalUrl,
       jsmLinkHealth: recurringServices.jsmLinkHealth,
+      jsmLastVerifiedAt: recurringServices.jsmLastVerifiedAt,
+      jsmLinkedAt: recurringServices.jsmLinkedAt,
     })
     .from(recurringServices);
   return rows.filter(row => row.jsmProjectId || row.jsmProjectKey || row.jsmServiceDeskId);

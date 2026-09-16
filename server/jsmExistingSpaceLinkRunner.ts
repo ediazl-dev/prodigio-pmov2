@@ -7,7 +7,11 @@ import type {
   JsmLinkRunSource,
   JsmLinkRunStatus,
 } from "../shared/jsmExistingSpace";
-import { listJsmServiceDesks, type JsmServiceDesk } from "./jiraClient";
+import {
+  buildJsmProjectUrls,
+  listJsmServiceDesks,
+  type JsmServiceDesk,
+} from "./jiraClient";
 import { inspectJsmExistingSpace } from "./jsmExistingSpaceService";
 import {
   createOrReuseJsmLinkRun,
@@ -369,6 +373,9 @@ export async function listExistingJsmSpaces(
     search?: string;
     page?: number;
     pageSize?: number;
+    linkStatus?: "all" | "linked" | "available";
+    health?: "all" | JsmLinkHealth;
+    origin?: "all" | "created" | "linked" | "legacy";
   },
   dependencies: ExistingJsmLinkDependencies = defaultDependencies
 ) {
@@ -379,19 +386,7 @@ export async function listExistingJsmSpaces(
   const search = input.search?.trim().toLocaleLowerCase("es") ?? "";
   const pageSize = Math.min(Math.max(input.pageSize ?? 25, 1), 100);
   const page = Math.max(input.page ?? 1, 1);
-  const filtered = serviceDesks
-    .filter(
-      item =>
-        !search ||
-        [item.projectKey, item.projectName, item.id, item.projectId].some(
-          value => String(value).toLocaleLowerCase("es").includes(search)
-        )
-    )
-    .sort((left, right) =>
-      left.projectName.localeCompare(right.projectName, "es")
-    );
-  const start = (page - 1) * pageSize;
-  const items = filtered.slice(start, start + pageSize).map(serviceDesk => {
+  const inventory = serviceDesks.map(serviceDesk => {
     const owner = owners.find(
       candidate =>
         candidate.jsmServiceDeskId === String(serviceDesk.id) ||
@@ -399,24 +394,104 @@ export async function listExistingJsmSpaces(
         candidate.jsmProjectKey?.toUpperCase() ===
           serviceDesk.projectKey.toUpperCase()
     );
+    const urls = buildJsmProjectUrls(serviceDesk.projectKey, serviceDesk.id);
     return {
       ...serviceDesk,
+      agentUrl: owner?.jsmAgentUrl ?? urls.agentUrl,
+      portalUrl: owner?.jsmPortalUrl ?? urls.portalUrl,
+      linkStatus: owner ? ("linked" as const) : ("available" as const),
+      linkOrigin: owner
+        ? (owner.jsmLinkSource ?? "legacy")
+        : null,
       linkedService: owner
         ? {
             id: owner.id,
             serviceName: owner.serviceName,
             clientName: owner.clientName,
+            status: owner.status,
+            currentStage: owner.currentStage,
             health: owner.jsmLinkHealth,
+            source: owner.jsmLinkSource,
+            linkedAt: owner.jsmLinkedAt,
+            lastVerifiedAt: owner.jsmLastVerifiedAt,
           }
         : null,
     };
   });
+  const stats = inventory.reduce(
+    (result, item) => {
+      result.total += 1;
+      if (!item.linkedService) {
+        result.available += 1;
+        return result;
+      }
+      result.linked += 1;
+      const health = item.linkedService.health ?? "pending";
+      result[health] += 1;
+      const origin = item.linkOrigin ?? "legacy";
+      if (origin === "created") result.created += 1;
+      else if (origin === "linked") result.linkedExisting += 1;
+      else result.legacy += 1;
+      return result;
+    },
+    {
+      total: 0,
+      linked: 0,
+      available: 0,
+      pending: 0,
+      healthy: 0,
+      warning: 0,
+      blocked: 0,
+      created: 0,
+      linkedExisting: 0,
+      legacy: 0,
+    }
+  );
+  const filtered = inventory
+    .filter(item => {
+      const matchesSearch =
+        !search ||
+        [
+          item.projectKey,
+          item.projectName,
+          item.id,
+          item.projectId,
+          item.linkedService?.serviceName,
+          item.linkedService?.clientName,
+        ].some(value =>
+          String(value ?? "")
+            .toLocaleLowerCase("es")
+            .includes(search)
+        );
+      const matchesLinkStatus =
+        !input.linkStatus ||
+        input.linkStatus === "all" ||
+        item.linkStatus === input.linkStatus;
+      const matchesHealth =
+        !input.health ||
+        input.health === "all" ||
+        item.linkedService?.health === input.health ||
+        (input.health === "pending" &&
+          Boolean(item.linkedService) &&
+          !item.linkedService?.health);
+      const matchesOrigin =
+        !input.origin ||
+        input.origin === "all" ||
+        item.linkOrigin === input.origin;
+      return matchesSearch && matchesLinkStatus && matchesHealth && matchesOrigin;
+    })
+    .sort((left, right) =>
+      left.projectName.localeCompare(right.projectName, "es")
+    );
+  const start = (page - 1) * pageSize;
+  const items = filtered.slice(start, start + pageSize);
   return {
     items,
     total: filtered.length,
     page,
     pageSize,
     hasMore: start + items.length < filtered.length,
+    stats,
   };
 }
 

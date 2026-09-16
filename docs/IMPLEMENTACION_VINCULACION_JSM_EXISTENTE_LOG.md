@@ -215,3 +215,40 @@ Admin y PMO pueden revalidar o solicitar la desvinculación. Esta última exige 
 ## Próximo bloque J6
 
 Crear **Administración > Spaces JSM** como inventario operativo con filtros, vínculo visible, origen, salud, trazabilidad y acceso al servicio relacionado. Las acciones de modificación seguirán restringidas a Admin/PMO y reutilizarán las APIs controladas ya publicadas.
+
+## J6 — Inventario administrativo de Spaces JSM
+
+**Estado:** completado.
+
+Se incorporó la ruta **Administración > Spaces JSM** al menú lateral. Admin, PMO, PM y consulta pueden revisar el inventario; únicamente Admin/PMO reciben acciones de revalidación. La página reutiliza el catálogo GET-only y no crea, modifica, archiva ni sincroniza elementos en Jira/JSM.
+
+El inventario cruza los Service Desks visibles en Jira con los metadatos persistidos en PMO. Para cada Space muestra nombre, project key, Project ID, Service Desk ID, estado de vínculo, servicio recurrente asociado, cliente, etapa, origen, salud, fecha de vínculo y última verificación. Los vínculos históricos sin `jsmLinkSource` se identifican como **Vínculo heredado** en vez de inferir un origen inexistente.
+
+| Filtro o indicador | Comportamiento |
+|---|---|
+| Búsqueda | Nombre, key, IDs, servicio o cliente |
+| Estado de vínculo | Todos, vinculados o disponibles |
+| Condición | Saludable, advertencia, bloqueado o pendiente |
+| Origen | Creado por PMO, vinculado existente o heredado |
+| KPIs | Total, vinculados, disponibles, saludables y requieren atención |
+
+La API aplica filtros y paginación en servidor y devuelve contadores del universo consultado. La interfaz incluye actualización manual, estados de carga, error con reintento, vacío filtrado, paginación, enlaces separados a vista de agentes y portal de clientes, acceso al servicio relacionado y botón **Revalidar** solo cuando corresponde.
+
+### Evidencia J6
+
+| Control | Resultado |
+|---|---|
+| Pruebas focales J2–J6 | 30 de 30 aprobadas |
+| Catálogo real GET-only | 15 Service Desks; HTTP 200 en 2,6–2,7 segundos |
+| Filtros y métricas | Validados con catálogo simulado y datos reales |
+| Permisos | Lectura para los cuatro roles; acción solo Admin/PMO |
+| Vista escritorio | Validada con datos reales y 15 tarjetas |
+| Vista móvil | Validada a 390 × 844 px con filtros apilados y tarjetas legibles |
+| Consola/servidor | Sin errores nuevos durante navegación y carga |
+| Build de producción | Exitoso |
+| TypeScript | Sin errores nuevos; permanecen cinco deudas heredadas en `jiraMilestoneSync.ts` y `routers.ts` |
+| Escrituras Jira/JSM | Ninguna |
+
+## Próximo bloque J7
+
+Ejecutar la validación integral de J0–J6, consolidar documentación y manual operativo, verificar reglas no negociables, revisar el flujo completo con datos controlados y publicar la versión final sin asociar ningún Space productivo durante las pruebas.

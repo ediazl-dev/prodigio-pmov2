@@ -3,6 +3,7 @@ import {
   createExistingJsmLinkDependencies,
   JsmExistingSpaceRunnerError,
   linkExistingJsmSpace,
+  listExistingJsmSpaces,
   preflightExistingJsmSpace,
   revalidateExistingJsmSpace,
   unlinkExistingJsmSpace,
@@ -429,5 +430,106 @@ describe("J3 JSM existing Space link runner", () => {
       )
     ).rejects.toBeInstanceOf(JsmExistingSpaceRunnerError);
     expect(harness.runs).toHaveLength(0);
+  });
+});
+
+describe("J6 JSM Spaces inventory", () => {
+  it("combina catálogo y vínculos, calcula métricas y filtra sin ejecutar escrituras", async () => {
+    const harness = makeHarness();
+    const linkedOwners = [
+      {
+        id: 9001,
+        serviceName: "Mesa Cliente Norte",
+        clientName: "Cliente Norte",
+        status: "active",
+        currentStage: "jira_setup",
+        jsmLinkSource: "created",
+        jsmProjectId: "10250",
+        jsmProjectKey: "MSC",
+        jsmProjectName: "Mesa Cliente Norte",
+        jsmServiceDeskId: "25",
+        jsmAgentUrl: null,
+        jsmPortalUrl: null,
+        jsmLinkHealth: "healthy",
+        jsmLastVerifiedAt: new Date("2026-09-16T12:00:00.000Z"),
+        jsmLinkedAt: new Date("2026-09-15T12:00:00.000Z"),
+      },
+      {
+        id: 9002,
+        serviceName: "Mesa Cliente Sur",
+        clientName: "Cliente Sur",
+        status: "active",
+        currentStage: "ejecucion",
+        jsmLinkSource: null,
+        jsmProjectId: "10252",
+        jsmProjectKey: "MSS",
+        jsmProjectName: "Mesa Cliente Sur",
+        jsmServiceDeskId: "27",
+        jsmAgentUrl: null,
+        jsmPortalUrl: null,
+        jsmLinkHealth: "warning",
+        jsmLastVerifiedAt: null,
+        jsmLinkedAt: null,
+      },
+    ];
+    harness.repository.listOwners.mockResolvedValue(linkedOwners);
+    harness.dependencies.listServiceDesks = vi.fn(async () => [
+      {
+        id: "25",
+        projectId: "10250",
+        projectKey: "MSC",
+        projectName: "Mesa Cliente Norte",
+      },
+      {
+        id: "26",
+        projectId: "10251",
+        projectKey: "LIBRE",
+        projectName: "Mesa Disponible",
+      },
+      {
+        id: "27",
+        projectId: "10252",
+        projectKey: "MSS",
+        projectName: "Mesa Cliente Sur",
+      },
+    ]);
+
+    const result = await listExistingJsmSpaces(
+      {
+        search: "cliente norte",
+        linkStatus: "linked",
+        health: "healthy",
+        origin: "created",
+        page: 1,
+        pageSize: 20,
+      },
+      harness.dependencies
+    );
+
+    expect(result.stats).toMatchObject({
+      total: 3,
+      linked: 2,
+      available: 1,
+      healthy: 1,
+      warning: 1,
+      created: 1,
+      legacy: 1,
+    });
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toMatchObject({
+      id: "25",
+      linkStatus: "linked",
+      linkOrigin: "created",
+      linkedService: {
+        id: 9001,
+        serviceName: "Mesa Cliente Norte",
+        health: "healthy",
+      },
+    });
+    expect(result.items[0].agentUrl).toContain(
+      "/jira/servicedesk/projects/MSC/boards"
+    );
+    expect(harness.inspect).not.toHaveBeenCalled();
+    expect(harness.linkLocal).not.toHaveBeenCalled();
   });
 });
