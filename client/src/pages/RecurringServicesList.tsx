@@ -17,6 +17,7 @@ import {
   RECURRING_SERVICE_TYPE_LABELS,
   RECURRING_SERVICE_TYPE_OPTIONS,
 } from "@shared/recurringServiceTypes";
+import RecurringServicesDashboardV2 from "./recurring/RecurringServicesDashboardV2";
 
 const C = {
   navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
@@ -139,7 +140,7 @@ export default function RecurringServicesList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
-  const [view, setView] = useState<"dashboard" | "list">("dashboard");
+  const [view, setView] = useState<"tower" | "dashboard" | "list">("tower");
 
   const filtered = useMemo(() => {
     if (!services) return [];
@@ -184,6 +185,16 @@ export default function RecurringServicesList() {
             {/* View toggle */}
             <div style={{ display: "flex", background: "rgba(255,255,255,.08)", borderRadius: 8, padding: 2 }}>
               <button
+                onClick={() => setView("tower")}
+                style={{
+                  padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer",
+                  background: view === "tower" ? C.accent : "transparent",
+                  color: view === "tower" ? "#fff" : "rgba(255,255,255,.5)",
+                }}
+              >
+                <Activity size={13} style={{ marginRight: 4, verticalAlign: "middle" }} /> Torre V2
+              </button>
+              <button
                 onClick={() => setView("dashboard")}
                 style={{
                   padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer",
@@ -191,7 +202,7 @@ export default function RecurringServicesList() {
                   color: view === "dashboard" ? "#fff" : "rgba(255,255,255,.5)",
                 }}
               >
-                <BarChart3 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} /> Dashboard
+                <BarChart3 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} /> Clásico
               </button>
               <button
                 onClick={() => setView("list")}
@@ -216,7 +227,7 @@ export default function RecurringServicesList() {
         </div>
 
         {/* Top KPI strip */}
-        {kpis && (
+        {view !== "tower" && kpis && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginTop: 20 }}>
             {[
               { label: "Total Servicios", value: kpis.statusCounts.total, color: "#fff", icon: RefreshCw },
@@ -249,12 +260,14 @@ export default function RecurringServicesList() {
       </div>
 
       {/* Loading */}
-      {isLoading && (
+      {view !== "tower" && isLoading && (
         <div style={{ textAlign: "center", padding: 60 }}>
           <Loader2 size={32} className="animate-spin mx-auto" color={C.accent} />
           <p style={{ marginTop: 12, color: C.g400, fontSize: 13 }}>Cargando servicios...</p>
         </div>
       )}
+
+      {view === "tower" && <RecurringServicesDashboardV2 />}
 
       {/* Dashboard View */}
       {!isLoading && view === "dashboard" && kpis && (
