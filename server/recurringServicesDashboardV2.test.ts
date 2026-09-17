@@ -137,7 +137,11 @@ describe("buildRecurringServicesDashboardV2", () => {
     const service = result.matrix.find(item => item.serviceId === 1);
 
     expect(service?.incidents.total).toBe(12);
+    expect(service?.incidents.overdueOpen).toBe(0);
+    expect(service?.incidents.unresolvedOver30Days).toBe(0);
     expect(service?.sla.firstResponseCompliance).toBe(100);
+    expect(result.kpis.incidents.overdueOpen).toBe(0);
+    expect(result.kpis.incidents.unresolvedOver30Days).toBe(0);
     expect(result.metadata.latestJsmSnapshotAt).toBe("2026-03-15T10:00:00.000Z");
   });
 

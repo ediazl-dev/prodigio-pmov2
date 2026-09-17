@@ -69,6 +69,8 @@ export interface RecurringOperationalEvidenceSource {
   openTickets: number | null;
   criticalOpen: number | null;
   highOpen: number | null;
+  overdueOpen: number | null;
+  unresolvedOver30Days: number | null;
   firstResponseMeasured: number | null;
   firstResponseMet: number | null;
   resolutionMeasured: number | null;
@@ -145,6 +147,8 @@ export interface ServiceMetricsV2 {
     open: number | null;
     criticalOpen: number | null;
     highOpen: number | null;
+    overdueOpen: number | null;
+    unresolvedOver30Days: number | null;
     source: "jsm_snapshot";
   };
   sla: {
@@ -188,6 +192,8 @@ export interface RecurringServicesPortfolioMetricsV2 {
       open: number | null;
       criticalOpen: number | null;
       highOpen: number | null;
+      overdueOpen: number | null;
+      unresolvedOver30Days: number | null;
     };
     sla: {
       configuredServices: number;
@@ -418,6 +424,8 @@ export function calculateRecurringServicesMetrics(
         open: operationalStatus === "available" ? operational?.openTickets ?? null : null,
         criticalOpen: operationalStatus === "available" ? operational?.criticalOpen ?? null : null,
         highOpen: operationalStatus === "available" ? operational?.highOpen ?? null : null,
+        overdueOpen: operationalStatus === "available" ? operational?.overdueOpen ?? null : null,
+        unresolvedOver30Days: operationalStatus === "available" ? operational?.unresolvedOver30Days ?? null : null,
         source: "jsm_snapshot",
       },
       sla: {
@@ -489,6 +497,8 @@ export function calculateRecurringServicesMetrics(
         open: sumNullable(operationalServices.map(service => service.incidents.open)),
         criticalOpen: sumNullable(operationalServices.map(service => service.incidents.criticalOpen)),
         highOpen: sumNullable(operationalServices.map(service => service.incidents.highOpen)),
+        overdueOpen: sumNullable(operationalServices.map(service => service.incidents.overdueOpen)),
+        unresolvedOver30Days: sumNullable(operationalServices.map(service => service.incidents.unresolvedOver30Days)),
       },
       sla: {
         configuredServices: services.filter(service => service.sla.configuredRules > 0).length,

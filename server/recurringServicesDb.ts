@@ -3,7 +3,7 @@
  * Follows same patterns as server/db.ts — returns raw Drizzle rows.
  */
 import { eq, and, desc, asc } from "drizzle-orm";
-import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialData } from "../drizzle/schema";
+import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialData } from "../drizzle/schema";
 import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
@@ -871,4 +871,33 @@ export async function getRecurringDashboardV2Data() {
     jsmSnapshots,
     financialReferences,
   };
+}
+
+export async function saveRecurringJsmSnapshot(data: InsertRecurringServiceJsmSnapshot) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (data.dataFingerprint) {
+    const [existing] = await db
+      .select({ id: recurringServiceJsmSnapshots.id, capturedAt: recurringServiceJsmSnapshots.capturedAt })
+      .from(recurringServiceJsmSnapshots)
+      .where(and(eq(recurringServiceJsmSnapshots.serviceId, data.serviceId), eq(recurringServiceJsmSnapshots.dataFingerprint, data.dataFingerprint)))
+      .limit(1);
+    if (existing) return { id: existing.id, capturedAt: existing.capturedAt, created: false };
+  }
+
+  try {
+    const [result] = await db.insert(recurringServiceJsmSnapshots).values(data);
+    return { id: Number(result.insertId), capturedAt: data.capturedAt, created: true };
+  } catch (error) {
+    if (data.dataFingerprint) {
+      const [existing] = await db
+        .select({ id: recurringServiceJsmSnapshots.id, capturedAt: recurringServiceJsmSnapshots.capturedAt })
+        .from(recurringServiceJsmSnapshots)
+        .where(and(eq(recurringServiceJsmSnapshots.serviceId, data.serviceId), eq(recurringServiceJsmSnapshots.dataFingerprint, data.dataFingerprint)))
+        .limit(1);
+      if (existing) return { id: existing.id, capturedAt: existing.capturedAt, created: false };
+    }
+    throw error;
+  }
 }

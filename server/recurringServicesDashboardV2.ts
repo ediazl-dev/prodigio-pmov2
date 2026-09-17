@@ -139,6 +139,8 @@ function latestOperationalEvidence(
       openTickets: snapshot.openIncidentCount,
       criticalOpen: snapshot.criticalOpenCount,
       highOpen: priorityCount(snapshot.priorityBreakdown, "high"),
+      overdueOpen: snapshot.overdueIncidentCount,
+      unresolvedOver30Days: snapshot.unresolvedOver30DaysCount,
       firstResponseMeasured: snapshot.firstResponseMeasuredCount,
       firstResponseMet: snapshot.firstResponseMetCount,
       resolutionMeasured: snapshot.resolutionMeasuredCount,

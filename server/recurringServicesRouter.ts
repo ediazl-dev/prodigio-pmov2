@@ -9,12 +9,13 @@ import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { createAuditLog } from "./db";
 import { buildJsmProjectUrls, createJiraSpace, createJiraIssue, CreateIssueInput, listJsmServiceDesks, searchJiraIssues } from "./jiraClient";
-import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, insertPenalty, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, RecurringServiceJsmDbError } from "./recurringServicesDb";
+import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, insertPenalty, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, RecurringServiceJsmDbError } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSpace, listExistingJsmSpaces, preflightExistingJsmSpace, revalidateExistingJsmSpace, unlinkExistingJsmSpace } from "./jsmExistingSpaceLinkRunner";
 import { associateExistingJiraIssue, calculateJsmSetupReadiness, configureJsmIssueTypeMappings, confirmJsmSync, dryRunJsmSync, getJsmSyncConfiguration, JsmRecurringSyncError } from "./jsmRecurringSyncRunner";
 import { buildRecurringServicesDashboardV2 } from "./recurringServicesDashboardV2";
+import { collectRecurringJsmSnapshot } from "./recurringServicesJsmSnapshot";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -280,6 +281,104 @@ export const recurringServicesRouter = router({
           search: input?.search,
         },
       });
+    }),
+
+  refreshJsmSnapshot: adminOrPmo
+    .input(z.object({ serviceId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const service = await getRecurringServiceById(input.serviceId);
+      if (!service) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
+      }
+
+      const snapshot = await collectRecurringJsmSnapshot({
+        service: {
+          id: service.id,
+          jsmProjectKey: service.jsmProjectKey,
+          jsmServiceDeskId: service.jsmServiceDeskId,
+        },
+        source: "manual",
+        triggeredBy: ctx.user.id,
+      });
+      const persisted = await saveRecurringJsmSnapshot(snapshot);
+
+      await audit(ctx, "recurring_service_jsm_snapshot_refresh", "recurring_service", service.id, service.serviceName, {
+        snapshotId: persisted.id,
+        created: persisted.created,
+        snapshotStatus: snapshot.status,
+        incidentCount: snapshot.incidentCount,
+        openIncidentCount: snapshot.openIncidentCount,
+        criticalOpenCount: snapshot.criticalOpenCount,
+        overdueIncidentCount: snapshot.overdueIncidentCount,
+        dataFingerprint: snapshot.dataFingerprint,
+      });
+
+      return { snapshot, persisted };
+    }),
+
+  refreshJsmSnapshots: adminOrPmo
+    .input(z.object({ serviceIds: z.array(z.number().int().positive()).max(100).optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      const services = await listRecurringServices();
+      const requestedIds = input?.serviceIds ? new Set(input.serviceIds) : null;
+      const eligible = services.filter(
+        service =>
+          service.status === "activo" &&
+          (!requestedIds || requestedIds.has(service.id)) &&
+          Boolean(service.jsmProjectKey && service.jsmServiceDeskId),
+      );
+      const skipped = services.filter(
+        service =>
+          service.status === "activo" &&
+          (!requestedIds || requestedIds.has(service.id)) &&
+          !(service.jsmProjectKey && service.jsmServiceDeskId),
+      );
+
+      const results = [];
+      for (const service of eligible) {
+        const snapshot = await collectRecurringJsmSnapshot({
+          service: {
+            id: service.id,
+            jsmProjectKey: service.jsmProjectKey,
+            jsmServiceDeskId: service.jsmServiceDeskId,
+          },
+          source: "manual",
+          triggeredBy: ctx.user.id,
+        });
+        const persisted = await saveRecurringJsmSnapshot(snapshot);
+        results.push({
+          serviceId: service.id,
+          serviceName: service.serviceName,
+          status: snapshot.status,
+          errorMessage: snapshot.errorMessage,
+          incidentCount: snapshot.incidentCount,
+          openIncidentCount: snapshot.openIncidentCount,
+          criticalOpenCount: snapshot.criticalOpenCount,
+          firstResponseCompliancePct: snapshot.firstResponseCompliancePct,
+          resolutionCompliancePct: snapshot.resolutionCompliancePct,
+          snapshotId: persisted.id,
+          created: persisted.created,
+        });
+      }
+
+      await audit(ctx, "recurring_service_jsm_portfolio_refresh", "recurring_service_portfolio", null, "Dashboard recurrente V2", {
+        eligibleCount: eligible.length,
+        skippedCount: skipped.length,
+        successCount: results.filter(result => result.status === "success").length,
+        partialCount: results.filter(result => result.status === "partial").length,
+        errorCount: results.filter(result => result.status === "error").length,
+        serviceIds: eligible.map(service => service.id),
+      });
+
+      return {
+        eligibleCount: eligible.length,
+        skippedCount: skipped.length,
+        successCount: results.filter(result => result.status === "success").length,
+        partialCount: results.filter(result => result.status === "partial").length,
+        errorCount: results.filter(result => result.status === "error").length,
+        skippedServices: skipped.map(service => ({ id: service.id, serviceName: service.serviceName })),
+        results,
+      };
     }),
 
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {

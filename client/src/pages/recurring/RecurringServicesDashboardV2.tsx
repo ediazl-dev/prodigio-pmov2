@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   Activity,
   AlertTriangle,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import { RECURRING_SERVICE_TYPE_LABELS } from "@shared/recurringServiceTypes";
 import {
   countActiveFilters,
@@ -143,6 +145,7 @@ function EmptyValue({ text = "Sin evidencia disponible" }: { text?: string }) {
 
 export default function RecurringServicesDashboardV2() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [cutOffDate, setCutOffDate] = useState(todayIso);
   const [clientName, setClientName] = useState("all");
   const [status, setStatus] = useState("all");
@@ -171,6 +174,20 @@ export default function RecurringServicesDashboardV2() {
   const { data, isLoading, error, refetch, isFetching } = trpc.recurringServices.dashboardV2.useQuery(input as any, {
     staleTime: 30_000,
   });
+  const refreshJsmSnapshots = trpc.recurringServices.refreshJsmSnapshots.useMutation({
+    onSuccess: async result => {
+      if (result.eligibleCount === 0) {
+        toast.info("No hay servicios activos con un vínculo JSM confirmado.");
+      } else if (result.errorCount > 0) {
+        toast.warning(`JSM actualizado con ${result.errorCount} servicio(s) en error.`);
+      } else {
+        toast.success(`${result.successCount} servicio(s) actualizado(s) desde JSM.`);
+      }
+      await refetch();
+    },
+    onError: mutationError => toast.error(mutationError.message || "No fue posible actualizar JSM."),
+  });
+  const canRefreshJsm = user?.role === "admin" || user?.role === "pmo";
 
   const clearFilters = () => {
     setClientName("all");
@@ -247,6 +264,16 @@ export default function RecurringServicesDashboardV2() {
               >
                 <RefreshCw size={15} className={isFetching ? "mr-2 animate-spin" : "mr-2"} /> Actualizar lectura
               </Button>
+              {canRefreshJsm && (
+                <Button
+                  onClick={() => refreshJsmSnapshots.mutate({})}
+                  disabled={refreshJsmSnapshots.isPending}
+                  className="bg-[#E91E8C] text-white hover:bg-[#C91879]"
+                >
+                  <DatabaseZap size={15} className={refreshJsmSnapshots.isPending ? "mr-2 animate-pulse" : "mr-2"} />
+                  Actualizar JSM
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -334,6 +361,69 @@ export default function RecurringServicesDashboardV2() {
           icon={DatabaseZap}
           tone={operationalCoverage === 100 ? "#067647" : "#475467"}
         />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Operación JSM</p>
+              <h3 className="mt-1 text-lg font-black text-slate-950">Incidentes, antigüedad y cumplimiento SLA</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Lectura consolidada del último snapshot vigente. Una regla configurada no se presenta como SLA cumplido.</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-700">
+              {kpis.incidents.availableServices}/{kpis.activeServices} activos medidos
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {[
+              { label: "Incidentes abiertos", value: kpis.incidents.open, tone: "text-slate-950" },
+              { label: "Críticos abiertos", value: kpis.incidents.criticalOpen, tone: "text-red-700" },
+              { label: "Altos abiertos", value: kpis.incidents.highOpen, tone: "text-amber-700" },
+              { label: "Vencidos abiertos", value: kpis.incidents.overdueOpen, tone: "text-red-700" },
+              { label: "+30 días abiertos", value: kpis.incidents.unresolvedOver30Days, tone: "text-amber-700" },
+              { label: "Incidentes observados", value: kpis.incidents.total, tone: "text-[#175CD3]" },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">{item.label}</p>
+                <p className={`mt-2 text-2xl font-black ${item.tone}`}>{item.value ?? "N/D"}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {[
+              { label: "Primera respuesta dentro de SLA", value: kpis.sla.firstResponseCompliance },
+              { label: "Resolución dentro de SLA", value: kpis.sla.resolutionCompliance },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-bold text-slate-700">{item.label}</span>
+                  <b className="text-slate-950">{formatRecurringPercent(item.value)}</b>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-[#12A08D]" style={{ width: `${item.value ?? 0}%` }} />
+                </div>
+                {item.value === null && <p className="mt-2 text-[11px] text-slate-500">N/D hasta contar con ciclos SLA medidos.</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Frescura operacional</p>
+          <p className="mt-2 text-2xl font-black text-slate-950">{operationalCoverage}%</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Cobertura de servicios del universo actual con evidencia JSM vigente.</p>
+          <div className="mt-4 space-y-2 text-xs">
+            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-emerald-900"><span>Snapshots vigentes</span><b>{kpis.incidents.availableServices}</b></div>
+            <div className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 text-slate-700"><span>Reglas SLA configuradas</span><b>{kpis.sla.configuredServices}</b></div>
+            <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-amber-900"><span>Activos sin medición</span><b>{Math.max(0, kpis.activeServices - kpis.incidents.availableServices)}</b></div>
+          </div>
+          <div className="mt-4 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-600">
+            Última captura: <b className="text-slate-900">{metadata.latestJsmSnapshotAt ? new Date(metadata.latestJsmSnapshotAt).toLocaleString("es-CL") : "N/D"}</b>
+          </div>
+        </aside>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.45fr_0.55fr]">

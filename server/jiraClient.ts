@@ -213,6 +213,32 @@ interface JiraSearchResult {
   isLast?: boolean;
 }
 
+export interface JsmSlaCycle {
+  startTime?: { epochMillis?: number; iso8601?: string };
+  stopTime?: { epochMillis?: number; iso8601?: string };
+  breachTime?: { epochMillis?: number; iso8601?: string };
+  breached?: boolean;
+  paused?: boolean;
+  withinCalendarHours?: boolean;
+  goalDuration?: { millis?: number; friendly?: string };
+  elapsedTime?: { millis?: number; friendly?: string };
+  remainingTime?: { millis?: number; friendly?: string };
+}
+
+export interface JsmSlaInformation {
+  name: string;
+  completedCycles?: JsmSlaCycle[];
+  ongoingCycle?: JsmSlaCycle | null;
+}
+
+export interface JsmSlaPage {
+  size?: number;
+  start?: number;
+  limit?: number;
+  isLastPage?: boolean;
+  values: JsmSlaInformation[];
+}
+
 export async function searchJiraIssues(
   jql: string,
   options: {
@@ -227,6 +253,13 @@ export async function searchJiraIssues(
   return jiraFetch<JiraSearchResult>("/search/jql", {
     method: "POST",
     body,
+  });
+}
+
+export async function getJsmRequestSlas(issueIdOrKey: string, start = 0, limit = 50): Promise<JsmSlaPage> {
+  return jiraServiceDeskFetch<JsmSlaPage>(`/request/${encodeURIComponent(issueIdOrKey)}/sla`, {
+    start: String(start),
+    limit: String(limit),
   });
 }
 
