@@ -17,7 +17,7 @@ export const RECURRING_JSM_TASK_UID_SETTING =
   "recurring_services_jsm_daily_task_uid";
 export const RECURRING_JSM_CRON_SETTING =
   "recurring_services_jsm_daily_cron_utc";
-export const RECURRING_JSM_DAILY_CRON_UTC = "0 0 6 * * *";
+export const RECURRING_JSM_DAILY_CRON_UTC = "0 0 9 * * *";
 export const RECURRING_JSM_CALLBACK =
   "/api/scheduled/refreshRecurringServicesJsm";
 export const MAX_SCHEDULED_RECURRING_SERVICES = 25;

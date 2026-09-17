@@ -1,9 +1,63 @@
 import { describe, expect, it } from "vitest";
+import { afterAll } from "vitest";
+import { inArray, and, eq } from "drizzle-orm";
+import {
+  auditLogs,
+  recurringServiceAiAnalyses,
+  recurringServiceBillingMonths,
+  recurringServiceDocumentControls,
+  recurringServiceDocuments,
+  recurringServiceFinancialEvidence,
+  recurringServiceJsmIssueTypeMappings,
+  recurringServiceJsmLinkRuns,
+  recurringServiceJsmSnapshots,
+  recurringServiceJsmSyncRuns,
+  recurringServicePenalties,
+  recurringServiceReportEvidence,
+  recurringServiceSlaConfig,
+  recurringServiceStages,
+  recurringServices,
+  recurringServiceWorkPlan,
+} from "../drizzle/schema";
+import { getDb } from "./db";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
+const createdTestServiceIds = new Set<number>();
+
+afterAll(async () => {
+  const serviceIds = Array.from(createdTestServiceIds);
+  if (serviceIds.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+
+  await db.delete(recurringServiceDocumentControls).where(inArray(recurringServiceDocumentControls.serviceId, serviceIds));
+  await db.delete(recurringServiceReportEvidence).where(inArray(recurringServiceReportEvidence.serviceId, serviceIds));
+  await db.delete(recurringServiceFinancialEvidence).where(inArray(recurringServiceFinancialEvidence.serviceId, serviceIds));
+  await db.delete(recurringServiceJsmSnapshots).where(inArray(recurringServiceJsmSnapshots.serviceId, serviceIds));
+  await db.delete(recurringServiceJsmIssueTypeMappings).where(inArray(recurringServiceJsmIssueTypeMappings.serviceId, serviceIds));
+  await db.delete(recurringServiceJsmSyncRuns).where(inArray(recurringServiceJsmSyncRuns.serviceId, serviceIds));
+  await db.delete(recurringServiceJsmLinkRuns).where(inArray(recurringServiceJsmLinkRuns.serviceId, serviceIds));
+  await db.delete(recurringServicePenalties).where(inArray(recurringServicePenalties.serviceId, serviceIds));
+  await db.delete(recurringServiceAiAnalyses).where(inArray(recurringServiceAiAnalyses.serviceId, serviceIds));
+  await db.delete(recurringServiceWorkPlan).where(inArray(recurringServiceWorkPlan.serviceId, serviceIds));
+  await db.delete(recurringServiceSlaConfig).where(inArray(recurringServiceSlaConfig.serviceId, serviceIds));
+  await db.delete(recurringServiceBillingMonths).where(inArray(recurringServiceBillingMonths.serviceId, serviceIds));
+  await db.delete(recurringServiceDocuments).where(inArray(recurringServiceDocuments.serviceId, serviceIds));
+  await db.delete(recurringServiceStages).where(inArray(recurringServiceStages.serviceId, serviceIds));
+  await db
+    .delete(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.entity, "recurring_service"),
+        inArray(auditLogs.entityId, serviceIds.map(String))
+      )
+    );
+  await db.delete(recurringServices).where(inArray(recurringServices.id, serviceIds));
+});
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
-function makeCtx(role: "admin" | "pmo" | "consulta" = "admin"): TrpcContext {
+function makeCtx(role: "admin" | "pmo" | "pm" | "consulta" = "admin"): TrpcContext {
   return {
     user: {
       id: 1,
@@ -101,6 +155,13 @@ describe("recurringServices router", () => {
     const caller = appRouter.createCaller(makeCtx());
     expect(caller.recurringServices.closeService).toBeDefined();
   });
+
+  it("has D9 JSM refresh history and manual refresh procedures", () => {
+    const caller = appRouter.createCaller(makeCtx());
+    expect(caller.recurringServices.jsmRefreshHistory).toBeDefined();
+    expect(caller.recurringServices.refreshJsmSnapshot).toBeDefined();
+    expect(caller.recurringServices.refreshJsmSnapshots).toBeDefined();
+  });
 });
 
 // ─── Auth / Access control tests ────────────────────────────────────────────
@@ -149,6 +210,23 @@ describe("recurringServices access control", () => {
     expect(result).toBeDefined();
     expect(Array.isArray(result)).toBe(true);
   });
+
+  it("D9 history requires authentication", async () => {
+    const caller = appRouter.createCaller(makeUnauthCtx());
+    await expect(caller.recurringServices.jsmRefreshHistory()).rejects.toThrow();
+  });
+
+  it.each(["consulta", "pm"] as const)(
+    "%s can read D9 history but cannot trigger a JSM refresh",
+    async role => {
+      const caller = appRouter.createCaller(makeCtx(role));
+      const history = await caller.recurringServices.jsmRefreshHistory({ limit: 5 });
+      expect(Array.isArray(history.runs)).toBe(true);
+      await expect(
+        caller.recurringServices.refreshJsmSnapshots({ serviceIds: [] })
+      ).rejects.toThrow();
+    }
+  );
 });
 
 // ─── CRUD tests ─────────────────────────────────────────────────────────────
@@ -166,6 +244,7 @@ describe("recurringServices CRUD", () => {
     });
     expect(created).toBeDefined();
     expect(created.id).toBeGreaterThan(0);
+    createdTestServiceIds.add(created.id);
 
     const fetched = await caller.recurringServices.getById({ id: created.id });
     expect(fetched).toBeDefined();

@@ -543,6 +543,6 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D9: extraer un runner común e idempotente para actualización manual/programada JSM, con resultados success/partial/error/skipped y auditoría estructurada.
 - [x] D9: exponer historial paginado de corridas y presentarlo en la Torre V2 con frescura, origen, conteos y degradación visible.
 - [x] D9: montar callback Heartbeat cron-only con validación durable de task UID, orphan 2xx, límite de lote y diagnóstico JSON de errores.
-- [ ] D9: publicar el callback, activar el job diario de proyecto, persistir su task UID, ejecutar una corrida controlada e inspeccionar logs.
-- [ ] D10: ejecutar pruebas unitarias, persistentes y funcionales, revisión visual responsive, seguridad de roles, rendimiento y no regresión.
-- [ ] D10: documentar operación, resultados, limitaciones y rollback; guardar y publicar el checkpoint final certificado.
+- [x] D9: publicar el callback, activar el job diario de proyecto, persistir su task UID, ejecutar una corrida controlada e inspeccionar logs.
+- [x] D10: ejecutar pruebas unitarias, persistentes y funcionales, revisión visual responsive, seguridad de roles, rendimiento y no regresión.
+- [x] D10: documentar operación, resultados, limitaciones y rollback; guardar y publicar el checkpoint final certificado.

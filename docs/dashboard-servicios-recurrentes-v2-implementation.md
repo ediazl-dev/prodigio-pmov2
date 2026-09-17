@@ -39,8 +39,8 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | D6 — Reportes y formalidad documental | Completada |
 | D7 — Incidentes y cumplimiento SLA JSM | Completada |
 | D8 — Detalle 360° por servicio | Completada |
-| D9 — Actualización e historial operacional | En activación controlada |
-| D10 — Certificación final | Pendiente |
+| D9 — Actualización e historial operacional | Completado |
+| D10 — Certificación final | Completado |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -214,9 +214,9 @@ Se extrajo `recurringServicesJsmRefreshRunner.ts` como único flujo para las act
 
 Las mutaciones manuales D7 ahora invocan el runner común y conservan los permisos `admin`/`pmo`. Se agregó `recurringServices.jsmRefreshHistory` como consulta protegida y paginada que reutiliza auditoría en vez de crear otra tabla. La Torre V2 muestra las cinco corridas más recientes, su origen manual o programado, fecha, estado, exitosas, parciales, errores y omitidas; mantiene estados de carga, vacío y error, e invalida dashboard e historial de forma coordinada después de un refresco manual.
 
-El callback `POST /api/scheduled/refreshRecurringServicesJsm` autentica con el SDK, exige identidad cron y `taskUid`, compara ese UID con la configuración durable `recurring_services_jsm_refresh_task_uid` y responde `200 skipped: orphan` para tareas desconocidas. La corrida diaria usa un `operationId` por fecha UTC para impedir repetición del acceso a JSM en reintentos y limita cada ejecución a 25 servicios dentro del timeout de dos minutos. No existe `setInterval`, `node-cron` ni escritura hacia Jira/JSM.
+El callback `POST /api/scheduled/refreshRecurringServicesJsm` autentica con el SDK, exige identidad cron y `taskUid`, compara ese UID con la configuración durable `recurring_services_jsm_daily_task_uid` y responde `200 skipped: orphan` para tareas desconocidas. La corrida diaria usa un `operationId` por fecha UTC para impedir repetición del acceso a JSM en reintentos y limita cada ejecución a 25 servicios dentro del timeout de dos minutos. No existe `setInterval`, `node-cron` ni escritura hacia Jira/JSM.
 
-| Control D9 previo a activación | Resultado |
+| Control D9 | Resultado |
 |---|---|
 | Runner compartido manual/programado | Implementado |
 | Auditoría e historial | `audit_logs`, sin tabla redundante |
@@ -224,10 +224,37 @@ El callback `POST /api/scheduled/refreshRecurringServicesJsm` autentica con el S
 | Idempotencia de corrida diaria | `operationId` UTC reutilizable |
 | Callback cron-only | Implementado y montado antes del fallthrough |
 | Task UID durable | Helper `admin_settings` y validación por clave |
-| Job diario activo | No; se activa sólo después del checkpoint publicado |
+| Job diario activo | Sí, `recurring-services-jsm-refresh-daily` |
+| Task UID | `eDYaUxrr5MHKYGvvuTCjBA` |
+| Cron definitivo | `0 0 9 * * *` UTC |
 | Pruebas focales D7–D9 | 21 aprobadas |
 | Build | Exitoso |
 | Revisión visual | 1440 × 1000 y 390 × 844 |
 | Errores TypeScript nuevos | 0; permanecen cinco heredados |
 
-La programación propuesta es diaria a las `09:00 UTC` (`0 0 9 * * *`), equivalente a las 06:00 en la zona del usuario durante UTC−3. La activación se realizará como un checkpoint separado: crear el Heartbeat de proyecto, persistir su `taskUid`, ejecutar una corrida controlada y revisar logs. Hasta completar ese gate, el callback publicado es seguro porque cualquier UID no registrado se degrada a `orphan` sin reintentos.
+La programación quedó activa diariamente a las `09:00 UTC` (`0 0 9 * * *`), equivalente a las 06:00 en la zona del usuario durante UTC−3. La activación inicial reveló una discrepancia entre la clave escrita manualmente y la constante del callback; dos invocaciones fueron correctamente degradadas como `orphan`, sin acceder a JSM ni generar auditorías falsas. Se corrigió la configuración a `recurring_services_jsm_daily_task_uid`, se registró además `recurring_services_jsm_daily_cron_utc` y se eliminó únicamente la clave transitoria incorrecta.
+
+La corrida controlada válida del 17 de septiembre de 2026 a las 01:31 UTC respondió HTTP 200 en 2,2 segundos. Detectó tres servicios productivos activos y omitió los tres con causa explícita `jsm_not_configured`; por tanto, no consultó tickets ni fabricó indicadores. Dos disparos posteriores durante la estabilización reutilizaron `scheduled:2026-09-17` con `reused: true`. La base conserva una sola auditoría para esa fecha, lo que demuestra la idempotencia de la corrida. El job fue pausado durante la estabilización y reanudado sólo cuando la plataforma confirmó la próxima ejecución a las 09:00 UTC.
+
+## D10 — Certificación final
+
+La certificación cubrió los contratos D0–D9, compatibilidad con las vistas Clásico/Lista, seguridad tRPC, ejecución programada, persistencia, datos reales y presentación responsive. La matriz completa ejecutó 90 pruebas en seis suites; todas aprobaron. Se agregaron regresiones específicas que confirman que usuarios `consulta` y `pm` pueden leer el historial D9, pero no pueden iniciar actualizaciones manuales JSM, mientras `admin` y `pmo` conservan la operación autorizada.
+
+Durante el gate se detectó que una prueba CRUD heredada creaba el fixture `Acme Corp / Soporte N1` sin teardown. Las dos filas generadas durante la certificación y sus dependencias se eliminaron transaccionalmente. La prueba ahora registra cada ID creado y lo elimina al finalizar, incluyendo cuotas, documentos, etapas y auditorías. Una nueva ejecución integral confirmó 90/90 pruebas aprobadas, cero fixtures ACME y preservación de los tres servicios productivos.
+
+| Dimensión certificada | Evidencia |
+|---|---|
+| Contratos de métricas y calidad | Suites D0–D6 aprobadas |
+| Lectura JSM GET-only y degradación N/D | Suites D7 y runner D9 aprobadas |
+| Historial, autorización e idempotencia | Suites tRPC/runner D9 aprobadas |
+| Compatibilidad V1/V2 y detalle 360° | Suite de router/agregador y navegación conservada |
+| Datos productivos | 3 servicios preservados; 0 fixtures ACME |
+| Rendimiento observado | `dashboardV2` respondió en 62 ms en la navegación validada |
+| Build de producción | Exitoso |
+| Revisión visual | 1440 × 1000 y 390 × 844 en `/recurring-services` |
+| TypeScript | 0 errores nuevos; permanecen 5 errores heredados fuera del alcance |
+| Job diario | Activo, 09:00 UTC, callback cron-only y UID durable |
+
+Las limitaciones actuales son de datos, no de cálculo: los tres servicios productivos carecen de un vínculo JSM confirmado, por lo que incidentes y SLA se muestran como N/D; seis documentos contractuales están presentes pero pendientes de validación; y no existe evidencia financiera confirmada para facturado/cobrado. Estas ausencias se presentan explícitamente y no se convierten en cumplimiento ni en montos inferidos.
+
+El procedimiento operativo y de recuperación quedó documentado en `docs/dashboard-servicios-recurrentes-v2-operacion.md`. El registro visual de escritorio y móvil se conserva en `docs/d10-visual-verification.md`.
