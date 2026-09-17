@@ -39,7 +39,8 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | D6 — Reportes y formalidad documental | Completada |
 | D7 — Incidentes y cumplimiento SLA JSM | Completada |
 | D8 — Detalle 360° por servicio | Completada |
-| D9–D10 | Pendientes |
+| D9 — Actualización e historial operacional | En activación controlada |
+| D10 — Certificación final | Pendiente |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -206,3 +207,27 @@ La cabecera 360° resume salud, cobertura de evidencia, calidad, reportes vencid
 | Evidencias | Formalidad de contrato/SoW e inventario de evidencia D2 |
 
 Se añadió una regresión que verifica que el filtro por `serviceId` reduzca consistentemente matriz, finanzas, entregables y documentos al servicio solicitado. El gate D8 aprobó 34 pruebas y el build. La revisión visual se realizó en escritorio y móvil sobre un servicio productivo, confirmando navegación, jerarquía y degradación N/D.
+
+## D9 — Actualización diaria, historial y observabilidad
+
+Se extrajo `recurringServicesJsmRefreshRunner.ts` como único flujo para las actualizaciones manuales y programadas. El runner selecciona servicios activos, omite explícitamente servicios inactivos o sin vínculo JSM, reutiliza el recolector GET-only D7 y la persistencia idempotente de snapshots, continúa ante fallos individuales y consolida estados `success`, `partial`, `error` y `skipped`. Cada corrida se registra en `audit_logs` con un `operationId` estable, origen, tiempos, conteos y resultados sanitizados por servicio.
+
+Las mutaciones manuales D7 ahora invocan el runner común y conservan los permisos `admin`/`pmo`. Se agregó `recurringServices.jsmRefreshHistory` como consulta protegida y paginada que reutiliza auditoría en vez de crear otra tabla. La Torre V2 muestra las cinco corridas más recientes, su origen manual o programado, fecha, estado, exitosas, parciales, errores y omitidas; mantiene estados de carga, vacío y error, e invalida dashboard e historial de forma coordinada después de un refresco manual.
+
+El callback `POST /api/scheduled/refreshRecurringServicesJsm` autentica con el SDK, exige identidad cron y `taskUid`, compara ese UID con la configuración durable `recurring_services_jsm_refresh_task_uid` y responde `200 skipped: orphan` para tareas desconocidas. La corrida diaria usa un `operationId` por fecha UTC para impedir repetición del acceso a JSM en reintentos y limita cada ejecución a 25 servicios dentro del timeout de dos minutos. No existe `setInterval`, `node-cron` ni escritura hacia Jira/JSM.
+
+| Control D9 previo a activación | Resultado |
+|---|---|
+| Runner compartido manual/programado | Implementado |
+| Auditoría e historial | `audit_logs`, sin tabla redundante |
+| Idempotencia de snapshots | Fingerprint D7 reutilizado |
+| Idempotencia de corrida diaria | `operationId` UTC reutilizable |
+| Callback cron-only | Implementado y montado antes del fallthrough |
+| Task UID durable | Helper `admin_settings` y validación por clave |
+| Job diario activo | No; se activa sólo después del checkpoint publicado |
+| Pruebas focales D7–D9 | 21 aprobadas |
+| Build | Exitoso |
+| Revisión visual | 1440 × 1000 y 390 × 844 |
+| Errores TypeScript nuevos | 0; permanecen cinco heredados |
+
+La programación propuesta es diaria a las `09:00 UTC` (`0 0 9 * * *`), equivalente a las 06:00 en la zona del usuario durante UTC−3. La activación se realizará como un checkpoint separado: crear el Heartbeat de proyecto, persistir su `taskUid`, ejecutar una corrida controlada y revisar logs. Hasta completar ese gate, el callback publicado es seguro porque cualquier UID no registrado se degrada a `orphan` sin reintentos.

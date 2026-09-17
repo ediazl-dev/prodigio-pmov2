@@ -647,6 +647,21 @@ export async function getAdminSettingValue(key: string) {
   return rows[0]?.value ?? null;
 }
 
+export async function setAdminSettingValue(input: { key: string; value: string | null; description?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(adminSettings).values({
+    key: input.key,
+    value: input.value,
+    description: input.description ?? null,
+  }).onDuplicateKeyUpdate({
+    set: {
+      value: input.value,
+      description: input.description ?? null,
+    },
+  });
+}
+
 export async function resolveOpenJiraImportExceptions(input: {
   onboardingId: number;
   domains: Array<"milestones" | "risks" | "planning" | "documents">;

@@ -11,6 +11,7 @@ import { sdk } from "./sdk";
 import { runFinancialSync } from "../financialSync";
 import { captureHealthSnapshot } from "../healthSnapshot";
 import { scheduledJiraReconciliationHandler } from "../jiraReconciliationSchedule";
+import { scheduledRecurringServicesJsmHandler } from "../recurringServicesJsmRefreshRunner";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -87,6 +88,8 @@ async function startServer() {
   });
   // Heartbeat: conciliación Jira diaria para proyectos homologados ready.
   app.post("/api/scheduled/syncJiraHomologated", scheduledJiraReconciliationHandler);
+  // Heartbeat: actualización diaria GET-only de snapshots JSM/SLA para servicios recurrentes.
+  app.post("/api/scheduled/refreshRecurringServicesJsm", scheduledRecurringServicesJsmHandler);
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

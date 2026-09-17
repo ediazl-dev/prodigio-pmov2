@@ -11,6 +11,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  Clock3,
   CircleDollarSign,
   DatabaseZap,
   FileCheck2,
@@ -100,6 +101,13 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   sow: "SoW",
 };
 
+const JSM_RUN_STATUS_UI: Record<string, { label: string; className: string }> = {
+  success: { label: "Exitosa", className: "bg-emerald-100 text-emerald-900" },
+  partial: { label: "Parcial", className: "bg-amber-100 text-amber-950" },
+  error: { label: "Error", className: "bg-red-100 text-red-900" },
+  skipped: { label: "Omitida", className: "bg-slate-100 text-slate-700" },
+};
+
 function KpiCard({
   eyebrow,
   value,
@@ -174,16 +182,25 @@ export default function RecurringServicesDashboardV2() {
   const { data, isLoading, error, refetch, isFetching } = trpc.recurringServices.dashboardV2.useQuery(input as any, {
     staleTime: 30_000,
   });
+  const historyInput = useMemo(() => ({ page: 1, limit: 5 }), []);
+  const {
+    data: jsmRefreshHistory,
+    isLoading: isLoadingJsmHistory,
+    error: jsmHistoryError,
+    refetch: refetchJsmHistory,
+  } = trpc.recurringServices.jsmRefreshHistory.useQuery(historyInput, { staleTime: 30_000 });
   const refreshJsmSnapshots = trpc.recurringServices.refreshJsmSnapshots.useMutation({
     onSuccess: async result => {
       if (result.eligibleCount === 0) {
         toast.info("No hay servicios activos con un vínculo JSM confirmado.");
       } else if (result.errorCount > 0) {
         toast.warning(`JSM actualizado con ${result.errorCount} servicio(s) en error.`);
+      } else if (result.partialCount > 0) {
+        toast.warning(`JSM actualizado con ${result.partialCount} servicio(s) con cobertura parcial.`);
       } else {
         toast.success(`${result.successCount} servicio(s) actualizado(s) desde JSM.`);
       }
-      await refetch();
+      await Promise.all([refetch(), refetchJsmHistory()]);
     },
     onError: mutationError => toast.error(mutationError.message || "No fue posible actualizar JSM."),
   });
@@ -422,6 +439,66 @@ export default function RecurringServicesDashboardV2() {
           </div>
           <div className="mt-4 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-600">
             Última captura: <b className="text-slate-900">{metadata.latestJsmSnapshotAt ? new Date(metadata.latestJsmSnapshotAt).toLocaleString("es-CL") : "N/D"}</b>
+          </div>
+          <div className="mt-5 border-t border-slate-200 pt-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Historial de actualización</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">Corridas manuales y programadas, sin convertir fallos parciales en cumplimiento.</p>
+              </div>
+              <Clock3 size={17} className="mt-0.5 shrink-0 text-[#175CD3]" />
+            </div>
+
+            {isLoadingJsmHistory ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600">
+                <RefreshCw size={14} className="animate-spin" /> Cargando ejecuciones…
+              </div>
+            ) : jsmHistoryError ? (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-900">
+                <p className="font-bold">Historial no disponible</p>
+                <p className="mt-1 leading-5">{jsmHistoryError.message}</p>
+                <button onClick={() => refetchJsmHistory()} className="mt-2 font-bold text-red-800 underline underline-offset-2">Reintentar</button>
+              </div>
+            ) : !jsmRefreshHistory?.runs.length ? (
+              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                Aún no existen corridas D9 registradas. La actualización manual generará la primera evidencia.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {jsmRefreshHistory.runs.map(run => {
+                  const statusUi = JSM_RUN_STATUS_UI[run.status] ?? JSM_RUN_STATUS_UI.partial;
+                  return (
+                    <article key={run.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-black text-slate-900">{run.trigger === "scheduled" ? "Actualización diaria" : "Actualización manual"}</p>
+                          <p className="mt-0.5 text-[10px] text-slate-500">{new Date(run.completedAt).toLocaleString("es-CL")}</p>
+                        </div>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusUi.className}`}>{statusUi.label}</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-4 gap-1 text-center">
+                        {[
+                          { label: "OK", value: run.successCount, tone: "text-emerald-700" },
+                          { label: "Parcial", value: run.partialCount, tone: "text-amber-700" },
+                          { label: "Error", value: run.errorCount, tone: "text-red-700" },
+                          { label: "Omit.", value: run.skippedCount, tone: "text-slate-700" },
+                        ].map(item => (
+                          <div key={item.label} className="rounded-lg bg-white px-1 py-2">
+                            <b className={`block text-sm ${item.tone}`}>{item.value}</b>
+                            <span className="text-[9px] font-bold uppercase text-slate-500">{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {run.errors.length > 0 && (
+                        <p className="mt-2 line-clamp-2 text-[10px] leading-4 text-red-700">
+                          {run.errors[0].serviceName}: {run.errors[0].errorMessage ?? "Cobertura parcial sin detalle adicional."}
+                        </p>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </aside>
       </section>
