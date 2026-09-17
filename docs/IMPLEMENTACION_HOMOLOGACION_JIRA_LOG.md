@@ -174,3 +174,22 @@ La corrección amplió `runId` a `varchar(191)` mediante la migración aditiva `
 | TypeScript | Ningún error nuevo; permanecen los cinco errores heredados documentados |
 
 El onboarding real de `PMOCCLSRPM` se mantuvo sin reintento ni alteración durante el diagnóstico. El usuario puede volver a ejecutar **Diagnosticar y preparar vínculo** después de publicada esta corrección.
+
+## Cierre H7–H8 — 17 de septiembre de 2026
+
+El piloto real `PMOCCLSRPM`, onboarding `180001` y proyecto PMO `2670001`, permanece `ready` en el paso 7. Conserva una fuente contractual aprobada, seis hitos con baseline completo, 19 riesgos, 31 tareas WBS, dos documentos y las seis etapas canónicas. La vista productiva muestra `ONBOARDING LISTO`, el botón **Sincronizar ahora**, separación entre baseline y plan Jira, historial de diez corridas y excepciones trazables.
+
+La certificación final ampliada ejecutó 155 pruebas H0–H8 en 27 archivos: 155 aprobaron y siete pruebas opt-in permanecieron omitidas por diseño. La prueba persistente H7 sí se ejecutó y dejó cero proyectos, onboardings, corridas o mappings transitorios. Se agregó además una regresión de lote con cuatro proyectos `ready`: dos aplicados, uno parcial y uno con error aislado. El segundo disparo con la misma operación diaria reutilizó los tres resultados terminales y sólo reintentó el proyecto fallido, demostrando continuidad, reintento acotado y no duplicidad más allá del piloto único.
+
+| Control H8 por lotes | Resultado |
+|---|---|
+| Elegibilidad | Sólo onboardings `ready` enumerados por el repositorio |
+| Tamaño máximo | 50 proyectos por corrida; exceso reportado como diferido |
+| Continuidad | Un error de proyecto no interrumpe los siguientes |
+| Parciales | Se contabilizan por proyecto y mantienen resultados válidos |
+| Reintento diario | `operationId` estable por fecha UTC |
+| No duplicidad | Resultados terminales reutilizados por proyecto/onboarding |
+| Seguridad | Callback autenticado y `taskUid` durable |
+| Escrituras Jira | Ninguna; dirección Jira → PMO |
+
+La ampliación productiva continúa siendo deliberadamente gradual: cada proyecto debe completar preflight, mapeo, aprobación humana y primera conciliación antes de entrar al lote diario. La evidencia operativa y rollback están en `docs/cierre-h7-h8-homologacion-jira-2026-09-17.md`.

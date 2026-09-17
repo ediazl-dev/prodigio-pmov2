@@ -77,6 +77,57 @@ describe("conciliación diaria Jira H7", () => {
     expect(result).toMatchObject({ status: "partial", candidateCount: 51, processedCount: 50, deferredCount: 1, reusedCount: 50 });
   });
 
+  it("estabiliza un lote multi-proyecto y reutiliza la misma operación diaria sin duplicar", async () => {
+    const projects = [
+      { onboardingId: 21, projectId: 201, jiraProjectKey: "READYA" },
+      { onboardingId: 22, projectId: 202, jiraProjectKey: "READYB" },
+      { onboardingId: 23, projectId: 203, jiraProjectKey: "READYC" },
+      { onboardingId: 24, projectId: 204, jiraProjectKey: "READYD" },
+    ];
+    const completed = new Set<number>();
+    const reconcile = vi.fn(async ({ projectId, operationId }: { projectId: number; operationId: string }) => {
+      expect(operationId).toBe("daily:2026-08-29");
+      if (projectId === 204) throw new Error("fallo aislado del proyecto");
+      const reused = completed.has(projectId);
+      completed.add(projectId);
+      if (projectId === 202) return { status: "partial", reused, exceptions: 2 };
+      return { status: "applied", reused, exceptions: 0 };
+    });
+    const deps = batchDependencies({
+      listReadyProjects: vi.fn().mockResolvedValue(projects),
+      reconcile,
+    });
+
+    const first = await runScheduledJiraReconciliationBatch({ taskUid: "task-jira-123" }, deps);
+    const retry = await runScheduledJiraReconciliationBatch({ taskUid: "task-jira-123" }, deps);
+
+    expect(first).toMatchObject({
+      status: "partial",
+      candidateCount: 4,
+      processedCount: 4,
+      appliedCount: 2,
+      partialCount: 1,
+      reusedCount: 0,
+      errorCount: 1,
+    });
+    expect(retry).toMatchObject({
+      status: "partial",
+      candidateCount: 4,
+      processedCount: 4,
+      appliedCount: 2,
+      partialCount: 1,
+      reusedCount: 3,
+      errorCount: 1,
+    });
+    expect(reconcile).toHaveBeenCalledTimes(8);
+    expect(retry.results.map(result => [result.projectId, result.reused])).toEqual([
+      [201, true],
+      [202, true],
+      [203, true],
+      [204, false],
+    ]);
+  });
+
   it("bloquea visitantes externos y cron sin taskUid", async () => {
     const external = responseRecorder();
     await createScheduledJiraReconciliationHandler({
