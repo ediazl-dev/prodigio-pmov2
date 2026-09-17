@@ -131,7 +131,7 @@ export function buildRecurringJsmSnapshot(input: {
   }
 
   const sla = summarizeSla(slaRecordsByIssue);
-  const status: SnapshotStatus = slaFailureCount === 0 ? "success" : slaFailureCount < issues.length ? "partial" : "error";
+  const status: SnapshotStatus = slaFailureCount === 0 ? "success" : "partial";
   const snapshotBody = {
     issues: issues.map(issue => ({
       key: issue.key,

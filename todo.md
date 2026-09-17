@@ -546,3 +546,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D9: publicar el callback, activar el job diario de proyecto, persistir su task UID, ejecutar una corrida controlada e inspeccionar logs.
 - [x] D10: ejecutar pruebas unitarias, persistentes y funcionales, revisión visual responsive, seguridad de roles, rendimiento y no regresión.
 - [x] D10: documentar operación, resultados, limitaciones y rollback; guardar y publicar el checkpoint final certificado.
+
+## Incidencia — Camanchaca muestra proyecto Jira pero actualización JSM lo omite
+
+- [x] Revisar la evidencia adjunta y distinguir el proyecto Jira visible de un Service Desk JSM confirmado.
+- [x] Trazar el registro productivo de Camanchaca, el vínculo JSM persistido y la condición exacta usada por el refresco.
+- [x] Corregir la causa si existe una inconsistencia funcional o de datos, sin escribir ni modificar tickets Jira/JSM.
+- [x] Probar permisos, elegibilidad, actualización e interfaz; documentar el diagnóstico y publicar un checkpoint recuperable.
+- [x] Respaldar el registro local y las dependencias JSM de Camanchaca antes de reparar el vínculo.
+- [x] Ejecutar preflight GET-only y confirmar localmente el Service Desk `365` mediante el runner homologado.
+- [x] Actualizar snapshots JSM de Camanchaca y verificar auditoría, historial, elegibilidad y presentación en la Torre.

@@ -877,13 +877,25 @@ export async function saveRecurringJsmSnapshot(data: InsertRecurringServiceJsmSn
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  const reuseExisting = async (existing: { id: number; capturedAt: Date }) => {
+    await db
+      .update(recurringServiceJsmSnapshots)
+      .set({
+        status: data.status,
+        errorCode: data.errorCode,
+        errorMessage: data.errorMessage,
+      })
+      .where(eq(recurringServiceJsmSnapshots.id, existing.id));
+    return { id: existing.id, capturedAt: existing.capturedAt, created: false };
+  };
+
   if (data.dataFingerprint) {
     const [existing] = await db
       .select({ id: recurringServiceJsmSnapshots.id, capturedAt: recurringServiceJsmSnapshots.capturedAt })
       .from(recurringServiceJsmSnapshots)
       .where(and(eq(recurringServiceJsmSnapshots.serviceId, data.serviceId), eq(recurringServiceJsmSnapshots.dataFingerprint, data.dataFingerprint)))
       .limit(1);
-    if (existing) return { id: existing.id, capturedAt: existing.capturedAt, created: false };
+    if (existing) return reuseExisting(existing);
   }
 
   try {
@@ -896,7 +908,7 @@ export async function saveRecurringJsmSnapshot(data: InsertRecurringServiceJsmSn
         .from(recurringServiceJsmSnapshots)
         .where(and(eq(recurringServiceJsmSnapshots.serviceId, data.serviceId), eq(recurringServiceJsmSnapshots.dataFingerprint, data.dataFingerprint)))
         .limit(1);
-      if (existing) return { id: existing.id, capturedAt: existing.capturedAt, created: false };
+      if (existing) return reuseExisting(existing);
     }
     throw error;
   }

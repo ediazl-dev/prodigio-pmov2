@@ -90,4 +90,26 @@ describe("recurring services JSM snapshots", () => {
     expect(result.errorCode).toBe("JSM_SLA_PARTIAL");
     expect(result.incidentCount).toBe(2);
   });
+
+  it("conserva incidentes y degrada a parcial cuando todos los SLA son inaccesibles", async () => {
+    const first = issue({ key: "OPS-1", priority: "Medium", statusKey: "indeterminate", created: "2026-09-01T00:00:00.000Z" });
+    const second = issue({ key: "OPS-2", priority: "Medium", statusKey: "new", created: "2026-09-02T00:00:00.000Z" });
+    const searchIssues = vi.fn().mockResolvedValue({ issues: [first, second], isLast: true });
+    const getRequestSlas = vi.fn().mockRejectedValue(new Error("You do not have permission to fetch the list of SLA custom fields"));
+
+    const result = await collectRecurringJsmSnapshot({
+      service: { id: 10, jsmProjectKey: "OPS", jsmServiceDeskId: "42" },
+      source: "manual",
+      capturedAt: new Date("2026-09-17T12:00:00.000Z"),
+      adapter: { searchIssues: searchIssues as any, getRequestSlas: getRequestSlas as any },
+    });
+
+    expect(result.status).toBe("partial");
+    expect(result.errorCode).toBe("JSM_SLA_PARTIAL");
+    expect(result.errorMessage).toBe("2 solicitudes no pudieron aportar métricas SLA.");
+    expect(result.incidentCount).toBe(2);
+    expect(result.openIncidentCount).toBe(2);
+    expect(result.firstResponseCompliancePct).toBeNull();
+    expect(result.resolutionCompliancePct).toBeNull();
+  });
 });
