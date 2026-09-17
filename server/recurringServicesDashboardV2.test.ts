@@ -269,4 +269,18 @@ describe("buildRecurringServicesDashboardV2", () => {
     expect(service?.status).toBe("at_risk");
     expect(service?.documents.find(document => document.docType === "contrato")?.status).toBe("expired");
   });
+
+  it("filtra exactamente por serviceId para alimentar el detalle 360°", () => {
+    const result = buildRecurringServicesDashboardV2(source, {
+      cutOffDate: "2026-03-16",
+      filters: { serviceId: 2 },
+    });
+
+    expect(result.metadata.totalBeforeFilters).toBe(2);
+    expect(result.metadata.totalAfterFilters).toBe(1);
+    expect(result.matrix.map(item => item.serviceId)).toEqual([2]);
+    expect(result.financeAnalytics.services.map(item => item.serviceId)).toEqual([2]);
+    expect(result.deliverables.rows.map(item => item.serviceId)).toEqual([2]);
+    expect(result.documents.services.map(item => item.serviceId)).toEqual([2]);
+  });
 });

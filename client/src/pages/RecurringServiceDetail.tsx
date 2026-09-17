@@ -9,6 +9,7 @@ import {
 import { useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { RECURRING_SERVICE_TYPE_LABELS } from "@shared/recurringServiceTypes";
+import { RecurringService360 } from "./recurring/RecurringService360";
 
 const C = {
   navy: "#0B1A2E", navy2: "#132B4A", navy3: "#1A3358",
@@ -140,7 +141,9 @@ export default function RecurringServiceDetail() {
         </div>
       </div>
 
-      {/* ── PIPELINE DE ETAPAS ── */}
+      <RecurringService360 serviceId={id} />
+
+      {/* ── Progress Stepper ── */}
       <div style={{
         background: "#fff", borderRadius: 16, border: `1px solid ${C.border}`,
         padding: "28px 32px", marginBottom: 24,

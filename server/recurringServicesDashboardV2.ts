@@ -15,6 +15,7 @@ import {
 export type DashboardHealthFilter = "critical" | "attention" | "stable" | "no_data";
 
 export interface RecurringDashboardV2Filters {
+  serviceId?: number;
   clientName?: string;
   status?: string;
   serviceType?: string;
@@ -154,6 +155,7 @@ function baseServiceIds(source: RecurringDashboardV2Source, filters: RecurringDa
   const currency = filters.currency ? normalizedCurrency(filters.currency) : undefined;
   return new Set(
     source.services
+      .filter(service => !filters.serviceId || service.id === filters.serviceId)
       .filter(service => !filters.clientName || service.clientName === filters.clientName)
       .filter(service => !filters.status || service.status === filters.status)
       .filter(service => !filters.serviceType || service.serviceType === filters.serviceType)

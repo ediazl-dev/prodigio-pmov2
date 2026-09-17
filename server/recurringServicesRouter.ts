@@ -258,6 +258,7 @@ export const recurringServicesRouter = router({
       z
         .object({
           cutOffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          serviceId: z.number().int().positive().optional(),
           clientName: z.string().min(1).optional(),
           status: z.string().min(1).optional(),
           serviceType: recurringServiceTypeSchema.optional(),
@@ -273,6 +274,7 @@ export const recurringServicesRouter = router({
       return buildRecurringServicesDashboardV2(source as any, {
         cutOffDate,
         filters: {
+          serviceId: input?.serviceId,
           clientName: input?.clientName,
           status: input?.status,
           serviceType: input?.serviceType,

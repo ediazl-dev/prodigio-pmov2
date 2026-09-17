@@ -539,7 +539,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D6: implementar heatmap de reportes, evidencia de entrega/aceptación y panel de formalidad documental.
 - [x] D7: implementar lectura JSM de incidentes, prioridades, antigüedad, primera respuesta y resolución, sin fabricar cumplimiento cuando falten datos.
 - [x] D7: persistir snapshots e historial de SLA/incidentes con degradación explícita por falta de vínculo, permiso o timeout.
-- [ ] D8: construir la vista 360° por servicio con Resumen, Finanzas, Entregables, Incidentes y SLA, y Documentación.
+- [x] D8: construir la vista 360° por servicio con Resumen, Finanzas, Entregables, Incidentes y SLA, y Documentación.
 - [ ] D9: incorporar actualización manual idempotente, actualización diaria controlada, historial, frescura y errores parciales por servicio.
 - [ ] D10: ejecutar pruebas unitarias, persistentes y funcionales, revisión visual responsive, seguridad de roles, rendimiento y no regresión.
 - [ ] D10: documentar operación, resultados, limitaciones y rollback; guardar y publicar el checkpoint final certificado.

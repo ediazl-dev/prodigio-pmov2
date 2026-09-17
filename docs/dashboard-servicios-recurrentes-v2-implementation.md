@@ -37,7 +37,9 @@ Antes de cualquier reconciliación se creó una salvaguarda física con prefijo 
 | D4 — Torre de Control V2 | Completada |
 | D5 — Analítica financiera recurrente | Completada |
 | D6 — Reportes y formalidad documental | Completada |
-| D7–D10 | Pendientes |
+| D7 — Incidentes y cumplimiento SLA JSM | Completada |
+| D8 — Detalle 360° por servicio | Completada |
+| D9–D10 | Pendientes |
 
 ## D0 — Contrato de métricas y salud determinista
 
@@ -168,3 +170,39 @@ La Torre V2 incorpora un heatmap horizontal navegable y un panel de formalidad p
 | Build | Exitoso |
 
 La primera revisión visual detectó una excepción `RangeError` al representar períodos sin fecha. Se corrigió mediante un formateador tolerante y se añadió una prueba de regresión; la segunda captura confirmó la carga completa del dashboard y de sus nuevos módulos.
+
+## D7 — Incidentes y cumplimiento SLA JSM
+
+Se implementó un recolector JSM de solo lectura que pagina las solicitudes del proyecto vinculado, clasifica prioridades y estados, calcula incidentes abiertos, críticos, vencidos y abiertos por más de 30 días, y consulta los ciclos SLA oficiales de cada solicitud. La primera respuesta y la resolución se calculan sobre ciclos medidos, separando numerador y denominador; si Atlassian no entrega medición, el resultado permanece N/D.
+
+Cada ejecución persiste un snapshot inmutable e idempotente mediante fingerprint. El endpoint manual individual y el refresco global están restringidos a roles `admin` y `pmo`, registran auditoría y continúan frente a errores parciales. La interfaz agrega `Actualizar JSM`, cobertura, frescura, incidentes, antigüedad y dos indicadores SLA. La consulta `Actualizar lectura` continúa siendo independiente y no escribe datos.
+
+| Control D7 | Resultado |
+|---|---|
+| Acceso externo | Solo GET a Jira/JSM |
+| Persistencia | Snapshot local idempotente por fingerprint |
+| Permisos de actualización | Admin y PMO |
+| Indicadores | Total, abiertos, críticos, altos, vencidos y +30 días |
+| SLA | Primera respuesta y resolución sobre ciclos medidos |
+| Servicios productivos con vínculo JSM confirmado | 0 de 3 |
+| Estado actual de KPIs operacionales | N/D, correctamente degradado |
+| Pruebas focales acumuladas | 33 aprobadas |
+| Build | Exitoso |
+
+La validación visual se realizó en la ruta real `/recurring-services`. Un primer intento sobre `/servicios-recurrentes` confirmó un 404 esperado y no corresponde a una falla del dashboard. La implementación usa la estructura de ciclos SLA documentada por Atlassian y conserva el detalle de fuentes y errores en cada snapshot.
+
+## D8 — Detalle 360° por servicio
+
+El detalle de cada servicio incorpora una vista 360° antes del pipeline operativo existente. La nueva lectura usa el mismo contrato consolidado del portafolio con un filtro exacto por `serviceId`; así, los KPIs, reglas de salud y diagnósticos permanecen idénticos entre la Torre de Control y el detalle, sin cálculos divergentes en el cliente.
+
+La cabecera 360° resume salud, cobertura de evidencia, calidad, reportes vencidos e incidentes abiertos. Cinco pestañas organizan la información en **Resumen, Financiero, Entregables, SLA e incidentes, y Evidencias**. El pipeline original continúa visible y conserva las acciones de configuración y ejecución ya existentes.
+
+| Pestaña | Contenido principal |
+|---|---|
+| Resumen | Salud, tipo, etapa, Deal, señales y hallazgos de calidad |
+| Financiero | Contratado, programado, facturado, cobrado, CxC, pendiente, vencido y conciliación |
+| Entregables | Calendario de reportes, fechas, evidencia, aceptación y puntualidad |
+| SLA e incidentes | Totales, abiertos, críticos, vencidos, antigüedad y cumplimiento medido |
+| Evidencias | Formalidad de contrato/SoW e inventario de evidencia D2 |
+
+Se añadió una regresión que verifica que el filtro por `serviceId` reduzca consistentemente matriz, finanzas, entregables y documentos al servicio solicitado. El gate D8 aprobó 34 pruebas y el build. La revisión visual se realizó en escritorio y móvil sobre un servicio productivo, confirmando navegación, jerarquía y degradación N/D.
