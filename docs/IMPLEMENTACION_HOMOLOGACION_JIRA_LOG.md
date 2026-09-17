@@ -193,3 +193,5 @@ La certificación final ampliada ejecutó 155 pruebas H0–H8 en 27 archivos: 15
 | Escrituras Jira | Ninguna; dirección Jira → PMO |
 
 La ampliación productiva continúa siendo deliberadamente gradual: cada proyecto debe completar preflight, mapeo, aprobación humana y primera conciliación antes de entrar al lote diario. La evidencia operativa y rollback están en `docs/cierre-h7-h8-homologacion-jira-2026-09-17.md`.
+
+El cierre técnico fue publicado en el checkpoint `9c3e5a7e`. Esa versión contiene la prueba multi-proyecto, el manual de cierre, la evidencia del piloto y el backlog H7–H8 validado.

@@ -51,6 +51,8 @@ Cada nuevo proyecto debe pasar por búsqueda del Space, preflight GET-only, mape
 
 El lote diario procesa únicamente onboardings `ready`, hasta un máximo de 50 por corrida. Si existe exceso, lo informa como diferido; si un proyecto falla, continúa con los siguientes. Los resultados aplicados o parciales se reutilizan al repetir el mismo `operationId` diario, mientras un error aislado puede reintentarse sin duplicar los proyectos ya conciliados.
 
+La versión certificada de este cierre es `9c3e5a7e`. Incluye la regresión multi-proyecto, 155 pruebas aprobadas, documentación operativa y resultados del piloto `PMOCCLSRPM`.
+
 ## Rollback
 
 Ante una regresión se debe pausar la tarea programada del proyecto, conservar las filas de auditoría y restaurar el checkpoint de aplicación anterior. La eliminación de un onboarding o de sus mappings requiere respaldo físico y autorización explícita; no debe eliminarse el proyecto Jira ni escribirse en sus issues. Si una corrida parcial contiene datos válidos, se corrige la excepción y se reintenta el mismo flujo idempotente en vez de borrar lo ya homologado.

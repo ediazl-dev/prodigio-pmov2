@@ -41,9 +41,9 @@
 - [x] H7: validar permisos, no-autocierre, no-autoaceptación, no-sobrescritura de baseline, limpieza de pruebas, build y experiencia visual en escritorio/móvil.
 - [x] H8: ejecutar piloto, reconciliar resultados y estabilizar la migración por lotes.
 - [x] Ejecutar validación integral, corregir regresiones y limpiar cualquier dato de prueba.
-- [ ] Guardar y publicar la versión final con documentación operativa y resultados del piloto.
+- [x] Guardar y publicar la versión final con documentación operativa y resultados del piloto.
 - [x] Validar y documentar la estabilización H8 por lotes: elegibilidad, múltiples proyectos, parciales, errores, reintentos y no duplicidad más allá del piloto único.
-- [ ] Registrar en la bitácora y en un checkpoint específico el versionId, pruebas, resultados del piloto y estado final H7–H8.
+- [x] Registrar en la bitácora y en un checkpoint específico el versionId, pruebas, resultados del piloto y estado final H7–H8.
 
 - [x] Comparar el alta nativa y la incorporación desde Jira en las seis etapas, datos, evidencias, permisos y transiciones.
 - [x] Diseñar el modelo objetivo para homologar proyectos Jira sin perder historia ni marcar etapas completadas sin evidencia.
