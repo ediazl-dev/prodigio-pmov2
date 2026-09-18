@@ -598,7 +598,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Panel de control ejecutivo — ejecución 2026-09-18
 
 - [x] R0: Confirmar checkpoint `0a7df6ff`, refs alineadas, rama limpia y línea base de cinco errores TypeScript heredados.
-- [ ] B1: Integrar motor ejecutivo puro, fuente de datos y endpoint `projects.executive`.
+- [x] B1: Integrar motor ejecutivo puro, fuente de datos y endpoint `projects.executive`.
 - [ ] B2: Integrar Home y componentes preservando prevención de nombres duplicados, ID PMO y permisos.
 - [ ] B3: Certificar datos reales, multimoneda, N/D, orden por urgencia, roles y responsive.
 - [ ] B4: Documentar, guardar checkpoint final y dejar el árbol limpio.

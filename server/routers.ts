@@ -77,6 +77,7 @@ import { runProductionInitialJiraDomainImport } from "./jiraDomainImportRunner";
 import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
 import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
+import { getExecutivePortfolio } from "./executivePortfolioSource";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -412,6 +413,8 @@ const projectsRouter = router({
       return { success: true };
     }),
   stats: protectedProcedure.query(async () => getDashboardStats()),
+  /** Lectura agregada del panel de control ejecutivo. */
+  executive: protectedProcedure.query(async () => getExecutivePortfolio()),
   assignPm: adminOrPmo.input(z.object({ projectId: z.number(), pmId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await updateProject(input.projectId, { pmId: input.pmId });
