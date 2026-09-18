@@ -85,6 +85,7 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
       currency: row.currency ?? null,
       startDate: row.startDate ?? null,
       endDate: row.endDate ?? null,
+      origin: row.origin ?? null,
     })),
     compliance: compliance.details,
     deadlines: deadlineRows.map(row => ({

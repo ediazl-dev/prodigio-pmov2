@@ -606,7 +606,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Portafolio de proyectos — ejecución compatible 2026-09-18
 
 - [x] P0: Confirmar checkpoint `7c2700cf`, refs alineadas, árbol limpio y conflicto del parche documentado.
-- [ ] P1: Extender el motor con `portfolio` preservando riesgos confirmados, plazos efectivos y extensiones válidas.
+- [x] P1: Extender el motor con `portfolio` preservando riesgos confirmados, plazos efectivos y extensiones válidas.
 - [ ] P2: Integrar view model, filtros y tabla densa preservando ID PMO, anti-duplicidad, permisos y borrado protegido.
 - [ ] P3: Certificar filtros, orden, multimoneda, N/D, roles, accesibilidad y datos reales.
 - [ ] P4: Documentar, guardar checkpoint final y dejar la rama limpia.

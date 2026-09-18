@@ -37,6 +37,8 @@ export interface ExecutiveProjectSource {
   currency: string | null;
   startDate: string | null;
   endDate: string | null;
+  /** Distingue proyectos creados en PMO de proyectos vinculados desde Jira. */
+  origin?: string | null;
 }
 
 /** Una fila de `getComplianceMetrics().details`. */
@@ -108,6 +110,9 @@ export interface ExecutivePortfolioInput {
 
 export type AttentionState = "overdue" | "at_risk" | "on_track" | "no_deadline";
 
+/** Un proyecto cerrado o cancelado no tiene plazo vigente que medir. */
+export type DeadlineState = AttentionState | "not_applicable";
+
 export interface AttentionRow {
   projectId: number;
   projectName: string;
@@ -125,6 +130,36 @@ export interface AttentionRow {
   highRisksOpen: number;
   amount: number | null;
   currency: string | null;
+}
+
+/** Una fila por proyecto para la lista completa del portafolio. */
+export interface PortfolioRow {
+  projectId: number;
+  projectName: string;
+  clientName: string;
+  dealId: string | null;
+  projectType: string | null;
+  origin: string | null;
+  status: ProjectStatus;
+  stageId: string;
+  stageLabel: string;
+  stageIndex: number;
+  totalStages: number;
+  /** Etapas efectivamente cerradas, no la posición del cursor. */
+  stagesClosed: number;
+  daysUsed: number | null;
+  daysAllowed: number | null;
+  overDays: number | null;
+  deadlineState: DeadlineState;
+  pmId: number | null;
+  pmName: string | null;
+  amount: number | null;
+  currency: string | null;
+  /** Un monto ausente se conserva como ausencia, no como cero. */
+  amountMissing: boolean;
+  highRisksOpen: number;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export interface CurrencyFigure {
@@ -196,6 +231,8 @@ export interface ExecutivePortfolio {
   };
 
   attention: AttentionRow[];
+  /** Todos los proyectos en orden de entrada; la UI filtra y ordena. */
+  portfolio: PortfolioRow[];
   stageDistribution: StageDistributionRow[];
 
   closed: {
@@ -256,6 +293,14 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     highOpenByProject.set(risk.projectId, (highOpenByProject.get(risk.projectId) ?? 0) + 1);
   }
 
+  const completedStages = input.compliance.filter(
+    detail => detail.status === "on_time" || detail.status === "late",
+  );
+  const closedStagesByProject = new Map<number, number>();
+  for (const detail of completedStages) {
+    closedStagesByProject.set(detail.projectId, (closedStagesByProject.get(detail.projectId) ?? 0) + 1);
+  }
+
   /* ── Etapas en curso: lo que se atrasa hoy ──────────────────────────────── */
 
   const inProgress = input.compliance.filter(detail => detail.status === "in_progress");
@@ -268,17 +313,29 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     }
   }
 
-  const attention: AttentionRow[] = activeProjects.map(project => {
+  function deadlineFor(project: ExecutiveProjectSource) {
     const detail = inProgressByProject.get(project.id) ?? null;
     const measurable = detail !== null && detail.totalAllowed > 0;
-    const overDays = measurable ? detail!.daysUsed - detail!.totalAllowed : null;
+    const overDays = measurable ? detail.daysUsed - detail.totalAllowed : null;
 
     let state: AttentionState = "no_deadline";
     if (measurable) {
       if (overDays! > 0) state = "overdue";
-      else if (detail!.daysUsed >= detail!.totalAllowed * AT_RISK_RATIO) state = "at_risk";
+      else if (detail.daysUsed >= detail.totalAllowed * AT_RISK_RATIO) state = "at_risk";
       else state = "on_track";
     }
+
+    return {
+      detail,
+      overDays,
+      state,
+      daysUsed: detail?.daysUsed ?? null,
+      daysAllowed: measurable ? detail.totalAllowed : null,
+    };
+  }
+
+  const attention: AttentionRow[] = activeProjects.map(project => {
+    const deadline = deadlineFor(project);
 
     return {
       projectId: project.id,
@@ -286,12 +343,12 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       clientName: project.clientName,
       dealId: project.dealId,
       pmName: project.pmId !== null ? (userById.get(project.pmId) ?? null) : null,
-      stageId: detail?.stageId ?? project.currentStage,
-      stageLabel: labelFor(detail?.stageId ?? project.currentStage),
-      daysUsed: detail?.daysUsed ?? null,
-      daysAllowed: measurable ? detail!.totalAllowed : null,
-      overDays,
-      state,
+      stageId: deadline.detail?.stageId ?? project.currentStage,
+      stageLabel: labelFor(deadline.detail?.stageId ?? project.currentStage),
+      daysUsed: deadline.daysUsed,
+      daysAllowed: deadline.daysAllowed,
+      overDays: deadline.overDays,
+      state: deadline.state,
       highRisksOpen: highOpenByProject.get(project.id) ?? 0,
       amount: toNumber(project.totalAmount),
       currency: normalizeCurrency(project.currency),
@@ -317,6 +374,39 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   const overDaysValues = attention
     .map(row => row.overDays)
     .filter((value): value is number => value !== null && value > 0);
+
+  const portfolio: PortfolioRow[] = input.projects.map(project => {
+    const hasLiveDeadline = project.status === "activo" || project.status === "pausado";
+    const deadline = hasLiveDeadline ? deadlineFor(project) : null;
+    const amount = toNumber(project.totalAmount);
+
+    return {
+      projectId: project.id,
+      projectName: project.projectName,
+      clientName: project.clientName,
+      dealId: project.dealId,
+      projectType: project.projectType,
+      origin: project.origin ?? null,
+      status: project.status,
+      stageId: project.currentStage,
+      stageLabel: labelFor(project.currentStage),
+      stageIndex: STAGE_ORDER.indexOf(project.currentStage),
+      totalStages: STAGE_ORDER.length,
+      stagesClosed: closedStagesByProject.get(project.id) ?? 0,
+      daysUsed: deadline?.daysUsed ?? null,
+      daysAllowed: deadline?.daysAllowed ?? null,
+      overDays: deadline?.overDays ?? null,
+      deadlineState: deadline?.state ?? "not_applicable",
+      pmId: project.pmId,
+      pmName: project.pmId !== null ? (userById.get(project.pmId) ?? null) : null,
+      amount,
+      currency: amount === null ? null : normalizeCurrency(project.currency),
+      amountMissing: amount === null,
+      highRisksOpen: highOpenByProject.get(project.id) ?? 0,
+      startDate: project.startDate,
+      endDate: project.endDate,
+    };
+  });
 
   /* ── Dinero, por moneda y nunca agregado entre monedas ──────────────────── */
 
@@ -359,9 +449,6 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
 
   /* ── Cumplimiento de plazo en toda la cartera ───────────────────────────── */
 
-  const completedStages = input.compliance.filter(
-    detail => detail.status === "on_time" || detail.status === "late",
-  );
   const onTime = completedStages.filter(detail => detail.status === "on_time").length;
   const late = completedStages.length - onTime;
 
@@ -453,6 +540,7 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     },
 
     attention,
+    portfolio,
     stageDistribution,
 
     closed: {
