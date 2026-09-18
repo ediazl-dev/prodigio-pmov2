@@ -590,7 +590,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] S0: Fijar rama, checkpoint y línea base reproducible.
 - [x] S1: Integrar literalmente el nuevo detalle del servicio y retirar Vista 360 heredada.
 - [x] S2: Corregir compatibilidad del detalle: acciones, evidencia, finanzas, errores, refresco y permisos.
-- [ ] S3: Integrar contrato de compuerta JSM con salud real y autoridad del servidor.
+- [x] S3: Integrar contrato de compuerta JSM con salud real y autoridad del servidor.
 - [ ] S4: Reordenar JSM Setup por cirugía de render preservando sus seis mutaciones.
 - [ ] S5: Certificar JSM Setup con tests de roles, mismatch, mappings, dry-run y cierre sin escrituras productivas.
 - [ ] S6: Certificar ambas páginas en escritorio/móvil y guardar checkpoint final.
