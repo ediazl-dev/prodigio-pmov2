@@ -583,4 +583,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Corregir compatibilidad responsive, permisos del CTA, estados N/D, evidencia vacía, multimoneda, orden de cola y pestaña inicial.
 - [x] Añadir regresiones para los casos de compatibilidad sin alterar el contrato de métricas 2.0.
 - [x] Ejecutar pruebas recurrentes, comparar TypeScript con la línea base y generar build productivo.
-- [ ] Validar Torre V2, Clásico y Lista con datos reales y roles vigentes; guardar checkpoint final.
+- [x] Validar Torre V2, Clásico y Lista con datos reales y roles vigentes; guardar checkpoint final.
