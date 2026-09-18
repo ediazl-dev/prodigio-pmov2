@@ -27,6 +27,12 @@ import {
   buildHistoricalReconciliationMetadata,
 } from "./jiraOnboardingMaterialization";
 import { assessJiraBaselineApproval } from "./jiraBaselineProposal";
+import {
+  DuplicateProjectNameError,
+  isProjectNameUniqueConstraintError,
+  normalizeProjectName,
+  type ProjectIdentityConflict,
+} from "../shared/projectIdentity";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -205,10 +211,40 @@ export async function getProjectById(id: number) {
   return result[0];
 }
 
+export async function getProjectByName(projectName: string, excludeProjectId?: number): Promise<ProjectIdentityConflict | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const normalizedName = normalizeProjectName(projectName);
+  const condition = excludeProjectId == null
+    ? eq(projects.projectName, normalizedName)
+    : and(eq(projects.projectName, normalizedName), ne(projects.id, excludeProjectId));
+  const rows = await db.select({
+    id: projects.id,
+    projectName: projects.projectName,
+    clientName: projects.clientName,
+    currentStage: projects.currentStage,
+    status: projects.status,
+    origin: projects.origin,
+    jiraProjectKey: projects.jiraProjectKey,
+  }).from(projects).where(condition).limit(1);
+  return rows[0] ?? null;
+}
+
 export async function createProject(data: InsertProject) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(projects).values(data);
+  const projectName = normalizeProjectName(data.projectName);
+  const existingProject = await getProjectByName(projectName);
+  if (existingProject) throw new DuplicateProjectNameError(projectName, existingProject);
+  let result: unknown;
+  try {
+    [result] = await db.insert(projects).values({ ...data, projectName });
+  } catch (error) {
+    if (isProjectNameUniqueConstraintError(error)) {
+      throw new DuplicateProjectNameError(projectName, await getProjectByName(projectName));
+    }
+    throw error;
+  }
   const projectId = (result as any).insertId as number;
   // Create all stages as locked (sow = in_progress, rest = locked)
   const stages = ["sow", "jira", "risks", "planning", "design", "closure"] as const;
@@ -226,7 +262,20 @@ export async function createProject(data: InsertProject) {
 export async function updateProject(id: number, data: Partial<InsertProject>) {
   const db = await getDb();
   if (!db) return;
-  await db.update(projects).set({ ...data, updatedAt: new Date() }).where(eq(projects.id, id));
+  const updateData = { ...data };
+  if (typeof data.projectName === "string") {
+    updateData.projectName = normalizeProjectName(data.projectName);
+    const existingProject = await getProjectByName(updateData.projectName, id);
+    if (existingProject) throw new DuplicateProjectNameError(updateData.projectName, existingProject);
+  }
+  try {
+    await db.update(projects).set({ ...updateData, updatedAt: new Date() }).where(eq(projects.id, id));
+  } catch (error) {
+    if (typeof updateData.projectName === "string" && isProjectNameUniqueConstraintError(error)) {
+      throw new DuplicateProjectNameError(updateData.projectName, await getProjectByName(updateData.projectName, id));
+    }
+    throw error;
+  }
 }
 
 // ==================== PROJECT STAGES ====================
@@ -1717,19 +1766,30 @@ export async function createLinkedProject(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  const projectName = normalizeProjectName(data.projectName);
+  const existingProject = await getProjectByName(projectName);
+  if (existingProject) throw new DuplicateProjectNameError(projectName, existingProject);
   const stagePlan = buildCanonicalLinkedProjectStagePlan();
-  const [result] = await db.insert(projects).values({
-    projectName: data.projectName,
-    clientName: data.clientName,
-    jiraProjectKey: data.jiraProjectKey,
-    jiraProjectUrl: data.jiraProjectUrl,
-    pmoId: data.pmoId,
-    pmId: data.pmId ?? null,
-    projectType: (data.projectType as any) ?? "otro",
-    status: stagePlan.projectStatus,
-    currentStage: stagePlan.currentStage,
-    origin: "linked",
-  });
+  let result: unknown;
+  try {
+    [result] = await db.insert(projects).values({
+      projectName,
+      clientName: data.clientName,
+      jiraProjectKey: data.jiraProjectKey,
+      jiraProjectUrl: data.jiraProjectUrl,
+      pmoId: data.pmoId,
+      pmId: data.pmId ?? null,
+      projectType: (data.projectType as any) ?? "otro",
+      status: stagePlan.projectStatus,
+      currentStage: stagePlan.currentStage,
+      origin: "linked",
+    });
+  } catch (error) {
+    if (isProjectNameUniqueConstraintError(error)) {
+      throw new DuplicateProjectNameError(projectName, await getProjectByName(projectName));
+    }
+    throw error;
+  }
   const projectId = (result as any).insertId as number;
   for (const stage of stagePlan.stages) {
     await db.insert(projectStages).values({

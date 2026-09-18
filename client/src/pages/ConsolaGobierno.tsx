@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { AlertCircle, ArrowRight, Download, Plus } from "lucide-react";
 
 type EstadoConsola = "CRITICO" | "ROJO" | "NARANJO" | "AMARILLO" | "VERDE" | "POR_CONFIRMAR";
@@ -303,6 +304,7 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                     <div className="cg-pinfo">
                       <div className="cg-l1">
                         <h3>{proyecto.projectName}</h3>
+                        <ProjectIdBadge projectId={proyecto.projectId} />
                         <span className="cg-cliente">{proyecto.clientName} · Deal {proyecto.dealId}</span>
                         <span className={`cg-chip cg-c-${estado.toLowerCase()}`}>{config.label}</span>
                         {proyecto.sinBaseline && (
@@ -582,7 +584,7 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
             ) : (
               data?.cerrados?.items?.map((cerrado) => (
                 <tr key={cerrado.projectId} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/projects/${cerrado.projectId}`}>
-                  <td><a href={`/projects/${cerrado.projectId}`} style={{ color: "var(--cg-azul)", textDecoration: "none", fontWeight: 500 }} onClick={(e) => e.stopPropagation()}>{cerrado.projectName}</a></td>
+                  <td><div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}><a href={`/projects/${cerrado.projectId}`} style={{ color: "var(--cg-azul)", textDecoration: "none", fontWeight: 500 }} onClick={(e) => e.stopPropagation()}>{cerrado.projectName}</a><ProjectIdBadge projectId={cerrado.projectId} /></div></td>
                   <td>{cerrado.clientName}</td>
                   <td className="cg-mono">{cerrado.currentStage === "closure" ? "Cierre" : cerrado.currentStage}</td>
                   <td className="cg-num">

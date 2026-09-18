@@ -1,6 +1,7 @@
 import AppBreadcrumb from "@/components/AppBreadcrumb";
 import { BaselineExecutiveCard } from "@/components/BaselineExecutiveCard";
 import { JiraHomologationStatusCard } from "@/components/JiraHomologationStatusCard";
+import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -276,6 +277,7 @@ export default function ProjectDetail() {
                   <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: "'Poppins', 'Inter', sans-serif", lineHeight: 1.2 }}>
                     {data.projectName}
                   </h1>
+                  <ProjectIdBadge projectId={projectId} tone="dark" />
                   <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: status.bg, color: status.fg }}>
                     {status.label}
                   </span>
@@ -417,6 +419,7 @@ export default function ProjectDetail() {
                 <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: "'Poppins', 'Inter', sans-serif", lineHeight: 1.2 }}>
                   {data.projectName}
                 </h1>
+                <ProjectIdBadge projectId={projectId} tone="dark" />
                 <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: status.bg, color: status.fg }}>
                   {status.label}
                 </span>

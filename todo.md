@@ -571,7 +571,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 - [x] Ejecutar gate R0 y diagnosticar los registros `2280001` y `2670001` sin modificar datos.
 - [x] Respaldar íntegramente y eliminar sólo el proyecto duplicado `2280001`, preservando `2670001` y sin reconciliar montos.
-- [ ] Incorporar una llave de nombre normalizado con restricción única en `projects` y migración reversible.
-- [ ] Bloquear nombres duplicados en alta y edición, y reutilizar el proyecto existente compatible durante la homologación Jira.
-- [ ] Mostrar el identificador `PMO-{id}` en listado, inicio, detalle, consola y vistas ejecutivas principales.
-- [ ] Cubrir regresiones, aplicar la migración, ejecutar build y revisión visual, y guardar checkpoint final.
+- [x] Incorporar una llave de nombre normalizado con restricción única en `projects` y migración reversible.
+- [x] Bloquear nombres duplicados en alta y edición, y reutilizar el proyecto existente compatible durante la homologación Jira.
+- [x] Mostrar el identificador `PMO-{id}` en listado, inicio, detalle, consola y vistas ejecutivas principales.
+- [x] Cubrir regresiones, aplicar la migración, ejecutar build y revisión visual, y guardar checkpoint final.

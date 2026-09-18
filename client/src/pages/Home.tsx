@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
+import { formatPmoProjectId, normalizeProjectName } from "@shared/projectIdentity";
 import {
   Activity,
   ArrowRight,
@@ -107,7 +109,13 @@ export default function Home() {
       toast.error("Nombre del proyecto y cliente son requeridos");
       return;
     }
-    createMutation.mutate(form as any);
+    const projectName = normalizeProjectName(form.projectName);
+    const duplicate = (projects ?? []).find((project: any) => normalizeProjectName(project.projectName) === projectName);
+    if (duplicate) {
+      toast.error(`Ya existe ${formatPmoProjectId(duplicate.id)} con ese nombre. Abre ese proyecto en vez de crear otro.`);
+      return;
+    }
+    createMutation.mutate({ ...form, projectName } as any);
   };
 
   const recentProjects = projects?.slice(0, 8) ?? [];
@@ -309,9 +317,12 @@ export default function Home() {
 
                       {/* Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {p.projectName}
-                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {p.projectName}
+                          </p>
+                          <ProjectIdBadge projectId={p.id} />
+                        </div>
                         <p style={{ fontSize: 10, color: C.g400, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {p.clientName}
                         </p>

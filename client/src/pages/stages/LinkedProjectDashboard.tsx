@@ -6,6 +6,7 @@ import {
   History, Clock, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
 import AppBreadcrumb from "@/components/AppBreadcrumb";
+import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { useParams } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -409,9 +410,12 @@ export default function LinkedProjectDashboard() {
                 · {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" })} · Reporte de {isClosed ? "Cierre" : "Avance"}
               </span>
             </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", lineHeight: 1.15 }}>
-              {project.name}
-            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", lineHeight: 1.15 }}>
+                {project.name}
+              </h1>
+              <ProjectIdBadge projectId={projectId} tone="dark" />
+            </div>
             <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>
               {project.dealId} · PM: {fin?.pm || "N/D"} · Cliente: {project.client || fin?.clientName || "N/D"} · Línea: {fin?.lineaNegocio || "N/D"}
             </p>

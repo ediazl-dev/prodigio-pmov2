@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
+import { DuplicateProjectNameError, formatPmoProjectId, normalizeProjectName } from "@shared/projectIdentity";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -10,7 +11,7 @@ import {
   upsertUser, getUserByOpenId, getAllUsers, updateUserRole, updateUserStatus, inviteUser,
   deleteUser, getUserByEmail,
   createInvitation, getInvitationByToken, acceptInvitation, getPendingInvitations,
-  getAllProjects, getProjectsByPm, getProjectById, createProject, updateProject,
+  getAllProjects, getProjectsByPm, getProjectById, getProjectByName, createProject, updateProject,
   getProjectStages, updateProjectStage, unlockNextStage,
   getSowByProject, upsertSow,
   getRisksByProject, bulkInsertRisks, getConfirmedRisksByProject, bulkUpdateRiskConfirmed,
@@ -379,18 +380,34 @@ const projectsRouter = router({
     currency: z.string().optional(),
     startDate: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
-    const id = await createProject({
-      ...input,
-      pmoId: ctx.user.id,
-      status: "activo",
-      currentStage: "sow",
-    } as any);
+    let id: number;
+    try {
+      id = await createProject({
+        ...input,
+        projectName: normalizeProjectName(input.projectName),
+        pmoId: ctx.user.id,
+        status: "activo",
+        currentStage: "sow",
+      } as any);
+    } catch (error) {
+      if (error instanceof DuplicateProjectNameError) {
+        throw new TRPCError({ code: "CONFLICT", message: error.message, cause: error });
+      }
+      throw error;
+    }
     await audit(ctx, "create", "project", id, input.projectName, { clientName: input.clientName, projectType: input.projectType });
     return { id };
   }),
   update: adminOrPmo.input(z.object({ id: z.number(), data: z.record(z.string(), z.any()) }))
     .mutation(async ({ input, ctx }) => {
-      await updateProject(input.id, input.data);
+      try {
+        await updateProject(input.id, input.data);
+      } catch (error) {
+        if (error instanceof DuplicateProjectNameError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message, cause: error });
+        }
+        throw error;
+      }
       await audit(ctx, "update", "project", input.id, null, { fields: Object.keys(input.data) });
       return { success: true };
     }),
@@ -5523,12 +5540,25 @@ const jiraRouter = router({
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: assessment.errors.join(" ") });
     }
 
-    const existingProject = state.onboarding.projectId
+    const projectBoundToOnboarding = state.onboarding.projectId
       ? await getProjectById(state.onboarding.projectId)
       : await getProjectByJiraProjectKey(key);
+    const projectMatchedByName = projectBoundToOnboarding
+      ? null
+      : await getProjectByName(identity.projectName);
+    const existingProject = projectBoundToOnboarding ?? projectMatchedByName;
     let projectId = existingProject?.id ?? null;
-    if (existingProject && existingProject.jiraProjectKey?.toUpperCase() !== key) {
-      throw new TRPCError({ code: "CONFLICT", message: "El onboarding apunta a un proyecto PMO incompatible" });
+    if (existingProject?.jiraProjectKey && existingProject.jiraProjectKey.toUpperCase() !== key) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `El nombre ya pertenece a ${formatPmoProjectId(existingProject.id)}, vinculado a Jira ${existingProject.jiraProjectKey}.`,
+      });
+    }
+    if (projectMatchedByName && !["sow", "jira"].includes(projectMatchedByName.currentStage)) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `${formatPmoProjectId(projectMatchedByName.id)} ya usa este nombre y está en ${projectMatchedByName.currentStage}. Revisa ese proyecto antes de homologar.`,
+      });
     }
     const jiraUrl = `${process.env.JIRA_BASE_URL}/jira/software/projects/${key}/boards`;
     if (!projectId) {
@@ -5540,6 +5570,17 @@ const jiraRouter = router({
         pmoId: identity.deliveryUserId,
         pmId: identity.pmUserId,
         projectType: identity.projectType,
+      });
+    } else if (projectMatchedByName) {
+      await updateProject(projectId, {
+        projectName: normalizeProjectName(identity.projectName),
+        clientName: identity.clientName,
+        jiraProjectKey: key,
+        jiraProjectUrl: jiraUrl,
+        pmoId: identity.deliveryUserId,
+        pmId: identity.pmUserId,
+        projectType: identity.projectType,
+        origin: "linked",
       });
     }
 
@@ -5567,6 +5608,7 @@ const jiraRouter = router({
       spaceId,
       onboardingId: state.onboarding.id,
       reusedProject: Boolean(existingProject),
+      reuseMatch: projectMatchedByName ? "normalized_name" : existingProject ? "jira_or_onboarding" : "created",
       approvedMappings: assessment.approvedCount,
       excludedMappings: assessment.excludedCount,
     });

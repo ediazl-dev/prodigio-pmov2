@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import React, { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 
 const stateTone: Record<string, { accent: string; label: string }> = {
   VERDE: { accent: "verde", label: "VERDE" },
@@ -235,7 +236,7 @@ export default function ExecutiveDashboardV2() {
       @media(max-width:980px){.edv2-body-shell{display:block}.edv2-side-nav{position:sticky;top:60px;display:flex;min-height:auto;max-height:none;flex-direction:row;align-items:center;overflow-x:auto;padding:8px 15px;border-right:0;border-bottom:1px solid var(--line);white-space:nowrap}.edv2-side-nav-title{display:none}.edv2-side-nav a{flex:0 0 auto;min-height:32px}.edv2-side-nav-return{margin:0 0 0 8px;border-top:0;border-left:1px solid var(--line);border-radius:0!important;padding:8px 0 8px 14px!important}}
       @media(prefers-reduced-motion:reduce){.edv2-side-nav a{transition:none}}
     `}</style>
-    <header className="edv2-topbar"><div className="edv2-wrap"><span className="edv2-brand">PRODIGIO · CONTROL</span><div className="edv2-crumb"><a href="/projects">Proyectos</a><span>/</span><b>{project.name}</b><span>/</span><b>Dashboard ejecutivo</b></div><a className="edv2-return" href={`/projects/${projectId}`}><ArrowLeft size={14} />Proyecto</a></div></header>
+    <header className="edv2-topbar"><div className="edv2-wrap"><span className="edv2-brand">PRODIGIO · CONTROL</span><div className="edv2-crumb"><a href="/projects">Proyectos</a><span>/</span><b>{project.name}</b><ProjectIdBadge projectId={projectId} tone="dark" /><span>/</span><b>Dashboard ejecutivo</b></div><a className="edv2-return" href={`/projects/${projectId}`}><ArrowLeft size={14} />Proyecto</a></div></header>
 
     <section className="edv2-hero"><div className="edv2-wrap">
       <p className="edv2-eyebrow">Dictamen de gobierno · nivel contractual</p>

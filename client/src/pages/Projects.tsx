@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
+import { formatPmoProjectId, normalizeProjectName } from "@shared/projectIdentity";
 import {
   ArrowRight,
   FolderKanban,
@@ -135,7 +137,13 @@ export default function Projects() {
       toast.error("Nombre del proyecto y cliente son requeridos");
       return;
     }
-    createMutation.mutate(form as any);
+    const projectName = normalizeProjectName(form.projectName);
+    const duplicate = (projects ?? []).find((project: any) => normalizeProjectName(project.projectName) === projectName);
+    if (duplicate) {
+      toast.error(`Ya existe ${formatPmoProjectId(duplicate.id)} con ese nombre. Abre ese proyecto en vez de crear otro.`);
+      return;
+    }
+    createMutation.mutate({ ...form, projectName } as any);
   };
 
   const totalCount = projects?.length ?? 0;
@@ -317,6 +325,7 @@ export default function Projects() {
                       <p style={{ fontSize: 13, fontWeight: 700, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {p.projectName}
                       </p>
+                      <ProjectIdBadge projectId={p.id} />
                       <span style={{
                         fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
                         background: status.bg, color: status.color,

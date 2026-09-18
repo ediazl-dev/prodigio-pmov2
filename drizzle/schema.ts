@@ -41,7 +41,9 @@ export const projects = mysqlTable("projects", {
   origin: mysqlEnum("origin", ["platform", "linked"]).default("platform").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, table => ({
+  projectNameUnique: uniqueIndex("projects_project_name_unique").on(table.projectName),
+}));
 
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
