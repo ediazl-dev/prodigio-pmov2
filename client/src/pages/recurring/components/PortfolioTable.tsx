@@ -129,7 +129,7 @@ export function PortfolioTable(props: PortfolioTableProps) {
         </div>
       </header>
 
-      <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-2 text-[9.5px] font-black uppercase tracking-[0.1em] text-slate-500">
+      <div className="hidden items-center gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-2 text-[9.5px] font-black uppercase tracking-[0.1em] text-slate-500 2xl:flex">
         <span className="w-[320px] shrink-0">Servicio</span>
         <span className="w-[190px] shrink-0 text-right">Vencido / contratado</span>
         <span className="flex-grow">Señales abiertas</span>
@@ -154,8 +154,11 @@ export function PortfolioTable(props: PortfolioTableProps) {
           {props.rows.map(row => {
             const healthUi = RECURRING_HEALTH_UI[row.health];
             return (
-              <li key={row.serviceId} className="flex items-center gap-3 px-5 py-4 transition hover:bg-slate-50/70">
-                <div className="w-[320px] shrink-0">
+              <li
+                key={row.serviceId}
+                className="grid grid-cols-1 gap-4 px-5 py-4 transition hover:bg-slate-50/70 sm:grid-cols-2 2xl:flex 2xl:items-center 2xl:gap-3"
+              >
+                <div className="min-w-0 sm:col-span-2 2xl:w-[320px] 2xl:shrink-0">
                   <div className="flex items-center gap-2">
                     <span
                       className="inline-flex h-[22px] items-center rounded-full border px-2.5 text-[10px] font-black uppercase tracking-wider"
@@ -184,7 +187,10 @@ export function PortfolioTable(props: PortfolioTableProps) {
                   </p>
                 </div>
 
-                <div className="w-[190px] shrink-0 text-right">
+                <div className="min-w-0 text-left 2xl:w-[190px] 2xl:shrink-0 2xl:text-right">
+                  <p className="mb-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-500 2xl:hidden">
+                    Vencido / contratado
+                  </p>
                   <p
                     className={`font-mono text-[15px] font-black ${
                       row.overdue.byCurrency.length ? "text-[#B42318]" : "text-slate-600"
@@ -192,7 +198,9 @@ export function PortfolioTable(props: PortfolioTableProps) {
                   >
                     {row.overdue.label}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-slate-600">de {row.contractedLabel} contratado</p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">
+                    {row.contractedLabel === "N/D" ? "Contrato sin monto disponible" : `de ${row.contractedLabel} contratado`}
+                  </p>
                   {row.overdueRatio !== null && (
                     <div className="mt-1.5 h-[5px] overflow-hidden rounded bg-slate-100">
                       <i className="block h-full rounded bg-[#B42318]" style={{ width: `${row.overdueRatio}%` }} />
@@ -200,7 +208,10 @@ export function PortfolioTable(props: PortfolioTableProps) {
                   )}
                 </div>
 
-                <ul className="min-w-0 flex-grow space-y-0.5">
+                <ul className="min-w-0 space-y-0.5 sm:col-span-2 2xl:flex-grow">
+                  <li className="mb-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-500 2xl:hidden">
+                    Señales abiertas
+                  </li>
                   {row.signals.length === 0 ? (
                     <li className="text-[11.5px] font-semibold text-[#067647]">
                       Sin alertas según la evidencia disponible.
@@ -214,7 +225,8 @@ export function PortfolioTable(props: PortfolioTableProps) {
                   )}
                 </ul>
 
-                <div className="w-[86px] shrink-0 text-center">
+                <div className="min-w-0 text-left 2xl:w-[86px] 2xl:shrink-0 2xl:text-center">
+                  <p className="mb-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-500 2xl:hidden">Reportes</p>
                   <p
                     className={`font-mono text-sm font-bold ${
                       row.reportsOverdue > 0 ? "text-[#B42318]" : "text-slate-600"
@@ -227,14 +239,16 @@ export function PortfolioTable(props: PortfolioTableProps) {
                   </p>
                 </div>
 
-                <div className="w-[104px] shrink-0 text-center">
+                <div className="min-w-0 text-left 2xl:w-[104px] 2xl:shrink-0 2xl:text-center">
+                  <p className="mb-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-500 2xl:hidden">Formalidad</p>
                   <p className="text-[13px] font-bold text-slate-950">{row.formalizationCoverage}%</p>
                   <p className="text-[10px] text-slate-600">
                     {row.formalizationMissing.length ? `Falta ${row.formalizationMissing.join(", ")}` : "Completa"}
                   </p>
                 </div>
 
-                <div className="w-[86px] shrink-0 text-center">
+                <div className="min-w-0 text-left 2xl:w-[86px] 2xl:shrink-0 2xl:text-center">
+                  <p className="mb-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-500 2xl:hidden">SLA</p>
                   <p className="font-mono text-sm font-bold text-slate-600">
                     {formatRecurringPercent(row.slaFirstResponse)}
                   </p>
@@ -247,7 +261,7 @@ export function PortfolioTable(props: PortfolioTableProps) {
                   type="button"
                   onClick={() => navigate(`/recurring-services/${row.serviceId}`)}
                   aria-label={`Abrir ${row.serviceName}`}
-                  className="inline-flex h-9 w-[84px] shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-bold text-[#175CD3] transition hover:bg-slate-50"
+                  className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-bold text-[#175CD3] transition hover:bg-slate-50 sm:w-[84px] 2xl:shrink-0"
                 >
                   Abrir
                   <ArrowRight size={14} />

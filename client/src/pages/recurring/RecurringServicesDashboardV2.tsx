@@ -196,7 +196,6 @@ export default function RecurringServicesDashboardV2() {
         canRefreshJsm={canRefreshJsm}
         isRefreshingJsm={refreshJsmSnapshots.isPending}
         onRefreshJsm={() => refreshJsmSnapshots.mutate({})}
-        onCreateService={() => navigate("/recurring-services/new")}
       />
 
       <ActionQueue
@@ -236,6 +235,7 @@ export default function RecurringServicesDashboardV2() {
             <OperationsPanel
               data={data}
               tab={tabByKey.operacion}
+              canManageJsm={canRefreshJsm}
               onConfigureJsm={() => navigate("/admin/jsm-spaces")}
             />
           ),

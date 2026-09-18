@@ -72,7 +72,7 @@ export const SIGNAL_CATALOG: Record<string, SignalSpec> = {
   OVERDUE_REPORTS: { domain: "entregables", action: "Revisar entregables", evidenceTab: "entregables" },
   CONTRACT_DOCUMENT_MISSING: { domain: "formalidad", action: "Cargar contrato", evidenceTab: "formalidad" },
   FORMAL_DOCUMENT_MISSING: { domain: "formalidad", action: "Completar formalidad", evidenceTab: "formalidad" },
-  JSM_EVIDENCE_UNAVAILABLE: { domain: "operacion", action: "Configurar JSM", evidenceTab: "operacion" },
+  JSM_EVIDENCE_UNAVAILABLE: { domain: "operacion", action: "Revisar JSM", evidenceTab: "operacion" },
   CRITICAL_INCIDENT_OPEN: { domain: "operacion", action: "Ver incidentes", evidenceTab: "operacion" },
   HIGH_INCIDENT_OPEN: { domain: "operacion", action: "Ver incidentes", evidenceTab: "operacion" },
   SLA_CRITICAL_BREACH: { domain: "operacion", action: "Revisar SLA", evidenceTab: "operacion" },
@@ -111,7 +111,8 @@ export interface OverdueBreakdown {
 
 export function overdueBreakdown(financeByCurrency: Record<string, CurrencyMetrics>): OverdueBreakdown {
   const rows = Object.values(financeByCurrency);
-  const byCurrency = rows
+  const monetaryRows = rows.filter(row => row.currency !== "N/D");
+  const byCurrency = monetaryRows
     .filter(row => row.overdue > 0)
     .map(row => ({ currency: row.currency, overdue: row.overdue, contracted: row.contracted, items: row.overdueItems }))
     .sort((a, b) => b.overdue - a.overdue);
@@ -122,7 +123,7 @@ export function overdueBreakdown(financeByCurrency: Record<string, CurrencyMetri
     : "Sin vencidos";
   const sortKey = byCurrency.length ? byCurrency[0].overdue : 0;
 
-  const single = byCurrency.length === 1 ? byCurrency[0] : null;
+  const single = monetaryRows.length === 1 && byCurrency.length === 1 ? byCurrency[0] : null;
   const percentOfContracted =
     single && single.contracted > 0 ? Math.round((single.overdue / single.contracted) * 100) : null;
 
@@ -201,7 +202,7 @@ export function buildActionQueue(matrix: MatrixRow[], options: BuildQueueOptions
         actionLabel: spec.action,
         href: detailPath(row.serviceId),
         tone: SIGNAL_TONE[signal.level],
-        sortKey: impact.sortKey,
+        sortKey: overdue.sortKey,
       });
     });
   }
@@ -375,9 +376,10 @@ export function buildEvidenceTabs(data: DashboardV2Data, queue: ActionQueueItem[
 
   const countFor = (domain: SignalDomain) => queue.filter(item => item.domain === domain).length;
 
-  const financeHasEvidence = trends.finance.length > 0 || Object.keys(kpis.financeByCurrency).length > 0;
+  const financeHasEvidence =
+    trends.finance.length > 0 || Object.values(kpis.financeByCurrency).some(row => row.currency !== "N/D");
   const deliverablesHaveEvidence = deliverables.periods.length > 0;
-  const documentsHaveEvidence = documents.services.length > 0;
+  const documentsHaveEvidence = documents.summary.present > 0;
   const jsmHasEvidence = kpis.incidents.availableServices > 0;
 
   return [
@@ -388,7 +390,7 @@ export function buildEvidenceTabs(data: DashboardV2Data, queue: ActionQueueItem[
       hasEvidence: financeHasEvidence,
       emptyTitle: "Sin planificación financiera cargada",
       emptyReason: "Ningún servicio del universo filtrado tiene cuotas programadas.",
-      emptyAction: "Cargar plan de facturación",
+      emptyAction: "Revisar cartera",
       tone: countFor("finanzas") > 0 ? "alert" : "calm",
       badge: financeHasEvidence ? String(countFor("finanzas")) : "N/D",
     },
@@ -399,7 +401,7 @@ export function buildEvidenceTabs(data: DashboardV2Data, queue: ActionQueueItem[
       hasEvidence: deliverablesHaveEvidence,
       emptyTitle: "Sin reportes mensuales planificados",
       emptyReason: "No existen hitos de reporte en el plan de trabajo de estos servicios.",
-      emptyAction: "Abrir plan de trabajo",
+      emptyAction: "Revisar cartera",
       tone: countFor("entregables") > 0 ? "alert" : "calm",
       badge: deliverablesHaveEvidence ? String(countFor("entregables")) : "N/D",
     },
@@ -410,7 +412,7 @@ export function buildEvidenceTabs(data: DashboardV2Data, queue: ActionQueueItem[
       hasEvidence: documentsHaveEvidence,
       emptyTitle: "Sin documentos cargados",
       emptyReason: "Ningún servicio tiene contrato ni SoW en el repositorio.",
-      emptyAction: "Cargar contrato",
+      emptyAction: "Revisar cartera",
       tone:
         documents.summary.missing + documents.summary.expiredOrRejected > 0
           ? "alert"
@@ -426,16 +428,16 @@ export function buildEvidenceTabs(data: DashboardV2Data, queue: ActionQueueItem[
       hasEvidence: jsmHasEvidence,
       emptyTitle: "Sin medición operacional: todavía no hay nada que mostrar",
       emptyReason: `${activeServicesWithoutJsm} de ${kpis.activeServices} servicios activos no tienen snapshot JSM vigente, así que incidentes, antigüedad y SLA quedan en N/D.`,
-      emptyAction: "Configurar Service Desk",
+      emptyAction: "Revisar Spaces JSM",
       tone: jsmHasEvidence ? "calm" : "warn",
       badge: jsmHasEvidence ? String(countFor("operacion")) : "N/D",
     },
   ];
 }
 
-/** Primera pestaña con hallazgos; si no hay ninguna, la primera con evidencia. */
+/** Primera pestaña con hallazgos, aunque esté colapsada; después, la primera con evidencia. */
 export function defaultEvidenceTab(tabs: EvidenceTab[]): SignalDomain {
-  const withFindings = tabs.find(tab => tab.findings > 0 && tab.hasEvidence);
+  const withFindings = tabs.find(tab => tab.findings > 0);
   if (withFindings) return withFindings.key;
   const withEvidence = tabs.find(tab => tab.hasEvidence);
   return withEvidence ? withEvidence.key : tabs[0].key;
@@ -513,7 +515,7 @@ export interface PortfolioRow {
 export function buildPortfolioRows(matrix: MatrixRow[]): PortfolioRow[] {
   return matrix.map(row => {
     const overdue = overdueBreakdown(row.financeByCurrency);
-    const currencies = Object.values(row.financeByCurrency);
+    const currencies = Object.values(row.financeByCurrency).filter(item => item.currency !== "N/D");
     const single = currencies.length === 1 ? currencies[0] : null;
 
     return {
@@ -527,7 +529,7 @@ export function buildPortfolioRows(matrix: MatrixRow[]): PortfolioRow[] {
       overdue,
       contractedLabel: currencies.length
         ? currencies.map(item => formatRecurringMoney(item.contracted, item.currency)).join(" + ")
-        : "Sin contrato cargado",
+        : "N/D",
       overdueRatio:
         single && single.contracted > 0 ? Math.min(100, Math.round((single.overdue / single.contracted) * 100)) : null,
       signals: row.healthSignals,

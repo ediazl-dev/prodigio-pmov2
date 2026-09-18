@@ -22,7 +22,7 @@ export function ActionQueue({ items, totalFindings, onlyCritical, onToggleOnlyCr
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-      <header className="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
+      <header className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-red-50">
           <AlertTriangle size={16} className="text-[#B42318]" strokeWidth={2.2} />
         </span>
@@ -57,7 +57,7 @@ export function ActionQueue({ items, totalFindings, onlyCritical, onToggleOnlyCr
         <ul className="divide-y divide-slate-100">
           {items.map(item => (
             <li key={item.id}>
-              <div className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-slate-50/70">
+              <div className="grid gap-3 px-5 py-3.5 transition hover:bg-slate-50/70 xl:grid-cols-[auto_minmax(200px,280px)_minmax(240px,1fr)_150px_152px] xl:items-center">
                 <span
                   className="inline-flex h-[22px] shrink-0 items-center justify-center rounded-full border px-2.5 text-[10px] font-black uppercase tracking-wider"
                   style={{ color: item.tone.text, background: item.tone.surface, borderColor: item.tone.border }}
@@ -65,7 +65,7 @@ export function ActionQueue({ items, totalFindings, onlyCritical, onToggleOnlyCr
                   {item.tone.label}
                 </span>
 
-                <div className="w-[280px] shrink-0">
+                <div className="min-w-0">
                   <p className="truncate text-[13px] font-bold text-slate-950">{item.serviceName}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-600">
                     {item.clientName} · Deal {item.dealId ?? "N/D"} · {item.stageLabel}
@@ -79,7 +79,7 @@ export function ActionQueue({ items, totalFindings, onlyCritical, onToggleOnlyCr
                   </p>
                 </div>
 
-                <div className="w-[150px] shrink-0 text-right">
+                <div className="text-left xl:text-right">
                   <p
                     className={
                       item.impactIsMoney
@@ -95,7 +95,7 @@ export function ActionQueue({ items, totalFindings, onlyCritical, onToggleOnlyCr
                 <button
                   type="button"
                   onClick={() => navigate(item.href)}
-                  className="inline-flex h-9 w-[152px] shrink-0 items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition hover:brightness-95"
+                  className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition hover:brightness-95 sm:w-[152px]"
                   style={{ color: item.tone.text, background: item.tone.surface, borderColor: item.tone.border }}
                 >
                   {item.actionLabel}

@@ -580,7 +580,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 - [x] Ejecutar gate R0 y confirmar base `042e18c` limpia y alineada con ambos remotos.
 - [x] Integrar fielmente el kit entregado sólo en `client/src/pages/recurring/`, sin backend, esquema ni endpoints nuevos.
-- [ ] Corregir compatibilidad responsive, permisos del CTA, estados N/D, evidencia vacía, multimoneda, orden de cola y pestaña inicial.
-- [ ] Añadir regresiones para los casos de compatibilidad sin alterar el contrato de métricas 2.0.
-- [ ] Ejecutar pruebas recurrentes, comparar TypeScript con la línea base y generar build productivo.
+- [x] Corregir compatibilidad responsive, permisos del CTA, estados N/D, evidencia vacía, multimoneda, orden de cola y pestaña inicial.
+- [x] Añadir regresiones para los casos de compatibilidad sin alterar el contrato de métricas 2.0.
+- [x] Ejecutar pruebas recurrentes, comparar TypeScript con la línea base y generar build productivo.
 - [ ] Validar Torre V2, Clásico y Lista con datos reales y roles vigentes; guardar checkpoint final.

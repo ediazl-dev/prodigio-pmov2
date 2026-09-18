@@ -40,7 +40,6 @@ interface DecisionHeaderProps {
   canRefreshJsm: boolean;
   isRefreshingJsm: boolean;
   onRefreshJsm: () => void;
-  onCreateService: () => void;
 }
 
 export function DecisionHeader(props: DecisionHeaderProps) {
@@ -59,6 +58,27 @@ export function DecisionHeader(props: DecisionHeaderProps) {
             <h1 className="mt-1.5 text-2xl font-black tracking-[-0.02em] sm:text-[26px]">
               {props.requiresAttention} de {props.totalServices} servicios requieren acción
             </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {healthKeys.map(key => {
+                const item = RECURRING_HEALTH_UI[key];
+                const selected = props.health === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => props.onHealthChange(selected ? "all" : key)}
+                    aria-pressed={selected}
+                    className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 transition ${
+                      selected ? "border-white/55 bg-white/[0.18]" : "border-white/15 bg-white/[0.06] hover:bg-white/[0.12]"
+                    }`}
+                  >
+                    <i className="h-2 w-2 rounded-full" style={{ background: item.tone }} aria-hidden="true" />
+                    <span className="text-[11px] font-bold">{item.shortLabel}</span>
+                    <b className="font-mono text-[13px] font-black">{props.healthCounts[key]}</b>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -92,39 +112,10 @@ export function DecisionHeader(props: DecisionHeaderProps) {
                 Actualizar JSM
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={props.onCreateService}
-              className="h-[38px] border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
-            >
-              Nuevo servicio
-            </Button>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {healthKeys.map(key => {
-              const item = RECURRING_HEALTH_UI[key];
-              const selected = props.health === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => props.onHealthChange(selected ? "all" : key)}
-                  aria-pressed={selected}
-                  className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 transition ${
-                    selected ? "border-white/55 bg-white/[0.18]" : "border-white/15 bg-white/[0.06] hover:bg-white/[0.12]"
-                  }`}
-                >
-                  <i className="h-2 w-2 rounded-full" style={{ background: item.tone }} aria-hidden="true" />
-                  <span className="text-[11px] font-bold">{item.shortLabel}</span>
-                  <b className="font-mono text-[13px] font-black">{props.healthCounts[key]}</b>
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex-grow" />
+        <div className="mt-3 flex justify-end">
           <span className="text-[11px] text-slate-400">
             Corte {formatCutOffDate(props.cutOffDate)} · {props.visibleLabel} · contrato de métricas{" "}
             {props.contractVersion}

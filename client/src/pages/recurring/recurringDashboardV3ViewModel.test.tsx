@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildActionQueue,
+  buildEvidenceTabs,
+  buildPortfolioRows,
   defaultEvidenceTab,
   overdueBreakdown,
   specForSignal,
+  type DashboardV2Data,
   type EvidenceTab,
   type MatrixRow,
 } from "./recurringDashboardV3ViewModel";
@@ -45,6 +48,25 @@ function currency(code: string, overdue: number, contracted: number, items: numb
   };
 }
 
+function dashboard(overrides: Partial<Record<string, unknown>> = {}): DashboardV2Data {
+  return {
+    kpis: {
+      totalServices: 1,
+      activeServices: 1,
+      incidents: { availableServices: 0 },
+      financeByCurrency: {},
+    },
+    matrix: [],
+    trends: { finance: [] },
+    deliverables: { periods: [] },
+    documents: {
+      summary: { present: 0, missing: 2, expiredOrRejected: 0, pendingValidation: 0 },
+      services: [],
+    },
+    ...overrides,
+  } as unknown as DashboardV2Data;
+}
+
 describe("overdueBreakdown", () => {
   it("no suma monedas distintas: las lista por separado", () => {
     const result = overdueBreakdown({
@@ -66,6 +88,14 @@ describe("overdueBreakdown", () => {
     const result = overdueBreakdown({ USD: currency("USD", 390, 1170, 2) });
     expect(result.percentOfContracted).toBe(33);
     expect(result.items).toBe(2);
+  });
+
+  it("no calcula porcentaje si existe otra moneda contratada aunque no esté vencida", () => {
+    const result = overdueBreakdown({
+      USD: currency("USD", 390, 1170, 2),
+      CLP: currency("CLP", 0, 2_000_000, 0),
+    });
+    expect(result.percentOfContracted).toBeNull();
   });
 
   it("devuelve 'Sin vencidos' cuando no hay saldo vencido", () => {
@@ -129,6 +159,53 @@ describe("buildActionQueue", () => {
     const queue = buildActionQueue(matrix, { stageLabels: { jira_setup: "JSM Setup" } });
     expect(queue[0].stageLabel).toBe("JSM Setup");
   });
+
+  it("ordena también las señales no financieras por el mayor vencido del servicio", () => {
+    const queue = buildActionQueue([
+      row({
+        serviceId: 1,
+        serviceName: "Menor exposición",
+        financeByCurrency: { USD: currency("USD", 100, 500, 1) },
+        healthSignals: [{ code: "JSM_EVIDENCE_UNAVAILABLE", level: "attention", message: "Sin medición." }],
+      }),
+      row({
+        serviceId: 2,
+        serviceName: "Mayor exposición",
+        financeByCurrency: { USD: currency("USD", 500, 1000, 2) },
+        healthSignals: [{ code: "JSM_EVIDENCE_UNAVAILABLE", level: "attention", message: "Sin medición." }],
+      }),
+    ]);
+    expect(queue.map(item => item.serviceName)).toEqual(["Mayor exposición", "Menor exposición"]);
+  });
+});
+
+describe("evidencia y cartera sin valores inventados", () => {
+  it("no trata un bucket N/D en cero ni placeholders documentales como evidencia", () => {
+    const data = dashboard({
+      kpis: {
+        totalServices: 1,
+        activeServices: 1,
+        incidents: { availableServices: 0 },
+        financeByCurrency: { "N/D": currency("N/D", 0, 0, 0) },
+      },
+      documents: {
+        summary: { present: 0, missing: 2, expiredOrRejected: 0, pendingValidation: 0 },
+        services: [{ serviceId: 1, documents: [{ status: "missing" }, { status: "missing" }] }],
+      },
+    });
+
+    const tabs = buildEvidenceTabs(data, []);
+    expect(tabs.find(tab => tab.key === "finanzas")?.hasEvidence).toBe(false);
+    expect(tabs.find(tab => tab.key === "formalidad")?.hasEvidence).toBe(false);
+  });
+
+  it("muestra N/D en contratado cuando sólo existe el bucket placeholder", () => {
+    const [portfolioRow] = buildPortfolioRows([
+      row({ financeByCurrency: { "N/D": currency("N/D", 0, 0, 0) } }),
+    ]);
+    expect(portfolioRow.contractedLabel).toBe("N/D");
+    expect(portfolioRow.overdueRatio).toBeNull();
+  });
 });
 
 describe("defaultEvidenceTab", () => {
@@ -154,12 +231,12 @@ describe("defaultEvidenceTab", () => {
     expect(defaultEvidenceTab(tabs)).toBe("formalidad");
   });
 
-  it("ignora una pestaña con hallazgos pero sin evidencia que mostrar", () => {
+  it("abre una pestaña con hallazgos aunque su evidencia esté colapsada", () => {
     const tabs = [
       tab({ key: "finanzas", findings: 0, hasEvidence: true }),
       tab({ key: "operacion", findings: 9, hasEvidence: false }),
     ];
-    expect(defaultEvidenceTab(tabs)).toBe("finanzas");
+    expect(defaultEvidenceTab(tabs)).toBe("operacion");
   });
 
   it("cae en la primera con evidencia cuando no hay hallazgos", () => {

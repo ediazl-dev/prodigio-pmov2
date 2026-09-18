@@ -73,6 +73,10 @@ function Stat({ label, value, className = "text-slate-950" }: { label: string; v
   );
 }
 
+function focusPortfolio() {
+  document.getElementById("cartera")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Financiero — fusión de "Compromiso financiero" y "Analítica financiera"
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -84,6 +88,7 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
         title={tab.emptyTitle}
         reason={tab.emptyReason}
         actionLabel={tab.emptyAction}
+        onAction={focusPortfolio}
         icon={WalletCards}
         restores="Este panel muestra la tendencia mensual y la reconciliación por Deal en cuanto existan cuotas programadas."
       />
@@ -294,6 +299,7 @@ export function DeliverablesPanel({ data, tab }: { data: DashboardV2Data; tab: E
         title={tab.emptyTitle}
         reason={tab.emptyReason}
         actionLabel={tab.emptyAction}
+        onAction={focusPortfolio}
         icon={CalendarDays}
         restores="Este panel muestra el calendario mes a mes en cuanto el plan de trabajo tenga hitos de reporte."
       />
@@ -411,6 +417,7 @@ export function FormalityPanel({ data, tab }: { data: DashboardV2Data; tab: Evid
         title={tab.emptyTitle}
         reason={tab.emptyReason}
         actionLabel={tab.emptyAction}
+        onAction={focusPortfolio}
         icon={ShieldCheck}
         restores="Este panel muestra el estado de contrato y SoW por servicio en cuanto exista al menos un documento cargado."
       />
@@ -494,10 +501,12 @@ export function FormalityPanel({ data, tab }: { data: DashboardV2Data; tab: Evid
 export function OperationsPanel({
   data,
   tab,
+  canManageJsm,
   onConfigureJsm,
 }: {
   data: DashboardV2Data;
   tab: EvidenceTab;
+  canManageJsm: boolean;
   onConfigureJsm: () => void;
 }) {
   const { kpis } = data;
@@ -508,7 +517,7 @@ export function OperationsPanel({
       <EmptyDimension
         title={tab.emptyTitle}
         reason={tab.emptyReason}
-        actionLabel={tab.emptyAction}
+        actionLabel={canManageJsm ? "Administrar Spaces JSM" : "Ver Spaces JSM"}
         onAction={onConfigureJsm}
         icon={DatabaseZap}
         facts={[
@@ -567,9 +576,11 @@ export function OperationsPanel({
               <span className="font-bold text-slate-700">{item.label}</span>
               <b className="font-mono text-slate-950">{formatRecurringPercent(item.value)}</b>
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-[#12A08D]" style={{ width: `${item.value ?? 0}%` }} />
-            </div>
+            {item.value !== null && (
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-[#12A08D]" style={{ width: `${item.value}%` }} />
+              </div>
+            )}
             {item.value === null && <p className="mt-2 text-[11px] text-slate-600">N/D hasta contar con ciclos SLA medidos.</p>}
           </div>
         ))}
