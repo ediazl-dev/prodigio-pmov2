@@ -68,6 +68,7 @@ export interface ExecutiveRiskSource {
   impact: "alto" | "medio" | "bajo" | "por_confirmar";
   probability: "alta" | "media" | "baja" | "por_confirmar";
   mitigation: string | null;
+  confirmed: boolean;
 }
 
 export interface ExecutiveMilestoneSource {
@@ -146,7 +147,10 @@ export interface StageDistributionRow {
 export interface BottleneckRow {
   stageId: string;
   label: string;
+  /** Plazo base configurado para la etapa. */
   allowedDays: number;
+  /** Promedio del plazo efectivo de cierres, incluidas extensiones. */
+  avgEffectiveAllowedDays: number | null;
   /** Etapas de esta fase ya cerradas en toda la cartera. */
   closedCount: number;
   /** Promedio de días hábiles usados. null si ninguna cerró. */
@@ -244,7 +248,9 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
 
   /* ── Riesgos altos abiertos, por proyecto ───────────────────────────────── */
 
-  const highOpenRisks = input.risks.filter(risk => risk.status === "abierto" && risk.impact === "alto");
+  const highOpenRisks = input.risks.filter(
+    risk => risk.confirmed && risk.status === "abierto" && risk.impact === "alto",
+  );
   const highOpenByProject = new Map<number, number>();
   for (const risk of highOpenRisks) {
     highOpenByProject.set(risk.projectId, (highOpenByProject.get(risk.projectId) ?? 0) + 1);
@@ -395,14 +401,16 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   const bottlenecks: BottleneckRow[] = STAGE_ORDER.map(stageId => {
     const deadline = input.deadlines.find(item => item.stageId === stageId);
     const stageDetails = completedStages.filter(detail => detail.stageId === stageId);
+    const closedProjectIds = new Set(stageDetails.map(detail => detail.projectId));
     const stageExtensions = input.extensions.filter(
-      extension => extension.stageId === stageId && extension.type === "extend",
+      extension => extension.stageId === stageId && extension.type === "extend" && closedProjectIds.has(extension.projectId),
     );
 
     return {
       stageId,
       label: labelFor(stageId),
       allowedDays: deadline?.maxBusinessDays ?? 0,
+      avgEffectiveAllowedDays: average(stageDetails.map(detail => detail.totalAllowed)),
       closedCount: stageDetails.length,
       avgUsedDays: average(stageDetails.map(detail => detail.daysUsed)),
       overCount: stageDetails.filter(detail => detail.daysUsed > detail.totalAllowed).length,

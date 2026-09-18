@@ -1,4 +1,5 @@
 import { formatPmoProjectId } from "@shared/projectIdentity";
+import React from "react";
 
 type ProjectIdBadgeProps = {
   projectId: number | string;

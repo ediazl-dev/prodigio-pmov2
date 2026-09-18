@@ -104,6 +104,7 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
       impact: row.impact,
       probability: row.probability,
       mitigation: row.mitigation ?? null,
+      confirmed: row.confirmed,
     })),
     milestones: milestoneRows.map(row => ({
       projectId: row.projectId,

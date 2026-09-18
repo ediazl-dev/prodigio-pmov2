@@ -32,10 +32,11 @@ function baseInput(overrides: Partial<ExecutivePortfolioInput> = {}): ExecutiveP
       { projectId: 3, stageId: "risks", type: "pause", extraDays: 0 },
     ],
     risks: [
-      { projectId: 1, status: "abierto", impact: "alto", probability: "alta", mitigation: null },
-      { projectId: 1, status: "abierto", impact: "alto", probability: "media", mitigation: "Plan B documentado" },
-      { projectId: 1, status: "cerrado", impact: "alto", probability: "alta", mitigation: null },
-      { projectId: 2, status: "abierto", impact: "medio", probability: "alta", mitigation: null },
+      { projectId: 1, status: "abierto", impact: "alto", probability: "alta", mitigation: null, confirmed: true },
+      { projectId: 1, status: "abierto", impact: "alto", probability: "media", mitigation: "Plan B documentado", confirmed: true },
+      { projectId: 1, status: "cerrado", impact: "alto", probability: "alta", mitigation: null, confirmed: true },
+      { projectId: 2, status: "abierto", impact: "medio", probability: "alta", mitigation: null, confirmed: true },
+      { projectId: 2, status: "abierto", impact: "alto", probability: "alta", mitigation: null, confirmed: false },
     ],
     milestones: [
       { projectId: 1, amount: "40000", currency: "USD", dueDate: "2026-07-01", status: "pendiente" },
@@ -96,7 +97,7 @@ describe("buildExecutivePortfolio · atención", () => {
     const portfolio = buildExecutivePortfolio(baseInput());
     const nexos = portfolio.attention.find(row => row.projectId === 1);
     expect(nexos?.pmName).toBe("Eugenio Díaz");
-    // 2 altos abiertos: el cerrado y el de impacto medio no cuentan.
+    // 2 altos abiertos confirmados: cerrado, impacto medio y no confirmado no cuentan.
     expect(nexos?.highRisksOpen).toBe(2);
     const ccla = portfolio.attention.find(row => row.projectId === 2);
     expect(ccla?.pmName).toBeNull();
@@ -196,7 +197,23 @@ describe("buildExecutivePortfolio · cuellos de botella", () => {
   it("identifica la etapa que se pasa de plazo y acumula extensiones", () => {
     const portfolio = buildExecutivePortfolio(baseInput());
     const risks = portfolio.bottlenecks.find(row => row.stageId === "risks");
-    expect(risks).toMatchObject({ allowedDays: 8, closedCount: 1, avgUsedDays: 14, overCount: 1, extensionCount: 1, extraDays: 4 });
+    expect(risks).toMatchObject({ allowedDays: 8, avgEffectiveAllowedDays: 8, closedCount: 1, avgUsedDays: 14, overCount: 1, extensionCount: 1, extraDays: 4 });
+  });
+
+  it("usa el plazo efectivo y excluye extensiones de etapas no cerradas", () => {
+    const input = baseInput();
+    input.compliance = input.compliance.map(detail =>
+      detail.projectId === 3 && detail.stageId === "risks" ? { ...detail, totalAllowed: 12 } : detail,
+    );
+    input.extensions.push({ projectId: 1, stageId: "risks", type: "extend", extraDays: 20 });
+    const risks = buildExecutivePortfolio(input).bottlenecks.find(row => row.stageId === "risks");
+    expect(risks).toMatchObject({
+      allowedDays: 8,
+      avgEffectiveAllowedDays: 12,
+      extensionCount: 1,
+      extraDays: 4,
+      overCount: 1,
+    });
   });
 
   it("deja el promedio en null cuando ninguna etapa de esa fase cerró", () => {

@@ -1,5 +1,20 @@
+/**
+ * Panel de control ejecutivo.
+ *
+ * Orden de bloques:
+ *   1. Titular: cartera y lo que está fuera de plazo
+ *   2. Cuatro cifras de primer orden: plazo, dinero, cumplimiento, riesgos
+ *   3. Proyectos activos por urgencia (antes «Proyectos Recientes», por fecha)
+ *   4. Activos | Cerrados, lado a lado
+ *   5. Dónde se atasca el proceso
+ *
+ * Lo que se va: los cuatro contadores planos (total/activos/completados/usuarios)
+ * y el banner promocional de PMO Agéntica, cuya acción vive en «Nuevo proyecto».
+ *
+ * Todo sale de `trpc.projects.executive`, un solo query agregado.
+ */
+
 import { useAuth } from "@/_core/hooks/useAuth";
-import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,52 +32,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { formatPmoProjectId, normalizeProjectName } from "@shared/projectIdentity";
-import {
-  Activity,
-  ArrowRight,
-  BarChart3,
-  CheckCircle2,
-  Clock,
-  FileText,
-  FolderKanban,
-  Plus,
-  Sparkles,
-  Users,
-  Target,
-  Loader2,
-  AlertTriangle,
-} from "lucide-react";
+import { AlertTriangle, Loader2, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { formatPmoProjectId } from "@shared/projectIdentity";
 
-/* ─── Palette (aligned with LinkedProjectDashboard & JiraReport) ─── */
-const C = {
-  navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
-  blue: "#1B4F8A", blue2: "#2563AB", accent: "#e91e8c",
-  teal: "#0D7A6B", teal2: "#12A08D",
-  gold: "#B8860B", gold2: "#D4A017",
-  red: "#B83232", green: "#1A7A4A",
-  g100: "#F4F7FB", g150: "#EBF0F7", g200: "#D8E2EF", g300: "#B0BDD0", g400: "#7A8FA8",
-};
-
-const STAGE_LABELS: Record<string, { label: string; color: string }> = {
-  sow: { label: "SoW", color: C.accent },
-  jira: { label: "Jira", color: C.blue2 },
-  risks: { label: "Riesgos", color: C.gold2 },
-  planning: { label: "Planificación", color: C.teal },
-  design: { label: "Avance", color: C.teal2 },
-  closure: { label: "Cierre", color: C.blue },
-};
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  activo: { label: "Activo", bg: "#E8F5E9", color: C.teal },
-  pausado: { label: "Pausado", bg: "#FFF8E1", color: C.gold },
-  completado: { label: "Completado", bg: "#E3F2FD", color: C.accent },
-  cancelado: { label: "Cancelado", bg: "#FFEBEE", color: C.red },
-};
+import { AttentionList } from "./home/AttentionList";
+import { ActivePanel, ClosedPanel } from "./home/PortfolioPanels";
+import { ProcessBottlenecks } from "./home/ProcessBottlenecks";
+import {
+  TONE,
+  buildHeadlineCards,
+  longDate,
+} from "./home/executiveDashboardFormat";
+import {
+  buildHomeProjectInput,
+  findDuplicateProject,
+  type HomeProjectForm,
+} from "./home/homeProjectCreation";
 
 const PROJECT_TYPES = [
   { value: "apigee", label: "Apigee / API Gateway" },
@@ -70,21 +58,25 @@ const PROJECT_TYPES = [
   { value: "integracion", label: "Integración" },
   { value: "data", label: "Data / Analytics" },
   { value: "otro", label: "Otro" },
-];
+] as const;
 
-const STAGE_ORDER = ["sow", "jira", "risks", "planning", "design", "closure"];
-
+const CURRENCIES = ["USD", "UF", "UYU", "ARS", "EUR"] as const;
 export default function Home() {
   const { user } = useAuth();
-  const [, setLocation] = useLocation();
-  const { data: stats } = trpc.projects.stats.useQuery();
-  const { data: projects, isLoading, refetch } = trpc.projects.list.useQuery();
-
-  const role = (user as any)?.role ?? "consulta";
+  const [, navigate] = useLocation();
+  const role = user?.role ?? "consulta";
   const canCreate = ["admin", "pmo"].includes(role);
+  const { data, isLoading, error, refetch, isFetching } =
+    trpc.projects.executive.useQuery(undefined, {
+      staleTime: 60_000,
+    });
+  const { data: projects = [], refetch: refetchProjects } =
+    trpc.projects.list.useQuery(undefined, {
+      enabled: canCreate,
+    });
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<HomeProjectForm>({
     projectName: "",
     clientName: "",
     clientEmail: "",
@@ -94,390 +86,306 @@ export default function Home() {
   });
 
   const createMutation = trpc.projects.create.useMutation({
-    onSuccess: (data) => {
-      toast.success("Proyecto creado. Iniciando SoW...");
+    onSuccess: created => {
+      toast.success("Proyecto creado. Iniciando SoW…");
       setOpen(false);
-      setForm({ projectName: "", clientName: "", clientEmail: "", projectType: "desarrollo", totalAmount: "", currency: "USD" });
-      refetch();
-      setLocation(`/projects/${data.id}/sow`);
+      setForm({
+        projectName: "",
+        clientName: "",
+        clientEmail: "",
+        projectType: "desarrollo",
+        totalAmount: "",
+        currency: "USD",
+      });
+      void Promise.all([refetch(), refetchProjects()]);
+      navigate(`/projects/${created.id}/sow`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: mutationError => toast.error(mutationError.message),
   });
 
   const handleCreate = () => {
-    if (!form.projectName || !form.clientName) {
+    const input = buildHomeProjectInput(form);
+    if (!input) {
       toast.error("Nombre del proyecto y cliente son requeridos");
       return;
     }
-    const projectName = normalizeProjectName(form.projectName);
-    const duplicate = (projects ?? []).find((project: any) => normalizeProjectName(project.projectName) === projectName);
+    const duplicate = findDuplicateProject(projects, input.projectName);
     if (duplicate) {
-      toast.error(`Ya existe ${formatPmoProjectId(duplicate.id)} con ese nombre. Abre ese proyecto en vez de crear otro.`);
+      toast.error(
+        `Ya existe ${formatPmoProjectId(duplicate.id)} con ese nombre. Abre ese proyecto en vez de crear otro.`
+      );
       return;
     }
-    createMutation.mutate({ ...form, projectName } as any);
+    createMutation.mutate(input);
   };
 
-  const recentProjects = projects?.slice(0, 8) ?? [];
+  if (isLoading) {
+    return (
+      <div
+        className="grid min-h-[50vh] place-items-center"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="text-center">
+          <Loader2 size={30} className="mx-auto animate-spin text-[#E91E8C]" />
+          <p className="mt-3 text-sm font-semibold text-slate-600">
+            Consolidando la cartera…
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const stageData = Object.entries(STAGE_LABELS).map(([key, val]) => ({
-    name: val.label,
-    count: projects?.filter((p: any) => p.currentStage === key).length ?? 0,
-    color: val.color,
-  }));
+  if (error || !data) {
+    return (
+      <div
+        className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"
+        role="alert"
+      >
+        <div className="flex items-center gap-2 font-bold">
+          <AlertTriangle size={18} /> No fue posible cargar el panel de control
+        </div>
+        <p className="mt-2 text-sm">
+          {error?.message ?? "La lectura consolidada no está disponible."}
+        </p>
+        <Button className="mt-4" variant="outline" onClick={() => refetch()}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
 
-  const activeCount = stats?.active ?? 0;
-  const totalCount = stats?.total ?? 0;
+  const cards = buildHeadlineCards(data);
+  const firstName = user?.name?.split(" ")[0] ?? "";
 
   return (
-    <div className="prodigio-dashboard min-h-screen" style={{ background: C.g100, fontFamily: "'Poppins', sans-serif", color: C.navy }}>
-      {/* ═══ HERO HEADER ═══ */}
-      <div style={{
-        background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navy2} 55%, ${C.navy3} 100%)`,
-        borderBottom: `3px solid ${C.accent}`,
-      }}>
-        <div className="prodigio-hero-content" style={{ padding: "22px 36px 18px" }}>
-          <div className="flex items-center gap-2.5" style={{ marginBottom: 8 }}>
-            <span style={{
-              background: "rgba(233,30,140,.15)", border: "1px solid rgba(233,30,140,.35)",
-              borderRadius: 20, padding: "3px 12px", fontSize: 10, fontWeight: 700,
-              color: C.accent, letterSpacing: ".1em", textTransform: "uppercase",
-            }}>Panel de Control</span>
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,.45)", fontWeight: 500 }}>
-              · {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" })} · Prodigio
-            </span>
+    <div className="space-y-4 pb-8">
+      {/* 1 · Titular */}
+      <section className="relative overflow-hidden rounded-2xl bg-[#0A1628] px-5 py-4 text-white shadow-[0_18px_50px_rgba(10,22,40,0.18)] sm:px-6">
+        <span
+          className="absolute left-0 top-0 h-full w-[5px] bg-[#E91E8C]"
+          aria-hidden="true"
+        />
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+              Panel de control · Prodigio Tech
+            </p>
+            <h1 className="mt-1.5 text-2xl font-black tracking-[-0.02em] sm:text-[25px]">
+              {data.headline.totalProjects} proyectos en cartera
+              {data.headline.stagesOverdue > 0
+                ? `, ${data.headline.stagesOverdue} fuera de plazo`
+                : ", ninguno fuera de plazo"}
+            </h1>
+            <p className="mt-1 text-xs text-slate-300">
+              {firstName ? `${firstName} · ` : ""}
+              {data.headline.active} activos · {data.headline.closed} cerrados
+              {data.headline.paused > 0
+                ? ` · ${data.headline.paused} pausados`
+                : ""}{" "}
+              · {data.headline.people} personas · datos al{" "}
+              {longDate(data.cutOffDate)}
+            </p>
           </div>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", lineHeight: 1.15 }}>
-                Bienvenido, {user?.name?.split(" ")[0] ?? "Usuario"}
-              </h1>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>
-                Prodigio Tech · Plataforma PMO Agéntica
-              </p>
-            </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="h-[38px] border-white/20 bg-white/[0.07] text-white hover:bg-white/15 hover:text-white"
+            >
+              <RefreshCw
+                size={15}
+                className={isFetching ? "mr-2 animate-spin" : "mr-2"}
+              />
+              Actualizar
+            </Button>
             {canCreate && (
-              <Button onClick={() => setOpen(true)} size="sm"
-                style={{ background: C.accent, color: "#fff", fontSize: 11, fontWeight: 700 }}>
-                <Plus size={14} className="mr-1.5" />
-                Nuevo Proyecto
+              <Button
+                onClick={() => setOpen(true)}
+                className="h-[38px] bg-[#C91879] text-white hover:bg-[#A9145F]"
+              >
+                <Plus size={15} className="mr-1.5" />
+                Nuevo proyecto
               </Button>
             )}
           </div>
-
-          {/* ─── KPI Strip (inside header, navy style) ─── */}
-          <div className="prodigio-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 16 }}>
-            {[
-              { icon: FolderKanban, label: "Total Proyectos", value: totalCount, color: C.accent },
-              { icon: Activity, label: "Proyectos Activos", value: activeCount, color: C.teal2 },
-              { icon: CheckCircle2, label: "Completados", value: stats?.completed ?? 0, color: C.gold2 },
-              { icon: Users, label: "Usuarios", value: stats?.users ?? 0, color: C.blue2 },
-            ].map((kpi, i) => (
-              <div key={i} style={{
-                background: "rgba(255,255,255,.06)", borderRadius: 10, padding: "12px 14px",
-                border: "1px solid rgba(255,255,255,.08)",
-              }}>
-                <div className="flex items-center gap-1.5" style={{ marginBottom: 3 }}>
-                  <kpi.icon size={12} style={{ color: kpi.color }} />
-                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".09em", color: "rgba(255,255,255,.4)" }}>{kpi.label}</span>
-                </div>
-                <p style={{ fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: "-.5px" }}>{kpi.value}</p>
-              </div>
-            ))}
-          </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══ BODY CONTENT ═══ */}
-      <div className="prodigio-dashboard-body" style={{ padding: "20px 28px 32px" }}>
-
-        {/* ─── AI Banner ─── */}
-        <div className="prodigio-ai-banner" style={{
-          borderRadius: 12, padding: "16px 20px", marginBottom: 20,
-          background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navy2} 100%)`,
-          border: `1px solid ${C.accent}20`,
-          display: "flex", alignItems: "center", gap: 16,
-        }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-            background: `${C.accent}22`, display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Sparkles size={22} style={{ color: C.accent }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Plataforma PMO Agéntica</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,.55)", marginTop: 2, lineHeight: 1.5 }}>
-              Carga una propuesta en PDF y la IA genera el SoW, identifica riesgos y planifica el proyecto automáticamente.
-            </p>
-          </div>
-          {canCreate && (
-            <button onClick={() => setOpen(true)} style={{
-              background: `${C.accent}15`, border: `1px solid ${C.accent}35`, borderRadius: 8,
-              padding: "8px 16px", fontSize: 11, fontWeight: 700, color: C.accent,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-            }}>
-              <FileText size={14} /> Nuevo Proyecto
-            </button>
-          )}
-        </div>
-
-        {/* ─── Charts + Recent Projects Grid ─── */}
-        <div className="prodigio-dashboard-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
-
-          {/* Stage distribution chart */}
-          <div style={{
-            background: "#fff", borderRadius: 12, padding: "20px",
-            border: `1px solid ${C.g200}`, boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
-              <BarChart3 size={15} style={{ color: C.accent }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>Proyectos por Etapa</span>
-            </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={stageData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: C.g400 }} axisLine={{ stroke: C.g200 }} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: C.g400 }} axisLine={{ stroke: C.g200 }} tickLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${C.g200}`, boxShadow: "0 4px 12px rgba(10,22,40,.08)" }}
-                  formatter={(v: any) => [v, "Proyectos"]}
-                />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {stageData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Recent projects */}
-          <div style={{
-            background: "#fff", borderRadius: 12, padding: "20px",
-            border: `1px solid ${C.g200}`, boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-              <div className="flex items-center gap-2">
-                <Clock size={15} style={{ color: C.accent }} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>Proyectos Recientes</span>
-              </div>
-              <button onClick={() => setLocation("/projects")} style={{
-                fontSize: 11, fontWeight: 600, color: C.accent, cursor: "pointer",
-                background: "none", border: "none", display: "flex", alignItems: "center", gap: 4,
-              }}>
-                Ver todos <ArrowRight size={12} />
-              </button>
-            </div>
-
-            {isLoading ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[1, 2, 3].map((i) => (
-                  <div key={i} style={{ height: 56, background: C.g150, borderRadius: 10, animation: "pulse 1.5s infinite" }} />
-                ))}
-              </div>
-            ) : recentProjects.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <Sparkles size={32} style={{ color: C.g300, margin: "0 auto 8px" }} />
-                <p style={{ fontSize: 13, color: C.g400 }}>No hay proyectos aún</p>
-                {canCreate && (
-                  <button onClick={() => setOpen(true)} style={{
-                    marginTop: 12, background: `${C.accent}10`, border: `1px solid ${C.accent}30`,
-                    borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: 600, color: C.accent, cursor: "pointer",
-                  }}>
-                    Crear primer proyecto
-                  </button>
+      {/* 2 · Cifras de primer orden */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map(card => {
+          const tone = TONE[card.tone];
+          const accented = card.tone === "alert" || card.tone === "warn";
+          return (
+            <article
+              key={card.key}
+              className="flex min-h-[116px] flex-col justify-between rounded-2xl border bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
+              style={{
+                borderColor: accented ? tone.border : "#E2E8F0",
+                borderLeftWidth: accented ? 4 : 1,
+                borderLeftColor: accented ? tone.text : "#E2E8F0",
+              }}
+            >
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.12em]"
+                style={{ color: accented ? tone.text : "#475569" }}
+              >
+                {card.eyebrow}
+              </p>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span
+                  className="font-mono text-[26px] font-black leading-none tracking-tight"
+                  style={{
+                    color: card.tone === "calm" ? "#0F172A" : tone.text,
+                  }}
+                >
+                  {card.value}
+                </span>
+                {card.suffix && (
+                  <span className="text-[12px] text-slate-600">
+                    {card.suffix}
+                  </span>
                 )}
               </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {recentProjects.map((p: any) => {
-                  const stage = STAGE_LABELS[p.currentStage] ?? { label: p.currentStage, color: C.g400 };
-                  const status = STATUS_CONFIG[p.status] ?? STATUS_CONFIG.activo;
-                  const stageIdx = STAGE_ORDER.indexOf(p.currentStage);
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => setLocation(`/projects/${p.id}`)}
-                      className="group"
-                      style={{
-                        display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
-                        borderRadius: 10, cursor: "pointer", transition: "background .15s",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = C.g100)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      {/* Avatar */}
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                        background: `${stage.color}15`, border: `1px solid ${stage.color}30`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 13, fontWeight: 800, color: stage.color,
-                      }}>
-                        {p.projectName?.charAt(0)?.toUpperCase() ?? "P"}
-                      </div>
+              <p className="text-[11px] leading-4 text-slate-600">
+                {card.detail}
+              </p>
+            </article>
+          );
+        })}
+      </section>
 
-                      {/* Info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                          <p style={{ fontSize: 12, fontWeight: 700, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {p.projectName}
-                          </p>
-                          <ProjectIdBadge projectId={p.id} />
-                        </div>
-                        <p style={{ fontSize: 10, color: C.g400, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {p.clientName}
-                        </p>
-                        {/* Mini pipeline */}
-                        <div style={{ display: "flex", gap: 2, marginTop: 5 }}>
-                          {STAGE_ORDER.map((s, i) => (
-                            <div
-                              key={s}
-                              style={{
-                                height: 3, flex: 1, borderRadius: 2,
-                                background: i < stageIdx ? C.teal : i === stageIdx ? stage.color : C.g200,
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
+      {/* 3 · Activos por urgencia */}
+      <AttentionList rows={data.attention} />
 
-                      {/* Badges */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-                          background: `${stage.color}15`, color: stage.color,
-                        }}>{stage.label}</span>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-                          background: status.bg, color: status.color,
-                        }}>{status.label}</span>
-                        <ArrowRight size={12} style={{ color: C.g300, opacity: 0, transition: "opacity .15s" }}
-                          className="group-hover:opacity-100" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* 4 · Activos | Cerrados */}
+      <section className="grid gap-3.5 xl:grid-cols-2">
+        <ActivePanel portfolio={data} />
+        <ClosedPanel portfolio={data} />
+      </section>
 
-      {/* ═══ FOOTER ═══ */}
-      <div className="prodigio-dashboard-footer" style={{
-        background: C.navy2, padding: "12px 36px", display: "flex", justifyContent: "space-between",
-        alignItems: "center", borderTop: `1px solid ${C.navy3}`,
-      }}>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,.3)" }}>Prodigio Tech · Prodigio · Confidencial</span>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,.3)" }}>
-          Datos al {new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}
+      {/* 5 · Dónde se atasca el proceso */}
+      <ProcessBottlenecks
+        rows={data.bottlenecks}
+        totalClosedStages={data.compliance.total}
+      />
+
+      <footer className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] text-slate-600">
+        <span>Prodigio Tech · Confidencial</span>
+        <span className="hidden h-5 w-px bg-slate-200 sm:block" />
+        <span>
+          Plazos en días hábiles, descontando feriados, pausas y extensiones
+          registradas
         </span>
-      </div>
+        <div className="flex-grow" />
+        <span>Datos al {longDate(data.cutOffDate)}</span>
+      </footer>
 
-      {/* ═══ CREATE PROJECT DIALOG ═══ */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md" style={{ fontFamily: "'Poppins', sans-serif" }}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2" style={{ color: C.navy, fontSize: 16, fontWeight: 700 }}>
-              <Sparkles size={18} style={{ color: C.accent }} />
-              Crear Nuevo Proyecto
-            </DialogTitle>
+            <DialogTitle>Nuevo proyecto</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="space-y-1.5">
-              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Nombre del Proyecto *</Label>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="projectName">Nombre del proyecto</Label>
               <Input
-                placeholder="ej. Implementación Apigee - Banco XYZ"
+                id="projectName"
                 value={form.projectName}
-                onChange={(e) => setForm({ ...form, projectName: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                style={{ fontSize: 12 }}
+                onChange={event =>
+                  setForm({ ...form, projectName: event.target.value })
+                }
               />
             </div>
-            <div className="space-y-1.5">
-              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Cliente *</Label>
+            <div>
+              <Label htmlFor="clientName">Cliente</Label>
               <Input
-                placeholder="Nombre de la empresa cliente"
+                id="clientName"
                 value={form.clientName}
-                onChange={(e) => setForm({ ...form, clientName: e.target.value })}
-                style={{ fontSize: 12 }}
+                onChange={event =>
+                  setForm({ ...form, clientName: event.target.value })
+                }
               />
             </div>
-            <div className="space-y-1.5">
-              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Email del Cliente</Label>
+            <div>
+              <Label htmlFor="clientEmail">Email del cliente</Label>
               <Input
+                id="clientEmail"
                 type="email"
-                placeholder="contacto@cliente.com"
                 value={form.clientEmail}
-                onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
-                style={{ fontSize: 12 }}
+                onChange={event =>
+                  setForm({ ...form, clientEmail: event.target.value })
+                }
               />
             </div>
-            <div className="space-y-1.5">
-              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Tipo de Proyecto</Label>
-              <Select value={form.projectType} onValueChange={(v) => setForm({ ...form, projectType: v })}>
-                <SelectTrigger style={{ fontSize: 12 }}>
+            <div>
+              <Label htmlFor="projectType">Tipo de proyecto</Label>
+              <Select
+                value={form.projectType}
+                onValueChange={value =>
+                  setForm({
+                    ...form,
+                    projectType: value as HomeProjectForm["projectType"],
+                  })
+                }
+              >
+                <SelectTrigger id="projectType">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PROJECT_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  {PROJECT_TYPES.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Monto Total</Label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="totalAmount">Monto total</Label>
                 <Input
-                  placeholder="0.00"
+                  id="totalAmount"
+                  type="number"
+                  min="0"
+                  step="any"
                   value={form.totalAmount}
-                  onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-                  style={{ fontSize: 12 }}
+                  onChange={event =>
+                    setForm({ ...form, totalAmount: event.target.value })
+                  }
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Moneda</Label>
-                <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
-                  <SelectTrigger style={{ fontSize: 12 }}>
+              <div>
+                <Label htmlFor="currency">Moneda</Label>
+                <Select
+                  value={form.currency}
+                  onValueChange={value => setForm({ ...form, currency: value })}
+                >
+                  <SelectTrigger id="currency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="UF">UF</SelectItem>
-                    <SelectItem value="UYU">UYU</SelectItem>
-                    <SelectItem value="ARS">ARS</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
+                    {CURRENCIES.map(currency => (
+                      <SelectItem key={currency} value={currency}>
+                        {currency}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div style={{
-              borderRadius: 10, padding: "10px 14px",
-              background: `${C.accent}08`, border: `1px solid ${C.accent}15`,
-              display: "flex", alignItems: "flex-start", gap: 8,
-            }}>
-              <Sparkles size={14} style={{ color: C.accent, marginTop: 1, flexShrink: 0 }} />
-              <p style={{ fontSize: 11, color: C.g400, lineHeight: 1.5 }}>
-                Al crear el proyecto, serás redirigido al módulo SoW donde podrás cargar la propuesta en PDF para que la IA complete el Statement of Work automáticamente.
-              </p>
-            </div>
             <Button
-              className="w-full"
               onClick={handleCreate}
               disabled={createMutation.isPending}
-              style={{ background: C.accent, color: "#fff", fontWeight: 700, fontSize: 12 }}
+              className="w-full bg-[#C91879] text-white hover:bg-[#A9145F]"
             >
-              {createMutation.isPending ? (
-                <>
-                  <Loader2 size={14} className="animate-spin mr-2" />
-                  Creando...
-                </>
-              ) : (
-                <>
-                  <Plus size={14} className="mr-2" />
-                  Crear Proyecto e Ir al SoW
-                </>
+              {createMutation.isPending && (
+                <Loader2 size={16} className="mr-2 animate-spin" />
               )}
+              Crear proyecto
             </Button>
           </div>
         </DialogContent>
