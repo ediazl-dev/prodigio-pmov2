@@ -558,3 +558,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Respaldar el registro local y las dependencias JSM de Camanchaca antes de reparar el vínculo.
 - [x] Ejecutar preflight GET-only y confirmar localmente el Service Desk `365` mediante el runner homologado.
 - [x] Actualizar snapshots JSM de Camanchaca y verificar auditoría, historial, elegibilidad y presentación en la Torre.
+
+## Limpieza de proyectos y servicios de prueba — 2026-09-18
+
+- [x] Ejecutar gate R0 de sincronismo y confirmar `main`, `origin/main` y `user_github/main` alineados en `be752523`, con árbol limpio.
+- [x] Inventariar en modo lectura proyectos y servicios recurrentes, separando candidatos inequívocos de registros productivos.
+- [x] Crear y verificar un respaldo físico y exportable de los candidatos y todas sus dependencias antes del borrado.
+- [x] Eliminar únicamente los registros inequívocos de prueba y sus dependencias, sin tocar Jira/JSM ni los tres servicios productivos.
+- [x] Verificar ausencia de candidatos y residuos del lote, validar conteos productivos y documentar la intervención.
