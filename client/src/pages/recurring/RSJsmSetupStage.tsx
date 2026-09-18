@@ -489,9 +489,19 @@ export default function RSJsmSetupStage() {
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:flex">
-            <HeaderMetric label="Listos" value={`${gate.doneCount}/${gate.totalCount}`} />
-            <HeaderMetric label="Vinculados" value={`${gate.linkedCount}/${gate.totalLinkable}`} />
-            <HeaderMetric label="Pendientes" value={String(gate.unsyncedCount)} warning={gate.unsyncedCount > 0} />
+            <HeaderMetric
+              label="Listos"
+              value={issuesQuery.isLoading ? "—" : `${gate.doneCount}/${gate.totalCount}`}
+            />
+            <HeaderMetric
+              label="Vinculados"
+              value={issuesQuery.isLoading ? "—" : `${gate.linkedCount}/${gate.totalLinkable}`}
+            />
+            <HeaderMetric
+              label="Pendientes"
+              value={issuesQuery.isLoading ? "—" : String(gate.unsyncedCount)}
+              warning={!issuesQuery.isLoading && gate.unsyncedCount > 0}
+            />
           </div>
         </div>
       </section>
