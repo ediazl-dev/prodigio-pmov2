@@ -584,3 +584,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Añadir regresiones para los casos de compatibilidad sin alterar el contrato de métricas 2.0.
 - [x] Ejecutar pruebas recurrentes, comparar TypeScript con la línea base y generar build productivo.
 - [x] Validar Torre V2, Clásico y Lista con datos reales y roles vigentes; guardar checkpoint final.
+
+## Subpáginas de Servicios Recurrentes — ejecución 2026-09-18
+
+- [x] S0: Fijar rama, checkpoint y línea base reproducible.
+- [ ] S1: Integrar literalmente el nuevo detalle del servicio y retirar Vista 360 heredada.
+- [ ] S2: Corregir compatibilidad del detalle: acciones, evidencia, finanzas, errores, refresco y permisos.
+- [ ] S3: Integrar contrato de compuerta JSM con salud real y autoridad del servidor.
+- [ ] S4: Reordenar JSM Setup por cirugía de render preservando sus seis mutaciones.
+- [ ] S5: Certificar JSM Setup con tests de roles, mismatch, mappings, dry-run y cierre sin escrituras productivas.
+- [ ] S6: Certificar ambas páginas en escritorio/móvil y guardar checkpoint final.
