@@ -575,3 +575,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Bloquear nombres duplicados en alta y edición, y reutilizar el proyecto existente compatible durante la homologación Jira.
 - [x] Mostrar el identificador `PMO-{id}` en listado, inicio, detalle, consola y vistas ejecutivas principales.
 - [x] Cubrir regresiones, aplicar la migración, ejecutar build y revisión visual, y guardar checkpoint final.
+
+## Torre de Control de Servicios Recurrentes — integración del kit 2026-09-18
+
+- [x] Ejecutar gate R0 y confirmar base `042e18c` limpia y alineada con ambos remotos.
+- [x] Integrar fielmente el kit entregado sólo en `client/src/pages/recurring/`, sin backend, esquema ni endpoints nuevos.
+- [ ] Corregir compatibilidad responsive, permisos del CTA, estados N/D, evidencia vacía, multimoneda, orden de cola y pestaña inicial.
+- [ ] Añadir regresiones para los casos de compatibilidad sin alterar el contrato de métricas 2.0.
+- [ ] Ejecutar pruebas recurrentes, comparar TypeScript con la línea base y generar build productivo.
+- [ ] Validar Torre V2, Clásico y Lista con datos reales y roles vigentes; guardar checkpoint final.
