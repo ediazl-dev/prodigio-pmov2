@@ -6,7 +6,7 @@
  * debajo de los pendientes. Sigue siendo consultable, deja de ser el centro.
  */
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Check, ExternalLink } from "lucide-react";
 import type { JsmIssuesSummary } from "../jsmSetupGate";
 

@@ -4,6 +4,7 @@
  * tabla de 27 filas que nadie necesita mirar.
  */
 
+import React from "react";
 import type { PendingGroup } from "../jsmSetupGate";
 
 interface JsmPendingItemsProps {

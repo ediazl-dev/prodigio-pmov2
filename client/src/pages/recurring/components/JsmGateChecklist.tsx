@@ -10,7 +10,7 @@
  * viven allí. Este componente solo decide el orden, el estado y la jerarquía.
  */
 
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { AlertTriangle, Check, Lock } from "lucide-react";
 import type { GateStep, GateStepState, JsmSetupGate } from "../jsmSetupGate";
 
