@@ -17,9 +17,10 @@
  */
 
 import AppBreadcrumb from "@/components/AppBreadcrumb";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, RefreshCw, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { RECURRING_SERVICE_TYPE_LABELS } from "@shared/recurringServiceTypes";
@@ -32,6 +33,7 @@ import {
   buildDocumentRows,
   buildStagePipeline,
   formatDate,
+  resolveServiceSignalStage,
 } from "./recurring/serviceDetailViewModel";
 
 import { BillingPlan } from "./recurring/components/BillingPlan";
@@ -56,11 +58,13 @@ export default function RecurringServiceDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [cutOffDate] = useState(todayIso);
 
-  const { data, isLoading } = trpc.recurringServices.getById.useQuery({ id }, { enabled: !!id });
+  const serviceQuery = trpc.recurringServices.getById.useQuery({ id }, { enabled: !!id });
+  const { data, isLoading } = serviceQuery;
   const metrics = trpc.recurringServices.dashboardV2.useQuery(
-    { serviceId: id, cutOffDate } as any,
+    { serviceId: id, cutOffDate },
     { enabled: !!id, staleTime: 30_000 },
   );
 
@@ -109,6 +113,8 @@ export default function RecurringServiceDetail() {
   const health = serviceMetrics ? RECURRING_HEALTH_UI[serviceMetrics.health as RecurringHealthKey] : null;
   const serviceTypeLabel =
     RECURRING_SERVICE_TYPE_LABELS[svc.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? svc.serviceType;
+  const canManage = user?.role === "admin" || user?.role === "pmo";
+  const refreshAll = () => Promise.all([serviceQuery.refetch(), metrics.refetch()]);
 
   return (
     <div className="space-y-4 pb-8">
@@ -179,11 +185,14 @@ export default function RecurringServiceDetail() {
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              onClick={() => metrics.refetch()}
-              disabled={metrics.isFetching}
+              onClick={refreshAll}
+              disabled={serviceQuery.isFetching || metrics.isFetching}
               className="h-9 border-white/20 bg-white/[0.07] text-white hover:bg-white/15 hover:text-white"
             >
-              <RefreshCw size={15} className={metrics.isFetching ? "mr-2 animate-spin" : "mr-2"} />
+              <RefreshCw
+                size={15}
+                className={serviceQuery.isFetching || metrics.isFetching ? "mr-2 animate-spin" : "mr-2"}
+              />
               Actualizar lectura
             </Button>
             <Button
@@ -191,7 +200,7 @@ export default function RecurringServiceDetail() {
               onClick={() => navigate(`/recurring-services/${id}/init`)}
               className="h-9 border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
             >
-              Editar servicio
+              {canManage ? "Editar configuración" : "Ver configuración"}
             </Button>
           </div>
         </div>
@@ -204,8 +213,24 @@ export default function RecurringServiceDetail() {
             <Loader2 size={16} className="animate-spin" /> Leyendo señales del servicio…
           </p>
         </section>
+      ) : metrics.error ? (
+        <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[#B42318]" />
+            <div className="min-w-0 flex-grow">
+              <p className="text-sm font-black text-red-950">No fue posible cargar las métricas del servicio</p>
+              <p className="mt-1 text-xs leading-5 text-red-800">{metrics.error.message}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => metrics.refetch()} disabled={metrics.isFetching}>
+              Reintentar
+            </Button>
+          </div>
+        </section>
       ) : serviceMetrics ? (
-        <ServiceSignals items={signals} onAction={() => navigate(`/recurring-services/${id}/jsm-setup`)} />
+        <ServiceSignals
+          items={signals}
+          onAction={item => navigate(`/recurring-services/${id}/${resolveServiceSignalStage(item)}`)}
+        />
       ) : (
         <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
           <p className="text-[12.5px] text-slate-700">
@@ -230,6 +255,8 @@ export default function RecurringServiceDetail() {
           service={serviceMetrics}
           documents={documents}
           onRevalidateJsm={() => navigate(`/recurring-services/${id}/jsm-setup`)}
+          onOpenInitialization={() => navigate(`/recurring-services/${id}/init`)}
+          onOpenWorkPlan={() => navigate(`/recurring-services/${id}/work-plan`)}
         />
       )}
     </div>

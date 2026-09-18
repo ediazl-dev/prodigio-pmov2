@@ -14,7 +14,7 @@
  * recurringDashboardV3ViewModel).
  */
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { CalendarCheck2, CircleDollarSign, DatabaseZap, FileText } from "lucide-react";
 import { formatRecurringMoney, formatRecurringPercent } from "../recurringDashboardV2ViewModel";
 import type { DashboardV2Data, MatrixRow } from "../recurringDashboardV3ViewModel";
@@ -28,14 +28,33 @@ interface ServiceEvidenceTabsProps {
   service: MatrixRow;
   documents: DocumentRow[];
   onRevalidateJsm: () => void;
+  onOpenInitialization: () => void;
+  onOpenWorkPlan: () => void;
 }
 
-export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm }: ServiceEvidenceTabsProps) {
+const DOCUMENT_STATUS: Record<string, { label: string; tone: string }> = {
+  valid: { label: "Vigente", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  pending: { label: "Pendiente de validación", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+  unvalidated: { label: "Presente sin validar", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+  expired: { label: "Vencido", tone: "border-red-200 bg-red-50 text-red-700" },
+  rejected: { label: "Rechazado", tone: "border-red-200 bg-red-50 text-red-700" },
+  missing: { label: "Faltante", tone: "border-red-200 bg-red-50 text-red-700" },
+};
+
+export function ServiceEvidenceTabs({
+  data,
+  service,
+  documents,
+  onRevalidateJsm,
+  onOpenInitialization,
+  onOpenWorkPlan,
+}: ServiceEvidenceTabsProps) {
   const [tab, setTab] = useState<TabKey>("evidencias");
 
   const quality = service.quality;
   const finance = data.financeAnalytics.services[0];
   const deliverables = data.deliverables.rows[0];
+  const documentEvidence = data.documents.services[0];
   const slaAvailable = service.incidents.availability === "available";
 
   const tabs: Array<{ key: TabKey; label: string; badge: string; tone: "alert" | "warn" | "calm" }> = [
@@ -68,7 +87,7 @@ export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm 
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-      <div role="tablist" aria-label="Evidencia del servicio" className="flex items-stretch gap-0.5 border-b border-slate-200 bg-slate-50/70 px-4">
+      <div role="tablist" aria-label="Evidencia del servicio" className="flex min-w-max items-stretch gap-0.5 overflow-x-auto border-b border-slate-200 bg-slate-50/70 px-4">
         {tabs.map(item => {
           const selected = item.key === tab;
           return (
@@ -146,14 +165,19 @@ export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm 
                 <p className="mt-3 text-[12px] text-slate-600">Sin documentos adjuntos.</p>
               ) : (
                 <ul className="mt-3 list-none space-y-2">
-                  {documents.map(document => (
-                    <li key={document.id} className="flex items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2">
+                  {documents.map(document => {
+                    const evidence = documentEvidence?.documents.find(
+                      item => item.documentId === document.id || item.docType === document.docType,
+                    );
+                    const status = evidence ? DOCUMENT_STATUS[evidence.status] : null;
+                    return (
+                    <li key={document.id} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2">
                       <FileText size={15} className="shrink-0 text-slate-500" />
                       <a
                         href={document.fileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="min-w-0 flex-grow truncate text-[12px] font-semibold"
+                        className="min-w-0 basis-[calc(100%-26px)] truncate text-[12px] font-semibold sm:flex-grow sm:basis-auto"
                       >
                         {document.fileName}
                       </a>
@@ -161,16 +185,29 @@ export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm 
                         {document.typeLabel}
                       </span>
                       <span
-                        className={`w-[92px] shrink-0 rounded-full border py-0.5 text-center text-[9.5px] font-bold ${
-                          document.required
-                            ? "border-[#FEDF89] bg-[#FFFAEB] text-[#B54708]"
-                            : "border-slate-300 bg-slate-100 text-slate-600"
+                        className={`w-[132px] shrink-0 rounded-full border py-0.5 text-center text-[9.5px] font-bold ${
+                          status?.tone ?? "border-slate-300 bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {document.required ? "Exigible" : "No exigible"}
+                        {status?.label ?? (document.required ? "Exigible sin control" : "No exigible")}
                       </span>
+                      {evidence && (
+                        <span className="hidden w-[160px] shrink-0 text-right text-[10px] leading-4 text-slate-500 lg:block">
+                          Vigencia {formatDate(evidence.validUntil)}<br />Validado {formatDate(evidence.validatedAt)}
+                        </span>
+                      )}
                     </li>
-                  ))}
+                    );
+                  })}
+                  {documentEvidence?.documents
+                    .filter(item => item.status === "missing")
+                    .map(item => (
+                      <li key={`missing-${item.docType}`} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                        <FileText size={15} className="shrink-0 text-red-600" />
+                        <span className="min-w-0 flex-grow text-[12px] font-semibold capitalize text-red-900">{item.docType}</span>
+                        <span className="w-[132px] shrink-0 rounded-full border border-red-200 bg-white py-0.5 text-center text-[9.5px] font-bold text-red-700">Faltante</span>
+                      </li>
+                    ))}
                 </ul>
               )}
               <p className="mt-3 text-[11px] text-slate-600">
@@ -189,7 +226,25 @@ export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm 
         {tab === "financiero" &&
           (finance ? (
             <div className="p-5">
-              <h3 className="text-[13px] font-black text-slate-950">Reconciliación con la fuente corporativa</h3>
+              <h3 className="text-[13px] font-black text-slate-950">Montos locales por moneda</h3>
+              <p className="mt-1 text-[11px] text-slate-600">Cada moneda se presenta por separado; no se construye un total multimoneda.</p>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {Object.values(service.financeByCurrency).map(row => (
+                  <article key={row.currency} className="rounded-xl border border-slate-200 p-4">
+                    <p className="font-mono text-xs font-black text-slate-950">{row.currency}</p>
+                    <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                      <Stat label="Contratado" value={formatRecurringMoney(row.contracted, row.currency)} />
+                      <Stat label="Programado" value={formatRecurringMoney(row.scheduled, row.currency)} />
+                      <Stat label="Facturado" value={formatRecurringMoney(row.invoiced, row.currency)} />
+                      <Stat label="Cobrado" value={formatRecurringMoney(row.collected, row.currency)} />
+                      <Stat label="CxC" value={formatRecurringMoney(row.accountsReceivable, row.currency)} />
+                      <Stat label="Pendiente" value={formatRecurringMoney(row.pending, row.currency)} />
+                      <Stat label="Vencido" value={formatRecurringMoney(row.overdue, row.currency)} tone={row.overdue > 0 ? "text-[#B42318]" : "text-slate-950"} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <h3 className="mt-5 text-[13px] font-black text-slate-950">Reconciliación con la fuente corporativa</h3>
               <p className="mt-1 text-[11px] text-slate-600">
                 La referencia UF se compara solo cuando la moneda contractual también es UF.
               </p>
@@ -233,6 +288,7 @@ export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm 
               title="Sin reconciliación disponible"
               reason="Este servicio no aparece en la analítica financiera del corte seleccionado."
               actionLabel="Revisar Deal"
+              onAction={onOpenInitialization}
               icon={CircleDollarSign}
               tone="calm"
             />
@@ -246,6 +302,7 @@ export function ServiceEvidenceTabs({ data, service, documents, onRevalidateJsm 
               title="Sin reportes mensuales planificados"
               reason="El plan de trabajo de este servicio no tiene hitos de reporte, así que no hay entregas que medir."
               actionLabel="Abrir plan de trabajo"
+              onAction={onOpenWorkPlan}
               icon={CalendarCheck2}
               tone="calm"
             />

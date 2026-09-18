@@ -10,6 +10,7 @@
  * al 0%. Ocupan media pantalla y no dicen nada.
  */
 
+import React from "react";
 import type { LucideIcon } from "lucide-react";
 import { DatabaseZap } from "lucide-react";
 

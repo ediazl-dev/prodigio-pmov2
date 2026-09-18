@@ -12,6 +12,7 @@
  */
 
 import type { RouterOutputs } from "@/lib/trpc";
+import type { ActionQueueItem } from "./recurringDashboardV3ViewModel";
 
 export type ServiceByIdOutput = RouterOutputs["recurringServices"]["getById"];
 export type BillingMonth = ServiceByIdOutput["billingMonths"][number];
@@ -40,6 +41,7 @@ export interface BillingRow {
   amountLabel: string;
   state: BillingRowState;
   stateLabel: string;
+  missingDueDate: boolean;
   daysOverdue: number | null;
   note: string;
   actionLabel: string | null;
@@ -90,6 +92,7 @@ export function buildBillingPlan(
       const amount = Number(month.amount ?? 0);
       const currency = (month.currency ?? "N/D").toUpperCase();
       const amountLabel = formatMoney(amount, currency);
+      const missingDueDate = !month.dueDate;
       const days = month.dueDate ? daysBetween(month.dueDate, cutOffDate) : null;
 
       let state: BillingRowState;
@@ -110,8 +113,9 @@ export function buildBillingPlan(
         amountLabel,
         state,
         stateLabel: STATE_LABEL[state],
+        missingDueDate,
         daysOverdue: state === "vencida" ? days : null,
-        note: noteFor(state, days),
+        note: noteFor(state, days, missingDueDate),
         actionLabel: actionFor(state),
         jiraIssueKey: month.jiraIssueKey ?? null,
       };
@@ -170,37 +174,47 @@ export function buildBillingPlan(
   return {
     rows,
     totals,
-    missingDueDates: rows.filter(row => row.state === "sin_fecha").length,
+    missingDueDates: rows.filter(row => row.missingDueDate).length,
     planMismatch,
     hasRows: rows.length > 0,
   };
 }
 
-function noteFor(state: BillingRowState, days: number | null): string {
+function noteFor(state: BillingRowState, days: number | null, missingDueDate: boolean): string {
+  let note: string;
   switch (state) {
     case "vencida":
-      return days === null
+      note = days === null
         ? "Pendiente después de su vencimiento"
         : `Pendiente ${days} día${days === 1 ? "" : "s"} después del vencimiento`;
+      break;
     case "por_vencer":
-      return days === null ? "Próxima a vencer" : `Vence en ${Math.abs(days)} día${Math.abs(days) === 1 ? "" : "s"}`;
+      note = days === null ? "Próxima a vencer" : `Vence en ${Math.abs(days)} día${Math.abs(days) === 1 ? "" : "s"}`;
+      break;
     case "sin_fecha":
-      return "Sin fecha de vencimiento: nunca se contará como vencida";
+      note = "Sin fecha de vencimiento: nunca se contará como vencida";
+      break;
     case "facturada":
-      return "Facturada, pendiente de cobro";
+      note = "Facturada, pendiente de cobro";
+      break;
     case "cobrada":
-      return "Cobrada";
+      note = "Cobrada";
+      break;
     default:
-      return "Sin acción requerida todavía";
+      note = "Sin acción requerida todavía";
   }
+  return missingDueDate && state !== "sin_fecha" ? `${note} · fecha de vencimiento pendiente` : note;
 }
 
 function actionFor(state: BillingRowState): string | null {
-  if (state === "vencida") return "Gestionar cobro";
-  if (state === "por_vencer") return "Facturar";
-  if (state === "facturada") return "Registrar pago";
-  if (state === "sin_fecha") return "Poner fecha";
+  if (["vencida", "por_vencer", "facturada", "sin_fecha"].includes(state)) return "Revisar cuota";
   return null;
+}
+
+export function resolveServiceSignalStage(item: Pick<ActionQueueItem, "domain">): string {
+  if (item.domain === "formalidad") return "init";
+  if (item.domain === "operacion") return "jsm-setup";
+  return "execution";
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -292,6 +306,7 @@ const REQUIRED_DOC_TYPES = ["contrato", "sow"];
 
 export interface DocumentRow {
   id: number;
+  docType: string;
   fileName: string;
   fileUrl: string;
   typeLabel: string;
@@ -302,6 +317,7 @@ export function buildDocumentRows(documents: ServiceDocument[]): DocumentRow[] {
   return documents
     .map(document => ({
       id: document.id,
+      docType: document.docType,
       fileName: document.fileName,
       fileUrl: document.fileUrl,
       typeLabel: DOC_TYPE_LABEL[document.docType] ?? document.docType,

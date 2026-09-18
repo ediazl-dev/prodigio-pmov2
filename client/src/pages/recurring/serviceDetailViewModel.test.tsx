@@ -4,6 +4,7 @@ import {
   buildDocumentRows,
   buildStagePipeline,
   daysBetween,
+  resolveServiceSignalStage,
   type BillingMonth,
   type ServiceDocument,
   type ServiceStage,
@@ -71,6 +72,21 @@ describe("buildBillingPlan", () => {
     expect(plan.rows[0].state).toBe("sin_fecha");
     expect(plan.rows[0].daysOverdue).toBeNull();
     expect(plan.missingDueDates).toBe(1);
+  });
+
+  it("conserva el estado financiero y reporta la fecha faltante de cuotas facturadas o pagadas", () => {
+    const plan = buildBillingPlan(
+      [
+        month({ id: 1, status: "facturado", dueDate: null }),
+        month({ id: 2, monthNumber: 2, status: "pagado", dueDate: null }),
+      ],
+      CUT_OFF,
+      null,
+    );
+    expect(plan.rows.map(row => row.state)).toEqual(["facturada", "cobrada"]);
+    expect(plan.rows.every(row => row.missingDueDate)).toBe(true);
+    expect(plan.rows.every(row => row.note.includes("fecha de vencimiento pendiente"))).toBe(true);
+    expect(plan.missingDueDates).toBe(2);
   });
 
   it("detecta el descuadre entre el plan y el monto contratado", () => {
@@ -146,5 +162,17 @@ describe("daysBetween", () => {
 
   it("devuelve negativo cuando todavía no vence", () => {
     expect(daysBetween("2026-10-06", "2026-09-18")).toBe(-18);
+  });
+});
+
+describe("resolveServiceSignalStage", () => {
+  it("envía formalidad a Inicialización y operación a JSM Setup", () => {
+    expect(resolveServiceSignalStage({ domain: "formalidad" })).toBe("init");
+    expect(resolveServiceSignalStage({ domain: "operacion" })).toBe("jsm-setup");
+  });
+
+  it("envía finanzas y entregables a Ejecución", () => {
+    expect(resolveServiceSignalStage({ domain: "finanzas" })).toBe("execution");
+    expect(resolveServiceSignalStage({ domain: "entregables" })).toBe("execution");
   });
 });

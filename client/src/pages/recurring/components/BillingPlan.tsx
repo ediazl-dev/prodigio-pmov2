@@ -6,6 +6,7 @@
  * que es justamente la señal que vuelve crítico al servicio.
  */
 
+import React from "react";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import type { BillingPlan as BillingPlanModel, BillingRow, BillingRowState } from "../serviceDetailViewModel";
 
@@ -80,7 +81,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
         ))}
       </header>
 
-      <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-2 text-[9.5px] font-black uppercase tracking-[0.1em] text-slate-500">
+      <div className="hidden items-center gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-2 text-[9.5px] font-black uppercase tracking-[0.1em] text-slate-500 md:flex">
         <span className="w-[70px] shrink-0">Cuota</span>
         <span className="w-[130px] shrink-0">Vence</span>
         <span className="w-[110px] shrink-0 text-right">Monto</span>
@@ -95,30 +96,30 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
           return (
             <li
               key={row.id}
-              className={`flex items-center gap-3 border-b border-slate-50 px-5 py-2.5 ${index % 2 === 1 ? "bg-slate-50/40" : ""}`}
+              className={`grid grid-cols-2 items-center gap-3 border-b border-slate-50 px-5 py-3 md:flex md:py-2.5 ${index % 2 === 1 ? "bg-slate-50/40" : ""}`}
             >
-              <b className="w-[70px] shrink-0 text-[12.5px] text-slate-950">Mes {row.monthNumber}</b>
-              <span className="w-[130px] shrink-0 font-mono text-[12px] text-slate-700">{row.dueLabel}</span>
-              <span className="w-[110px] shrink-0 text-right font-mono text-[12.5px] font-bold text-slate-950">
+              <b className="w-auto shrink-0 text-[12.5px] text-slate-950 md:w-[70px]">Mes {row.monthNumber}</b>
+              <span className="w-auto shrink-0 text-right font-mono text-[12px] text-slate-700 md:w-[130px] md:text-left">{row.dueLabel}</span>
+              <span className="w-auto shrink-0 font-mono text-[12.5px] font-bold text-slate-950 md:w-[110px] md:text-right">
                 {row.amountLabel}
               </span>
               <span
-                className={`w-[120px] shrink-0 rounded-full border py-1 text-center text-[10.5px] font-black uppercase tracking-wide ${skin.badge}`}
+                className={`w-auto shrink-0 rounded-full border py-1 text-center text-[10.5px] font-black uppercase tracking-wide md:w-[120px] ${skin.badge}`}
               >
                 {row.stateLabel}
               </span>
-              <span className="min-w-0 flex-grow text-[11.5px] text-slate-600">{row.note}</span>
+              <span className="col-span-2 min-w-0 flex-grow text-[11.5px] text-slate-600">{row.note}</span>
               {row.actionLabel && onRowAction ? (
                 <button
                   type="button"
                   onClick={() => onRowAction(row)}
-                  className={`inline-flex h-8 w-[130px] shrink-0 items-center justify-center gap-1 rounded-lg border text-[11.5px] font-bold transition hover:brightness-95 ${skin.cta}`}
+                  className={`col-span-2 inline-flex h-8 w-full shrink-0 items-center justify-center gap-1 rounded-lg border text-[11.5px] font-bold transition hover:brightness-95 md:w-[130px] ${skin.cta}`}
                 >
                   {row.actionLabel}
                   <ArrowRight size={13} />
                 </button>
               ) : (
-                <span className="w-[130px] shrink-0" />
+                <span className="hidden w-[130px] shrink-0 md:block" />
               )}
             </li>
           );
