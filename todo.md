@@ -600,5 +600,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] R0: Confirmar checkpoint `0a7df6ff`, refs alineadas, rama limpia y línea base de cinco errores TypeScript heredados.
 - [x] B1: Integrar motor ejecutivo puro, fuente de datos y endpoint `projects.executive`.
 - [x] B2: Integrar Home y componentes preservando prevención de nombres duplicados, ID PMO y permisos.
-- [ ] B3: Certificar datos reales, multimoneda, N/D, orden por urgencia, roles y responsive.
-- [ ] B4: Documentar, guardar checkpoint final y dejar el árbol limpio.
+- [x] B3: Certificar datos reales, multimoneda, N/D, orden por urgencia, roles y responsive.
+- [x] B4: Documentar, guardar checkpoint final y dejar el árbol limpio.

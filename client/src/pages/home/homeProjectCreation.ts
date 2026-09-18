@@ -23,6 +23,10 @@ export interface ProjectIdentityRow {
   projectName: string;
 }
 
+export function canCreateProjectsFromHome(role: string | null | undefined): boolean {
+  return role === "admin" || role === "pmo";
+}
+
 export function findDuplicateProject(
   projects: ProjectIdentityRow[],
   projectName: string

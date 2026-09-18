@@ -9,6 +9,7 @@ import {
 } from "./executiveDashboardFormat";
 import {
   buildHomeProjectInput,
+  canCreateProjectsFromHome,
   findDuplicateProject,
 } from "./homeProjectCreation";
 
@@ -25,6 +26,13 @@ const bottleneck = {
 };
 
 describe("dashboard Home · creación compatible", () => {
+  it("muestra alta sólo a Admin y PMO", () => {
+    expect(canCreateProjectsFromHome("admin")).toBe(true);
+    expect(canCreateProjectsFromHome("pmo")).toBe(true);
+    expect(canCreateProjectsFromHome("pm")).toBe(false);
+    expect(canCreateProjectsFromHome("consulta")).toBe(false);
+  });
+
   it("detecta el mismo nombre después de normalizar espacios y Unicode", () => {
     const duplicate = findDuplicateProject(
       [{ id: 2670001, projectName: "[PMO] CCLA SRP MVP1 Deal 4728" }],

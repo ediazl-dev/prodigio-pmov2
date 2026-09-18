@@ -112,6 +112,7 @@ export function buildHeadlineCards(
   );
   const overdueMoney = figures.filter(figure => figure.overdue > 0);
   const invoicedRate = invoicedRatio(figures);
+  const invoicedLabel = invoicedRate === null ? "Facturación por moneda" : `${invoicedRate} facturado`;
 
   return [
     {
@@ -134,8 +135,8 @@ export function buildHeadlineCards(
       suffix: null,
       detail:
         overdueMoney.length > 0
-          ? `${invoicedRate} facturado · ${moneyList(overdueMoney.map(figure => ({ currency: figure.currency, value: figure.overdue })))} vencidos`
-          : `${invoicedRate} facturado · sin hitos vencidos`,
+          ? `${invoicedLabel} · ${moneyList(overdueMoney.map(figure => ({ currency: figure.currency, value: figure.overdue })))} vencidos`
+          : `${invoicedLabel} · sin hitos vencidos`,
       tone: overdueMoney.length > 0 ? "alert" : "calm",
     },
     {
@@ -183,14 +184,14 @@ export function buildHeadlineCards(
   ];
 }
 
-function invoicedRatio(figures: CurrencyFigure[]): string {
+function invoicedRatio(figures: CurrencyFigure[]): string | null {
   const contracted = figures.reduce(
     (sum, figure) => sum + figure.contractedActive + figure.contractedClosed,
     0
   );
   const invoiced = figures.reduce((sum, figure) => sum + figure.invoiced, 0);
   // Solo tiene sentido como proporción si hay una única moneda en juego.
-  if (figures.length !== 1 || contracted <= 0) return "Facturación";
+  if (figures.length !== 1 || contracted <= 0) return null;
   return `${Math.round((invoiced / contracted) * 100)}%`;
 }
 

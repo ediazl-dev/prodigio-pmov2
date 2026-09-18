@@ -17,7 +17,7 @@ export function ActivePanel({ portfolio }: { portfolio: ExecutivePortfolio }) {
   const { headline, stageDistribution, money: figures } = portfolio;
   const maxCount = Math.max(
     1,
-    ...stageDistribution.map(row => row.active + row.closed)
+    ...stageDistribution.map(row => row.active)
   );
 
   const overdueMilestones = figures.reduce(
@@ -44,7 +44,7 @@ export function ActivePanel({ portfolio }: { portfolio: ExecutivePortfolio }) {
 
       <ul className="mt-3.5 list-none space-y-1.5">
         {stageDistribution.map(row => {
-          const total = row.active + row.closed;
+          const total = row.active;
           const color =
             total === 0
               ? "#CBD5E1"

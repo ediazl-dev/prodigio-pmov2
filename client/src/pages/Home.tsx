@@ -48,6 +48,7 @@ import {
 } from "./home/executiveDashboardFormat";
 import {
   buildHomeProjectInput,
+  canCreateProjectsFromHome,
   findDuplicateProject,
   type HomeProjectForm,
 } from "./home/homeProjectCreation";
@@ -65,7 +66,7 @@ export default function Home() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const role = user?.role ?? "consulta";
-  const canCreate = ["admin", "pmo"].includes(role);
+  const canCreate = canCreateProjectsFromHome(role);
   const { data, isLoading, error, refetch, isFetching } =
     trpc.projects.executive.useQuery(undefined, {
       staleTime: 60_000,
@@ -175,7 +176,9 @@ export default function Home() {
               {data.headline.totalProjects} proyectos en cartera
               {data.headline.stagesOverdue > 0
                 ? `, ${data.headline.stagesOverdue} fuera de plazo`
-                : ", ninguno fuera de plazo"}
+                : data.headline.stagesUnmeasured > 0
+                  ? `, ${data.headline.stagesUnmeasured} sin plazo medible`
+                  : ", ninguno fuera de plazo"}
             </h1>
             <p className="mt-1 text-xs text-slate-300">
               {firstName ? `${firstName} · ` : ""}
