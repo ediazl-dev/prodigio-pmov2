@@ -70,7 +70,7 @@ describe("buildJsmSetupGate", () => {
     const gate = buildJsmSetupGate(input({ spaceHealthy: false }));
     const space = gate.steps.find(step => step.id === "space");
     expect(space?.state).toBe("warning");
-    expect(space?.actionLabel).toBe("Revalidar vínculo");
+    expect(space?.actionLabel).toBe("Revisar vínculo");
     // Una advertencia no impide avanzar: sigue contando como paso resuelto.
     expect(gate.doneCount).toBe(2);
   });

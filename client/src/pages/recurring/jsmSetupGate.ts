@@ -135,7 +135,7 @@ function clientSteps(input: JsmSetupGateInput): GateStep[] {
       title: "Plataforma elegida",
       detail: "Plataforma del cliente — el servicio se gestiona fuera de nuestro tenant.",
       state: "done",
-      actionLabel: "Cambiar",
+      actionLabel: null,
       hint: null,
     },
     {
@@ -146,7 +146,7 @@ function clientSteps(input: JsmSetupGateInput): GateStep[] {
         ? (input.clientPlatformUrl as string)
         : "Registrar dónde el cliente atiende los tickets de este servicio.",
       state: hasUrl ? "done" : "pending",
-      actionLabel: hasUrl ? "Cambiar URL" : "Registrar URL",
+      actionLabel: hasUrl ? null : "Registrar URL",
       hint: hasUrl ? null : "Es el único requisito para cerrar la etapa en esta modalidad.",
     },
   ];
@@ -173,7 +173,7 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
       ? "Plataforma Prodigio (JSM) — el servicio se gestiona en nuestro tenant."
       : "Todavía no se elige dónde se gestionará el servicio.",
     state: input.platform ? "done" : "pending",
-    actionLabel: input.platform ? "Cambiar" : "Elegir plataforma",
+    actionLabel: input.platform ? null : "Elegir plataforma",
     hint: null,
   });
 
@@ -185,7 +185,7 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
       ? spaceDetail(input)
       : "Crear un proyecto JSM o vincular un Service Desk existente.",
     state: hasSpace ? (input.spaceHealthy ? "done" : "warning") : "pending",
-    actionLabel: hasSpace ? (input.spaceHealthy ? null : "Revalidar vínculo") : "Vincular Space",
+    actionLabel: hasSpace ? (input.spaceHealthy ? null : "Revisar vínculo") : "Vincular Space",
     hint: null,
   });
 
