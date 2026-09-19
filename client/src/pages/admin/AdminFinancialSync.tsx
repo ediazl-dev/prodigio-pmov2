@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, CheckCircle2, XCircle, Clock, Database } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Clock, Database, ShieldCheck, AlertTriangle } from "lucide-react";
 import { C, headerGradient, cardStyle, thStyle, tdStyle, badgeStyle } from "./adminStyles";
 
 function formatDateTime(date: string | Date | null | undefined): string {
@@ -35,28 +35,58 @@ function originLabel(triggeredBy: string | null | undefined): string {
   return triggeredBy || "-";
 }
 
+function freshnessLabel(value: string | undefined, ageHours: number | null | undefined): string {
+  if (value === "fresh") return `Vigente · ${ageHours ?? 0} h`;
+  if (value === "warning") return `Atención · ${ageHours ?? "-"} h`;
+  if (value === "stale") return `Vencida · ${ageHours ?? "-"} h`;
+  return "Sin éxito registrado";
+}
+
+function credentialLabel(source: string | undefined, renewable: boolean | undefined, valid: boolean | undefined) {
+  if (source === "service_account" && valid) return "Cuenta de servicio · renovable";
+  if (source === "service_account") return "Cuenta de servicio · configuración inválida";
+  if (source === "legacy_access_token") return renewable ? "OAuth renovable" : "Token estático · no renovable";
+  return "Sin credencial de servidor";
+}
+
+function diagnosticLabel(errorMessage: string): string {
+  const match = errorMessage.match(/^\[([a-z_]+):([a-z_]+)\]\s*(.*)$/);
+  if (!match) return errorMessage;
+  return `${match[1]} · ${match[2]} — ${match[3]}`;
+}
+
 export default function AdminFinancialSync() {
   const utils = trpc.useUtils();
   const { data: logs, isLoading } = trpc.financial.syncLogs.useQuery({ limit: 100 });
+  const { data: health } = trpc.financial.syncHealth.useQuery();
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const syncNow = trpc.financial.syncNow.useMutation({
     onSuccess: (outcome) => {
+      if (outcome.status === "skipped") {
+        setFeedback({ kind: "error", text: "La sincronización no se ejecutó porque ya existe otra corrida activa." });
+        return;
+      }
       setFeedback({
         kind: "success",
         text: `Sincronización aplicada: ${outcome.inputDeals} Deals leídos, ${outcome.insert} insertados, ${outcome.update} actualizados.`,
       });
       utils.financial.syncLogs.invalidate();
+      utils.financial.syncHealth.invalidate();
+      utils.financial.latestSync.invalidate();
     },
     onError: (error) => {
       setFeedback({ kind: "error", text: `La sincronización falló: ${error.message}` });
       utils.financial.syncLogs.invalidate();
+      utils.financial.syncHealth.invalidate();
+      utils.financial.latestSync.invalidate();
     },
   });
 
   const total = logs?.length ?? 0;
   const successCount = logs?.filter((l: any) => l.status === "applied").length ?? 0;
   const errorCount = logs?.filter((l: any) => l.status === "error").length ?? 0;
-  const lastSync = logs && logs.length > 0 ? logs[0] : null;
+  const lastSync = health?.latestAttempt ?? (logs && logs.length > 0 ? logs[0] : null);
+  const lastSuccess = health?.latestSuccess ?? null;
 
   return (
     <div style={{ background: C.g100, fontFamily: "'Poppins', system-ui, sans-serif", color: C.navy, minHeight: "100vh" }}>
@@ -95,10 +125,35 @@ export default function AdminFinancialSync() {
         {/* KPI cards */}
         <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
           <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 16px", minWidth: 140 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(255,255,255,.5)" }}>Última sincronización</div>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(255,255,255,.5)" }}>Último intento</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
               <Clock className="h-3.5 w-3.5" style={{ color: C.accent }} />
               {lastSync ? formatDateTime(lastSync.createdAt) : "Sin registros"}
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 16px", minWidth: 170 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(255,255,255,.5)" }}>Último éxito</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: lastSuccess ? "#4ADE80" : "#F87171", marginTop: 2 }}>
+              {lastSuccess ? formatDateTime(lastSuccess.createdAt) : "Sin éxito registrado"}
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 16px", minWidth: 145 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(255,255,255,.5)" }}>Frescura</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: health?.freshness === "fresh" ? "#4ADE80" : "#FBBF24", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+              {health?.freshness === "fresh" ? <ShieldCheck className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+              {freshnessLabel(health?.freshness, health?.ageHours)}
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 16px", minWidth: 205 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(255,255,255,.5)" }}>Credencial Drive</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: health?.credential.renewable && health?.credential.validConfiguration ? "#4ADE80" : "#FBBF24", marginTop: 2 }}>
+              {credentialLabel(health?.credential.source, health?.credential.renewable, health?.credential.validConfiguration)}
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 16px", minWidth: 120 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(255,255,255,.5)" }}>Cron 03:00 UTC</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: health?.taskConfigured ? "#4ADE80" : "#F87171", marginTop: 2 }}>
+              {health?.taskConfigured ? "Registrado" : "Sin UID durable"}
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 16px", minWidth: 110 }}>
@@ -164,7 +219,7 @@ export default function AdminFinancialSync() {
                     </td>
                     <td style={{ ...tdStyle, maxWidth: 320 }}>
                       {log.errorMessage ? (
-                        <span style={{ fontSize: 11, color: C.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }} title={log.errorMessage}>{log.errorMessage}</span>
+                        <span style={{ fontSize: 11, color: C.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }} title={log.errorMessage}>{diagnosticLabel(log.errorMessage)}</span>
                       ) : (
                         <span style={{ fontSize: 11, color: C.g300 }}>-</span>
                       )}

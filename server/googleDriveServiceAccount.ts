@@ -4,6 +4,13 @@ export const GOOGLE_DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/driv
 
 export type DriveCredentialSource = "service_account" | "legacy_access_token";
 
+export type DriveCredentialStatus = {
+  source: DriveCredentialSource | "none";
+  configured: boolean;
+  renewable: boolean;
+  validConfiguration: boolean;
+};
+
 export interface DriveAccessTokenProvider {
   readonly source: DriveCredentialSource;
   readonly renewable: boolean;
@@ -152,4 +159,24 @@ export function createDriveAccessTokenProvider(
     "GOOGLE_CREDENTIALS_MISSING",
     "No hay credenciales Google configuradas para la sincronización financiera",
   );
+}
+
+export function getDriveCredentialStatus(
+  env: GoogleCredentialEnv = {
+    GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+    GOOGLE_DRIVE_TOKEN: process.env.GOOGLE_DRIVE_TOKEN,
+  },
+): DriveCredentialStatus {
+  if (env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()) {
+    try {
+      parseGoogleServiceAccountCredentials(env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      return { source: "service_account", configured: true, renewable: true, validConfiguration: true };
+    } catch {
+      return { source: "service_account", configured: true, renewable: true, validConfiguration: false };
+    }
+  }
+  if (env.GOOGLE_DRIVE_TOKEN?.trim()) {
+    return { source: "legacy_access_token", configured: true, renewable: false, validConfiguration: true };
+  }
+  return { source: "none", configured: false, renewable: false, validConfiguration: false };
 }

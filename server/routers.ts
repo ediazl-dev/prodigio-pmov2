@@ -46,10 +46,13 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogs, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
+import { buildFinancialSyncHealth } from "./financialSyncHealth";
+import { getDriveCredentialStatus } from "./googleDriveServiceAccount";
+import { FINANCIAL_SYNC_TASK_UID_SETTING } from "./financialSyncSchedule";
 import { getActiveFinancialData } from "./db";
-import { getDb } from "./db";
+import { getAdminSettingValue, getDb } from "./db";
 import { projectHealthSnapshots, contracts, paymentScheduleItems, revenueEvents, invoices, payments } from "../drizzle/schema";
 import { eq, desc, and, lt } from "drizzle-orm";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
@@ -6503,13 +6506,27 @@ const financialRouter = router({
     await audit(ctx, "sync_financial_data", "financial_data", null, null, { rowCount: count });
     return { synced: count };
   }),
+  /** Salud operativa: separa último intento, último éxito, frescura y credencial sin exponer secretos. */
+  syncHealth: adminOnly.query(async () => {
+    const [latestAttempt, latestSuccess, configuredTaskUid] = await Promise.all([
+      getLatestFinancialSync(),
+      getLatestSuccessfulFinancialSync(),
+      getAdminSettingValue(FINANCIAL_SYNC_TASK_UID_SETTING),
+    ]);
+    return buildFinancialSyncHealth({
+      latestAttempt,
+      latestSuccess,
+      credential: getDriveCredentialStatus(),
+      taskConfigured: Boolean(configuredTaskUid),
+    });
+  }),
   /** Historial de ejecuciones de la sincronización financiera (cron/manual), más reciente primero */
   syncLogs: adminOnly.input(z.object({ limit: z.number().int().min(1).max(200).optional() }).optional()).query(async ({ input }) => {
     return getFinancialSyncLogs(input?.limit ?? 50);
   }),
-  /** Última sincronización financiera registrada (cualquier estado), para mostrar frescura de datos */
+  /** Última sincronización financiera exitosa, para mostrar frescura real de datos. */
   latestSync: protectedProcedure.query(async () => {
-    const row = await getLatestFinancialSync();
+    const row = await getLatestSuccessfulFinancialSync();
     return row ?? null;
   }),
   /** Ejecuta la sincronización financiera manualmente bajo demanda (sólo admin) */

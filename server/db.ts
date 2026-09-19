@@ -2578,6 +2578,20 @@ export async function getLatestFinancialSync() {
   return rows[0];
 }
 
+/** Devuelve la sincronización financiera exitosa más reciente, o undefined. */
+export async function getLatestSuccessfulFinancialSync() {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { financialSyncLogs } = await import("../drizzle/schema");
+  const rows = await db
+    .select()
+    .from(financialSyncLogs)
+    .where(eq(financialSyncLogs.status, "applied"))
+    .orderBy(desc(financialSyncLogs.createdAt))
+    .limit(1);
+  return rows[0];
+}
+
 // ==================== BASELINE EJECUTIVO: PROPUESTA JIRA Y APROBACIÓN HUMANA ====================
 export async function updateDraftExecutiveMilestoneBaseline(input: {
   projectId: number;
