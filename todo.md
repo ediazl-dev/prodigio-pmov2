@@ -624,8 +624,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Corrección general del Portafolio — fuentes vinculadas 2026-09-18
 
 - [x] R0: Confirmar checkpoint `c9b4297`, refs alineadas, árbol limpio y jobs Jira/finanzas existentes.
-- [ ] A1: Crear snapshot operativo Jira GET-only y su persistencia idempotente para proyectos vinculados.
-- [ ] A2: Integrar refresco manual/programado al job Jira existente sin escrituras en Jira.
+- [x] A1: Crear snapshot operativo Jira GET-only y su persistencia idempotente para proyectos vinculados.
+- [x] A2: Integrar refresco manual/programado al job Jira existente sin escrituras en Jira.
 - [ ] B1: Reconstruir el read model del portafolio con fase Jira, pipeline PMO, hitos, PM, riesgos y monto financiero trazables.
 - [ ] B2: Corregir la tabla para separar ciclo de vida, salud, fase, pipeline, plazo contractual y evidencia N/D.
 - [ ] C1: Certificar Tanner como piloto y validar los demás proyectos vinculados y nativos.

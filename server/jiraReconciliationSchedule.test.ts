@@ -77,6 +77,30 @@ describe("conciliación diaria Jira H7", () => {
     expect(result).toMatchObject({ status: "partial", candidateCount: 51, processedCount: 50, deferredCount: 1, reusedCount: 50 });
   });
 
+  it("refresca el read model del portafolio dentro del mismo job diario", async () => {
+    const refreshPortfolio = vi.fn().mockResolvedValue({
+      status: "success",
+      candidateCount: 2,
+      processedCount: 2,
+      successCount: 2,
+      partialCount: 0,
+      errorCount: 0,
+      deferredCount: 0,
+      results: [],
+    });
+    const deps = batchDependencies({
+      listReadyProjects: vi.fn().mockResolvedValue([]),
+      reconcile: vi.fn(),
+      refreshPortfolio,
+    });
+
+    const result = await runScheduledJiraReconciliationBatch({ taskUid: "task-jira-123" }, deps);
+
+    expect(refreshPortfolio).toHaveBeenCalledOnce();
+    expect(result.status).toBe("applied");
+    expect(result.portfolioSnapshots).toMatchObject({ processedCount: 2, successCount: 2 });
+  });
+
   it("estabiliza un lote multi-proyecto y reutiliza la misma operación diaria sin duplicar", async () => {
     const projects = [
       { onboardingId: 21, projectId: 201, jiraProjectKey: "READYA" },

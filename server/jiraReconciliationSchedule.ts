@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { getAdminSettingValue, listReadyJiraProjectsForReconciliation } from "./db";
 import { sdk } from "./_core/sdk";
 import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
+import { runJiraPortfolioSnapshotBatch } from "./jiraPortfolioSnapshot";
 
 export const JIRA_RECONCILIATION_TASK_UID_SETTING = "jira_reconciliation_daily_task_uid";
 export const JIRA_RECONCILIATION_CRON_SETTING = "jira_reconciliation_daily_cron_utc";
@@ -37,6 +38,16 @@ export interface ScheduledJiraBatchDependencies {
     actorId: null;
     actorName: string;
   }): Promise<{ status: string; reused: boolean; exceptions: number }>;
+  refreshPortfolio?(): Promise<{
+    status: "success" | "partial";
+    candidateCount: number;
+    processedCount: number;
+    successCount: number;
+    partialCount: number;
+    errorCount: number;
+    deferredCount: number;
+    results: unknown[];
+  }>;
   now(): Date;
 }
 
@@ -91,8 +102,25 @@ export async function runScheduledJiraReconciliationBatch(
 
   const errorCount = results.filter(result => result.status === "error").length;
   const partialCount = results.filter(result => result.status === "partial").length;
+  let portfolioSnapshots: Awaited<ReturnType<NonNullable<ScheduledJiraBatchDependencies["refreshPortfolio"]>>> | null = null;
+  if (dependencies.refreshPortfolio) {
+    try {
+      portfolioSnapshots = await dependencies.refreshPortfolio();
+    } catch (error) {
+      portfolioSnapshots = {
+        status: "partial",
+        candidateCount: 0,
+        processedCount: 0,
+        successCount: 0,
+        partialCount: 0,
+        errorCount: 1,
+        deferredCount: 0,
+        results: [{ status: "error", error: error instanceof Error ? error.message : String(error) }],
+      };
+    }
+  }
   return {
-    status: errorCount || partialCount || deferredCount ? "partial" as const : "applied" as const,
+    status: errorCount || partialCount || deferredCount || portfolioSnapshots?.status === "partial" ? "partial" as const : "applied" as const,
     operationId,
     candidateCount: candidates.length,
     processedCount: results.length,
@@ -102,6 +130,7 @@ export async function runScheduledJiraReconciliationBatch(
     reusedCount: results.filter(result => result.reused).length,
     errorCount,
     results,
+    portfolioSnapshots,
   };
 }
 
@@ -110,6 +139,7 @@ export async function runProductionScheduledJiraReconciliationBatch(input: { tas
     getSetting: getAdminSettingValue,
     listReadyProjects: listReadyJiraProjectsForReconciliation,
     reconcile: runProductionJiraReconciliation,
+    refreshPortfolio: () => runJiraPortfolioSnapshotBatch(MAX_SCHEDULED_JIRA_PROJECTS),
     now: () => new Date(),
   });
 }

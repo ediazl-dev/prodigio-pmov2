@@ -1092,7 +1092,15 @@ async function fetchAllIssues(projectKey: string, extraJql = ""): Promise<JiraIs
   const all: JiraIssue[] = [];
   let token: string | undefined;
   let done = false;
-  const fields = ["summary", "status", "issuetype", "assignee", "priority", "duedate", "created", "updated", "resolutiondate", "timetracking", "timeoriginalestimate", "timespent", "aggregatetimeoriginalestimate", "aggregatetimespent"];
+  const fields = [
+    "summary", "status", "issuetype", "assignee", "priority", "duedate", "created", "updated",
+    "resolutiondate", "timetracking", "timeoriginalestimate", "timespent",
+    "aggregatetimeoriginalestimate", "aggregatetimespent",
+    "customfield_11096", // PMO Fase
+    "customfield_11023", // Avance PMO (%)
+    "customfield_11025", // Estado Ejecutivo
+    "customfield_11203", // Estado Financiero
+  ];
   while (!done) {
     const jql = `project = ${projectKey}${extraJql ? " AND " + extraJql : ""} ORDER BY updated DESC`;
     const result = await searchJiraIssues(jql, {
@@ -1317,6 +1325,13 @@ export interface JiraAdvanceReport {
   milestoneCompletionPct: number;
   primaryProgressPct: number;
   primaryProgressSource: "MILESTONES" | "JIRA_FALLBACK";
+  operationalPhase: string | null;
+  executiveStatus: string | null;
+  financialStatus: string | null;
+  advanceReportedPct: number | null;
+  projectManagerName: string | null;
+  projectManagerAccountId: string | null;
+  operationalUpdatedAt: string | null;
   // Time tracking (in seconds from JIRA)
   totalTimeSpentSeconds: number;
   totalOriginalEstimateSeconds: number;
@@ -1392,6 +1407,23 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
   const risks: JiraAdvanceReport["risks"] = [];
   const scopeChanges: JiraAdvanceReport["scopeChanges"] = [];
   const epicChildMap: Record<string, { done: number; total: number }> = {};
+  const projectProgressIssue = allIssues.find(issue => {
+    const typeName = issue.fields.issuetype?.name?.toLowerCase() ?? "";
+    return typeName.includes("proyecto pmo") && typeName.includes("avance");
+  }) ?? null;
+
+  const optionValue = (value: unknown): string | null => {
+    if (typeof value === "string") return value.trim() || null;
+    if (Array.isArray(value)) {
+      const values = value.map(optionValue).filter((item): item is string => Boolean(item));
+      return values.length ? values.join(", ") : null;
+    }
+    if (value && typeof value === "object") {
+      const candidate = value as { value?: unknown; name?: unknown };
+      return optionValue(candidate.value) ?? optionValue(candidate.name);
+    }
+    return null;
+  };
 
   // Status names that indicate "done" regardless of JIRA statusCategory
   // (some JIRA projects have misconfigured statusCategory mappings)
@@ -1548,6 +1580,15 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
     milestoneCompletionPct,
     primaryProgressPct,
     primaryProgressSource,
+    operationalPhase: optionValue(projectProgressIssue?.fields.customfield_11096),
+    executiveStatus: optionValue(projectProgressIssue?.fields.customfield_11025),
+    financialStatus: optionValue(projectProgressIssue?.fields.customfield_11203),
+    advanceReportedPct: Number.isFinite(Number(projectProgressIssue?.fields.customfield_11023))
+      ? Number(projectProgressIssue?.fields.customfield_11023)
+      : null,
+    projectManagerName: projectProgressIssue?.fields.assignee?.displayName ?? null,
+    projectManagerAccountId: projectProgressIssue?.fields.assignee?.accountId ?? null,
+    operationalUpdatedAt: projectProgressIssue?.fields.updated ?? null,
     totalTimeSpentSeconds,
     totalOriginalEstimateSeconds,
     totalTimeSpentHours: Math.round((totalTimeSpentSeconds / 3600) * 10) / 10,

@@ -330,6 +330,13 @@
       "when": 1789740770211,
       "tag": "0046_curious_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1789784549871,
+      "tag": "0047_perfect_sentinels",
+      "breakpoints": true
     }
   ]
 }

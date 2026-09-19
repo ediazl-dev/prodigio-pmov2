@@ -519,6 +519,46 @@ export const jiraSyncLogs = mysqlTable("jira_sync_log", {
 export type JiraSyncLog = typeof jiraSyncLogs.$inferSelect;
 export type InsertJiraSyncLog = typeof jiraSyncLogs.$inferInsert;
 
+// ==================== JIRA PORTFOLIO SNAPSHOTS ====================
+// Read model GET-only para el portafolio. Una fila vigente por proyecto evita
+// consultar Jira durante cada render y distingue ausencia de evidencia de cero.
+export const jiraPortfolioSnapshots = mysqlTable(
+  "jira_portfolio_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    jiraProjectKey: varchar("jiraProjectKey", { length: 50 }).notNull(),
+    status: mysqlEnum("status", ["success", "partial", "error"]).notNull(),
+    operationalPhase: varchar("operationalPhase", { length: 160 }),
+    executiveStatus: varchar("executiveStatus", { length: 160 }),
+    financialStatus: varchar("financialStatus", { length: 160 }),
+    advanceReportedPct: int("advanceReportedPct"),
+    projectManagerName: varchar("projectManagerName", { length: 255 }),
+    projectManagerAccountId: varchar("projectManagerAccountId", { length: 160 }),
+    milestonesTotal: int("milestonesTotal"),
+    milestonesFulfilled: int("milestonesFulfilled"),
+    milestonesPending: int("milestonesPending"),
+    risksTotal: int("risksTotal"),
+    risksOpen: int("risksOpen"),
+    risksHighPriorityOpen: int("risksHighPriorityOpen"),
+    sourceUpdatedAt: timestamp("sourceUpdatedAt"),
+    dataFingerprint: varchar("dataFingerprint", { length: 64 }).notNull(),
+    errorCode: varchar("errorCode", { length: 80 }),
+    errorMessage: text("errorMessage"),
+    capturedAt: timestamp("capturedAt").notNull(),
+    lastSuccessAt: timestamp("lastSuccessAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    projectUnique: uniqueIndex("jira_portfolio_snapshots_project_uq").on(table.projectId),
+    capturedIdx: index("jira_portfolio_snapshots_captured_idx").on(table.capturedAt),
+  }),
+);
+
+export type JiraPortfolioSnapshot = typeof jiraPortfolioSnapshots.$inferSelect;
+export type InsertJiraPortfolioSnapshot = typeof jiraPortfolioSnapshots.$inferInsert;
+
 export const jiraImportExceptions = mysqlTable("jira_import_exception", {
   id: int("id").autoincrement().primaryKey(),
   onboardingId: int("onboardingId").notNull(),

@@ -1,0 +1,30 @@
+CREATE TABLE `jira_portfolio_snapshots` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`projectId` int NOT NULL,
+	`jiraProjectKey` varchar(50) NOT NULL,
+	`status` enum('success','partial','error') NOT NULL,
+	`operationalPhase` varchar(160),
+	`executiveStatus` varchar(160),
+	`financialStatus` varchar(160),
+	`advanceReportedPct` int,
+	`projectManagerName` varchar(255),
+	`projectManagerAccountId` varchar(160),
+	`milestonesTotal` int,
+	`milestonesFulfilled` int,
+	`milestonesPending` int,
+	`risksTotal` int,
+	`risksOpen` int,
+	`risksHighPriorityOpen` int,
+	`sourceUpdatedAt` timestamp,
+	`dataFingerprint` varchar(64) NOT NULL,
+	`errorCode` varchar(80),
+	`errorMessage` text,
+	`capturedAt` timestamp NOT NULL,
+	`lastSuccessAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `jira_portfolio_snapshots_id` PRIMARY KEY(`id`),
+	CONSTRAINT `jira_portfolio_snapshots_project_uq` UNIQUE(`projectId`)
+);
+--> statement-breakpoint
+CREATE INDEX `jira_portfolio_snapshots_captured_idx` ON `jira_portfolio_snapshots` (`capturedAt`);

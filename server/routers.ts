@@ -81,6 +81,7 @@ import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
 import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 import { getExecutivePortfolio } from "./executivePortfolioSource";
+import { getJiraPortfolioSnapshot, refreshJiraPortfolioSnapshot } from "./jiraPortfolioSnapshot";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -418,6 +419,27 @@ const projectsRouter = router({
   stats: protectedProcedure.query(async () => getDashboardStats()),
   /** Lectura agregada del panel de control ejecutivo. */
   executive: protectedProcedure.query(async () => getExecutivePortfolio()),
+  jiraPortfolioSnapshot: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ input }) => getJiraPortfolioSnapshot(input.projectId)),
+  /** Refresca exclusivamente evidencia GET-only para el portafolio; nunca escribe en Jira. */
+  refreshJiraPortfolioSnapshot: adminOrPmo
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const project = await getProjectById(input.projectId);
+      const jiraProjectKey = project?.jiraProjectKey?.trim();
+      if (!project || !jiraProjectKey) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El proyecto no tiene un Space Jira vinculado" });
+      }
+      const result = await refreshJiraPortfolioSnapshot({ projectId: project.id, jiraProjectKey });
+      await audit(ctx, "refresh_jira_portfolio_snapshot", "project", project.id, project.projectName, {
+        jiraProjectKey,
+        status: result.status,
+        errorCode: result.errorCode,
+        jiraMode: "GET_ONLY",
+      });
+      return { result, snapshot: await getJiraPortfolioSnapshot(project.id) };
+    }),
   assignPm: adminOrPmo.input(z.object({ projectId: z.number(), pmId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await updateProject(input.projectId, { pmId: input.pmId });
