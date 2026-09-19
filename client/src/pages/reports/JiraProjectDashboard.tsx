@@ -10,8 +10,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
-} from "recharts";
+  CoveragePanel,
+  EpicProgressPanel,
+  MilestoneBackbone,
+  SchedulePanel,
+  StalledPanel,
+  WorkloadPanel,
+} from "./JiraDetailPanels";
 
 /* ─── Palette (aligned with LinkedProjectDashboard) ─── */
 const C = {
@@ -63,6 +68,7 @@ export default function JiraProjectDashboard() {
   }, [consolidated, projectKey]);
 
   const liveReportData = report.data;
+  const progressInsights = liveReportData?.insights ?? null;
 
   const portfolioByKey = useMemo(() => (
     portfolioQuery.data?.portfolio?.find((row: any) => row.jiraProjectKey === projectKey) ?? null
@@ -201,15 +207,21 @@ export default function JiraProjectDashboard() {
   const semColor = semaphoreColor(effectiveSemaphore);
   const semBg = semaphoreBg(effectiveSemaphore);
 
-  const typeData = data.byType.map((t: any) => ({ name: t.type, value: t.count }));
-  const epicData = data.epics.map((e: any) => ({
-    name: e.summary.length > 30 ? e.summary.substring(0, 30) + "..." : e.summary,
-    fullName: e.summary, total: e.totalSubtasks ?? 0, done: e.doneSubtasks ?? 0,
-    pct: (e.totalSubtasks ?? 0) > 0 ? Math.round(((e.doneSubtasks ?? 0) / (e.totalSubtasks ?? 0)) * 100) : 0,
-    statusCategory: e.statusCategory,
-  }));
   const milestonesDone = portfolioEvidence?.milestonesFulfilled ?? data.milestonesCumplidos;
   const milestonesTotal = portfolioEvidence?.milestonesTotal ?? (data.milestonesCumplidos + data.milestonesPendientes);
+  const milestoneProgressPct = progressInsights?.progress.milestonePct
+    ?? (milestonesTotal > 0 ? pct(milestonesDone, milestonesTotal) : null);
+  const taskProgressPct = progressInsights?.progress.issuePct ?? null;
+  const tasksDone = progressInsights?.progress.issuesDone ?? 0;
+  const tasksTotal = progressInsights?.progress.issuesTotal ?? 0;
+  const tasksInProgress = progressInsights?.workload.reduce((sum, row) => sum + row.inProgress, 0) ?? 0;
+  const tasksToDo = progressInsights?.workload.reduce((sum, row) => sum + row.toDo, 0) ?? 0;
+  const milestoneProgressColor = milestoneProgressPct === null
+    ? C.g300
+    : semaphoreColor(semaphoreFromPct(milestoneProgressPct));
+  const taskProgressColor = taskProgressPct === null
+    ? C.g300
+    : semaphoreColor(semaphoreFromPct(taskProgressPct));
 
   const analysisDate = latestAnalysisQ.data?.found ? latestAnalysisQ.data.createdAt : null;
   const daysSinceAnalysis = latestAnalysisQ.data?.found ? latestAnalysisQ.data.daysSince : null;
@@ -230,11 +242,11 @@ export default function JiraProjectDashboard() {
         background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navy2} 55%, ${C.navy3} 100%)`,
         borderBottom: `3px solid ${C.accent}`,
       }}>
-        <div style={{ padding: "22px 36px 18px" }}>
+        <div className="px-4 pb-[18px] pt-[22px] sm:px-9">
           <div className="flex items-center gap-3" style={{ marginBottom: 12 }}>
             <Link href="/reports/jira"><button className="flex items-center gap-1 hover:opacity-80 transition-opacity" style={{ fontSize: 11, color: C.accent, fontWeight: 600 }}><ArrowLeft size={14} /> Volver a Reportes</button></Link>
           </div>
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <div className="flex items-center gap-2.5" style={{ marginBottom: 8 }}>
                 <span style={{
@@ -260,7 +272,7 @@ export default function JiraProjectDashboard() {
               {portfolioEvidence && <p style={{ fontSize: 10.5, color: "rgba(255,255,255,.45)", marginTop: 4 }}>Fase Jira: {portfolioEvidence.operationalPhase ?? "N/D"} · PM: {portfolioEvidence.pmName ?? "N/D"} · snapshot {portfolioEvidence.jiraEvidenceAvailability}</p>}
               {(data as any).snapshotOnly && <p style={{ fontSize: 10.5, color: C.gold2, marginTop: 4 }}>Vista resumida desde snapshot local; épicas, equipo y detalle de issues live están N/D.</p>}
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
               {pmoProjectId && (
                 <Button onClick={handleGeneratePMAnalysis} disabled={generatingAnalysis} size="sm"
                   style={{ background: C.gold2, color: "#fff", fontSize: 11, fontWeight: 700 }}>
@@ -325,14 +337,14 @@ export default function JiraProjectDashboard() {
           )}
 
           {/* KPI STRIP */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginTop: 16 }}>
+          <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
             {[
-              { icon: Target, label: "Avance", value: `${percentComplete}%`, sub: isSnapshotOnly ? "snapshot Jira" : `${data.doneCount}/${data.totalIssues}`, color: semaphoreColor(semaphoreFromPct(percentComplete)) },
-              { icon: Milestone, label: "Hitos", value: `${milestonesDone}/${milestonesTotal}`, sub: `${pct(milestonesDone, milestonesTotal)}%`, color: milestonesDone === milestonesTotal && milestonesTotal > 0 ? C.teal : C.gold },
+              { icon: Milestone, label: "Avance por hitos", value: milestoneProgressPct === null ? "N/D" : `${milestoneProgressPct}%`, sub: milestonesTotal > 0 ? `${milestonesDone}/${milestonesTotal} cerrados` : "sin hitos definidos", color: milestoneProgressColor },
+              { icon: Target, label: "Tareas", value: taskProgressPct === null ? "N/D" : `${taskProgressPct}%`, sub: progressInsights ? `${tasksDone}/${tasksTotal} cerradas` : "detalle live no disponible", color: taskProgressColor },
               { icon: Flag, label: "Épicas", value: isSnapshotOnly ? "N/D" : `${data.epics.length}`, sub: isSnapshotOnly ? "detalle live no disponible" : `${data.epics.filter((e: any) => e.statusCategory === "Done").length} listas`, color: C.accent },
-              { icon: Clock, label: "En Progreso", value: isSnapshotOnly ? "N/D" : `${data.inProgressCount}`, sub: isSnapshotOnly ? "detalle live no disponible" : "activos", color: C.blue2 },
+              { icon: Clock, label: "En Progreso", value: progressInsights ? `${tasksInProgress}` : "N/D", sub: progressInsights ? "tareas activas" : "detalle live no disponible", color: C.blue2 },
               { icon: ShieldAlert, label: "Riesgos", value: `${portfolioEvidence?.openRisks ?? data.risks.length}`, sub: portfolioEvidence?.highRisksOpen != null ? `${portfolioEvidence.highRisksOpen} altos · ${portfolioEvidence.riskSource}` : `${data.risks.filter((r: any) => r.statusCategory !== "Done").length} abiertos`, color: (portfolioEvidence?.highRisksOpen ?? data.risks.filter((r: any) => r.statusCategory !== "Done").length) > 0 ? C.red : C.teal },
-              { icon: Users, label: "Equipo", value: isSnapshotOnly ? "N/D" : `${data.team.length}`, sub: isSnapshotOnly ? "detalle live no disponible" : "miembros", color: C.teal2 },
+              { icon: Users, label: "Equipo", value: progressInsights ? `${progressInsights.workload.length}` : "N/D", sub: progressInsights ? "responsables con tareas" : "detalle live no disponible", color: C.teal2 },
             ].map((kpi, i) => (
               <div key={i} style={{
                 background: "rgba(255,255,255,.06)", borderRadius: 10, padding: "12px 14px",
@@ -369,7 +381,7 @@ export default function JiraProjectDashboard() {
       </div>
 
       {/* ═══ TAB CONTENT ═══ */}
-      <div style={{ padding: "20px 28px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="flex flex-col gap-4 px-3 pb-8 pt-5 sm:px-7">
 
         {/* TAB: OVERVIEW */}
         {activeTab === "overview" && (() => {
@@ -377,20 +389,26 @@ export default function JiraProjectDashboard() {
           const hhConsumed = data.totalTimeSpentHours ?? 0;
           const hhBudgeted = finKPIs?.presupuestoHH ?? data.totalOriginalEstimateHours ?? 0;
           const hhPct = hhBudgeted > 0 ? Math.round((hhConsumed / hhBudgeted) * 100) : 0;
-          const milestonesPctClosed = milestonesTotal > 0 ? Math.round((milestonesDone / milestonesTotal) * 100) : 0;
-          const sortedStatuses = [...data.byStatus].sort((a: any, b: any) => b.count - a.count);
-          const maxStatusCount = sortedStatuses.length > 0 ? sortedStatuses[0].count : 1;
+          const milestonesPctClosed = milestoneProgressPct ?? 0;
 
           return (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+            {progressInsights ? (
+              <MilestoneBackbone insights={progressInsights} />
+            ) : (
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+                El detalle de hitos y tareas está N/D hasta que la lectura Jira live esté disponible.
+              </section>
+            )}
+
             {/* INFOGRAPHIC KPIs - 5 circular cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
               {[
-                { label: "Tareas", icon: CheckCircle2, value: percentComplete, text: `${data.doneCount} de ${data.totalIssues}`, color: semaphoreColor(semaphoreFromPct(percentComplete)) },
+                { label: "Avance por hitos", icon: Milestone, value: milestonesPctClosed, text: milestoneProgressPct === null ? "N/D · sin hitos definidos" : `${milestonesDone} de ${milestonesTotal}`, color: milestoneProgressColor, centerText: milestoneProgressPct === null ? "N/D" : undefined },
                 { label: "HH Consumidas", icon: Clock, value: hhPct, text: hhConsumed > 0 ? `${hhPct}% del presupuesto` : "Sin registro", color: hhPct > 100 ? C.red : hhPct > 85 ? C.gold : C.blue2, centerText: hhConsumed > 0 ? hhConsumed.toLocaleString("es-CL") : "--" },
                 { label: "HH Presupuesto", icon: Timer, value: 100, text: finKPIs?.found ? "Desde planilla" : data.totalOriginalEstimateHours > 0 ? "Estimado JIRA" : "No disponible", color: C.teal, centerText: hhBudgeted > 0 ? hhBudgeted.toLocaleString("es-CL") : "--", isStatic: true },
-                { label: "Hitos", icon: Milestone, value: milestonesTotal > 0 ? (milestonesDone / milestonesTotal) * 100 : 0, text: milestonesDone === milestonesTotal && milestonesTotal > 0 ? "Todos cumplidos" : `${milestonesTotal - milestonesDone} pendientes`, color: milestonesDone === milestonesTotal && milestonesTotal > 0 ? C.teal : C.gold, centerText: `${milestonesDone}/${milestonesTotal}` },
+                { label: "Tareas", icon: CheckCircle2, value: taskProgressPct ?? 0, text: taskProgressPct === null ? "N/D · sin detalle live" : `${tasksDone} de ${tasksTotal}`, color: taskProgressColor, centerText: taskProgressPct === null ? "N/D" : undefined },
                 { label: "Hitos cerrados", icon: FileCheck, value: milestonesPctClosed, text: "Evidencia Jira; no equivale a facturación", color: milestonesPctClosed >= 80 ? C.teal : milestonesPctClosed >= 40 ? C.gold : C.red },
               ].map((kpi, i) => (
                 <div key={i} style={{
@@ -416,70 +434,42 @@ export default function JiraProjectDashboard() {
               ))}
             </div>
 
-            {/* PROGRESS BAR - Stacked */}
+            {/* TASK FLOW - secondary operational reading */}
             <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
               <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
                 <Activity size={15} style={{ color: C.accent }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Progreso General</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Avance operacional de tareas</span>
               </div>
-              <div style={{ width: "100%", borderRadius: 10, height: 22, display: "flex", overflow: "hidden", background: C.g200 }}>
-                {data.doneCount > 0 && <div style={{ height: 22, width: `${pct(data.doneCount, data.totalIssues)}%`, background: C.teal, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff" }}>{data.doneCount > 3 ? `${data.doneCount} listas` : ""}</div>}
-                {data.inProgressCount > 0 && <div style={{ height: 22, width: `${pct(data.inProgressCount, data.totalIssues)}%`, background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff" }}>{data.inProgressCount > 3 ? `${data.inProgressCount}` : ""}</div>}
-                {data.toDoCount > 0 && <div style={{ height: 22, width: `${pct(data.toDoCount, data.totalIssues)}%`, background: `${C.g300}66`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: C.g400 }}>{data.toDoCount > 3 ? `${data.toDoCount}` : ""}</div>}
-              </div>
-              <div className="flex items-center gap-5" style={{ marginTop: 10 }}>
-                <div className="flex items-center gap-1.5"><div style={{ width: 10, height: 10, borderRadius: 3, background: C.teal }} /><span style={{ fontSize: 10, color: C.g400 }}>Completadas ({data.doneCount})</span></div>
-                <div className="flex items-center gap-1.5"><div style={{ width: 10, height: 10, borderRadius: 3, background: C.accent }} /><span style={{ fontSize: 10, color: C.g400 }}>En Progreso ({data.inProgressCount})</span></div>
-                <div className="flex items-center gap-1.5"><div style={{ width: 10, height: 10, borderRadius: 3, background: `${C.g300}66` }} /><span style={{ fontSize: 10, color: C.g400 }}>Pendientes ({data.toDoCount})</span></div>
-              </div>
+              {progressInsights ? (
+                <>
+                  <div style={{ width: "100%", borderRadius: 10, height: 22, display: "flex", overflow: "hidden", background: C.g200 }}>
+                    {tasksDone > 0 && <div style={{ height: 22, width: `${pct(tasksDone, tasksTotal)}%`, background: C.teal, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff" }}>{tasksDone > 3 ? `${tasksDone} listas` : ""}</div>}
+                    {tasksInProgress > 0 && <div style={{ height: 22, width: `${pct(tasksInProgress, tasksTotal)}%`, background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff" }}>{tasksInProgress > 3 ? `${tasksInProgress}` : ""}</div>}
+                    {tasksToDo > 0 && <div style={{ height: 22, width: `${pct(tasksToDo, tasksTotal)}%`, background: `${C.g300}66`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: C.g400 }}>{tasksToDo > 3 ? `${tasksToDo}` : ""}</div>}
+                  </div>
+                  <div className="flex items-center gap-5" style={{ marginTop: 10 }}>
+                    <div className="flex items-center gap-1.5"><div style={{ width: 10, height: 10, borderRadius: 3, background: C.teal }} /><span style={{ fontSize: 10, color: C.g400 }}>Completadas ({tasksDone})</span></div>
+                    <div className="flex items-center gap-1.5"><div style={{ width: 10, height: 10, borderRadius: 3, background: C.accent }} /><span style={{ fontSize: 10, color: C.g400 }}>En progreso ({tasksInProgress})</span></div>
+                    <div className="flex items-center gap-1.5"><div style={{ width: 10, height: 10, borderRadius: 3, background: `${C.g300}66` }} /><span style={{ fontSize: 10, color: C.g400 }}>Por hacer ({tasksToDo})</span></div>
+                  </div>
+                </>
+              ) : (
+                <p style={{ fontSize: 11, color: C.g400 }}>N/D: el detalle live de tareas no está disponible.</p>
+              )}
             </div>
 
-            {/* STATUS BREAKDOWN + ISSUES BY TYPE */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
-                <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
-                  <BarChart3 size={15} style={{ color: C.accent }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Distribución por Estado</span>
+            {progressInsights && (
+              <>
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <SchedulePanel insights={progressInsights} />
+                  <CoveragePanel insights={progressInsights} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {sortedStatuses.map((s: any, i: number) => {
-                    const barPct = maxStatusCount > 0 ? (s.count / maxStatusCount) * 100 : 0;
-                    const isDone = s.status.toLowerCase().includes("final") || s.status.toLowerCase().includes("done") || s.status.toLowerCase().includes("cerr") || s.status.toLowerCase().includes("cumplido");
-                    const isWIP = s.status.toLowerCase().includes("progress") || s.status.toLowerCase().includes("activo") || s.status.toLowerCase().includes("curso");
-                    const barColor = isDone ? C.teal : isWIP ? C.accent : C.g300;
-                    return (
-                      <div key={i}>
-                        <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
-                          <span style={{ fontSize: 10.5, fontWeight: 600, color: C.navy, maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.status}</span>
-                          <div className="flex items-center gap-2">
-                            <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>{s.count}</span>
-                            <span style={{ fontSize: 9.5, color: C.g400 }}>({s.percentage}%)</span>
-                          </div>
-                        </div>
-                        <div style={{ width: "100%", height: 6, background: C.g200, borderRadius: 10, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${barPct}%`, background: barColor, borderRadius: 10 }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <StalledPanel insights={progressInsights} />
+                  <WorkloadPanel insights={progressInsights} />
                 </div>
-              </div>
-              <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
-                <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
-                  <BarChart3 size={15} style={{ color: C.gold }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Issues por Tipo</span>
-                </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={typeData} layout="vertical" margin={{ left: 10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.g200} horizontal={false} />
-                    <XAxis type="number" tick={{ fill: C.g400, fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fill: C.g400, fontSize: 10 }} width={100} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: "#fff", border: `1px solid ${C.g200}`, borderRadius: 8, fontSize: 11 }} />
-                    <Bar dataKey="value" fill={C.accent} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+              </>
+            )}
 
             {/* HH Comparison */}
             {(hhConsumed > 0 || hhBudgeted > 0) && (
@@ -773,45 +763,20 @@ export default function JiraProjectDashboard() {
         {/* TAB: ÉPICAS E HITOS */}
         {activeTab === "epics" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
-              <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
-                <Flag size={15} style={{ color: C.gold }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Avance por Épica ({epicData.length})</span>
+            {progressInsights ? (
+              <EpicProgressPanel insights={progressInsights} />
+            ) : (
+              <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
+                <p style={{ fontSize: 12, color: C.g400 }}>Detalle de épicas N/D hasta que la lectura Jira live esté disponible.</p>
               </div>
-              {epicData.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>{isSnapshotOnly ? "Detalle de épicas N/D en el snapshot local." : "No se encontraron épicas."}</p> : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {epicData.map((epic: any, i: number) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <div style={{
-                        flexShrink: 0, width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10, fontWeight: 800, color: "#fff",
-                        background: epic.statusCategory === "Done" ? C.teal : C.accent,
-                      }}>{i + 1}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: C.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={epic.fullName}>{epic.name}</span>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: epic.pct >= 80 ? C.teal : epic.pct >= 50 ? C.gold : C.g400, marginLeft: 8 }}>{epic.pct}%</span>
-                        </div>
-                        <div style={{ width: "100%", height: 6, background: C.g200, borderRadius: 10, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${epic.pct}%`, background: epic.pct >= 80 ? C.teal : epic.pct >= 50 ? C.gold : C.accent, borderRadius: 10 }} />
-                        </div>
-                        <div className="flex items-center gap-2" style={{ marginTop: 3 }}>
-                          <span style={{ fontSize: 9.5, color: C.g400 }}>{epic.done}/{epic.total} issues</span>
-                          {epic.statusCategory === "Done" && <span className="flex items-center gap-0.5" style={{ fontSize: 9.5, color: C.teal }}><CheckCircle2 size={10} /> Completada</span>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
             <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
               <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
                 <Milestone size={15} style={{ color: C.teal }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Hitos del Proyecto ({milestonesDone}/{milestonesTotal})</span>
               </div>
               {data.milestones.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>No se encontraron hitos.</p> : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
                   {data.milestones.map((m: any, i: number) => {
                     const isDone = m.statusCategory === "Done";
                     return (

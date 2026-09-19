@@ -1,311 +1,423 @@
-import { useState, useMemo } from "react";
-import { Link } from "wouter";
+/**
+ * Reporte de Avance Jira — vista operacional de proyectos ABIERTOS.
+ *
+ * Qué cambia respecto de la versión anterior:
+ *  - Los proyectos cerrados y cancelados no se reportan. El endpoint ya los filtra.
+ *  - El avance del proyecto es el % de HITOS CERRADOS. El de tareas queda al
+ *    lado, como lectura operacional, y nunca ocupa su lugar.
+ *  - Un proyecto sin Hitos PMO definidos muestra N/D y no entra al promedio.
+ *  - Las tarjetas de 12 columnas pasan a tabla densa con filtros y orden.
+ */
+
 import { trpc } from "@/lib/trpc";
-import { Search, Loader2, ArrowUpRight, Target, BarChart3, Users, ShieldAlert, Milestone, Filter, X, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp, Loader2, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 
-/* ─── Palette (aligned with LinkedProjectDashboard) ─── */
-const C = {
-  navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
-  blue: "#1B4F8A", blue2: "#2563AB", accent: "#3B8EE8",
-  teal: "#0D7A6B", teal2: "#12A08D",
-  gold: "#B8860B", gold2: "#D4A017",
-  red: "#B83232", green: "#1A7A4A",
-  g100: "#F4F7FB", g150: "#EBF0F7", g200: "#D8E2EF", g300: "#B0BDD0", g400: "#7A8FA8",
-};
+import {
+  DEFAULT_REPORT_SORT,
+  EMPTY_REPORT_FILTERS,
+  TONE,
+  buildReportRows,
+  countActiveReportFilters,
+  filterReportRows,
+  milestoneDaysLabel,
+  milestoneDaysTone,
+  progressLabel,
+  reportClients,
+  sortReportRows,
+  summarizeReport,
+  type ReportSortKey,
+} from "./jiraReportViewModel";
 
-/* ─── helpers ─── */
-const semColor = (p: number) => p >= 80 ? C.teal : p >= 50 ? C.gold : C.red;
-const semLabel = (p: number) => p >= 80 ? "VERDE" : p >= 50 ? "AMARILLO" : "ROJO";
-const semBg = (p: number) => p >= 80 ? "#E8F5E9" : p >= 50 ? "#FFF8E1" : "#FFEBEE";
-
-type FilterType = "all" | "jira" | "pmo-only";
+const COLUMNS: Array<{ key: ReportSortKey | null; label: string; className: string; align?: "right" | "center" }> = [
+  { key: "name", label: "Proyecto", className: "w-[268px]" },
+  { key: "progress", label: "Avance por hitos", className: "w-[150px]" },
+  { key: null, label: "Tareas", className: "w-[128px]" },
+  { key: "urgency", label: "Próximo hito", className: "w-[186px]" },
+  { key: "pending", label: "Por ejecutar", className: "w-[118px]", align: "center" },
+  { key: "risks", label: "Riesgos", className: "w-[92px]", align: "center" },
+  { key: null, label: "Equipo y carga", className: "" },
+  { key: null, label: "", className: "w-[78px]" },
+];
 
 export default function JiraReport() {
-  const { data, isLoading, error } = trpc.jira.enrichedConsolidatedReport.useQuery();
-  const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<FilterType>("all");
+  const [, navigate] = useLocation();
+  const { data, isLoading, error, refetch } = trpc.jira.enrichedConsolidatedReport.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
-  const filteredProjects = useMemo(() => {
-    if (!data) return [];
-    let projects = [...data.projects];
-    if (filterType === "jira") projects = projects.filter((p: any) => p.projectKey);
-    else if (filterType === "pmo-only") projects = projects.filter((p: any) => !p.projectKey);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      projects = projects.filter((p: any) =>
-        (p.projectName ?? "").toLowerCase().includes(q) ||
-        (p.clientName ?? "").toLowerCase().includes(q) ||
-        (p.projectKey ?? "").toLowerCase().includes(q) ||
-        (p.dealNumber ?? "").toLowerCase().includes(q) ||
-        (p.pmoProjectName ?? "").toLowerCase().includes(q)
-      );
-    }
-    return projects.sort((a: any, b: any) => {
-      if (a.projectKey && !b.projectKey) return -1;
-      if (!a.projectKey && b.projectKey) return 1;
-      return (b.percentComplete ?? 0) - (a.percentComplete ?? 0);
-    });
-  }, [data, search, filterType]);
+  const [filters, setFilters] = useState(EMPTY_REPORT_FILTERS);
+  const [sort, setSort] = useState(DEFAULT_REPORT_SORT);
+
+  const allRows = useMemo(() => (data ? buildReportRows(data) : []), [data]);
+  const visible = useMemo(() => sortReportRows(filterReportRows(allRows, filters), sort), [allRows, filters, sort]);
+  const summary = useMemo(() => summarizeReport(visible, allRows), [visible, allRows]);
+  const clients = useMemo(() => reportClients(allRows), [allRows]);
+
+  const handleSort = (key: ReportSortKey) =>
+    setSort(current =>
+      current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" },
+    );
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: C.g100 }}>
-        <Loader2 className="animate-spin mr-2" style={{ color: C.accent }} size={24} />
-        <span style={{ color: C.g400, fontSize: 14 }}>Cargando datos de proyectos...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: C.g100 }}>
+      <div className="grid min-h-[50vh] place-items-center">
         <div className="text-center">
-          <AlertTriangle size={40} style={{ color: C.red }} className="mx-auto mb-4" />
-          <p style={{ color: C.navy, fontSize: 16, fontWeight: 700 }}>Error al cargar reportes</p>
-          <p style={{ color: C.g400, fontSize: 13, marginTop: 8 }}>{error.message}</p>
+          <Loader2 size={30} className="mx-auto animate-spin text-[#E91E8C]" />
+          <p className="mt-3 text-sm font-semibold text-slate-600">Consultando Jira…</p>
         </div>
       </div>
     );
   }
 
-  const jiraCount = data?.projects.filter((p: any) => p.projectKey).length ?? 0;
-  const pmoOnlyCount = data?.projects.filter((p: any) => !p.projectKey).length ?? 0;
+  if (error || !data) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+        <div className="flex items-center gap-2 font-bold">
+          <AlertTriangle size={18} /> No fue posible cargar el reporte
+        </div>
+        <p className="mt-2 text-sm">{error?.message ?? "La lectura consolidada no está disponible."}</p>
+        <Button className="mt-4" variant="outline" onClick={() => refetch()}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+
+  const activeFilters = countActiveReportFilters(filters);
 
   return (
-    <div className="min-h-screen" style={{ background: C.g100, fontFamily: "'Inter', sans-serif", color: C.navy }}>
-      {/* ═══ HEADER ═══ */}
-      <div style={{
-        background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navy2} 55%, ${C.navy3} 100%)`,
-        borderBottom: `3px solid ${C.accent}`,
-      }}>
-        <div style={{ padding: "22px 36px 18px" }}>
-          <div className="flex items-center gap-2.5" style={{ marginBottom: 8 }}>
-            <span style={{
-              background: "rgba(59,142,232,.15)", border: "1px solid rgba(59,142,232,.35)",
-              borderRadius: 20, padding: "3px 12px", fontSize: 10, fontWeight: 700,
-              color: C.accent, letterSpacing: ".1em", textTransform: "uppercase",
-            }}>Reportes</span>
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,.45)", fontWeight: 500 }}>
-              · {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" })}
-            </span>
+    <div className="space-y-3 pb-8">
+      {/* Titular: el avance de la cartera, medido por hitos */}
+      <section className="relative overflow-hidden rounded-2xl bg-[#0A1628] px-5 py-4 text-white shadow-[0_18px_50px_rgba(10,22,40,0.18)] sm:px-6">
+        <span className="absolute left-0 top-0 h-full w-[5px] bg-[#E91E8C]" aria-hidden="true" />
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+              Reportes · Avance Jira · Vista operacional
+            </p>
+            <h1 className="mt-1.5 text-2xl font-black tracking-[-0.02em] sm:text-[24px]">
+              {allRows.length} proyectos abiertos · {data.milestonesDone} de {data.milestonesTotal} hitos cerrados
+            </h1>
+            <p className="mt-1 text-xs text-slate-300">
+              Los proyectos cerrados quedan fuera
+              {data.withoutMilestones > 0
+                ? ` · ${data.withoutMilestones} sin hitos definidos, no medibles`
+                : ""}{" "}
+              · actualizado {new Date(data.lastUpdated).toLocaleString("es-CL")}
+            </p>
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", lineHeight: 1.15 }}>
-            Reporte de Avance JIRA
-          </h1>
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>
-            Vista consolidada de proyectos con integración JIRA y PMO
-          </p>
 
-          {/* ─── KPI Summary (inside header, navy style) ─── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginTop: 18 }}>
-            {[
-              { label: "Total Proyectos", value: data?.totalProjects ?? 0, icon: BarChart3, color: C.accent },
-              { label: "Spaces JIRA", value: data?.totalJiraSpaces ?? 0, icon: Target, color: C.teal2 },
-              { label: "Issues Totales", value: data?.totalIssues ?? 0, icon: Milestone, color: C.gold2 },
-              { label: "Avance Promedio", value: `${data?.avgProgress ?? 0}%`, icon: CheckCircle2, color: semColor(data?.avgProgress ?? 0) },
-            ].map((kpi, i) => (
-              <div key={i} style={{
-                background: "rgba(255,255,255,.06)", borderRadius: 10, padding: "14px 16px",
-                border: "1px solid rgba(255,255,255,.08)",
-              }}>
-                <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
-                  <kpi.icon size={13} style={{ color: kpi.color }} />
-                  <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".09em", color: "rgba(255,255,255,.45)" }}>{kpi.label}</span>
-                </div>
-                <p style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-.5px" }}>{kpi.value}</p>
-              </div>
-            ))}
+          <div className="flex shrink-0 items-center gap-5">
+            <div className="text-right">
+              <p className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Avance por hitos</p>
+              <p className="font-mono text-[30px] font-black leading-tight">{progressLabel(data.avgProgress)}</p>
+            </div>
+            <span className="h-[52px] w-px bg-white/15" />
+            <div className="text-right">
+              <p className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Tareas cerradas</p>
+              <p className="font-mono text-[22px] font-bold leading-tight text-slate-300">
+                {data.totalDone} / {data.totalIssues}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══ SEARCH & FILTERS ═══ */}
-      <div style={{ padding: "20px 28px 0" }}>
-        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-          <div className="relative flex-1 w-full">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.g400 }} />
+      {/* Filtros */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input
-              placeholder="Buscar por nombre, cliente, key JIRA o deal..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 text-sm"
-              style={{ background: "#fff", color: C.navy, borderRadius: 10, border: `1px solid ${C.g200}`, boxShadow: "0 1px 4px rgba(10,22,40,.06)" }}
+              value={filters.search}
+              onChange={event => setFilters({ ...filters, search: event.target.value })}
+              placeholder="Proyecto, cliente o key Jira"
+              aria-label="Buscar proyecto"
+              className="h-9 w-[250px] pl-9"
             />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-80">
-                <X size={14} style={{ color: C.g400 }} />
-              </button>
-            )}
           </div>
-          <div className="flex gap-2">
-            {([
-              { key: "all" as FilterType, label: "Todos", count: (data?.totalProjects ?? 0) },
-              { key: "jira" as FilterType, label: "Con JIRA", count: jiraCount },
-              { key: "pmo-only" as FilterType, label: "Solo PMO", count: pmoOnlyCount },
-            ]).map((f) => (
-              <Button
-                key={f.key}
-                variant="outline"
-                size="sm"
-                onClick={() => setFilterType(f.key)}
-                className="text-xs font-medium"
-                style={{
-                  background: filterType === f.key ? `${C.accent}15` : "#fff",
-                  color: filterType === f.key ? C.accent : C.g400,
-                  border: filterType === f.key ? `1.5px solid ${C.accent}55` : `1px solid ${C.g200}`,
-                  borderRadius: 8,
-                  boxShadow: filterType === f.key ? "none" : "0 1px 3px rgba(10,22,40,.04)",
-                }}
-              >
-                <Filter size={12} className="mr-1" /> {f.label} ({f.count})
-              </Button>
-            ))}
-          </div>
+
+          <Select value={filters.client} onValueChange={value => setFilters({ ...filters, client: value })}>
+            <SelectTrigger className="h-9 w-[150px]" aria-label="Filtrar por cliente">
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los clientes</SelectItem>
+              {clients.map(client => (
+                <SelectItem key={client} value={client}>
+                  {client}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.progress} onValueChange={value => setFilters({ ...filters, progress: value })}>
+            <SelectTrigger className="h-9 w-[178px]" aria-label="Filtrar por avance">
+              <SelectValue placeholder="Avance" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Avance por hitos: todo</SelectItem>
+              <SelectItem value="behind">Bajo 40%</SelectItem>
+              <SelectItem value="measurable">Solo medibles</SelectItem>
+              <SelectItem value="unmeasured">Sin hitos definidos</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.nextMilestone} onValueChange={value => setFilters({ ...filters, nextMilestone: value })}>
+            <SelectTrigger className="h-9 w-[168px]" aria-label="Filtrar por próximo hito">
+              <SelectValue placeholder="Próximo hito" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Próximo hito: todo</SelectItem>
+              <SelectItem value="overdue">Vencido</SelectItem>
+              <SelectItem value="due_soon">Vence en 14 días</SelectItem>
+              <SelectItem value="none">Sin hitos</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.attention} onValueChange={value => setFilters({ ...filters, attention: value })}>
+            <SelectTrigger className="h-9 w-[182px]" aria-label="Filtrar por señal de atención">
+              <SelectValue placeholder="Atención" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toda la cartera</SelectItem>
+              <SelectItem value="with_risks">Con riesgos abiertos</SelectItem>
+              <SelectItem value="with_stalled">Con tareas estancadas</SelectItem>
+              <SelectItem value="with_uncovered">Con objetivos sin tareas</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {activeFilters > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilters(EMPTY_REPORT_FILTERS)}
+              className="inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-[#175CD3] transition hover:bg-slate-50"
+            >
+              <X size={13} /> Limpiar {activeFilters}
+            </button>
+          )}
         </div>
 
-        {/* ─── RESULTS COUNT ─── */}
-        <p style={{ fontSize: 11, color: C.g400, marginTop: 12, marginBottom: 16 }}>
-          {filteredProjects.length} proyecto{filteredProjects.length !== 1 ? "s" : ""} encontrado{filteredProjects.length !== 1 ? "s" : ""}
-          {search && ` para "${search}"`}
-        </p>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2.5 text-[11.5px] text-slate-700">
+          <span className="font-bold text-slate-900">
+            {summary.count} de {summary.total} proyectos
+          </span>
+          {summary.withOverdueMilestone > 0 && (
+            <span className="font-bold text-[#B42318]">{summary.withOverdueMilestone} con hitos vencidos</span>
+          )}
+          {summary.unmeasured > 0 && (
+            <span className="font-bold text-[#B54708]">{summary.unmeasured} sin hitos definidos</span>
+          )}
+          <span>{summary.risksOpen} riesgos abiertos</span>
+          {summary.stalled > 0 && <span>{summary.stalled} tareas estancadas</span>}
+          <div className="flex-grow" />
+          <span>
+            {summary.pendingTasks} tareas programadas por ejecutar
+            {summary.overdueTasks > 0 ? ` · ${summary.overdueTasks} vencidas` : ""}
+          </span>
+        </div>
+      </section>
 
-        {/* ═══ PROJECT GRID ═══ */}
-        {filteredProjects.length === 0 ? (
-          <div className="text-center" style={{ padding: "60px 0" }}>
-            <Search size={40} style={{ color: C.g300 }} className="mx-auto mb-4 opacity-40" />
-            <p style={{ color: C.g400, fontSize: 13 }}>No se encontraron proyectos con los filtros seleccionados.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredProjects.map((p: any, i: number) => {
-              const hasJira = !!p.projectKey;
-              const pctColor = semColor(p.percentComplete ?? 0);
-              const pctBg = semBg(p.percentComplete ?? 0);
-              return (
-                <div key={i} className="transition-all hover:scale-[1.01]" style={{
-                  background: "#fff", borderRadius: 12, overflow: "hidden",
-                  boxShadow: "0 2px 16px rgba(10,22,40,.08)",
-                  borderTop: `3px solid ${hasJira ? pctColor : C.g300}`,
-                }}>
-                  {/* Card Header */}
-                  <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${C.g150}` }}>
-                    <div className="flex items-start justify-between" style={{ marginBottom: 6 }}>
-                      <div className="flex items-center gap-2">
-                        {hasJira && (
-                          <span style={{
-                            fontSize: 9.5, fontWeight: 700, padding: "2px 10px", borderRadius: 20,
-                            background: `${C.accent}15`, color: C.accent, border: `1px solid ${C.accent}35`,
-                          }}>{p.projectKey}</span>
-                        )}
-                        {!hasJira && (
-                          <span style={{
-                            fontSize: 9.5, fontWeight: 700, padding: "2px 10px", borderRadius: 20,
-                            background: C.g150, color: C.g400,
-                          }}>PMO</span>
-                        )}
-                        {hasJira && (
-                          <span style={{
-                            fontSize: 9.5, fontWeight: 700, padding: "2px 10px", borderRadius: 20,
-                            background: pctBg, color: pctColor, letterSpacing: ".05em",
-                          }}>{semLabel(p.percentComplete)}</span>
-                        )}
-                      </div>
-                      {hasJira && (
-                        <Link href={`/reports/jira/${p.projectKey}`}>
-                          <button className="flex items-center gap-1 hover:opacity-80 transition-opacity" style={{ fontSize: 10, fontWeight: 600, color: C.accent }}>
-                            Ver Dashboard <ArrowUpRight size={12} />
-                          </button>
-                        </Link>
+      {/* Tabla */}
+      {visible.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-16 text-center">
+          <Search className="mx-auto text-slate-300" size={36} />
+          <p className="mt-3 font-bold text-slate-800">No hay proyectos para estos filtros</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+          <table className="w-full min-w-[1180px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70">
+                {COLUMNS.map(column => {
+                  const sorted = column.key !== null && sort.key === column.key;
+                  return (
+                    <th
+                      key={column.label || "acciones"}
+                      scope="col"
+                      aria-sort={sorted ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+                      className={`px-3 py-2 text-[9.5px] font-black uppercase tracking-[0.1em] text-slate-500 ${column.className} ${
+                        column.align === "right" ? "text-right" : column.align === "center" ? "text-center" : ""
+                      }`}
+                    >
+                      {column.key ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSort(column.key as ReportSortKey)}
+                          className={`inline-flex items-center gap-1 uppercase tracking-[0.1em] transition hover:text-slate-900 ${sorted ? "text-slate-900" : ""}`}
+                        >
+                          {column.label}
+                          {sorted ? (
+                            sort.direction === "asc" ? (
+                              <ChevronUp size={12} strokeWidth={3} />
+                            ) : (
+                              <ChevronDown size={12} strokeWidth={3} />
+                            )
+                          ) : (
+                            <ArrowUpDown size={11} className="opacity-40" />
+                          )}
+                        </button>
+                      ) : (
+                        column.label || <span className="sr-only">Acciones</span>
                       )}
-                    </div>
-                    {hasJira ? (
-                      <Link href={`/reports/jira/${p.projectKey}`}>
-                        <h3 className="hover:underline cursor-pointer truncate" style={{ fontSize: 14, fontWeight: 700, color: C.navy }} title={p.projectName}>
-                          {p.projectName}
-                        </h3>
-                      </Link>
-                    ) : (
-                      <h3 className="truncate" style={{ fontSize: 14, fontWeight: 700, color: C.navy }} title={p.projectName}>
-                        {p.projectName}
-                      </h3>
-                    )}
-                    {p.clientName && (
-                      <p className="truncate" style={{ fontSize: 11, color: C.g400, marginTop: 2 }}>{p.clientName}</p>
-                    )}
-                  </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
 
-                  {/* Card Body */}
-                  {hasJira ? (
-                    <div style={{ padding: "14px 20px 16px" }}>
-                      {/* Progress bar */}
-                      <div className="flex items-center gap-3" style={{ marginBottom: 14 }}>
-                        <div style={{ flex: 1, height: 7, background: C.g200, borderRadius: 10, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${Math.min(p.percentComplete, 100)}%`, background: pctColor, borderRadius: 10, transition: "width .3s" }} />
-                        </div>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: pctColor, minWidth: 40, textAlign: "right" }}>{p.percentComplete}%</span>
-                      </div>
+            <tbody>
+              {visible.map((row, index) => {
+                const tone = TONE[row.tone];
+                const nextTone = TONE[milestoneDaysTone(row.nextMilestoneDays, row.nextMilestoneSummary !== null)];
+                const load = row.teamSize > 0 ? Math.round((row.inProgress / row.teamSize) * 10) / 10 : null;
 
-                      {/* Mini KPIs */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                        {[
-                          { label: "Issues", value: `${p.done}/${p.total}`, icon: Target, color: pctColor },
-                          { label: "Hitos", value: `${p.milestonesDone ?? 0}/${p.milestonesCount ?? 0}`, icon: Milestone, color: (p.milestonesDone === p.milestonesCount && (p.milestonesCount ?? 0) > 0) ? C.teal : C.gold },
-                          { label: "Riesgos", value: `${p.risksOpen ?? 0}`, icon: ShieldAlert, color: (p.risksOpen ?? 0) > 0 ? C.red : C.teal },
-                        ].map((kpi, j) => (
-                          <div key={j} style={{ textAlign: "center", padding: "8px 6px", background: C.g100, borderRadius: 8 }}>
-                            <kpi.icon size={12} style={{ color: kpi.color }} className="mx-auto" />
-                            <p style={{ fontSize: 13, fontWeight: 800, color: C.navy, marginTop: 2 }}>{kpi.value}</p>
-                            <p style={{ fontSize: 9.5, color: C.g400, fontWeight: 500 }}>{kpi.label}</p>
+                return (
+                  <tr
+                    key={row.projectKey}
+                    className={`border-b border-slate-50 transition hover:bg-slate-50/70 ${index % 2 === 1 ? "bg-slate-50/30" : ""}`}
+                  >
+                    <td className="px-3 py-2">
+                      <a
+                        href={`/reports/jira/${row.projectKey}`}
+                        onClick={event => {
+                          event.preventDefault();
+                          navigate(`/reports/jira/${row.projectKey}`);
+                        }}
+                        className="block truncate text-[12px] font-bold text-slate-950 hover:text-[#175CD3]"
+                        title={row.projectName}
+                      >
+                        {row.projectName}
+                      </a>
+                      <p className="mt-0.5 truncate text-[9.5px] text-slate-500">
+                        <span className="font-mono">{row.projectKey}</span> · {row.clientName}
+                      </p>
+                    </td>
+
+                    <td className="px-3 py-2">
+                      {row.measurable ? (
+                        <>
+                          <div className="flex items-baseline gap-1.5">
+                            <b className="font-mono text-[17px]" style={{ color: tone.text }}>
+                              {progressLabel(row.milestonePct)}
+                            </b>
+                            <span className="text-[10px] text-slate-600">
+                              {row.milestonesDone} de {row.milestonesTotal}
+                            </span>
                           </div>
-                        ))}
-                      </div>
+                          <div className="mt-1 h-[5px] overflow-hidden rounded bg-slate-100">
+                            <i
+                              className="block h-full rounded"
+                              style={{ width: `${row.milestonePct}%`, background: tone.text }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <b className="text-[14px] text-[#B54708]">N/D</b>
+                          <p className="text-[9.5px] text-[#B54708]">sin hitos definidos</p>
+                        </>
+                      )}
+                    </td>
 
-                      {/* Bottom row */}
-                      <div className="flex items-center justify-between" style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.g150}` }}>
-                        <div className="flex items-center gap-1">
-                          <BarChart3 size={11} style={{ color: C.g400 }} />
-                          <span style={{ fontSize: 10, color: C.g400 }}>{p.epicsCount ?? 0} epicas</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users size={11} style={{ color: C.g400 }} />
-                          <span style={{ fontSize: 10, color: C.g400 }}>{p.teamSize ?? 0} miembros</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock size={11} style={{ color: C.g400 }} />
-                          <span style={{ fontSize: 10, color: C.g400 }}>{p.inProgress ?? 0} activos</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ padding: "14px 20px 16px" }}>
-                      <div className="flex items-center gap-2" style={{ padding: "10px 14px", background: "#FFF8E1", borderRadius: 9, borderLeft: `3px solid ${C.gold}` }}>
-                        <AlertTriangle size={14} style={{ color: C.gold }} />
-                        <p style={{ fontSize: 11, color: C.g400, lineHeight: 1.5 }}>
-                          Sin espacio JIRA vinculado. Crea un Space JIRA desde la plataforma PMO para habilitar el seguimiento.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    <td className="px-3 py-2">
+                      <p className="font-mono text-[12px] font-bold text-slate-700">{progressLabel(row.taskPct)}</p>
+                      <p className="text-[9.5px] text-slate-500">
+                        {row.tasksDone} / {row.tasksTotal} tareas
+                      </p>
+                      {row.gapPoints !== null && row.gapPoints >= 20 && (
+                        <p className="text-[9.5px] font-bold text-[#B54708]">+{row.gapPoints} pts de brecha</p>
+                      )}
+                    </td>
 
-      {/* ═══ FOOTER ═══ */}
-      <div style={{
-        background: C.navy2, padding: "12px 36px", marginTop: 32,
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        borderTop: "1px solid rgba(255,255,255,.06)",
-      }}>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,.3)" }}>Prodigio Tech · Reporte de Avance JIRA · Confidencial</span>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,.3)" }}>
-          Actualizado: {data?.lastUpdated ? new Date(data.lastUpdated).toLocaleString("es-CL") : "N/A"}
-        </span>
-      </div>
+                    <td className="px-3 py-2">
+                      <p className="truncate text-[11px] text-slate-800">
+                        {row.nextMilestoneSummary ?? "Sin hitos"}
+                      </p>
+                      <p className="text-[9.5px] font-bold" style={{ color: nextTone.text }}>
+                        {milestoneDaysLabel(row.nextMilestoneDays, row.nextMilestoneSummary !== null)}
+                      </p>
+                    </td>
+
+                    <td className="px-3 py-2 text-center">
+                      <p className="font-mono text-[13px] font-bold text-slate-950">{row.pendingTasks}</p>
+                      <p className="text-[9.5px]" style={{ color: row.overdueTasks > 0 ? "#B42318" : "#64748B" }}>
+                        {row.overdueTasks > 0 ? `${row.overdueTasks} vencidas` : "sin vencidas"}
+                      </p>
+                    </td>
+
+                    <td className="px-3 py-2 text-center">
+                      {row.risksOpen > 0 ? (
+                        <span
+                          className="inline-block rounded-full border px-2 py-0.5 font-mono text-[11px] font-bold"
+                          style={
+                            row.risksOpen >= 15
+                              ? { color: "#B42318", background: "#FEF3F2", borderColor: "#FDA29B" }
+                              : { color: "#B54708", background: "#FFFAEB", borderColor: "#FEDF89" }
+                          }
+                        >
+                          {row.risksOpen}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <p className="text-[11px] text-slate-700">
+                        {row.teamSize} personas · {row.inProgress} en curso
+                      </p>
+                      <p
+                        className="text-[9.5px]"
+                        style={{ color: load !== null && load > 3 ? "#B54708" : "#64748B" }}
+                      >
+                        {load !== null ? `${load} tareas en curso por persona` : "sin equipo asignado"}
+                        {row.stalled > 0 ? ` · ${row.stalled} estancadas` : ""}
+                      </p>
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/reports/jira/${row.projectKey}`)}
+                        aria-label={`Abrir ${row.projectName}`}
+                        className="h-8 w-[70px] rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-[#175CD3] transition hover:bg-slate-50"
+                      >
+                        Abrir
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {summary.unmeasured > 0 && (
+            <div className="flex items-start gap-2.5 border-t border-[#FEDF89] bg-[#FFFAEB] px-4 py-2.5">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[#B54708]" strokeWidth={2.4} />
+              <p className="text-[11.5px] leading-[17px] text-[#7A3A06]">
+                {summary.unmeasured} proyecto{summary.unmeasured === 1 ? "" : "s"} no tiene
+                {summary.unmeasured === 1 ? "" : "n"} ningún Hito PMO definido, así que su avance no se puede medir con
+                el criterio del comité. Aparece{summary.unmeasured === 1 ? "" : "n"} con N/D y no arrastra
+                {summary.unmeasured === 1 ? "" : "n"} el promedio.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <footer className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] text-slate-600">
+        <span>Prodigio Tech · Reporte de Avance Jira · Confidencial</span>
+        <span className="hidden h-5 w-px bg-slate-200 sm:block" />
+        <span>El avance del proyecto se mide por hitos cerrados; el de tareas es la lectura operacional</span>
+        <div className="flex-grow" />
+        <span>Actualizado {new Date(data.lastUpdated).toLocaleString("es-CL")}</span>
+      </footer>
     </div>
   );
 }

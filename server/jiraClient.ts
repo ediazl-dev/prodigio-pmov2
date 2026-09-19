@@ -1,5 +1,8 @@
 import { ENV } from "./_core/env";
 
+import { buildJiraProgressInsights, type JiraProgressInsights } from "./jiraProgressInsights";
+import { toInsightIssues } from "./jiraInsightsAdapter";
+
 // ==================== JIRA REST API v3 Client ====================
 
 const JIRA_BASE = ENV.jiraBaseUrl;
@@ -1094,7 +1097,7 @@ async function fetchAllIssues(projectKey: string, extraJql = ""): Promise<JiraIs
   let done = false;
   const fields = [
     "summary", "status", "issuetype", "assignee", "priority", "duedate", "created", "updated",
-    "resolutiondate", "timetracking", "timeoriginalestimate", "timespent",
+    "resolutiondate", "parent", "timetracking", "timeoriginalestimate", "timespent",
     "aggregatetimeoriginalestimate", "aggregatetimespent",
     "customfield_11096", // PMO Fase
     "customfield_11023", // Avance PMO (%)
@@ -1325,6 +1328,8 @@ export interface JiraAdvanceReport {
   milestoneCompletionPct: number;
   primaryProgressPct: number;
   primaryProgressSource: "MILESTONES" | "JIRA_FALLBACK";
+  /** Lectura operacional: hitos, agenda, cobertura, estancadas y carga. */
+  insights: JiraProgressInsights;
   operationalPhase: string | null;
   executiveStatus: string | null;
   financialStatus: string | null;
@@ -1580,6 +1585,10 @@ export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdva
     milestoneCompletionPct,
     primaryProgressPct,
     primaryProgressSource,
+    insights: buildJiraProgressInsights({
+      today: new Date().toISOString().slice(0, 10),
+      issues: toInsightIssues(allIssues as any),
+    }),
     operationalPhase: optionValue(projectProgressIssue?.fields.customfield_11096),
     executiveStatus: optionValue(projectProgressIssue?.fields.customfield_11025),
     financialStatus: optionValue(projectProgressIssue?.fields.customfield_11203),

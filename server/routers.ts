@@ -46,6 +46,7 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
+import { isOpenJiraReportProjectStatus } from "./jiraProgressInsights";
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { buildFinancialSyncHealth } from "./financialSyncHealth";
@@ -5328,7 +5329,8 @@ const jiraRouter = router({
 
       const successfulReports = reports
         .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-        .map(r => r.value);
+        .map(r => r.value)
+        .filter((value): value is NonNullable<typeof value> => value !== null);
 
       const totalIssues = successfulReports.reduce((sum, r) => sum + r.total, 0);
       const totalDone = successfulReports.reduce((sum, r) => sum + r.done, 0);
@@ -5928,6 +5930,10 @@ const jiraRouter = router({
           const report = await getJiraAdvanceReport(space.jiraProjectKey!);
           // Find PMO project
           const pmoProject = allProjects.find(p => p.id === space.projectId);
+          // SOLO PROYECTOS ABIERTOS: un proyecto cerrado o cancelado no se reporta.
+          if (pmoProject && !isOpenJiraReportProjectStatus(pmoProject.status)) {
+            return null;
+          }
           return {
             spaceId: space.id,
             spaceName: space.spaceName,
@@ -5951,19 +5957,21 @@ const jiraRouter = router({
             risksCount: report.risks.length,
             risksOpen: report.risks.filter(r => r.statusCategory !== "Done").length,
             teamSize: report.team.length,
+            insights: report.insights,
           };
         })
       );
 
       const successfulReports = reports
         .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-        .map(r => r.value);
+        .map(r => r.value)
+        .filter((value): value is NonNullable<typeof value> => value !== null);
 
       // Find projects with jiraProjectKey directly (origin=linked) that aren't already covered by jira_spaces
       const coveredProjectIds = new Set(successfulReports.map(r => r.pmoProjectId).filter(Boolean));
       const coveredKeys = new Set(successfulReports.map(r => r.projectKey));
       const linkedProjectsWithJira = allProjects.filter(p => 
-        p.jiraProjectKey && !coveredKeys.has(p.jiraProjectKey) && p.status !== "cancelado"
+        p.jiraProjectKey && !coveredKeys.has(p.jiraProjectKey) && isOpenJiraReportProjectStatus(p.status)
       );
 
       // Fetch JIRA data for linked projects
@@ -5993,6 +6001,7 @@ const jiraRouter = router({
             risksCount: report.risks.length,
             risksOpen: report.risks.filter(r => r.statusCategory !== "Done").length,
             teamSize: report.team.length,
+            insights: report.insights,
           };
         })
       );
@@ -6009,7 +6018,7 @@ const jiraRouter = router({
 
       // Also include PMO projects without any JIRA key
       const pmoProjectsWithoutJira = allProjects.filter(p => {
-        return !allCoveredIds.has(p.id) && !p.jiraProjectKey && p.status !== "cancelado";
+        return !allCoveredIds.has(p.id) && !p.jiraProjectKey && isOpenJiraReportProjectStatus(p.status);
       }).map(p => ({
         spaceId: null,
         spaceName: p.projectName,
@@ -6033,22 +6042,33 @@ const jiraRouter = router({
         risksCount: 0,
         risksOpen: 0,
         teamSize: 0,
+        insights: null,
       }));
 
       const allEntries = [...successfulReports, ...successfulLinkedReports, ...pmoProjectsWithoutJira];
       const totalIssues = allEntries.reduce((sum, r) => sum + r.total, 0);
       const totalDone = allEntries.reduce((sum, r) => sum + r.done, 0);
       const jiraEntries = allEntries.filter(e => e.projectKey);
-      const avgProgress = jiraEntries.length > 0
-        ? Math.round(jiraEntries.reduce((sum, r) => sum + r.percentComplete, 0) / jiraEntries.length)
-        : 0;
+      // EL AVANCE SE MIDE POR HITOS CERRADOS. Los proyectos sin hitos definidos
+      // no entran al promedio: no son 0%, son no medibles.
+      const measurable = jiraEntries.filter(e => e.milestonesCount > 0);
+      const milestonesTotal = measurable.reduce((sum, r) => sum + r.milestonesCount, 0);
+      const milestonesDone = measurable.reduce((sum, r) => sum + r.milestonesDone, 0);
+      const avgProgress = milestonesTotal > 0
+        ? Math.round((milestonesDone / milestonesTotal) * 100)
+        : null;
 
       return {
         totalProjects: allEntries.length,
         totalJiraSpaces: jiraEntries.length,
         totalIssues,
         totalDone,
+        /** % de hitos cerrados de la cartera. null si ningún proyecto tiene hitos. */
         avgProgress,
+        milestonesTotal,
+        milestonesDone,
+        /** Proyectos abiertos sin ningún Hito PMO definido: no medibles. */
+        withoutMilestones: jiraEntries.length - measurable.length,
         projects: allEntries,
         lastUpdated: new Date().toISOString(),
       };

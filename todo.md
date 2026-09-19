@@ -639,3 +639,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F3: Migrar Detalle, etapas y Dashboard vinculado; separar PMO/Jira/finanzas y corregir riesgos confirmados y multimoneda.
 - [x] F4: Convertir Dashboard Ejecutivo v2 y Reportes Jira a lectores del read model; alinear IA y exports con provenance.
 - [x] F5: Certificar rutas, UI, datos, multimoneda, stale/error/partial, ausencia de escrituras de lectura y checkpoints por bloque.
+
+## Rediseño de Avances Jira por hitos — 2026-09-19
+
+- [x] J0: Crear rama `feat/avance-jira-por-hitos` y aplicar los hunks compatibles del kit sobre `ed32161b`.
+- [x] J1: Integrar motor y adapter de insights; agregar `parent` preservando fase, avance, salud y estado financiero Jira actuales.
+- [x] J2: Reemplazar la lista por tabla accesible; medir avance por hitos, excluir cerrados y mantener N/D fuera del promedio.
+- [x] J3: Integrar manualmente los seis paneles en `JiraProjectDashboard.tsx` sin tocar IA, KPI financieros ni PPTX.
+- [ ] J4: Certificar 34 pruebas nuevas, suite de regresión, TypeScript, build, accesibilidad y responsive; guardar checkpoint final.
