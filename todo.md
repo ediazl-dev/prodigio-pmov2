@@ -628,5 +628,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] A2: Integrar refresco manual/programado al job Jira existente sin escrituras en Jira.
 - [x] B1: Reconstruir el read model del portafolio con fase Jira, pipeline PMO, hitos, PM, riesgos y monto financiero trazables.
 - [x] B2: Corregir la tabla para separar ciclo de vida, salud, fase, pipeline, plazo contractual y evidencia N/D.
-- [ ] C1: Certificar Tanner como piloto y validar los demás proyectos vinculados y nativos.
-- [ ] C2: Ejecutar build, pruebas, revisión responsive, documentación y checkpoint final.
+- [x] C1: Certificar Tanner como piloto y validar los demás proyectos vinculados y nativos (12 filas; 11 snapshots success, 1 partial explícito).
+- [x] C2: Ejecutar build, pruebas, revisión responsive, documentación y checkpoint final; añadir autolimpieza a 5 pruebas de integración con DB.

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
+import { deleteProjectAdmin } from "./db";
 import type { TrpcContext } from "./_core/context";
 
 function createAdminContext(): TrpcContext {
@@ -21,6 +22,13 @@ function createAdminContext(): TrpcContext {
 }
 
 describe("cierre, cumplimiento y auditoría", () => {
+  let createdProjectId: number | null = null;
+
+  afterEach(async () => {
+    if (createdProjectId !== null) await deleteProjectAdmin(createdProjectId);
+    createdProjectId = null;
+  });
+
   it("persiste lecciones aprendidas, cierra una etapa y registra trazabilidad", async () => {
     const caller = appRouter.createCaller(createAdminContext());
     const project = await caller.projects.create({
@@ -28,6 +36,7 @@ describe("cierre, cumplimiento y auditoría", () => {
       clientName: "Cliente de prueba",
       projectType: "desarrollo",
     });
+    createdProjectId = project.id;
 
     await caller.sow.save({
       projectId: project.id,

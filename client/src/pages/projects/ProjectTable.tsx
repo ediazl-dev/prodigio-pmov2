@@ -147,7 +147,7 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
                       event.preventDefault();
                       navigate(`/projects/${row.projectId}`);
                     }}
-                    className="block text-[12px] font-bold leading-4 text-slate-950 hover:text-[#175CD3]"
+                    className="block break-all text-[12px] font-bold leading-4 text-slate-950 hover:text-[#175CD3]"
                     title={row.projectName}
                   >
                     {row.projectName}
@@ -223,12 +223,12 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
                       </div>
                     </>
                   ) : (
-                    <span
-                      className="text-[10px] text-slate-600"
-                      title={row.deadlineReason === "missing_stage_opening" ? "La etapa PMO en curso no tiene una fecha de apertura registrada; esto no describe el avance Jira." : undefined}
-                    >
-                      {deadlineSummary(row)}
-                    </span>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-700">{deadlineSummary(row)}</span>
+                      {row.deadlineReason === "missing_stage_opening" && (
+                        <span className="mt-0.5 block text-[8.5px] leading-3 text-slate-500">No mide avance Jira</span>
+                      )}
+                    </div>
                   )}
                 </td>
 
@@ -249,6 +249,9 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
                   </span>
                   {row.jiraEvidenceStale && row.origin === "linked" && (
                     <span className="mt-0.5 block text-[8.5px] font-bold text-[#B54708]">Evidencia Jira pendiente</span>
+                  )}
+                  {row.jiraEvidenceStatus === "partial" && !row.jiraEvidenceStale && (
+                    <span className="mt-0.5 block text-[8.5px] font-bold text-[#B54708]">Evidencia Jira parcial</span>
                   )}
                 </td>
 

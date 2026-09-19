@@ -135,4 +135,27 @@ describe("ProjectTable", () => {
     );
     expect(screen.queryByRole("button", { name: /Eliminar \[PMO\] CCLA/ })).toBeNull();
   });
+
+  it("explica la falta de apertura PMO y distingue evidencia Jira parcial", () => {
+    render(
+      <ProjectTable
+        rows={[row({
+          deadlineState: "no_deadline",
+          deadlineReason: "missing_stage_opening",
+          daysUsed: null,
+          daysAllowed: null,
+          jiraEvidenceStatus: "partial",
+          jiraEvidenceStale: false,
+        })]}
+        sort={defaultSort}
+        onSortChange={vi.fn()}
+        canDelete={() => false}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Sin apertura PMO")).toBeTruthy();
+    expect(screen.getByText("No mide avance Jira")).toBeTruthy();
+    expect(screen.getByText("Evidencia Jira parcial")).toBeTruthy();
+  });
 });

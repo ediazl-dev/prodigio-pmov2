@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
+import { deleteProjectAdmin } from "./db";
 import type { TrpcContext } from "./_core/context";
 
 function createAdminContext(): TrpcContext {
@@ -21,6 +22,13 @@ function createAdminContext(): TrpcContext {
 }
 
 describe("SoW approval pipeline", () => {
+  let createdProjectId: number | null = null;
+
+  afterEach(async () => {
+    if (createdProjectId !== null) await deleteProjectAdmin(createdProjectId);
+    createdProjectId = null;
+  });
+
   it("mantiene bloqueada la siguiente etapa hasta que el SoW se aprueba y luego solo desbloquea Jira", async () => {
     const caller = appRouter.createCaller(createAdminContext());
     const suffix = Date.now();
@@ -29,6 +37,7 @@ describe("SoW approval pipeline", () => {
       clientName: "Cliente de prueba",
       projectType: "desarrollo",
     });
+    createdProjectId = created.id;
 
     const initialStages = await caller.stages.getAll({ projectId: created.id });
     expect(initialStages).toHaveLength(6);

@@ -74,6 +74,16 @@ describe("filterPortfolio", () => {
     expect(filterPortfolio(CARTERA, { ...EMPTY_FILTERS, pm: "10" })).toHaveLength(3);
   });
 
+  it("filtra un PM resuelto por nombre desde Jira o datos financieros", () => {
+    const rows = [
+      ...CARTERA,
+      row({ projectId: 180002, pmId: null, pmKey: "name:eduardo mercado", pmName: "Eduardo Mercado" }),
+    ];
+    expect(filterPortfolio(rows, { ...EMPTY_FILTERS, pm: "name:eduardo mercado" }).map(item => item.projectId))
+      .toEqual([180002]);
+    expect(buildFilterOptions(rows).pms).toContainEqual({ id: "name:eduardo mercado", name: "Eduardo Mercado" });
+  });
+
   it("combina filtros con AND", () => {
     const result = filterPortfolio(CARTERA, {
       search: "nexos",

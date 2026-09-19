@@ -126,6 +126,28 @@ describe("portfolio · PM, monto y riesgos", () => {
     expect(ccla?.amountMissing).toBe(true);
   });
 
+  it("usa la suma de hitos como monto contratado sólo cuando comparten moneda", () => {
+    const result = buildExecutivePortfolio(baseInput({
+      projects: [baseInput().projects[1]],
+      milestones: [
+        { projectId: 2, status: "planned", dueDate: null, completedAt: null, amount: "300", currency: "UF" },
+        { projectId: 2, status: "invoiced", dueDate: null, completedAt: null, amount: "700", currency: "UF" },
+      ],
+    })).portfolio[0];
+    expect(result).toMatchObject({ amount: 1000, currency: "UF", amountSource: "billing_milestones" });
+  });
+
+  it("no suma hitos de monedas distintas", () => {
+    const result = buildExecutivePortfolio(baseInput({
+      projects: [baseInput().projects[1]],
+      milestones: [
+        { projectId: 2, status: "planned", dueDate: null, completedAt: null, amount: "300", currency: "UF" },
+        { projectId: 2, status: "planned", dueDate: null, completedAt: null, amount: "700", currency: "USD" },
+      ],
+    })).portfolio[0];
+    expect(result).toMatchObject({ amount: null, currency: null, amountSource: "missing", amountMissing: true });
+  });
+
   it("normaliza la moneda a mayúsculas", () => {
     const { portfolio } = buildExecutivePortfolio(baseInput());
     expect(portfolio.find(row => row.projectId === 1)?.currency).toBe("USD");

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const invokeLLMMock = vi.hoisted(() => vi.fn());
@@ -8,6 +8,7 @@ vi.mock("./_core/llm", () => ({
 }));
 
 import { appRouter } from "./routers";
+import { deleteProjectAdmin } from "./db";
 
 function createAdminContext(): TrpcContext {
   return {
@@ -51,6 +52,13 @@ const structuredWbs = {
 };
 
 describe("planificación completa no optativa", () => {
+  let createdProjectId: number | null = null;
+
+  afterEach(async () => {
+    if (createdProjectId !== null) await deleteProjectAdmin(createdProjectId);
+    createdProjectId = null;
+  });
+
   it("normaliza PERT y genera ruta crítica, hitos y backlog desde un Gantt", async () => {
     invokeLLMMock.mockReset();
     invokeLLMMock
@@ -63,6 +71,7 @@ describe("planificación completa no optativa", () => {
       clientName: "Cliente de prueba",
       projectType: "desarrollo",
     });
+    createdProjectId = project.id;
 
     const wbs = await caller.wbs.generate({ projectId: project.id, context: "Implementar una plataforma con integración y aseguramiento de calidad." });
     expect(wbs.success).toBe(true);

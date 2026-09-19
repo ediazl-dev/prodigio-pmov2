@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const getJiraAdvanceReportMock = vi.hoisted(() => vi.fn());
@@ -15,7 +15,7 @@ vi.mock("./storage", async (importOriginal) => ({
 }));
 
 import { appRouter } from "./routers";
-import { createJiraSpaceRecord } from "./db";
+import { createJiraSpaceRecord, deleteProjectAdmin } from "./db";
 
 function createAdminContext(): TrpcContext {
   return {
@@ -36,6 +36,13 @@ function createAdminContext(): TrpcContext {
 }
 
 describe("exportación integrada de reporte DOCX", () => {
+  let createdProjectId: number | null = null;
+
+  afterEach(async () => {
+    if (createdProjectId !== null) await deleteProjectAdmin(createdProjectId);
+    createdProjectId = null;
+  });
+
   it("obtiene el avance, genera el documento, lo almacena y devuelve una URL descargable", async () => {
     getJiraAdvanceReportMock.mockResolvedValue({
       totalIssues: 12, doneCount: 6, inProgressCount: 4, toDoCount: 2, percentComplete: 50,
@@ -51,6 +58,7 @@ describe("exportación integrada de reporte DOCX", () => {
       clientName: "Cliente de prueba",
       projectType: "desarrollo",
     });
+    createdProjectId = project.id;
     await createJiraSpaceRecord({
       projectId: project.id,
       spaceName: `Space DOCX ${project.id}`,

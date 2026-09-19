@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./_core/llm", () => ({
   invokeLLM: vi.fn(async () => ({ choices: [{ message: { content: "{}" } }] })),
 }));
 
 import { appRouter } from "./routers";
+import { deleteProjectAdmin } from "./db";
 import type { TrpcContext } from "./_core/context";
 
 function createAdminContext(): TrpcContext {
@@ -26,6 +27,13 @@ function createAdminContext(): TrpcContext {
 }
 
 describe("contingencia determinista de planificación", () => {
+  let createdProjectId: number | null = null;
+
+  afterEach(async () => {
+    if (createdProjectId !== null) await deleteProjectAdmin(createdProjectId);
+    createdProjectId = null;
+  });
+
   it("crea una WBS y backlog válidos cuando la IA devuelve una estructura vacía", async () => {
     const caller = appRouter.createCaller(createAdminContext());
     const project = await caller.projects.create({
@@ -33,6 +41,7 @@ describe("contingencia determinista de planificación", () => {
       clientName: "Cliente de prueba",
       projectType: "desarrollo",
     });
+    createdProjectId = project.id;
 
     const wbs = await caller.wbs.generate({
       projectId: project.id,
