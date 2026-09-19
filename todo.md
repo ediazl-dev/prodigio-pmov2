@@ -614,7 +614,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Sincronización financiera durable — cuenta de servicio 2026-09-18
 
 - [x] F0: Confirmar causa raíz, checkpoint `5b4c29a`, refs alineadas y job existente `koZvKFb8FE7TZ6hy8GAnvM`.
-- [ ] F1: Implementar autenticación Google renovable con cuenta de servicio y pruebas sin secretos.
+- [x] F1: Implementar autenticación Google renovable con cuenta de servicio y pruebas sin secretos.
 - [ ] F2: Incorporar preflight, hash, validación estricta y aplicación transaccional sin borrados.
 - [ ] F3: Homologar callback con UID durable, lock de concurrencia y códigos de error operacionales.
 - [ ] F4: Mejorar historial con último éxito, frescura y diagnóstico por fase sin revelar credenciales.

@@ -15,6 +15,11 @@
 import * as XLSX from "xlsx";
 import { bulkUpsertFinancialData } from "./db";
 import type { InsertFinancialData } from "../drizzle/schema";
+import {
+  createDriveAccessTokenProvider,
+  GoogleDriveCredentialError,
+  type DriveAccessTokenProvider,
+} from "./googleDriveServiceAccount";
 
 const SHEET_NAME = "Artefactos_proyectos";
 const SPREADSHEET_ID = "1ncyMnVgrwJ9DYWJDRorgnxNpGBPwaMAi3j8BYhxkjqQ";
@@ -81,27 +86,19 @@ function cleanNumber(value: unknown): string | null {
   return String(parsed);
 }
 
-async function downloadWorkbook(): Promise<Buffer> {
-  const token = process.env.GOOGLE_DRIVE_TOKEN;
-  if (token) {
-    const response = await fetch(DRIVE_EXPORT_URL, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error(`Drive API respondió HTTP ${response.status} al exportar la planilla`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length === 0) {
-      throw new Error("La planilla descargada está vacía");
-    }
-    return buffer;
-  }
-  // Fallback: leer archivo local descargado manualmente via gws
+type WorkbookDownloadOptions = {
+  accessTokenProvider?: DriveAccessTokenProvider;
+  fetchImpl?: typeof fetch;
+  localFilePath?: string;
+};
+
+async function readLocalWorkbook(localPath: string): Promise<Buffer> {
   const { readFileSync, existsSync } = await import("fs");
-  const localPath = process.env.FINANCIAL_SYNC_LOCAL_FILE ?? "./financial_sync.xlsx";
   if (!existsSync(localPath)) {
-    throw new Error("GOOGLE_DRIVE_TOKEN no configurado y no se encontró archivo local: " + localPath);
+    throw new GoogleDriveCredentialError(
+      "GOOGLE_CREDENTIALS_MISSING",
+      "No hay credenciales Google ni archivo local configurado para la sincronización financiera",
+    );
   }
   const buffer = readFileSync(localPath);
   if (buffer.length === 0) {
@@ -109,6 +106,50 @@ async function downloadWorkbook(): Promise<Buffer> {
   }
   console.log(`[FinancialSync] Usando archivo local: ${localPath} (${buffer.length} bytes)`);
   return buffer;
+}
+
+export async function downloadFinancialWorkbook(options: WorkbookDownloadOptions = {}): Promise<Buffer> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const localPath = options.localFilePath ?? process.env.FINANCIAL_SYNC_LOCAL_FILE ?? "./financial_sync.xlsx";
+
+  let provider = options.accessTokenProvider;
+  if (!provider) {
+    try {
+      provider = createDriveAccessTokenProvider();
+    } catch (error) {
+      if (error instanceof GoogleDriveCredentialError && error.code === "GOOGLE_CREDENTIALS_MISSING") {
+        return readLocalWorkbook(localPath);
+      }
+      throw error;
+    }
+  }
+
+  const maxAttempts = provider.renewable ? 2 : 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const token = await provider.getAccessToken({ forceRefresh: attempt > 0 });
+    const response = await fetchImpl(DRIVE_EXPORT_URL, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (response.status === 401 && provider.renewable && attempt === 0) continue;
+    if (response.status === 401) {
+      throw new Error("Drive API rechazó la credencial Google al exportar la planilla (HTTP 401)");
+    }
+    if (response.status === 403) {
+      throw new Error("La identidad Google no tiene permiso para exportar la planilla (HTTP 403)");
+    }
+    if (!response.ok) {
+      throw new Error(`Drive API respondió HTTP ${response.status} al exportar la planilla`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length === 0) throw new Error("La planilla descargada está vacía");
+    return buffer;
+  }
+
+  throw new Error("No fue posible exportar la planilla después de renovar la credencial Google");
 }
 
 function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
@@ -166,7 +207,7 @@ function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
  * Devuelve el resultado con conteos de inserciones y actualizaciones.
  */
 async function runFinancialSyncInternal(): Promise<FinancialSyncOutcome> {
-  const buffer = await downloadWorkbook();
+  const buffer = await downloadFinancialWorkbook();
   const records = parseWorkbook(buffer);
 
   // Contar existentes antes del UPSERT para reportar insert vs update
