@@ -183,10 +183,12 @@ export function AttentionList({ rows, limit = 6 }: AttentionListProps) {
                       <span
                         className="min-w-0 flex-grow text-[11.5px]"
                         style={{
-                          color: row.highRisksOpen > 0 ? "#B54708" : "#475569",
+                          color: (row.highRisksOpen ?? 0) > 0 ? "#B54708" : "#475569",
                         }}
                       >
-                        {row.highRisksOpen > 0
+                        {row.highRisksOpen === null
+                          ? "Riesgos N/D"
+                          : row.highRisksOpen > 0
                           ? `${row.highRisksOpen} alto${row.highRisksOpen === 1 ? "" : "s"} abierto${row.highRisksOpen === 1 ? "" : "s"}`
                           : "Sin riesgos altos"}
                       </span>

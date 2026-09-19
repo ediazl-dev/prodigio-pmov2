@@ -207,7 +207,7 @@ export function sortPortfolio(rows: PortfolioRow[], sort: SortState): PortfolioR
         // Un monto ausente no es cero: va al final, nunca arriba.
         return nullsLast(a.amount, b.amount, factor) ?? a.projectName.localeCompare(b.projectName, "es");
       case "risks":
-        return (a.highRisksOpen - b.highRisksOpen) * factor || a.projectName.localeCompare(b.projectName, "es");
+        return nullsLast(a.highRisksOpen, b.highRisksOpen, factor) ?? a.projectName.localeCompare(b.projectName, "es");
       default:
         return 0;
     }
@@ -255,7 +255,7 @@ export function summarizePortfolio(filtered: PortfolioRow[], all: PortfolioRow[]
     active: filtered.filter(row => row.status === "activo").length,
     closed: filtered.filter(row => row.status === "completado").length,
     overdue: filtered.filter(row => row.deadlineState === "overdue").length,
-    highRisks: filtered.reduce((sum, row) => sum + row.highRisksOpen, 0),
+    highRisks: filtered.reduce((sum, row) => sum + (row.highRisksOpen ?? 0), 0),
     withoutAmount: filtered.filter(row => row.amountMissing).length,
     amountByCurrency: Array.from(byCurrency.entries())
       .map(([currency, value]) => ({ currency, value }))

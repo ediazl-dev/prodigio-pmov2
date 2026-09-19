@@ -15,6 +15,13 @@
  *   se cuenta aparte.
  */
 
+import {
+  assessJiraEvidence,
+  evidenceValue,
+  normalizeEvidenceCurrency,
+  type EvidenceAvailability,
+} from "./projectEvidencePolicy";
+
 export const EXECUTIVE_PORTFOLIO_VERSION = "1.0" as const;
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -161,7 +168,7 @@ export interface AttentionRow {
   /** Positivo = días hábiles de exceso. null si no hay plazo medible. */
   overDays: number | null;
   state: AttentionState;
-  highRisksOpen: number;
+  highRisksOpen: number | null;
   amount: number | null;
   currency: string | null;
 }
@@ -194,15 +201,17 @@ export interface PortfolioRow {
   /** Un monto ausente se conserva como ausencia, no como cero. */
   amountMissing: boolean;
   amountSource: "financial_data" | "project" | "billing_milestones" | "missing";
-  highRisksOpen: number;
+  highRisksOpen: number | null;
   openRisks: number | null;
   riskSource: "pmo_confirmed" | "jira_snapshot" | "missing";
   operationalPhase: string | null;
-  operationalPhaseSource: "jira_snapshot" | "financial_data" | "missing";
+  operationalPhaseSource: "jira_snapshot" | "missing";
   operationalProgressPct: number | null;
   executiveHealth: string | null;
   jiraEvidenceStatus: "success" | "partial" | "error" | "missing";
+  jiraEvidenceAvailability: EvidenceAvailability;
   jiraEvidenceAt: string | null;
+  jiraSourceUpdatedAt: string | null;
   jiraEvidenceStale: boolean;
   milestonesTotal: number | null;
   milestonesFulfilled: number | null;
@@ -336,6 +345,12 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   const jiraSnapshotByProject = new Map(
     (input.jiraSnapshots ?? []).map(snapshot => [snapshot.projectId, snapshot]),
   );
+  const jiraEvidenceByProject = new Map(
+    (input.jiraSnapshots ?? []).map(snapshot => [
+      snapshot.projectId,
+      assessJiraEvidence(snapshot, input.generatedAt),
+    ]),
+  );
   const milestonesByProject = new Map<number, ExecutiveMilestoneSource[]>();
   for (const milestone of input.milestones) {
     const existing = milestonesByProject.get(milestone.projectId) ?? [];
@@ -356,13 +371,19 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       return { amount: financialAmount, currency: "UF", source: "financial_data" as const };
     }
     const projectAmount = toNumber(project.totalAmount);
-    if (projectAmount !== null) {
-      return { amount: projectAmount, currency: normalizeCurrency(project.currency), source: "project" as const };
+    const projectCurrency = normalizeEvidenceCurrency(project.currency);
+    if (projectAmount !== null && projectCurrency !== null) {
+      return { amount: projectAmount, currency: projectCurrency, source: "project" as const };
     }
     const projectMilestones = milestonesByProject.get(project.id) ?? [];
-    const milestoneCurrencies = Array.from(new Set(projectMilestones.map(item => normalizeCurrency(item.currency))));
+    const milestoneCurrencies = Array.from(new Set(projectMilestones.map(item => normalizeEvidenceCurrency(item.currency))));
     const milestoneAmounts = projectMilestones.map(item => toNumber(item.amount));
-    if (projectMilestones.length > 0 && milestoneCurrencies.length === 1 && milestoneAmounts.every((value): value is number => value !== null)) {
+    if (
+      projectMilestones.length > 0 &&
+      milestoneCurrencies.length === 1 &&
+      milestoneCurrencies[0] !== null &&
+      milestoneAmounts.every((value): value is number => value !== null)
+    ) {
       return {
         amount: milestoneAmounts.reduce((sum, value) => sum + value, 0),
         currency: milestoneCurrencies[0],
@@ -375,7 +396,10 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   const pmFor = (project: ExecutiveProjectSource) => {
     const localName = project.pmId !== null ? (userById.get(project.pmId) ?? null) : null;
     if (localName) return { pmId: project.pmId, pmKey: String(project.pmId), pmName: localName };
-    const jiraName = jiraSnapshotByProject.get(project.id)?.projectManagerName?.trim() || null;
+    const jiraEvidence = jiraEvidenceByProject.get(project.id);
+    const jiraName = jiraEvidence?.usable
+      ? jiraSnapshotByProject.get(project.id)?.projectManagerName?.trim() || null
+      : null;
     if (jiraName) return { pmId: null, pmKey: `name:${jiraName.toLowerCase()}`, pmName: jiraName };
     const financialName = financialByDeal.get(normalizeDeal(dealFor(project)))?.pm?.trim() || null;
     return {
@@ -414,14 +438,15 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       };
     }
     const snapshot = jiraSnapshotByProject.get(projectId);
-    if (snapshot?.lastSuccessAt && snapshot.risksOpen !== null) {
+    const evidence = jiraEvidenceByProject.get(projectId);
+    if (snapshot && evidence?.usable && snapshot.risksOpen !== null) {
       return {
         openRisks: snapshot.risksOpen,
-        highRisksOpen: snapshot.risksHighPriorityOpen ?? 0,
+        highRisksOpen: snapshot.risksHighPriorityOpen,
         source: "jira_snapshot" as const,
       };
     }
-    return { openRisks: null, highRisksOpen: 0, source: "missing" as const };
+    return { openRisks: null, highRisksOpen: null, source: "missing" as const };
   };
 
   const completedStages = input.compliance.filter(
@@ -518,24 +543,13 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     const pm = pmFor(project);
     const risk = risksFor(project.id);
     const snapshot = jiraSnapshotByProject.get(project.id) ?? null;
-    const financial = financialByDeal.get(normalizeDeal(dealFor(project)));
-    const jiraEvidenceAt = toIso(snapshot?.lastSuccessAt ?? null);
-    const jiraEvidenceAgeMs = jiraEvidenceAt
-      ? new Date(input.generatedAt).getTime() - new Date(jiraEvidenceAt).getTime()
-      : Number.POSITIVE_INFINITY;
-    const jiraEvidenceStale = !snapshot || snapshot.status === "error" || jiraEvidenceAgeMs > 36 * 60 * 60 * 1000;
-    const operationalPhase = snapshot?.lastSuccessAt && snapshot.operationalPhase?.trim()
-      ? snapshot.operationalPhase.trim()
-      : financial?.estadoProyecto?.trim() || null;
-    const operationalPhaseSource = snapshot?.lastSuccessAt && snapshot.operationalPhase?.trim()
-      ? "jira_snapshot" as const
-      : financial?.estadoProyecto?.trim()
-        ? "financial_data" as const
-        : "missing" as const;
-    const milestonesTotal = snapshot?.lastSuccessAt ? snapshot.milestonesTotal : null;
-    const milestonesFulfilled = snapshot?.lastSuccessAt ? snapshot.milestonesFulfilled : null;
-    const operationalProgressPct = snapshot?.lastSuccessAt
-      ? snapshot.advanceReportedPct ?? (
+    const jiraEvidence = jiraEvidenceByProject.get(project.id) ?? assessJiraEvidence(null, input.generatedAt);
+    const operationalPhase = evidenceValue(jiraEvidence, snapshot?.operationalPhase?.trim() || null);
+    const operationalPhaseSource = operationalPhase ? "jira_snapshot" as const : "missing" as const;
+    const milestonesTotal = evidenceValue(jiraEvidence, snapshot?.milestonesTotal);
+    const milestonesFulfilled = evidenceValue(jiraEvidence, snapshot?.milestonesFulfilled);
+    const operationalProgressPct = jiraEvidence.usable
+      ? snapshot?.advanceReportedPct ?? (
           milestonesTotal && milestonesFulfilled !== null
             ? round1((milestonesFulfilled / milestonesTotal) * 100)
             : null
@@ -574,13 +588,15 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       operationalPhase,
       operationalPhaseSource,
       operationalProgressPct,
-      executiveHealth: snapshot?.lastSuccessAt ? snapshot.executiveStatus : null,
+      executiveHealth: evidenceValue(jiraEvidence, snapshot?.executiveStatus),
       jiraEvidenceStatus: snapshot?.status ?? "missing",
-      jiraEvidenceAt,
-      jiraEvidenceStale,
+      jiraEvidenceAvailability: jiraEvidence.availability,
+      jiraEvidenceAt: jiraEvidence.evidenceAt,
+      jiraSourceUpdatedAt: jiraEvidence.sourceUpdatedAt,
+      jiraEvidenceStale: jiraEvidence.stale,
       milestonesTotal,
       milestonesFulfilled,
-      milestoneSource: snapshot?.lastSuccessAt ? "jira_snapshot" : "missing",
+      milestoneSource: jiraEvidence.usable && (milestonesTotal !== null || milestonesFulfilled !== null) ? "jira_snapshot" : "missing",
       startDate: project.startDate,
       endDate: project.endDate,
     };
@@ -615,8 +631,9 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
 
   for (const milestone of input.milestones) {
     const amount = toNumber(milestone.amount);
-    if (amount === null) continue;
-    const figure = figureFor(normalizeCurrency(milestone.currency));
+    const currency = normalizeEvidenceCurrency(milestone.currency);
+    if (amount === null || currency === null) continue;
+    const figure = figureFor(currency);
     if (milestone.status === "facturado" || milestone.status === "pagado") figure.invoiced += amount;
     if (milestone.status === "pagado") figure.collected += amount;
     if (milestone.status === "pendiente" && milestone.dueDate && milestone.dueDate < input.cutOffDate) {
@@ -746,17 +763,6 @@ function toNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined) return null;
   const parsed = typeof value === "number" ? value : Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function normalizeCurrency(value: string | null | undefined): string {
-  const normalized = value?.trim().toUpperCase();
-  return normalized || "N/D";
-}
-
-function toIso(value: Date | string | null | undefined): string | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 /** null con lista vacía: un promedio de nada no es 0. */

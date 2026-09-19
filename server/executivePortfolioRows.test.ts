@@ -126,6 +126,12 @@ describe("portfolio · PM, monto y riesgos", () => {
     expect(ccla?.amountMissing).toBe(true);
   });
 
+  it("un monto de ficha sin moneda válida se conserva como N/D", () => {
+    const project = { ...baseInput().projects[1], totalAmount: "1500", currency: "N/D" };
+    const result = buildExecutivePortfolio(baseInput({ projects: [project] })).portfolio[0];
+    expect(result).toMatchObject({ amount: null, currency: null, amountSource: "missing", amountMissing: true });
+  });
+
   it("usa la suma de hitos como monto contratado sólo cuando comparten moneda", () => {
     const result = buildExecutivePortfolio(baseInput({
       projects: [baseInput().projects[1]],
@@ -233,6 +239,69 @@ describe("portfolio · PM, monto y riesgos", () => {
       highRisksOpen: 12,
       milestonesTotal: 10,
       milestonesFulfilled: 8,
+      jiraEvidenceAvailability: "available",
+    });
+  });
+
+  it("bloquea fase, avance, salud, hitos, PM y riesgos cuando el snapshot está vencido", () => {
+    const project = { ...baseInput().projects[1], id: 9, origin: "linked", jiraProjectKey: "OLD" };
+    const result = buildExecutivePortfolio(baseInput({
+      projects: [project],
+      risks: [],
+      generatedAt: "2026-09-19T13:00:00Z",
+      financial: [{
+        dealId: "PMO-2670001", projectName: null, clientName: null, pm: "PM Financiero",
+        estadoProyecto: "Construcción financiera", valorVentaUF: null, syncedAt: "2026-09-19T12:00:00Z",
+      }],
+      jiraSnapshots: [{
+        projectId: 9, jiraProjectKey: "OLD", status: "success", operationalPhase: "Construcción Jira",
+        executiveStatus: "Rojo", financialStatus: null, advanceReportedPct: 80, projectManagerName: "PM Jira",
+        milestonesTotal: 10, milestonesFulfilled: 8, milestonesPending: 2, risksTotal: 5, risksOpen: 4,
+        risksHighPriorityOpen: 3, sourceUpdatedAt: "2026-09-17T23:00:00Z", capturedAt: "2026-09-17T23:00:00Z",
+        lastSuccessAt: "2026-09-17T23:00:00Z", errorCode: null,
+      }],
+    })).portfolio[0];
+
+    expect(result).toMatchObject({
+      operationalPhase: null,
+      operationalPhaseSource: "missing",
+      operationalProgressPct: null,
+      executiveHealth: null,
+      milestonesTotal: null,
+      milestonesFulfilled: null,
+      openRisks: null,
+      highRisksOpen: null,
+      riskSource: "missing",
+      pmName: "PM Financiero",
+      jiraEvidenceAvailability: "stale",
+      jiraEvidenceStale: true,
+    });
+  });
+
+  it("usa un snapshot partial reciente sólo para los campos realmente presentes", () => {
+    const project = { ...baseInput().projects[1], id: 10, origin: "linked", jiraProjectKey: "PART" };
+    const result = buildExecutivePortfolio(baseInput({
+      projects: [project],
+      risks: [],
+      jiraSnapshots: [{
+        projectId: 10, jiraProjectKey: "PART", status: "partial", operationalPhase: "Discovery",
+        executiveStatus: null, financialStatus: null, advanceReportedPct: null, projectManagerName: "PM Jira",
+        milestonesTotal: null, milestonesFulfilled: null, milestonesPending: null, risksTotal: null, risksOpen: null,
+        risksHighPriorityOpen: null, sourceUpdatedAt: "2026-09-18T12:00:00Z", capturedAt: "2026-09-18T12:30:00Z",
+        lastSuccessAt: "2026-09-18T12:30:00Z", errorCode: "JIRA_PROGRESS_ISSUE_MISSING",
+      }],
+    })).portfolio[0];
+
+    expect(result).toMatchObject({
+      operationalPhase: "Discovery",
+      operationalProgressPct: null,
+      executiveHealth: null,
+      milestonesTotal: null,
+      openRisks: null,
+      highRisksOpen: null,
+      pmName: "PM Jira",
+      jiraEvidenceAvailability: "partial",
+      jiraEvidenceStale: false,
     });
   });
 });

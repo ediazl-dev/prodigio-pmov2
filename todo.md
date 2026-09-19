@@ -630,3 +630,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] B2: Corregir la tabla para separar ciclo de vida, salud, fase, pipeline, plazo contractual y evidencia N/D.
 - [x] C1: Certificar Tanner como piloto y validar los demás proyectos vinculados y nativos (12 filas; 11 snapshots success, 1 partial explícito).
 - [x] C2: Ejecutar build, pruebas, revisión responsive, documentación y checkpoint final; añadir autolimpieza a 5 pruebas de integración con DB.
+
+## Consistencia transversal de fuentes PMO — 2026-09-19
+
+- [x] F0: Formalizar TTL Jira de 36 h, política `success`/`partial`, `N/D`, monedas válidas, estados SII y corte mensual.
+- [x] F1: Extraer resolver común de evidencia y precedencias; bloquear snapshots stale/error y fase financiera como fase operacional.
+- [ ] F2: Migrar Consola de Gobierno y Consolidado Financiero; retirar valores demo, defaults inventados y controles de exportación falsos.
+- [ ] F3: Migrar Detalle, etapas y Dashboard vinculado; separar PMO/Jira/finanzas y corregir riesgos confirmados y multimoneda.
+- [ ] F4: Convertir Dashboard Ejecutivo v2 y Reportes Jira a lectores del read model; alinear IA y exports con provenance.
+- [ ] F5: Certificar rutas, UI, datos, multimoneda, stale/error/partial, ausencia de escrituras de lectura y checkpoints por bloque.

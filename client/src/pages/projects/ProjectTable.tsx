@@ -264,7 +264,7 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
                     <div title={`Fuente: ${row.riskSource === "jira_snapshot" ? "snapshot Jira" : "matriz PMO confirmada"}`}>
                       <b className="font-mono text-[12px] text-slate-900">{row.openRisks}</b>
                       <span className="block text-[9px] text-slate-500">abiertos</span>
-                      {row.highRisksOpen > 0 && <span className="block text-[9px] font-bold text-[#B54708]">{row.highRisksOpen} altos</span>}
+                      {(row.highRisksOpen ?? 0) > 0 && <span className="block text-[9px] font-bold text-[#B54708]">{row.highRisksOpen} altos</span>}
                     </div>
                   ) : (
                     <span className="text-[10px] text-slate-500">N/D</span>
