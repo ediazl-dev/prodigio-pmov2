@@ -79,11 +79,11 @@ export function PortfolioFilters({ filters, onChange, onClear, options, summary 
         </Select>
 
         <Select value={filters.stage} onValueChange={value => set({ stage: value })}>
-          <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filtrar por etapa">
-            <SelectValue placeholder="Etapa" />
+          <SelectTrigger className="h-9 w-full sm:w-[150px]" aria-label="Filtrar por etapa del pipeline PMO">
+            <SelectValue placeholder="Pipeline PMO" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas las etapas</SelectItem>
+            <SelectItem value="all">Todo el pipeline PMO</SelectItem>
             {options.stages.map(stage => (
               <SelectItem key={stage.id} value={stage.id}>
                 {stage.label}
@@ -124,11 +124,11 @@ export function PortfolioFilters({ filters, onChange, onClear, options, summary 
         </Select>
 
         <Select value={filters.health} onValueChange={value => set({ health: value })}>
-          <SelectTrigger className="h-9 w-full sm:w-[148px]" aria-label="Filtrar por salud de plazo">
-            <SelectValue placeholder="Plazo" />
+          <SelectTrigger className="h-9 w-full sm:w-[158px]" aria-label="Filtrar por plazo del pipeline PMO">
+            <SelectValue placeholder="Plazo PMO" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Toda la salud</SelectItem>
+            <SelectItem value="all">Todos los plazos PMO</SelectItem>
             {HEALTH_VALUES.map(value => (
               <SelectItem key={value} value={value}>
                 {DEADLINE_LABEL[value]}

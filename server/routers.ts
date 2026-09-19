@@ -81,7 +81,11 @@ import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
 import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 import { getExecutivePortfolio } from "./executivePortfolioSource";
-import { getJiraPortfolioSnapshot, refreshJiraPortfolioSnapshot } from "./jiraPortfolioSnapshot";
+import {
+  getJiraPortfolioSnapshot,
+  refreshJiraPortfolioSnapshot,
+  runJiraPortfolioSnapshotBatch,
+} from "./jiraPortfolioSnapshot";
 
 // ==================== HELPERS ====================
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
@@ -440,6 +444,15 @@ const projectsRouter = router({
       });
       return { result, snapshot: await getJiraPortfolioSnapshot(project.id) };
     }),
+  refreshJiraPortfolioSnapshots: adminOrPmo.mutation(async ({ ctx }) => {
+    const result = await runJiraPortfolioSnapshotBatch(50, 3);
+    await audit(ctx, "refresh_jira_portfolio_snapshots", "project_portfolio", null, "Portafolio Jira", {
+      ...result,
+      results: undefined,
+      jiraMode: "GET_ONLY",
+    });
+    return result;
+  }),
   assignPm: adminOrPmo.input(z.object({ projectId: z.number(), pmId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await updateProject(input.projectId, { pmId: input.pmId });

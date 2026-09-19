@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, FolderKanban, Loader2, Plus, Search } from "lucide-react";
+import { AlertTriangle, FolderKanban, Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -92,6 +92,19 @@ export default function Projects() {
       setDeleteTarget(null);
       setDeleteConfirmText("");
       refetch();
+    },
+    onError: mutationError => toast.error(mutationError.message),
+  });
+
+  const refreshJiraMutation = trpc.projects.refreshJiraPortfolioSnapshots.useMutation({
+    onSuccess: async result => {
+      await refetch();
+      const degraded = result.partialCount + result.errorCount;
+      if (degraded > 0) {
+        toast.warning(`Jira actualizado con ${degraded} proyecto(s) sin evidencia completa`);
+      } else {
+        toast.success(`Jira actualizado para ${result.successCount} proyecto(s)`);
+      }
     },
     onError: mutationError => toast.error(mutationError.message),
   });
@@ -175,10 +188,22 @@ export default function Projects() {
           </div>
 
           {canCreate && (
-            <Button onClick={() => setOpen(true)} className="h-[38px] shrink-0 bg-[#C91879] text-white hover:bg-[#A9145F]">
-              <Plus size={15} className="mr-1.5" />
-              Nuevo proyecto
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={refreshJiraMutation.isPending}
+                onClick={() => refreshJiraMutation.mutate()}
+                className="h-[38px] shrink-0 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              >
+                <RefreshCw size={15} className={`mr-1.5 ${refreshJiraMutation.isPending ? "animate-spin" : ""}`} />
+                Actualizar Jira
+              </Button>
+              <Button onClick={() => setOpen(true)} className="h-[38px] shrink-0 bg-[#C91879] text-white hover:bg-[#A9145F]">
+                <Plus size={15} className="mr-1.5" />
+                Nuevo proyecto
+              </Button>
+            </div>
           )}
         </div>
       </section>

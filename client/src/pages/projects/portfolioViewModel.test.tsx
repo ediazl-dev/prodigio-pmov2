@@ -31,6 +31,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}): PortfolioRow {
     overDays: -8,
     deadlineState: "on_track",
     pmId: 10,
+    pmKey: "10",
     pmName: "Eugenio Díaz",
     amount: 1000,
     currency: "USD",
@@ -44,7 +45,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}): PortfolioRow {
 
 const CARTERA = [
   row({ projectId: 1, projectName: "Nexos SFA", clientName: "Prodigio Tech", stageId: "design", stageIndex: 4, deadlineState: "overdue", overDays: 3, daysUsed: 21, daysAllowed: 18, highRisksOpen: 4, amount: 120000, currency: "USD" }),
-  row({ projectId: 2, projectName: "CCLA SRP MVP1", clientName: "CCLA", stageId: "planning", stageIndex: 3, deadlineState: "on_track", overDays: -8, daysUsed: 4, daysAllowed: 12, pmId: null, pmName: null, amount: null, currency: null, amountMissing: true }),
+  row({ projectId: 2, projectName: "CCLA SRP MVP1", clientName: "CCLA", stageId: "planning", stageIndex: 3, deadlineState: "on_track", overDays: -8, daysUsed: 4, daysAllowed: 12, pmId: null, pmKey: null, pmName: null, amount: null, currency: null, amountMissing: true }),
   row({ projectId: 3, projectName: "MaxAgro Assessment", clientName: "MaxAgro", status: "completado", stageId: "closure", stageIndex: 5, deadlineState: "not_applicable", daysUsed: null, daysAllowed: null, overDays: null, amount: 552, currency: "UF", highRisksOpen: 0 }),
   row({ projectId: 4, projectName: "Producto Apigee", clientName: "Prodigio Tech", stageId: "design", stageIndex: 4, deadlineState: "at_risk", overDays: -2, daysUsed: 16, daysAllowed: 18, highRisksOpen: 2, amount: 88000, currency: "USD" }),
 ];

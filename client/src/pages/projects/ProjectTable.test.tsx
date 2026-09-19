@@ -35,12 +35,27 @@ function row(overrides: Partial<PortfolioRow> = {}): PortfolioRow {
     daysAllowed: 18,
     overDays: 3,
     deadlineState: "overdue",
+    deadlineReason: "measured",
     pmId: 10,
+    pmKey: "10",
     pmName: "Eugenio Díaz",
     amount: 120000,
     currency: "USD",
     amountMissing: false,
+    amountSource: "project",
     highRisksOpen: 1,
+    openRisks: 3,
+    riskSource: "pmo_confirmed",
+    operationalPhase: "Construcción",
+    operationalPhaseSource: "jira_snapshot",
+    operationalProgressPct: 45,
+    executiveHealth: "Amarillo",
+    jiraEvidenceStatus: "success",
+    jiraEvidenceAt: "2026-09-18T13:00:00.000Z",
+    jiraEvidenceStale: false,
+    milestonesTotal: 10,
+    milestonesFulfilled: 6,
+    milestoneSource: "jira_snapshot",
     startDate: "2026-05-01",
     endDate: null,
     ...overrides,
@@ -66,7 +81,11 @@ describe("ProjectTable", () => {
     expect(link.getAttribute("href")).toBe("/projects/2670001");
     expect(screen.getByRole("columnheader", { name: /Estado/ }).getAttribute("aria-sort")).toBe("ascending");
     expect(screen.getByRole("columnheader", { name: "PM" }).hasAttribute("aria-sort")).toBe(false);
-    expect(screen.getByRole("table").querySelectorAll("th[scope='col']")).toHaveLength(9);
+    expect(screen.getByRole("table").querySelectorAll("th[scope='col']")).toHaveLength(10);
+    expect(screen.getByText("Construcción")).toBeTruthy();
+    expect(screen.getByText("6/10")).toBeTruthy();
+    expect(screen.getByText("Salud: Amarillo")).toBeTruthy();
+    expect(screen.getByText("3")).toBeTruthy();
   });
 
   it("mantiene el pipeline de etapas cerradas reales y no por posición", () => {
@@ -80,7 +99,7 @@ describe("ProjectTable", () => {
       />,
     );
 
-    const pipeline = screen.getByRole("img", { name: /2 de 6 etapas cerradas/ });
+    const pipeline = screen.getByRole("img", { name: /2 de 6 etapas PMO cerradas/ });
     const segments = pipeline.querySelectorAll("i");
     expect(segments).toHaveLength(6);
     expect(segments[0].getAttribute("style")).toBe(segments[2].getAttribute("style"));

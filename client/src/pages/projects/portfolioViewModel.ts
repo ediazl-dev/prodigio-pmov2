@@ -39,7 +39,7 @@ export const DEADLINE_LABEL: Record<DeadlineState, string> = {
   overdue: "Vencida",
   at_risk: "En riesgo",
   on_track: "Al día",
-  no_deadline: "Sin medir",
+  no_deadline: "Sin apertura PMO",
   not_applicable: "—",
 };
 
@@ -95,7 +95,14 @@ export function filterPortfolio(rows: PortfolioRow[], filters: PortfolioFilters)
 
   return rows.filter(row => {
     if (needle) {
-      const haystack = [row.projectName, row.clientName, row.dealId ?? "", row.pmName ?? ""]
+      const haystack = [
+        row.projectName,
+        row.clientName,
+        row.dealId ?? "",
+        row.pmName ?? "",
+        row.operationalPhase ?? "",
+        row.executiveHealth ?? "",
+      ]
         .join(" ")
         .toLowerCase();
       if (!haystack.includes(needle)) return false;
@@ -108,8 +115,8 @@ export function filterPortfolio(rows: PortfolioRow[], filters: PortfolioFilters)
 
     if (filters.pm !== "all") {
       if (filters.pm === "unassigned") {
-        if (row.pmId !== null) return false;
-      } else if (String(row.pmId ?? "") !== filters.pm) {
+        if (row.pmKey !== null) return false;
+      } else if (row.pmKey !== filters.pm) {
         return false;
       }
     }
@@ -133,7 +140,7 @@ export function buildFilterOptions(rows: PortfolioRow[]): FilterOptions {
 
   for (const row of rows) {
     stages.set(row.stageId, row.stageLabel);
-    if (row.pmId !== null) pms.set(String(row.pmId), row.pmName ?? `PM ${row.pmId}`);
+    if (row.pmKey !== null) pms.set(row.pmKey, row.pmName ?? row.pmKey);
   }
 
   return {
@@ -143,7 +150,7 @@ export function buildFilterOptions(rows: PortfolioRow[]): FilterOptions {
     pms: Array.from(pms.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, "es")),
-    unassignedCount: rows.filter(row => row.pmId === null).length,
+    unassignedCount: rows.filter(row => row.pmKey === null).length,
   };
 }
 
@@ -271,7 +278,7 @@ export function moneyList(entries: Array<{ currency: string; value: number }>): 
 
 export function deadlineSummary(row: PortfolioRow): string {
   if (row.deadlineState === "not_applicable") return "—";
-  if (row.daysUsed === null || row.daysAllowed === null) return "Sin apertura";
+  if (row.daysUsed === null || row.daysAllowed === null) return "Sin apertura PMO";
   const over = row.overDays ?? 0;
   if (over > 0) return `+${over} d de exceso`;
   return `quedan ${Math.abs(over)} d`;
