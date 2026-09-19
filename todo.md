@@ -610,3 +610,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] P2: Integrar view model, filtros y tabla densa preservando ID PMO, anti-duplicidad, permisos y borrado protegido.
 - [x] P3: Certificar filtros, orden, multimoneda, N/D, roles, accesibilidad y datos reales.
 - [x] P4: Documentar, guardar checkpoint final y dejar la rama limpia.
+
+## Sincronización financiera durable — cuenta de servicio 2026-09-18
+
+- [x] F0: Confirmar causa raíz, checkpoint `5b4c29a`, refs alineadas y job existente `koZvKFb8FE7TZ6hy8GAnvM`.
+- [ ] F1: Implementar autenticación Google renovable con cuenta de servicio y pruebas sin secretos.
+- [ ] F2: Incorporar preflight, hash, validación estricta y aplicación transaccional sin borrados.
+- [ ] F3: Homologar callback con UID durable, lock de concurrencia y códigos de error operacionales.
+- [ ] F4: Mejorar historial con último éxito, frescura y diagnóstico por fase sin revelar credenciales.
+- [ ] F5: Respaldar configuración, cargar el secreto protegido y ejecutar preflight real.
+- [ ] F6: Publicar, ejecutar corrida controlada y certificar el siguiente ciclo del Heartbeat existente.
