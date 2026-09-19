@@ -8,7 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
-import { runFinancialSync } from "../financialSync";
+import { scheduledFinancialSyncHandler } from "../financialSyncSchedule";
 import { captureHealthSnapshot } from "../healthSnapshot";
 import { scheduledJiraReconciliationHandler } from "../jiraReconciliationSchedule";
 import { scheduledRecurringServicesJsmHandler } from "../recurringServicesJsmRefreshRunner";
@@ -49,24 +49,7 @@ async function startServer() {
     })
   );
   // Heartbeat: sincronización financiera programada (sólo cron autenticado)
-  app.post("/api/scheduled/syncFinancial", async (req, res) => {
-    try {
-      const user = await sdk.authenticateRequest(req);
-      if (!user.isCron) {
-        res.status(403).json({ status: "error", error: "Sólo tareas programadas pueden invocar este endpoint" });
-        return;
-      }
-      const outcome = await runFinancialSync();
-      console.log(
-        `[FinancialSync] applied: ${outcome.inputDeals} deals (${outcome.insert} insert, ${outcome.update} update)`
-      );
-      res.status(200).json(outcome);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[FinancialSync] error:", message);
-      res.status(500).json({ status: "error", error: message });
-    }
-  });
+  app.post("/api/scheduled/syncFinancial", scheduledFinancialSyncHandler);
   // Heartbeat: captura diaria de snapshot de salud por proyecto (sólo cron autenticado)
   app.post("/api/scheduled/captureHealthSnapshot", async (req, res) => {
     try {

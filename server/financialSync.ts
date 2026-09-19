@@ -14,6 +14,7 @@
  */
 import * as XLSX from "xlsx";
 import { createHash } from "node:crypto";
+import mysql from "mysql2/promise";
 import { bulkUpsertFinancialData } from "./db";
 import type { InsertFinancialData } from "../drizzle/schema";
 import {
@@ -73,6 +74,49 @@ export type FinancialSyncOutcome = {
   status: "applied";
   workbookSha256: string;
 };
+
+export type FinancialSyncSkippedOutcome = {
+  timestampUtc: string;
+  inputDeals: 0;
+  insert: 0;
+  update: 0;
+  status: "skipped";
+  skipped: "already_running";
+  workbookSha256: null;
+};
+
+export type FinancialSyncResult = FinancialSyncOutcome | FinancialSyncSkippedOutcome;
+
+export type FinancialSyncErrorCode =
+  | "authentication_error"
+  | "authorization_error"
+  | "download_error"
+  | "preflight_blocked"
+  | "database_error"
+  | "unknown_error";
+
+export class FinancialSyncOperationalError extends Error {
+  constructor(
+    public readonly code: FinancialSyncErrorCode,
+    public readonly phase: "credentials" | "download" | "preflight" | "apply",
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "FinancialSyncOperationalError";
+  }
+}
+
+export function classifyFinancialSyncError(error: unknown): FinancialSyncOperationalError {
+  if (error instanceof FinancialSyncOperationalError) return error;
+  if (error instanceof GoogleDriveCredentialError) {
+    return new FinancialSyncOperationalError("authentication_error", "credentials", error.message, { cause: error });
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return new FinancialSyncOperationalError("unknown_error", "apply", message, {
+    cause: error instanceof Error ? error : undefined,
+  });
+}
 
 export type FinancialSyncPreflight = Omit<FinancialSyncOutcome, "status"> & {
   status: "dry_run";
@@ -144,21 +188,54 @@ export async function downloadFinancialWorkbook(options: WorkbookDownloadOptions
 
   const maxAttempts = provider.renewable ? 2 : 1;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const token = await provider.getAccessToken({ forceRefresh: attempt > 0 });
-    const response = await fetchImpl(DRIVE_EXPORT_URL, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
-    });
+    let token: string;
+    try {
+      token = await provider.getAccessToken({ forceRefresh: attempt > 0 });
+    } catch (error) {
+      throw new FinancialSyncOperationalError(
+        "authentication_error",
+        "credentials",
+        error instanceof Error ? error.message : "No fue posible obtener una credencial Google",
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
+
+    let response: Response;
+    try {
+      response = await fetchImpl(DRIVE_EXPORT_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (error) {
+      throw new FinancialSyncOperationalError(
+        "download_error",
+        "download",
+        "No fue posible conectar con Google Drive para exportar la planilla",
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
 
     if (response.status === 401 && provider.renewable && attempt === 0) continue;
     if (response.status === 401) {
-      throw new Error("Drive API rechazó la credencial Google al exportar la planilla (HTTP 401)");
+      throw new FinancialSyncOperationalError(
+        "authentication_error",
+        "credentials",
+        "Drive API rechazó la credencial Google al exportar la planilla (HTTP 401)",
+      );
     }
     if (response.status === 403) {
-      throw new Error("La identidad Google no tiene permiso para exportar la planilla (HTTP 403)");
+      throw new FinancialSyncOperationalError(
+        "authorization_error",
+        "download",
+        "La identidad Google no tiene permiso para exportar la planilla (HTTP 403)",
+      );
     }
     if (!response.ok) {
-      throw new Error(`Drive API respondió HTTP ${response.status} al exportar la planilla`);
+      throw new FinancialSyncOperationalError(
+        "download_error",
+        "download",
+        `Drive API respondió HTTP ${response.status} al exportar la planilla`,
+      );
     }
 
     const arrayBuffer = await response.arrayBuffer();
@@ -229,26 +306,46 @@ export function parseFinancialWorkbook(buffer: Buffer): ParsedFinancialWorkbook 
 }
 
 async function buildFinancialPreflight(buffer: Buffer): Promise<FinancialSyncPreflight & { records: InsertFinancialData[] }> {
-  const parsed = parseFinancialWorkbook(buffer);
-  const { getDb } = await import("./db");
-  const db = await getDb();
-  if (!db) throw new Error("Base de datos no disponible");
-  const { financialData } = await import("../drizzle/schema");
-  const { inArray } = await import("drizzle-orm");
+  let parsed: ParsedFinancialWorkbook;
+  try {
+    parsed = parseFinancialWorkbook(buffer);
+  } catch (error) {
+    throw new FinancialSyncOperationalError(
+      "preflight_blocked",
+      "preflight",
+      error instanceof Error ? error.message : "La planilla no superó el preflight financiero",
+      { cause: error instanceof Error ? error : undefined },
+    );
+  }
 
-  // Fuerza a la base a validar el esquema completo antes de cualquier escritura.
-  await db.select().from(financialData).limit(0);
-
-  const dealIds = parsed.records.map(record => record.dealId);
   const existing = new Set<string>();
-  const batchSize = 500;
-  for (let offset = 0; offset < dealIds.length; offset += batchSize) {
-    const batch = dealIds.slice(offset, offset + batchSize);
-    const found = await db
-      .select({ dealId: financialData.dealId })
-      .from(financialData)
-      .where(inArray(financialData.dealId, batch));
-    for (const row of found) existing.add(row.dealId);
+  try {
+    const { getDb } = await import("./db");
+    const db = await getDb();
+    if (!db) throw new Error("Base de datos no disponible");
+    const { financialData } = await import("../drizzle/schema");
+    const { inArray } = await import("drizzle-orm");
+
+    // Fuerza a la base a validar el esquema completo antes de cualquier escritura.
+    await db.select().from(financialData).limit(0);
+
+    const dealIds = parsed.records.map(record => record.dealId);
+    const batchSize = 500;
+    for (let offset = 0; offset < dealIds.length; offset += batchSize) {
+      const batch = dealIds.slice(offset, offset + batchSize);
+      const found = await db
+        .select({ dealId: financialData.dealId })
+        .from(financialData)
+        .where(inArray(financialData.dealId, batch));
+      for (const row of found) existing.add(row.dealId);
+    }
+  } catch (error) {
+    throw new FinancialSyncOperationalError(
+      "database_error",
+      "preflight",
+      "No fue posible validar el esquema o los Deals existentes en la base de datos",
+      { cause: error instanceof Error ? error : undefined },
+    );
   }
 
   return {
@@ -276,12 +373,50 @@ export async function runFinancialSyncPreflight(): Promise<FinancialSyncPrefligh
 async function runFinancialSyncInternal(): Promise<FinancialSyncOutcome> {
   const buffer = await downloadFinancialWorkbook();
   const { records, skippedRows: _skippedRows, status: _status, ...preflight } = await buildFinancialPreflight(buffer);
-  await bulkUpsertFinancialData(records);
+  try {
+    await bulkUpsertFinancialData(records);
+  } catch (error) {
+    throw new FinancialSyncOperationalError(
+      "database_error",
+      "apply",
+      "La base de datos rechazó la aplicación atómica de la sincronización financiera",
+      { cause: error instanceof Error ? error : undefined },
+    );
+  }
 
   return {
     ...preflight,
     status: "applied",
   };
+}
+
+async function acquireFinancialSyncLock(): Promise<(() => Promise<void>) | null> {
+  if (!process.env.DATABASE_URL) {
+    throw new FinancialSyncOperationalError("database_error", "apply", "DATABASE_URL no está configurada");
+  }
+  const connection = await mysql.createConnection(process.env.DATABASE_URL);
+  try {
+    const [rows] = await connection.query<any[]>("SELECT GET_LOCK(?, 0) AS acquired", ["prodigio_financial_sync"]);
+    if (Number(rows[0]?.acquired) !== 1) {
+      await connection.end();
+      return null;
+    }
+    return async () => {
+      try {
+        await connection.query("SELECT RELEASE_LOCK(?)", ["prodigio_financial_sync"]);
+      } finally {
+        await connection.end();
+      }
+    };
+  } catch (error) {
+    await connection.end();
+    throw new FinancialSyncOperationalError(
+      "database_error",
+      "apply",
+      "No fue posible adquirir el lock de sincronización financiera",
+      { cause: error instanceof Error ? error : undefined },
+    );
+  }
 }
 
 
@@ -316,15 +451,34 @@ async function logSyncExecution(entry: {
   }
 }
 
-/**
- * Ejecuta la sincronización financiera y registra el resultado (éxito o error)
- * en el historial auditable. El error se re-lanza tras registrarlo para que el
- * endpoint responda 500 y el cron lo marque como fallido.
- */
-export async function runFinancialSync(triggeredBy: "cron" | "manual" = "cron"): Promise<FinancialSyncOutcome> {
+export interface FinancialSyncRunDependencies {
+  acquireLock(): Promise<(() => Promise<void>) | null>;
+  execute(): Promise<FinancialSyncOutcome>;
+  log(entry: Parameters<typeof logSyncExecution>[0]): Promise<void>;
+  now(): Date;
+}
+
+export async function runFinancialSyncWithDependencies(
+  triggeredBy: "cron" | "manual",
+  dependencies: FinancialSyncRunDependencies,
+): Promise<FinancialSyncResult> {
+  let releaseLock: (() => Promise<void>) | null = null;
   try {
-    const outcome = await runFinancialSyncInternal();
-    await logSyncExecution({
+    releaseLock = await dependencies.acquireLock();
+    if (!releaseLock) {
+      return {
+        timestampUtc: dependencies.now().toISOString(),
+        inputDeals: 0,
+        insert: 0,
+        update: 0,
+        status: "skipped",
+        skipped: "already_running",
+        workbookSha256: null,
+      };
+    }
+
+    const outcome = await dependencies.execute();
+    await dependencies.log({
       status: "applied",
       inputDeals: outcome.inputDeals,
       insertCount: outcome.insert,
@@ -333,8 +487,28 @@ export async function runFinancialSync(triggeredBy: "cron" | "manual" = "cron"):
     });
     return outcome;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await logSyncExecution({ status: "error", errorMessage: message, triggeredBy });
-    throw error;
+    const operationalError = classifyFinancialSyncError(error);
+    await dependencies.log({
+      status: "error",
+      errorMessage: `[${operationalError.code}:${operationalError.phase}] ${operationalError.message}`,
+      triggeredBy,
+    });
+    throw operationalError;
+  } finally {
+    if (releaseLock) await releaseLock();
   }
+}
+
+/**
+ * Ejecuta la sincronización financiera y registra el resultado (éxito o error)
+ * en el historial auditable. El error se re-lanza tras registrarlo para que el
+ * endpoint responda 500 y el cron lo marque como fallido.
+ */
+export async function runFinancialSync(triggeredBy: "cron" | "manual" = "cron"): Promise<FinancialSyncResult> {
+  return runFinancialSyncWithDependencies(triggeredBy, {
+    acquireLock: acquireFinancialSyncLock,
+    execute: runFinancialSyncInternal,
+    log: logSyncExecution,
+    now: () => new Date(),
+  });
 }
