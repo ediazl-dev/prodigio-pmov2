@@ -46,7 +46,12 @@ import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
 import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
-import { isOpenJiraReportProjectStatus } from "./jiraProgressInsights";
+import {
+  buildJiraPortfolioReportEntry,
+  indexJiraReportsByKey,
+  indexJiraSpacesByProjectId,
+  type JiraReportSpaceDescriptor,
+} from "./jiraPortfolioReportModel";
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { buildFinancialSyncHealth } from "./financialSyncHealth";
@@ -5915,162 +5920,83 @@ const jiraRouter = router({
       return result;
     }),
 
-  /** Enriched consolidated report including both JIRA spaces and PMO projects */
+  /**
+   * Reporte Jira sobre el MISMO universo y read model del Portafolio.
+   * Portafolio gobierna ciclo de vida, fase, avance reportado, salud, PM, hitos
+   * y riesgos. La lectura Jira live sólo agrega tareas, agenda y carga.
+   */
   enrichedConsolidatedReport: protectedProcedure
     .query(async () => {
-      const [spaces, allProjects] = await Promise.all([
+      const [spaces, executivePortfolio] = await Promise.all([
         getAllJiraSpaces(),
-        getAllProjects(),
+        getExecutivePortfolio(),
       ]);
       const activeSpaces = spaces.filter(s => s.status === "created" && s.jiraProjectKey);
-
-      // Fetch JIRA reports in parallel
-      const reports = await Promise.allSettled(
-        activeSpaces.slice(0, 15).map(async (space) => {
-          const report = await getJiraAdvanceReport(space.jiraProjectKey!);
-          // Find PMO project
-          const pmoProject = allProjects.find(p => p.id === space.projectId);
-          // SOLO PROYECTOS ABIERTOS: un proyecto cerrado o cancelado no se reporta.
-          if (pmoProject && !isOpenJiraReportProjectStatus(pmoProject.status)) {
-            return null;
-          }
-          return {
-            spaceId: space.id,
-            spaceName: space.spaceName,
-            projectKey: space.jiraProjectKey!,
-            projectName: space.jiraProjectName ?? space.spaceName,
-            projectUrl: space.jiraProjectUrl ?? "",
-            pmoProjectId: space.projectId,
-            pmoProjectName: pmoProject?.projectName ?? space.spaceName,
-            clientName: pmoProject?.clientName ?? "",
-            dealNumber: "",
-            isLinked: !!pmoProject,
-            total: report.totalIssues,
-            done: report.doneCount,
-            inProgress: report.inProgressCount,
-            toDo: report.toDoCount,
-            percentComplete: report.percentComplete,
-            epicsCount: report.epics.length,
-            epicsDone: report.epics.filter(e => e.statusCategory === "Done").length,
-            milestonesCount: report.milestonesCumplidos + report.milestonesPendientes,
-            milestonesDone: report.milestonesCumplidos,
-            risksCount: report.risks.length,
-            risksOpen: report.risks.filter(r => r.statusCategory !== "Done").length,
-            teamSize: report.team.length,
-            insights: report.insights,
-          };
-        })
+      const portfolioRowsWithJira = executivePortfolio.portfolio.filter(row => row.jiraProjectKey);
+      const reportResults = await Promise.allSettled(
+        portfolioRowsWithJira.map(row => getJiraAdvanceReport(row.jiraProjectKey!)),
       );
+      const liveReports = reportResults
+        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof getJiraAdvanceReport>>> => result.status === "fulfilled")
+        .map(result => result.value);
+      const liveReportsByKey = indexJiraReportsByKey(liveReports);
 
-      const successfulReports = reports
-        .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-        .map(r => r.value)
-        .filter((value): value is NonNullable<typeof value> => value !== null);
-
-      // Find projects with jiraProjectKey directly (origin=linked) that aren't already covered by jira_spaces
-      const coveredProjectIds = new Set(successfulReports.map(r => r.pmoProjectId).filter(Boolean));
-      const coveredKeys = new Set(successfulReports.map(r => r.projectKey));
-      const linkedProjectsWithJira = allProjects.filter(p => 
-        p.jiraProjectKey && !coveredKeys.has(p.jiraProjectKey) && isOpenJiraReportProjectStatus(p.status)
-      );
-
-      // Fetch JIRA data for linked projects
-      const linkedReports = await Promise.allSettled(
-        linkedProjectsWithJira.map(async (proj) => {
-          const report = await getJiraAdvanceReport(proj.jiraProjectKey!);
-          return {
-            spaceId: null,
-            spaceName: proj.projectName,
-            projectKey: proj.jiraProjectKey!,
-            projectName: proj.projectName,
-            projectUrl: proj.jiraProjectUrl ?? "",
-            pmoProjectId: proj.id,
-            pmoProjectName: proj.projectName,
-            clientName: proj.clientName ?? "",
-            dealNumber: "",
-            isLinked: true,
-            total: report.totalIssues,
-            done: report.doneCount,
-            inProgress: report.inProgressCount,
-            toDo: report.toDoCount,
-            percentComplete: report.percentComplete,
-            epicsCount: report.epics.length,
-            epicsDone: report.epics.filter(e => e.statusCategory === "Done").length,
-            milestonesCount: report.milestonesCumplidos + report.milestonesPendientes,
-            milestonesDone: report.milestonesCumplidos,
-            risksCount: report.risks.length,
-            risksOpen: report.risks.filter(r => r.statusCategory !== "Done").length,
-            teamSize: report.team.length,
-            insights: report.insights,
-          };
-        })
-      );
-      const successfulLinkedReports = linkedReports
-        .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-        .map(r => r.value);
-
-      // Merge all covered project IDs
-      const allCoveredIds = new Set(
-        Array.from(coveredProjectIds).concat(
-          successfulLinkedReports.map(r => r.pmoProjectId).filter(Boolean)
-        )
-      );
-
-      // Also include PMO projects without any JIRA key
-      const pmoProjectsWithoutJira = allProjects.filter(p => {
-        return !allCoveredIds.has(p.id) && !p.jiraProjectKey && isOpenJiraReportProjectStatus(p.status);
-      }).map(p => ({
-        spaceId: null,
-        spaceName: p.projectName,
-        projectKey: null,
-        projectName: p.projectName,
-        projectUrl: null,
-        pmoProjectId: p.id,
-        pmoProjectName: p.projectName,
-        clientName: p.clientName ?? "",
-        dealNumber: "",
-        isLinked: false,
-        total: 0,
-        done: 0,
-        inProgress: 0,
-        toDo: 0,
-        percentComplete: 0,
-        epicsCount: 0,
-        epicsDone: 0,
-        milestonesCount: 0,
-        milestonesDone: 0,
-        risksCount: 0,
-        risksOpen: 0,
-        teamSize: 0,
-        insights: null,
+      const spaceDescriptors: JiraReportSpaceDescriptor[] = activeSpaces.map(space => ({
+        id: space.id,
+        projectId: space.projectId ?? null,
+        projectKey: space.jiraProjectKey ?? null,
+        projectName: space.jiraProjectName ?? null,
+        projectUrl: space.jiraProjectUrl ?? null,
+        spaceName: space.spaceName ?? null,
       }));
+      const spacesByProjectId = indexJiraSpacesByProjectId(spaceDescriptors);
+      const spacesByKey = new Map(
+        spaceDescriptors
+          .filter(space => space.projectKey)
+          .map(space => [space.projectKey!.trim().toUpperCase(), space]),
+      );
 
-      const allEntries = [...successfulReports, ...successfulLinkedReports, ...pmoProjectsWithoutJira];
-      const totalIssues = allEntries.reduce((sum, r) => sum + r.total, 0);
-      const totalDone = allEntries.reduce((sum, r) => sum + r.done, 0);
-      const jiraEntries = allEntries.filter(e => e.projectKey);
-      // EL AVANCE SE MIDE POR HITOS CERRADOS. Los proyectos sin hitos definidos
-      // no entran al promedio: no son 0%, son no medibles.
-      const measurable = jiraEntries.filter(e => e.milestonesCount > 0);
-      const milestonesTotal = measurable.reduce((sum, r) => sum + r.milestonesCount, 0);
-      const milestonesDone = measurable.reduce((sum, r) => sum + r.milestonesDone, 0);
-      const avgProgress = milestonesTotal > 0
-        ? Math.round((milestonesDone / milestonesTotal) * 100)
+      const allEntries = executivePortfolio.portfolio.map(row => {
+        const normalizedKey = row.jiraProjectKey?.trim().toUpperCase() ?? null;
+        const report = normalizedKey ? liveReportsByKey.get(normalizedKey) ?? null : null;
+        const space = spacesByProjectId.get(row.projectId)
+          ?? (normalizedKey ? spacesByKey.get(normalizedKey) ?? null : null);
+        return buildJiraPortfolioReportEntry(row, report, space);
+      });
+
+      const totalIssues = allEntries.reduce((sum, row) => sum + (row.total ?? 0), 0);
+      const totalDone = allEntries.reduce((sum, row) => sum + (row.done ?? 0), 0);
+      const jiraEntries = allEntries.filter(row => row.projectKey);
+      const measurableMilestones = jiraEntries.filter(
+        row => row.milestonesCount !== null && row.milestonesDone !== null && row.milestonesCount > 0,
+      );
+      const milestonesTotal = measurableMilestones.reduce((sum, row) => sum + (row.milestonesCount ?? 0), 0);
+      const milestonesDone = measurableMilestones.reduce((sum, row) => sum + (row.milestonesDone ?? 0), 0);
+      const operationalProgressRows = jiraEntries.filter(row => row.operationalProgressPct !== null);
+      const avgProgress = operationalProgressRows.length > 0
+        ? Math.round(
+            operationalProgressRows.reduce((sum, row) => sum + (row.operationalProgressPct ?? 0), 0)
+            / operationalProgressRows.length,
+          )
         : null;
 
       return {
         totalProjects: allEntries.length,
         totalJiraSpaces: jiraEntries.length,
+        activeProjects: executivePortfolio.headline.active,
+        pausedProjects: executivePortfolio.headline.paused,
+        closedProjects: executivePortfolio.headline.closed,
+        cancelledProjects: executivePortfolio.headline.cancelled,
         totalIssues,
         totalDone,
-        /** % de hitos cerrados de la cartera. null si ningún proyecto tiene hitos. */
+        /** Promedio simple del avance Jira reportado por el snapshot del Portafolio. */
         avgProgress,
         milestonesTotal,
         milestonesDone,
-        /** Proyectos abiertos sin ningún Hito PMO definido: no medibles. */
-        withoutMilestones: jiraEntries.length - measurable.length,
+        withoutMilestones: jiraEntries.filter(row => !row.milestonesCount).length,
+        jiraLiveReports: liveReports.length,
         projects: allEntries,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: executivePortfolio.generatedAt,
       };
     }),
 

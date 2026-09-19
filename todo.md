@@ -647,3 +647,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J2: Reemplazar la lista por tabla accesible; medir avance por hitos, excluir cerrados y mantener N/D fuera del promedio.
 - [x] J3: Integrar manualmente los seis paneles en `JiraProjectDashboard.tsx` sin tocar IA, KPI financieros ni PPTX.
 - [x] J4: Certificar 34 pruebas nuevas, suite de regresión, TypeScript, build, accesibilidad y responsive; guardar checkpoint final.
+
+## Consistencia Avances Jira ↔ Portafolio — 2026-09-19
+
+- [x] K0: Confirmar causa raíz, checkpoint base `f0ec9b73`, refs alineadas y crear rama correctiva.
+- [x] K1: Fusionar el read model del Portafolio con insights Jira GET-only sin duplicar fuentes ni inventar datos.
+- [x] K2: Mostrar los mismos 12 proyectos y separar ciclo de vida, fase Jira, avance reportado, hitos y tareas.
+- [x] K3: Alinear el detalle Jira a las mismas dimensiones y fuentes del Portafolio, preservando IA, finanzas y PPTX.
+- [ ] K4: Certificar Tanner, CCLA, cerrados, PAI parcial, N/D, desktop/móvil, pruebas, build y checkpoint final.

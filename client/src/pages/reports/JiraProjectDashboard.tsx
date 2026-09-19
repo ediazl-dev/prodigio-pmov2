@@ -192,9 +192,11 @@ export default function JiraProjectDashboard() {
     );
   }
 
-  const percentComplete = portfolioEvidence?.operationalProgressPct ?? data.percentComplete;
+  const percentComplete = portfolioEvidence
+    ? portfolioEvidence.operationalProgressPct
+    : data.percentComplete;
   const isSnapshotOnly = Boolean((data as any).snapshotOnly);
-  const jiraSemaphore = semaphoreFromPct(percentComplete);
+  const jiraSemaphore = percentComplete === null ? "N/D" : semaphoreFromPct(percentComplete);
   const evidenceHealth = String(portfolioEvidence?.executiveHealth ?? "").toLowerCase();
   const evidenceSemaphore = evidenceHealth.includes("rojo") || evidenceHealth.includes("crít")
     ? "ROJO"
@@ -209,8 +211,9 @@ export default function JiraProjectDashboard() {
 
   const milestonesDone = portfolioEvidence?.milestonesFulfilled ?? data.milestonesCumplidos;
   const milestonesTotal = portfolioEvidence?.milestonesTotal ?? (data.milestonesCumplidos + data.milestonesPendientes);
-  const milestoneProgressPct = progressInsights?.progress.milestonePct
-    ?? (milestonesTotal > 0 ? pct(milestonesDone, milestonesTotal) : null);
+  const milestoneProgressPct = milestonesTotal > 0
+    ? pct(milestonesDone, milestonesTotal)
+    : null;
   const taskProgressPct = progressInsights?.progress.issuePct ?? null;
   const tasksDone = progressInsights?.progress.issuesDone ?? 0;
   const tasksTotal = progressInsights?.progress.issuesTotal ?? 0;
@@ -269,7 +272,7 @@ export default function JiraProjectDashboard() {
                 {projectInfo?.projectName ?? data.projectName}
               </h1>
               {projectInfo?.clientName && <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>{projectInfo.clientName}</p>}
-              {portfolioEvidence && <p style={{ fontSize: 10.5, color: "rgba(255,255,255,.45)", marginTop: 4 }}>Fase Jira: {portfolioEvidence.operationalPhase ?? "N/D"} · PM: {portfolioEvidence.pmName ?? "N/D"} · snapshot {portfolioEvidence.jiraEvidenceAvailability}</p>}
+              {portfolioEvidence && <p style={{ fontSize: 10.5, color: "rgba(255,255,255,.45)", marginTop: 4 }}>Ciclo de vida: {portfolioEvidence.status} · Fase Jira: {portfolioEvidence.operationalPhase ?? "N/D"} · PM: {portfolioEvidence.pmName ?? "N/D"} · evidencia {portfolioEvidence.jiraEvidenceAvailability}</p>}
               {(data as any).snapshotOnly && <p style={{ fontSize: 10.5, color: C.gold2, marginTop: 4 }}>Vista resumida desde snapshot local; épicas, equipo y detalle de issues live están N/D.</p>}
             </div>
             <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
@@ -339,10 +342,10 @@ export default function JiraProjectDashboard() {
           {/* KPI STRIP */}
           <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
             {[
-              { icon: Milestone, label: "Avance por hitos", value: milestoneProgressPct === null ? "N/D" : `${milestoneProgressPct}%`, sub: milestonesTotal > 0 ? `${milestonesDone}/${milestonesTotal} cerrados` : "sin hitos definidos", color: milestoneProgressColor },
-              { icon: Target, label: "Tareas", value: taskProgressPct === null ? "N/D" : `${taskProgressPct}%`, sub: progressInsights ? `${tasksDone}/${tasksTotal} cerradas` : "detalle live no disponible", color: taskProgressColor },
-              { icon: Flag, label: "Épicas", value: isSnapshotOnly ? "N/D" : `${data.epics.length}`, sub: isSnapshotOnly ? "detalle live no disponible" : `${data.epics.filter((e: any) => e.statusCategory === "Done").length} listas`, color: C.accent },
-              { icon: Clock, label: "En Progreso", value: progressInsights ? `${tasksInProgress}` : "N/D", sub: progressInsights ? "tareas activas" : "detalle live no disponible", color: C.blue2 },
+              { icon: Activity, label: "Avance Jira", value: percentComplete === null ? "N/D" : `${percentComplete}%`, sub: "Mismo snapshot del Portafolio", color: percentComplete === null ? C.g300 : semColor },
+              { icon: Milestone, label: "Hitos", value: milestoneProgressPct === null ? "N/D" : `${milestoneProgressPct}%`, sub: milestonesTotal > 0 ? `${milestonesDone}/${milestonesTotal} cerrados` : "sin hitos medibles", color: milestoneProgressColor },
+              { icon: Target, label: "Tareas live", value: taskProgressPct === null ? "N/D" : `${taskProgressPct}%`, sub: progressInsights ? `${tasksDone}/${tasksTotal} cerradas` : "detalle live no disponible", color: taskProgressColor },
+              { icon: ClipboardCheck, label: "PM", value: portfolioEvidence?.pmName ?? "N/D", sub: portfolioEvidence?.pmSource ?? "sin evidencia", color: C.blue2 },
               { icon: ShieldAlert, label: "Riesgos", value: `${portfolioEvidence?.openRisks ?? data.risks.length}`, sub: portfolioEvidence?.highRisksOpen != null ? `${portfolioEvidence.highRisksOpen} altos · ${portfolioEvidence.riskSource}` : `${data.risks.filter((r: any) => r.statusCategory !== "Done").length} abiertos`, color: (portfolioEvidence?.highRisksOpen ?? data.risks.filter((r: any) => r.statusCategory !== "Done").length) > 0 ? C.red : C.teal },
               { icon: Users, label: "Equipo", value: progressInsights ? `${progressInsights.workload.length}` : "N/D", sub: progressInsights ? "responsables con tareas" : "detalle live no disponible", color: C.teal2 },
             ].map((kpi, i) => (
