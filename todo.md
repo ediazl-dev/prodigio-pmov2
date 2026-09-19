@@ -619,4 +619,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F3: Homologar callback con UID durable, lock de concurrencia y códigos de error operacionales.
 - [x] F4: Mejorar historial con último éxito, frescura y diagnóstico por fase sin revelar credenciales.
 - [x] F5: Respaldar configuración, cargar el secreto protegido y ejecutar preflight real.
-- [ ] F6: Publicar, ejecutar corrida controlada y certificar el siguiente ciclo del Heartbeat existente.
+- [x] F6: Publicar, ejecutar corrida controlada, certificar el Heartbeat HTTP real y paginar el historial.

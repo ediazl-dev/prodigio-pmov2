@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, CheckCircle2, XCircle, Clock, Database, ShieldCheck, AlertTriangle } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Clock, Database, ShieldCheck, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { C, headerGradient, cardStyle, thStyle, tdStyle, badgeStyle } from "./adminStyles";
 
 function formatDateTime(date: string | Date | null | undefined): string {
@@ -57,7 +57,9 @@ function diagnosticLabel(errorMessage: string): string {
 
 export default function AdminFinancialSync() {
   const utils = trpc.useUtils();
-  const { data: logs, isLoading } = trpc.financial.syncLogs.useQuery({ limit: 100 });
+  const [page, setPage] = useState(1);
+  const { data: history, isLoading, isFetching } = trpc.financial.syncLogs.useQuery({ page, pageSize: 20 });
+  const logs = history?.items;
   const { data: health } = trpc.financial.syncHealth.useQuery();
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const syncNow = trpc.financial.syncNow.useMutation({
@@ -73,20 +75,25 @@ export default function AdminFinancialSync() {
       utils.financial.syncLogs.invalidate();
       utils.financial.syncHealth.invalidate();
       utils.financial.latestSync.invalidate();
+      setPage(1);
     },
     onError: (error) => {
       setFeedback({ kind: "error", text: `La sincronización falló: ${error.message}` });
       utils.financial.syncLogs.invalidate();
       utils.financial.syncHealth.invalidate();
       utils.financial.latestSync.invalidate();
+      setPage(1);
     },
   });
 
-  const total = logs?.length ?? 0;
-  const successCount = logs?.filter((l: any) => l.status === "applied").length ?? 0;
-  const errorCount = logs?.filter((l: any) => l.status === "error").length ?? 0;
+  const total = history?.total ?? 0;
+  const successCount = history?.successCount ?? 0;
+  const errorCount = history?.errorCount ?? 0;
   const lastSync = health?.latestAttempt ?? (logs && logs.length > 0 ? logs[0] : null);
   const lastSuccess = health?.latestSuccess ?? null;
+  const totalPages = history?.totalPages ?? 1;
+  const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
+  const pageEnd = Math.min(page * 20, total);
 
   return (
     <div style={{ background: C.g100, fontFamily: "'Poppins', system-ui, sans-serif", color: C.navy, minHeight: "100vh" }}>
@@ -185,9 +192,36 @@ export default function AdminFinancialSync() {
       {/* ── BODY ── */}
       <div style={{ padding: "28px 36px", display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ ...cardStyle, overflow: "hidden" }}>
-          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.g200}`, display: "flex", alignItems: "center", gap: 8 }}>
-            <Database className="h-4 w-4" style={{ color: C.accent }} />
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>Historial de ejecuciones</h3>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.g200}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Database className="h-4 w-4" style={{ color: C.accent }} />
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: C.navy }}>Historial de ejecuciones</h3>
+            </div>
+            <nav aria-label="Paginación del historial financiero" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+              <span aria-live="polite" style={{ fontSize: 11, fontWeight: 600, color: C.g400 }}>
+                {pageStart}-{pageEnd} de {total} · Página {page} de {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="Página anterior"
+                title="Página anterior"
+                disabled={page <= 1 || isFetching}
+                onClick={() => setPage(current => Math.max(1, current - 1))}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.g200}`, background: "#fff", color: C.navy, cursor: page <= 1 || isFetching ? "not-allowed" : "pointer", opacity: page <= 1 || isFetching ? 0.45 : 1 }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Página siguiente"
+                title="Página siguiente"
+                disabled={page >= totalPages || isFetching}
+                onClick={() => setPage(current => Math.min(totalPages, current + 1))}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.g200}`, background: "#fff", color: C.navy, cursor: page >= totalPages || isFetching ? "not-allowed" : "pointer", opacity: page >= totalPages || isFetching ? 0.45 : 1 }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </nav>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>

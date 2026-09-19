@@ -2565,6 +2565,41 @@ export async function getFinancialSyncLogs(limit = 50) {
     .limit(Math.max(1, Math.min(200, limit)));
 }
 
+/** Devuelve una página del historial financiero, ordenada desde la ejecución más reciente. */
+export async function getFinancialSyncLogPage(page = 1, pageSize = 20) {
+  const db = await getDb();
+  const safePageSize = Math.max(1, Math.min(100, pageSize));
+  const safePage = Math.max(1, page);
+  if (!db) {
+    return { items: [], total: 0, successCount: 0, errorCount: 0, page: safePage, pageSize: safePageSize, totalPages: 1 };
+  }
+  const { financialSyncLogs } = await import("../drizzle/schema");
+  const [items, totalRows, statusRows] = await Promise.all([
+    db
+      .select()
+      .from(financialSyncLogs)
+      .orderBy(desc(financialSyncLogs.createdAt), desc(financialSyncLogs.id))
+      .limit(safePageSize)
+      .offset((safePage - 1) * safePageSize),
+    db.select({ total: count() }).from(financialSyncLogs),
+    db
+      .select({ status: financialSyncLogs.status, total: count() })
+      .from(financialSyncLogs)
+      .groupBy(financialSyncLogs.status),
+  ]);
+  const total = totalRows[0]?.total ?? 0;
+  const totals = Object.fromEntries(statusRows.map(row => [row.status, row.total]));
+  return {
+    items,
+    total,
+    successCount: totals.applied ?? 0,
+    errorCount: totals.error ?? 0,
+    page: safePage,
+    pageSize: safePageSize,
+    totalPages: Math.max(1, Math.ceil(total / safePageSize)),
+  };
+}
+
 /** Devuelve la sincronización financiera más reciente (cualquier estado), o undefined. */
 export async function getLatestFinancialSync() {
   const db = await getDb();
