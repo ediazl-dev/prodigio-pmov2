@@ -13,6 +13,7 @@
  * - No expone tokens en logs.
  */
 import * as XLSX from "xlsx";
+import { createHash } from "node:crypto";
 import { bulkUpsertFinancialData } from "./db";
 import type { InsertFinancialData } from "../drizzle/schema";
 import {
@@ -53,6 +54,8 @@ const FIELD_MAP: Record<string, keyof InsertFinancialData> = {
   "Linea_negocio": "lineaNegocio",
 };
 
+export const FINANCIAL_SYNC_REQUIRED_HEADERS = ["Deal", ...Object.keys(FIELD_MAP)] as const;
+
 const TEXT_FIELDS = new Set<keyof InsertFinancialData>([
   "estadoProyecto",
   "projectName",
@@ -68,6 +71,19 @@ export type FinancialSyncOutcome = {
   insert: number;
   update: number;
   status: "applied";
+  workbookSha256: string;
+};
+
+export type FinancialSyncPreflight = Omit<FinancialSyncOutcome, "status"> & {
+  status: "dry_run";
+  skippedRows: number;
+};
+
+export type ParsedFinancialWorkbook = {
+  records: InsertFinancialData[];
+  sourceRows: number;
+  skippedRows: number;
+  workbookSha256: string;
 };
 
 function cleanText(value: unknown): string | null {
@@ -77,12 +93,14 @@ function cleanText(value: unknown): string | null {
   return text;
 }
 
-function cleanNumber(value: unknown): string | null {
+function cleanNumber(value: unknown, field: string, dealId: string): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
-  if (text === "" || text === "None" || text === "N/A") return null;
+  if (text === "" || text === "None" || text === "N/A" || text.startsWith("#")) return null;
   const parsed = Number(text);
-  if (Number.isNaN(parsed)) return null;
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Valor numérico inválido en ${field} para ${dealId}`);
+  }
   return String(parsed);
 }
 
@@ -152,7 +170,7 @@ export async function downloadFinancialWorkbook(options: WorkbookDownloadOptions
   throw new Error("No fue posible exportar la planilla después de renovar la credencial Google");
 }
 
-function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
+export function parseFinancialWorkbook(buffer: Buffer): ParsedFinancialWorkbook {
   const workbook = XLSX.read(buffer, { type: "buffer" });
   if (!workbook.SheetNames.includes(SHEET_NAME)) {
     throw new Error(`No existe la hoja requerida: ${SHEET_NAME}`);
@@ -174,11 +192,14 @@ function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
   const records: InsertFinancialData[] = [];
   const seen = new Set<string>();
   const duplicates = new Set<string>();
+  let skippedRows = 0;
 
   for (const row of rows) {
     const dealId = cleanText(row["Deal"]);
-    if (!dealId) continue;
-    if (!dealId.startsWith("Deal")) continue;
+    if (!dealId || !dealId.startsWith("Deal")) {
+      skippedRows += 1;
+      continue;
+    }
     if (seen.has(dealId)) {
       duplicates.add(dealId);
       continue;
@@ -188,7 +209,7 @@ function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
     const record: Record<string, unknown> = { dealId };
     for (const [source, target] of Object.entries(FIELD_MAP)) {
       const raw = row[source];
-      record[target] = TEXT_FIELDS.has(target) ? cleanText(raw) : cleanNumber(raw);
+      record[target] = TEXT_FIELDS.has(target) ? cleanText(raw) : cleanNumber(raw, source, dealId);
     }
     records.push(record as unknown as InsertFinancialData);
   }
@@ -199,7 +220,53 @@ function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
   if (duplicates.size > 0) {
     throw new Error(`Deal IDs duplicados en la planilla: ${Array.from(duplicates).sort().join(", ")}`);
   }
-  return records;
+  return {
+    records,
+    sourceRows: rows.length,
+    skippedRows,
+    workbookSha256: createHash("sha256").update(buffer).digest("hex"),
+  };
+}
+
+async function buildFinancialPreflight(buffer: Buffer): Promise<FinancialSyncPreflight & { records: InsertFinancialData[] }> {
+  const parsed = parseFinancialWorkbook(buffer);
+  const { getDb } = await import("./db");
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const { financialData } = await import("../drizzle/schema");
+  const { inArray } = await import("drizzle-orm");
+
+  // Fuerza a la base a validar el esquema completo antes de cualquier escritura.
+  await db.select().from(financialData).limit(0);
+
+  const dealIds = parsed.records.map(record => record.dealId);
+  const existing = new Set<string>();
+  const batchSize = 500;
+  for (let offset = 0; offset < dealIds.length; offset += batchSize) {
+    const batch = dealIds.slice(offset, offset + batchSize);
+    const found = await db
+      .select({ dealId: financialData.dealId })
+      .from(financialData)
+      .where(inArray(financialData.dealId, batch));
+    for (const row of found) existing.add(row.dealId);
+  }
+
+  return {
+    timestampUtc: new Date().toISOString(),
+    inputDeals: parsed.records.length,
+    insert: parsed.records.filter(record => !existing.has(record.dealId)).length,
+    update: parsed.records.filter(record => existing.has(record.dealId)).length,
+    status: "dry_run",
+    skippedRows: parsed.skippedRows,
+    workbookSha256: parsed.workbookSha256,
+    records: parsed.records,
+  };
+}
+
+export async function runFinancialSyncPreflight(): Promise<FinancialSyncPreflight> {
+  const buffer = await downloadFinancialWorkbook();
+  const { records: _records, ...preflight } = await buildFinancialPreflight(buffer);
+  return preflight;
 }
 
 /**
@@ -208,34 +275,11 @@ function parseWorkbook(buffer: Buffer): InsertFinancialData[] {
  */
 async function runFinancialSyncInternal(): Promise<FinancialSyncOutcome> {
   const buffer = await downloadFinancialWorkbook();
-  const records = parseWorkbook(buffer);
-
-  // Contar existentes antes del UPSERT para reportar insert vs update
-  const { getDb } = await import("./db");
-  const db = await getDb();
-  if (!db) throw new Error("Base de datos no disponible");
-  const { financialData } = await import("../drizzle/schema");
-  const { inArray } = await import("drizzle-orm");
-
-  const dealIds = records.map((r) => r.dealId);
-  const existing = new Set<string>();
-  const BATCH = 500;
-  for (let offset = 0; offset < dealIds.length; offset += BATCH) {
-    const batch = dealIds.slice(offset, offset + BATCH);
-    const found = await db
-      .select({ dealId: financialData.dealId })
-      .from(financialData)
-      .where(inArray(financialData.dealId, batch));
-    for (const row of found) existing.add(row.dealId);
-  }
-
+  const { records, skippedRows: _skippedRows, status: _status, ...preflight } = await buildFinancialPreflight(buffer);
   await bulkUpsertFinancialData(records);
 
   return {
-    timestampUtc: new Date().toISOString(),
-    inputDeals: records.length,
-    insert: records.filter((r) => !existing.has(r.dealId)).length,
-    update: records.filter((r) => existing.has(r.dealId)).length,
+    ...preflight,
     status: "applied",
   };
 }

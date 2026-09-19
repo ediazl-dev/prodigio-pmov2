@@ -2152,20 +2152,26 @@ export async function getActiveFinancialData() {
 }
 
 export async function upsertFinancialData(data: InsertFinancialData) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  const updateSet: Record<string, unknown> = { ...data };
-  delete (updateSet as any).id;
-  delete (updateSet as any).createdAt;
-  updateSet.syncedAt = new Date();
-  await db.insert(financialData).values({ ...data, syncedAt: new Date() }).onDuplicateKeyUpdate({ set: updateSet });
+  await bulkUpsertFinancialData([data]);
 }
 
-export async function bulkUpsertFinancialData(rows: InsertFinancialData[]) {
-  for (const row of rows) {
-    await upsertFinancialData(row);
-  }
-  return rows.length;
+export async function bulkUpsertFinancialData(rows: InsertFinancialData[], database?: any) {
+  const db = database ?? await getDb();
+  if (!db) throw new Error("DB not available");
+  const syncedAt = new Date();
+
+  return (db as any).transaction(async (tx: any) => {
+    for (const row of rows) {
+      const updateSet: Record<string, unknown> = { ...row, syncedAt };
+      delete (updateSet as any).id;
+      delete (updateSet as any).createdAt;
+      await tx
+        .insert(financialData)
+        .values({ ...row, syncedAt })
+        .onDuplicateKeyUpdate({ set: updateSet });
+    }
+    return rows.length;
+  });
 }
 
 export async function getFinancialDataSyncInfo() {
