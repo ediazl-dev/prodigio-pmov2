@@ -54,6 +54,67 @@ export interface PaymentData {
   fechaPago: string | null;
 }
 
+export const ELIGIBLE_INVOICE_STATES = new Set(["emitida", "aceptada"]);
+
+export function isEligibleInvoice(invoice: InvoiceData, fechaCorte: string): boolean {
+  const status = invoice.estadoSII?.trim().toLowerCase() ?? "";
+  return Boolean(invoice.fechaEmision && invoice.fechaEmision <= fechaCorte && ELIGIBLE_INVOICE_STATES.has(status));
+}
+
+export function normalizeFinancialCutoff(value: string | null | undefined, today: string): string {
+  const candidate = value?.trim() || today;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return candidate;
+  const month = candidate.match(/^(\d{4})-(\d{2})$/);
+  if (month) {
+    const year = Number(month[1]);
+    const monthNumber = Number(month[2]);
+    if (monthNumber >= 1 && monthNumber <= 12) {
+      return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
+    }
+  }
+  throw new Error("La fecha de corte debe usar YYYY-MM-DD o YYYY-MM");
+}
+
+export interface InvoiceAgingBucket {
+  rango: string;
+  monto: number;
+  cantidad: number;
+  porcentaje: number;
+}
+
+export function calculateInvoiceAging(
+  invoices: InvoiceData[],
+  payments: PaymentData[],
+  fechaCorte: string,
+): InvoiceAgingBucket[] {
+  const buckets = [
+    { rango: "0-30 días", monto: 0, cantidad: 0 },
+    { rango: "31-60 días", monto: 0, cantidad: 0 },
+    { rango: "61-90 días", monto: 0, cantidad: 0 },
+    { rango: "91-120 días", monto: 0, cantidad: 0 },
+    { rango: ">120 días", monto: 0, cantidad: 0 },
+  ];
+  const paidByInvoice = new Map<number, number>();
+  for (const payment of payments) {
+    if (!payment.fechaPago || payment.fechaPago > fechaCorte) continue;
+    paidByInvoice.set(payment.invoiceId, (paidByInvoice.get(payment.invoiceId) ?? 0) + safeAmount(payment.valorUF));
+  }
+  const cutoffMs = Date.parse(`${fechaCorte}T00:00:00Z`);
+  for (const invoice of invoices) {
+    if (!isEligibleInvoice(invoice, fechaCorte) || !invoice.fechaVencimiento) continue;
+    const dueMs = Date.parse(`${invoice.fechaVencimiento}T00:00:00Z`);
+    if (!Number.isFinite(dueMs) || dueMs >= cutoffMs) continue;
+    const balance = Math.max(0, safeAmount(invoice.valorUF) - (paidByInvoice.get(invoice.id) ?? 0));
+    if (balance <= 0) continue;
+    const days = Math.floor((cutoffMs - dueMs) / (24 * 60 * 60 * 1000));
+    const index = days <= 30 ? 0 : days <= 60 ? 1 : days <= 90 ? 2 : days <= 120 ? 3 : 4;
+    buckets[index].monto += balance;
+    buckets[index].cantidad += 1;
+  }
+  const total = buckets.reduce((sum, bucket) => sum + bucket.monto, 0);
+  return buckets.map((bucket) => ({ ...bucket, porcentaje: total > 0 ? (bucket.monto / total) * 100 : 0 }));
+}
+
 // ─── Resultado del embudo por contrato ───────────────────────────────────────
 
 export interface FunnelResult {
@@ -137,24 +198,22 @@ export function calculateContractFunnel(
   payments: PaymentData[],
   fechaCorte: string,
 ): FunnelResult {
-  const contratado = parseFloat(contract.valorContratadoUF || '0');
+  const contratado = safeAmount(contract.valorContratadoUF);
 
   // DEVENGADO: Σ revenue_events con fechaDevengo ≤ corte
   const devengado = revenueEvents
     .filter(r => r.contractId === contract.id && r.fechaDevengo && r.fechaDevengo <= fechaCorte)
-    .reduce((sum, r) => sum + parseFloat(r.valorUF || '0'), 0);
+    .reduce((sum, r) => sum + safeAmount(r.valorUF), 0);
 
-  // FACTURADO: Σ invoices con fechaEmision ≤ corte (excluyendo anuladas)
-  const contractInvoices = invoices.filter(i =>
-    i.contractId === contract.id && i.fechaEmision && i.fechaEmision <= fechaCorte && i.estadoSII !== 'anulada'
-  );
-  const facturado = contractInvoices.reduce((sum, i) => sum + parseFloat(i.valorUF || '0'), 0);
+  // FACTURADO: sólo facturas emitidas o aceptadas al corte.
+  const contractInvoices = invoices.filter(i => i.contractId === contract.id && isEligibleInvoice(i, fechaCorte));
+  const facturado = contractInvoices.reduce((sum, i) => sum + safeAmount(i.valorUF), 0);
 
   // COBRADO: Σ payments de facturas del contrato con fechaPago ≤ corte
   const invoiceIds = new Set(contractInvoices.map(i => i.id));
   const cobrado = payments
     .filter(p => invoiceIds.has(p.invoiceId) && p.fechaPago && p.fechaPago <= fechaCorte)
-    .reduce((sum, p) => sum + parseFloat(p.valorUF || '0'), 0);
+    .reduce((sum, p) => sum + safeAmount(p.valorUF), 0);
 
   // Brechas
   const wip = devengado - facturado;
@@ -164,7 +223,7 @@ export function calculateContractFunnel(
   // Plan vs real (curva)
   const planAcumulado = scheduleItems
     .filter(s => s.contractId === contract.id && s.fechaPlanificada && s.fechaPlanificada <= fechaCorte)
-    .reduce((sum, s) => sum + parseFloat(s.valorUF || '0'), 0);
+    .reduce((sum, s) => sum + safeAmount(s.valorUF), 0);
   const realAcumulado = devengado;
   const descalce = realAcumulado - planAcumulado;
 
@@ -281,4 +340,10 @@ export function formatUFFull(value: number): string {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function safeAmount(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }

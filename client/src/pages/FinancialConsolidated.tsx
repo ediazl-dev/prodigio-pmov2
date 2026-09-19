@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Calendar } from "lucide-react";
+
+function formatUf(value: number | null | undefined): string {
+  return value == null ? "N/D" : `UF ${value.toLocaleString("es-CL")}`;
+}
 
 export default function FinancialConsolidated() {
   const { user } = useAuth();
@@ -67,12 +68,15 @@ export default function FinancialConsolidated() {
     agingAR,
     cicloFacturacion,
     modelosNegocio,
+    modelosNegocioAvailability,
     concentracionCartera,
+    invarianteOk,
   } = data || {};
 
   const pctDevengado = (contratado ?? 0) > 0 ? ((devengado ?? 0) / (contratado ?? 1)) * 100 : 0;
   const pctFacturado = (contratado ?? 0) > 0 ? ((facturado ?? 0) / (contratado ?? 1)) * 100 : 0;
   const pctCobrado = (contratado ?? 0) > 0 ? ((cobrado ?? 0) / (contratado ?? 1)) * 100 : 0;
+  const pctBacklog = (contratado ?? 0) > 0 ? ((backlog ?? 0) / (contratado ?? 1)) * 100 : 0;
 
   return (
     <div className="df-app">
@@ -83,9 +87,9 @@ export default function FinancialConsolidated() {
         <div className="df-cab">
           <div>
             <div className="df-eyebrow">Consolidado de Facturación</div>
-            <h1>Cartera al {fechaCorteData || "20 de agosto de 2026"}</h1>
+            <h1>Cartera al {fechaCorteData ?? "N/D"}</h1>
             <p className="df-sub">
-              Fecha de corte: {fechaCorteData || "2026-08-20"} · UF del día:{" "}
+              Fecha de corte: {fechaCorteData ?? "N/D"} · UF del día:{" "}
               {ufTexto ? (
                 <span className="df-uf-valor">{ufTexto}</span>
               ) : (
@@ -94,20 +98,10 @@ export default function FinancialConsolidated() {
             </p>
           </div>
           <div className="df-acciones">
-            <Select value={fechaCorte} onValueChange={setFechaCorte}>
-              <SelectTrigger className="df-selector">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2026-08">Agosto 2026</SelectItem>
-                <SelectItem value="2026-07">Julio 2026</SelectItem>
-                <SelectItem value="2026-06">Junio 2026</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button className="df-btn df-btn-linea">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar comité
-            </Button>
+            <label className="df-selector inline-flex items-center gap-2">
+              <span>Fecha de corte</span>
+              <input type="date" value={fechaCorte} onChange={(event) => setFechaCorte(event.target.value)} />
+            </label>
           </div>
         </div>
 
@@ -120,7 +114,7 @@ export default function FinancialConsolidated() {
             UF del día: {ufTexto || "[POR CONFIRMAR — Banco Central]"}
           </div>
           <div className="df-der">
-            {totalContratos || 38} contratos · {contratosActivos || 38} activos · {contratosCerrados || 0} cerrados
+            {totalContratos ?? 0} contratos · {contratosActivos ?? 0} activos · {contratosCerrados ?? 0} cerrados
           </div>
         </div>
 
@@ -128,31 +122,28 @@ export default function FinancialConsolidated() {
         <div className="df-lectura">
           <span className="df-lbl">Lectura del periodo</span>
           <h2>
-            La cartera muestra un <em>descalce de UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</em> entre lo
-            devengado y lo planificado, concentrado en el proyecto Tanner.
+            La cartera muestra un <em>descalce de {formatUf(Math.abs(descalce ?? 0))}</em> entre lo devengado y lo planificado.
           </h2>
           <div className="df-lectura-cols">
             <div>
               <h4>Contratado vs. Devengado</h4>
               <p>
-                De <b>UF {(contratado || 114400).toLocaleString("es-CL")}</b> contratados, solo{" "}
-                <b>UF {(devengado || 3700).toLocaleString("es-CL")}</b> están devengados ({pctDevengado.toFixed(1)}%).
-                El backlog de <b>UF {(backlog || 110800).toLocaleString("es-CL")}</b> representa el 96.8% de la cartera.
+                De <b>{formatUf(contratado)}</b> contratados, <b>{formatUf(devengado)}</b> están devengados ({pctDevengado.toFixed(1)}%).
+                El backlog de <b>{formatUf(backlog)}</b> representa el {pctBacklog.toFixed(1)}% de la cartera.
               </p>
             </div>
             <div>
               <h4>Facturación y Cobranza</h4>
               <p>
-                Sin integración SII/banco, los valores de facturado y cobrado son{" "}
-                <b>[POR CONFIRMAR]</b>. El WIP de <b>UF {(wip || 3700).toLocaleString("es-CL")}</b> está pendiente de
-                facturación.
+                El sistema registra <b>{formatUf(facturado)}</b> facturados y <b>{formatUf(cobrado)}</b> cobrados al corte.
+                El WIP de <b>{formatUf(wip)}</b> está pendiente de facturación.
               </p>
             </div>
             <div>
               <h4>Descalce y Riesgo</h4>
               <p>
-                El descalce de <b>UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</b> indica que el plan de
-                pagos esperaba más avance del que se ha devengado. Revisar hitos de Tanner.
+                El descalce de <b>{formatUf(Math.abs(descalce ?? 0))}</b> compara el plan acumulado con el devengo real.
+                {descalce === 0 ? " No existe brecha al corte." : " Requiere revisar los contratos que explican la diferencia."}
               </p>
             </div>
           </div>
@@ -169,7 +160,7 @@ export default function FinancialConsolidated() {
           <div className="df-etapa-top">
             <div className="df-nom">Contratado</div>
             <div className="df-def">Valor total de contratos activos</div>
-            <div className="df-val">UF {(contratado || 114400).toLocaleString("es-CL")}</div>
+            <div className="df-val">{formatUf(contratado)}</div>
             <div className="df-pct">100%</div>
           </div>
           <div className="df-etapa-barra">
@@ -184,7 +175,7 @@ export default function FinancialConsolidated() {
               <span>Pendiente de emisión de factura</span>
             </div>
             <span className="df-conv">DEVENGADO → FACTURADO</span>
-            <span className="df-m">UF {(wip || 3700).toLocaleString("es-CL")}</span>
+            <span className="df-m">{formatUf(wip)}</span>
             <span className="df-dueno">Administración</span>
           </div>
 
@@ -192,7 +183,7 @@ export default function FinancialConsolidated() {
           <div className="df-etapa-top">
             <div className="df-nom">Devengado</div>
             <div className="df-def">Hitos aceptados con acta</div>
-            <div className="df-val">UF {(devengado || 3700).toLocaleString("es-CL")}</div>
+            <div className="df-val">{formatUf(devengado)}</div>
             <div className="df-pct">{pctDevengado.toFixed(1)}%</div>
           </div>
           <div className="df-etapa-barra">
@@ -207,7 +198,7 @@ export default function FinancialConsolidated() {
               <span>Cuentas por cobrar vencidas</span>
             </div>
             <span className="df-conv">FACTURADO → COBRADO</span>
-            <span className="df-m">UF {(ar || 0).toLocaleString("es-CL")}</span>
+            <span className="df-m">{formatUf(ar)}</span>
             <span className="df-dueno">Cobranza</span>
           </div>
 
@@ -215,7 +206,7 @@ export default function FinancialConsolidated() {
           <div className="df-etapa-top">
             <div className="df-nom">Facturado</div>
             <div className="df-def">Facturas emitidas (SII)</div>
-            <div className="df-val">UF {(facturado || 0).toLocaleString("es-CL")}</div>
+            <div className="df-val">{formatUf(facturado)}</div>
             <div className="df-pct">{pctFacturado.toFixed(1)}%</div>
           </div>
           <div className="df-etapa-barra">
@@ -230,7 +221,7 @@ export default function FinancialConsolidated() {
               <span>Hitos pendientes de aceptación</span>
             </div>
             <span className="df-conv">CONTRATADO → DEVENGADO</span>
-            <span className="df-m">UF {(backlog || 110800).toLocaleString("es-CL")}</span>
+            <span className="df-m">{formatUf(backlog)}</span>
             <span className="df-dueno">Delivery</span>
           </div>
 
@@ -238,7 +229,7 @@ export default function FinancialConsolidated() {
           <div className="df-etapa-top">
             <div className="df-nom">Cobrado</div>
             <div className="df-def">Pagos recibidos (banco)</div>
-            <div className="df-val">UF {(cobrado || 0).toLocaleString("es-CL")}</div>
+            <div className="df-val">{formatUf(cobrado)}</div>
             <div className="df-pct">{pctCobrado.toFixed(1)}%</div>
           </div>
           <div className="df-etapa-barra">
@@ -250,48 +241,48 @@ export default function FinancialConsolidated() {
         <div className="df-brechas">
           <div className="df-bcard df-tibia">
             <div className="df-et">WIP</div>
-            <div className="df-v">UF {(wip || 3700).toLocaleString("es-CL")}</div>
+            <div className="df-v">{formatUf(wip)}</div>
             <div className="df-d">
-              Devengado no facturado. <b>2 hitos</b> de Tanner pendientes de factura.
+              Devengado no facturado según eventos de ingreso y facturas elegibles al corte.
             </div>
             <div className="df-pie">
-              <span>LAG_EMISION: [POR CONFIRMAR]</span>
+              <span>LAG_EMISION: N/D</span>
               <b>→ Administración</b>
             </div>
           </div>
 
           <div className="df-bcard df-mala">
             <div className="df-et">AR</div>
-            <div className="df-v">UF {(ar || 0).toLocaleString("es-CL")}</div>
+            <div className="df-v">{formatUf(ar)}</div>
             <div className="df-d">
-              Facturado no cobrado. <b>[POR CONFIRMAR]</b> sin integración SII/banco.
+              Facturado elegible menos pagos imputados por factura al corte.
             </div>
             <div className="df-pie">
-              <span>DSO: [POR CONFIRMAR]</span>
+              <span>DSO: N/D</span>
               <b>→ Cobranza</b>
             </div>
           </div>
 
           <div className="df-bcard df-mala">
             <div className="df-et">Backlog</div>
-            <div className="df-v">UF {(backlog || 110800).toLocaleString("es-CL")}</div>
+            <div className="df-v">{formatUf(backlog)}</div>
             <div className="df-d">
-              Contratado no devengado. <b>96.8%</b> de la cartera pendiente de aceptación.
+              Contratado no devengado. <b>{pctBacklog.toFixed(1)}%</b> de la cartera comercial al corte.
             </div>
             <div className="df-pie">
-              <span>Plan vs. Real: -UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</span>
+              <span>Plan vs. Real: {formatUf(descalce)}</span>
               <b>→ Delivery</b>
             </div>
           </div>
 
           <div className="df-bcard df-mala">
             <div className="df-et">Descalce</div>
-            <div className="df-v">UF {Math.abs(descalce || 1600).toLocaleString("es-CL")}</div>
+            <div className="df-v">{formatUf(Math.abs(descalce ?? 0))}</div>
             <div className="df-d">
-              Diferencia entre plan de pagos y devengo real. <b>Revisar hitos Tanner</b>.
+              Diferencia entre plan de pagos acumulado y devengo real al corte.
             </div>
             <div className="df-pie">
-              <span>Invariante: {descalce === 0 ? "OK" : "DESCALCE"}</span>
+              <span>Invariante contable: {invarianteOk ? "OK" : "REVISAR"}</span>
               <b>→ PMO</b>
             </div>
           </div>
@@ -301,7 +292,7 @@ export default function FinancialConsolidated() {
         <div className="df-card">
           <div className="df-card-cab">
             <h3>Detalle por contrato</h3>
-            <span className="df-tag">{totalContratos || 38} contratos</span>
+            <span className="df-tag">{totalContratos ?? 0} contratos</span>
           </div>
           <div className="df-tabla-scroll">
             <table className="df-tabla">
@@ -314,22 +305,22 @@ export default function FinancialConsolidated() {
                   <th className="df-num">Facturado</th>
                   <th className="df-num">Cobrado</th>
                   <th className="df-num">WIP</th>
-                  <th>Estado</th>
+                  <th>Estado financiero</th>
                 </tr>
               </thead>
               <tbody>
                 {(detalleContratos || []).map((c: any) => (
-                  <tr key={c.dealId}>
+                  <tr key={c.contractId}>
                     <td>
-                      <div>{c.projectName}</div>
+                      <div>{c.contractName}</div>
                       <span className="df-mini">{c.dealId}</span>
                     </td>
                     <td>{c.clientName}</td>
-                    <td className="df-num">UF {(c.contratado || 0).toLocaleString("es-CL")}</td>
-                    <td className="df-num">UF {(c.devengado || 0).toLocaleString("es-CL")}</td>
-                    <td className="df-num">UF {(c.facturado || 0).toLocaleString("es-CL")}</td>
-                    <td className="df-num">UF {(c.cobrado || 0).toLocaleString("es-CL")}</td>
-                    <td className="df-num">UF {(c.wip || 0).toLocaleString("es-CL")}</td>
+                    <td className="df-num">{formatUf(c.contratado)}</td>
+                    <td className="df-num">{formatUf(c.devengado)}</td>
+                    <td className="df-num">{formatUf(c.facturado)}</td>
+                    <td className="df-num">{formatUf(c.cobrado)}</td>
+                    <td className="df-num">{formatUf(c.wip)}</td>
                     <td>
                       {c.devengado > 0 ? (
                         <span className="df-chip df-verde">Devengando</span>
@@ -362,12 +353,12 @@ export default function FinancialConsolidated() {
                     <div className="df-proyeccion-concepto">
                       {p.concepto} — {p.cliente}
                     </div>
-                    <div className="df-proyeccion-monto">UF {(p.monto || 0).toLocaleString("es-CL")}</div>
+                    <div className="df-proyeccion-monto">{formatUf(Number(p.monto))}</div>
                   </div>
                 ))
               ) : (
                 <div className="df-proyeccion-item">
-                  <div className="df-proyeccion-concepto">[POR CONFIRMAR] No hay pagos planificados</div>
+                  <div className="df-proyeccion-concepto">No hay pagos planificados en los datos cargados.</div>
                 </div>
               )}
             </div>
@@ -383,8 +374,8 @@ export default function FinancialConsolidated() {
               {(agingAR || []).map((a: any, i: number) => (
                 <div key={i} className="df-aging-item">
                   <div className="df-aging-rango">{a.rango}</div>
-                  <div className="df-aging-monto">UF {(a.monto || 0).toLocaleString("es-CL")}</div>
-                  <div className="df-aging-pct">{(a.porcentaje || 0).toFixed(1)}%</div>
+                  <div className="df-aging-monto">{formatUf(a.monto)}</div>
+                  <div className="df-aging-pct">{(a.porcentaje ?? 0).toFixed(1)}%</div>
                 </div>
               ))}
             </div>
@@ -420,6 +411,9 @@ export default function FinancialConsolidated() {
               <span className="df-card-badge">Distribución de cartera</span>
             </div>
             <div className="df-modelos-lista">
+              {modelosNegocioAvailability === "unavailable" && (
+                <div className="df-modelo-item">N/D — los contratos aún no tienen una clasificación verificable por modelo de negocio.</div>
+              )}
               {(modelosNegocio || []).map((m: any, i: number) => (
                 <div key={i} className="df-modelo-item">
                   <div>
@@ -427,8 +421,8 @@ export default function FinancialConsolidated() {
                     <div className="df-modelo-descripcion">{m.descripcion}</div>
                   </div>
                   <div className="df-modelo-monto">
-                    UF {(m.monto || 0).toLocaleString("es-CL")}
-                    <div className="df-modelo-pct">{(m.porcentaje || 0).toFixed(0)}%</div>
+                    {formatUf(m.monto)}
+                    <div className="df-modelo-pct">{(m.porcentaje ?? 0).toFixed(0)}%</div>
                   </div>
                 </div>
               ))}
@@ -447,8 +441,8 @@ export default function FinancialConsolidated() {
               <div key={i}>
                 <div className="df-concentracion-item">
                   <div className="df-concentracion-cliente">{c.cliente}</div>
-                  <div className="df-concentracion-monto">UF {(c.monto || 0).toLocaleString("es-CL")}</div>
-                  <div className="df-concentracion-pct">{(c.porcentaje || 0).toFixed(1)}%</div>
+                  <div className="df-concentracion-monto">{formatUf(c.monto)}</div>
+                  <div className="df-concentracion-pct">{(c.porcentaje ?? 0).toFixed(1)}%</div>
                 </div>
                 <div className="df-concentracion-barra">
                   <div className="df-concentracion-barra-fill" style={{ width: `${c.porcentaje}%` }} />
@@ -476,22 +470,19 @@ export default function FinancialConsolidated() {
           <div className="df-supuesto-item">
             <div className="df-supuesto-icono">2</div>
             <div className="df-supuesto-texto">
-              <strong>Facturación y Cobranza:</strong> No hay integración con SII ni bancos. 
-              Los valores de Facturado y Cobrado se muestran en 0 hasta que se implementen las integraciones.
+              <strong>Facturación y Cobranza:</strong> Se consideran únicamente facturas `emitida` o `aceptada` y pagos imputados por `invoiceId` al corte. Cero significa que no existen registros elegibles en la base.
             </div>
           </div>
           <div className="df-supuesto-item">
             <div className="df-supuesto-icono">3</div>
             <div className="df-supuesto-texto">
-              <strong>Proyección de cobranza:</strong> Basada en la curva de pago de Tanner (10 hitos). 
-              Los demás contratos no tienen curva de pago definida.
+              <strong>Proyección de cobranza:</strong> Basada exclusivamente en ítems de curva de pago con fecha y monto registrados.
             </div>
           </div>
           <div className="df-supuesto-item">
             <div className="df-supuesto-icono">4</div>
             <div className="df-supuesto-texto">
-              <strong>Aging de AR:</strong> No hay facturas emitidas en el sistema. 
-              Esta sección mostrará datos cuando se implemente la integración con SII.
+              <strong>Aging de AR:</strong> Calculado sobre el saldo vencido de facturas elegibles, descontando pagos registrados por factura al corte.
             </div>
           </div>
         </div>

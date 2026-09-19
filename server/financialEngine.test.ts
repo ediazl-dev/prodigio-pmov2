@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateContractFunnel,
+  calculateInvoiceAging,
   calculatePortfolioFunnel,
   formatUF,
+  normalizeFinancialCutoff,
   type ContractData,
   type PaymentScheduleItemData,
   type RevenueEventData,
@@ -111,6 +113,41 @@ describe("financialEngine — calculateContractFunnel", () => {
     ];
     const r = calculateContractFunnel(CONTRACT_A, SCHEDULE_A, REVENUE_A, invoicesWithAnulada, PAYMENTS_A, FECHA_CORTE);
     expect(r.facturado).toBe(3000); // No incluye la anulada
+  });
+
+  it("excluye facturas por confirmar y rechazadas; acepta emitidas y aceptadas", () => {
+    const invoices: InvoiceData[] = [
+      { id: 10, contractId: 1, valorUF: "100", fechaEmision: "2026-05-01", fechaVencimiento: "2026-06-01", estadoSII: "emitida" },
+      { id: 11, contractId: 1, valorUF: "200", fechaEmision: "2026-05-01", fechaVencimiento: "2026-06-01", estadoSII: "aceptada" },
+      { id: 12, contractId: 1, valorUF: "400", fechaEmision: "2026-05-01", fechaVencimiento: "2026-06-01", estadoSII: "por_confirmar" },
+      { id: 13, contractId: 1, valorUF: "800", fechaEmision: "2026-05-01", fechaVencimiento: "2026-06-01", estadoSII: "rechazada" },
+    ];
+    const result = calculateContractFunnel(CONTRACT_A, [], [], invoices, [], FECHA_CORTE);
+    expect(result.facturado).toBe(300);
+  });
+});
+
+describe("financialEngine — corte y aging", () => {
+  it("convierte YYYY-MM al último día calendario del mes", () => {
+    expect(normalizeFinancialCutoff("2026-02", "2026-09-19")).toBe("2026-02-28");
+    expect(normalizeFinancialCutoff("2028-02", "2026-09-19")).toBe("2028-02-29");
+    expect(normalizeFinancialCutoff("2026-08-20", "2026-09-19")).toBe("2026-08-20");
+    expect(() => normalizeFinancialCutoff("20-08-2026", "2026-09-19")).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("calcula aging sobre saldo pendiente y omite anuladas, rechazadas y pagadas", () => {
+    const invoices: InvoiceData[] = [
+      { id: 20, contractId: 1, valorUF: "1000", fechaEmision: "2026-06-01", fechaVencimiento: "2026-07-31", estadoSII: "emitida" },
+      { id: 21, contractId: 1, valorUF: "900", fechaEmision: "2026-05-01", fechaVencimiento: "2026-06-01", estadoSII: "aceptada" },
+      { id: 22, contractId: 1, valorUF: "700", fechaEmision: "2026-05-01", fechaVencimiento: "2026-06-01", estadoSII: "rechazada" },
+    ];
+    const payments: PaymentData[] = [
+      { id: 30, invoiceId: 20, valorUF: "400", fechaPago: "2026-08-01" },
+      { id: 31, invoiceId: 21, valorUF: "900", fechaPago: "2026-07-01" },
+    ];
+    const aging = calculateInvoiceAging(invoices, payments, "2026-08-20");
+    expect(aging[0]).toMatchObject({ rango: "0-30 días", monto: 600, cantidad: 1, porcentaje: 100 });
+    expect(aging.reduce((sum, bucket) => sum + bucket.monto, 0)).toBe(600);
   });
 });
 

@@ -81,6 +81,8 @@ import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
 import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 import { getExecutivePortfolio } from "./executivePortfolioSource";
+import { buildPortfolioConsoleFallback } from "./portfolioConsoleModel";
+import { GOVERNANCE_TRIGGER_CATALOG, isGovernanceTriggerCode } from "../shared/governanceTriggers";
 import {
   getJiraPortfolioSnapshot,
   refreshJiraPortfolioSnapshot,
@@ -6593,6 +6595,8 @@ const portfolioConsoleRouter = router({
     // 1. Obtener todos los proyectos activos
     const allProjects = await getAllProjects();
     const activeProjects = allProjects.filter((p) => p.status === "activo");
+    const executivePortfolio = await getExecutivePortfolio(cutoffDate);
+    const portfolioRowByProject = new Map(executivePortfolio.portfolio.map((row) => [row.projectId, row]));
 
     // 2. Obtener datos financieros activos en lote
     const activeFinancialData = await getActiveFinancialData();
@@ -6602,46 +6606,11 @@ const portfolioConsoleRouter = router({
     const projectResults = await Promise.all(
       activeProjects.map(async (project) => {
         try {
+          const portfolioRow = portfolioRowByProject.get(project.id) ?? null;
           const source = await getExecutiveProjectSource(project.id);
           if (!source) {
-            // ========== FALLBACK: Proyecto sin baseline ejecutivo aprobado ==========
-            // Se evalúa con datos reales disponibles: veredicto IA, Jira space y financial_data
-            const [verdict, jiraSpace] = await Promise.all([
-              getLatestPMAnalysis(project.id),
-              getJiraSpaceByProject(project.id),
-            ]);
-            const dealMatch = project.projectName.match(/Deal\s*(\d+)/i);
-            const dealId = dealMatch ? `Deal${dealMatch[1]}` : null;
-            const fin = dealId ? financialByDealId.get(dealId) : null;
-            const ms = verdict?.metricsSnapshot ? (typeof verdict.metricsSnapshot === "string" ? JSON.parse(verdict.metricsSnapshot) : verdict.metricsSnapshot) : null;
-            const jiraAdvance = typeof ms?.jiraAdvance === "number" ? ms.jiraAdvance : null;
-            const estadoRaw = verdict?.semaphore?.toUpperCase() ?? null;
-            const estadoValido = ["CRITICO", "ROJO", "NARANJO", "AMARILLO", "VERDE"].includes(estadoRaw ?? "") ? estadoRaw! : "AMARILLO";
-            const severidadMap: Record<string, number> = { CRITICO: 100, ROJO: 75, NARANJO: 50, AMARILLO: 25, VERDE: 0 };
-            const severidad = severidadMap[estadoValido] ?? 25;
-            const exposicionUf = fin?.valorVentaUF != null ? Number(fin.valorVentaUF) : null;
-            // Exposición normalizada 0-100: 2000+ UF = 100
-            const exposicionNorm = exposicionUf != null ? Math.min(100, Math.round((exposicionUf / 2000) * 100)) : 0;
-            const riesgoOperativo = jiraAdvance != null ? Math.max(0, Math.min(100, 100 - jiraAdvance)) : 50;
-            const pa = Math.round(severidad * 0.5 + exposicionNorm * 0.3 + riesgoOperativo * 0.2);
-            return {
-              projectId: project.id,
-              projectName: project.projectName,
-              clientName: project.clientName,
-              dealId,
-              jiraProjectKey: jiraSpace?.jiraProjectKey ?? null,
-              estado: estadoValido,
-              ige: jiraAdvance,
-              pa,
-              ufEnRiesgo: exposicionUf,
-              pmName: fin?.pm ?? null,
-              gatillos: [] as string[],
-              hitosVencidos: 0,
-              totalHitos: 0,
-              requiereAtencion: estadoValido !== "VERDE",
-              deterioro: 0,
-              sinBaseline: true,
-            };
+            const jiraSpace = await getJiraSpaceByProject(project.id);
+            return buildPortfolioConsoleFallback(project, portfolioRow, jiraSpace?.jiraProjectKey ?? null);
           }
 
           const milestones = await getExecutiveContractMilestones(project.id, source.id);
@@ -6755,7 +6724,7 @@ const portfolioConsoleRouter = router({
 
           // Obtener nombre del PM
           const pmAssignment = assignments.find((a) => a.active && a.governanceRole === "pm");
-          const pmName = pmAssignment?.personName ?? latestFinancial?.pm ?? null;
+          const pmName = portfolioRow?.pmName ?? pmAssignment?.personName ?? latestFinancial?.pm ?? null;
 
           // Calcular PA (Prioridad de Atención)
           const severidadMap: Record<string, number> = {
@@ -6819,11 +6788,29 @@ const portfolioConsoleRouter = router({
             pa,
             ufEnRiesgo: ufEnRiesgo != null ? Math.round(ufEnRiesgo * 100) / 100 : null,
             pmName,
+            pmSource: portfolioRow?.pmSource ?? (pmAssignment?.personName ? "governance_assignment" : latestFinancial?.pm ? "financial_data" : "missing"),
             gatillos: governance.governance.activeTriggers,
+            overdueP0Requirements,
             hitosVencidos,
             totalHitos: milestoneEvidence.length,
+            hitosCumplidos: portfolioRow?.milestonesFulfilled ?? null,
+            jiraProgressPct: portfolioRow?.operationalProgressPct ?? null,
+            operationalPhase: portfolioRow?.operationalPhase ?? null,
+            openRisks: portfolioRow?.openRisks ?? null,
+            highRisksOpen: portfolioRow?.highRisksOpen ?? null,
+            riskSource: portfolioRow?.riskSource ?? "missing",
+            contractedAmount: portfolioRow?.amount ?? null,
+            contractedCurrency: portfolioRow?.currency ?? null,
+            amountSource: portfolioRow?.amountSource ?? "missing",
+            lifecycleStatus: portfolioRow?.status ?? project.status,
+            pipelineStage: portfolioRow?.stageLabel ?? null,
+            evidenceMissing: portfolioRow?.jiraEvidenceAvailability === "missing" || portfolioRow?.jiraEvidenceAvailability === "error" || portfolioRow?.jiraEvidenceAvailability === "stale",
+            jiraEvidenceAvailability: portfolioRow?.jiraEvidenceAvailability ?? "missing",
+            jiraEvidenceAt: portfolioRow?.jiraEvidenceAt ?? null,
+            jiraSourceUpdatedAt: portfolioRow?.jiraSourceUpdatedAt ?? null,
             requiereAtencion,
             deterioro,
+            sinBaseline: false,
           };
         } catch (error) {
           console.error(`[PortfolioConsole] Error procesando proyecto ${project.id}:`, error);
@@ -6832,8 +6819,10 @@ const portfolioConsoleRouter = router({
       })
     );
 
-    // Filtrar nulos y ordenar por PA descendente
-    const projects = projectResults.filter((p): p is NonNullable<typeof p> => p != null).sort((a, b) => b.pa - a.pa);
+    // Filtrar nulos y ordenar por PA descendente; N/D queda al final.
+    const projects = projectResults
+      .filter((p): p is NonNullable<typeof p> => p != null)
+      .sort((a, b) => (b.pa ?? -1) - (a.pa ?? -1));
 
     // Calcular métricas globales del portafolio
     const estadoCounts = {
@@ -6844,11 +6833,13 @@ const portfolioConsoleRouter = router({
       VERDE: projects.filter((p) => p.estado === "VERDE").length,
       POR_CONFIRMAR: projects.filter((p) => p.estado === "POR_CONFIRMAR").length,
     };
-    const totalUfEnRiesgo = projects.reduce((total, p) => total + (p.ufEnRiesgo ?? 0), 0);
-    const totalP0Vencidas = projects.reduce((total, p) => total + (p.gatillos.includes("G-06") ? 1 : 0), 0);
+    const ufRiskValues = projects.map((p) => p.ufEnRiesgo).filter((value): value is number => value !== null);
+    const totalUfEnRiesgo = ufRiskValues.length ? ufRiskValues.reduce((total, value) => total + value, 0) : null;
+    const p0Values = projects.map((p) => p.overdueP0Requirements).filter((value): value is number => value !== null);
+    const totalP0Vencidas = p0Values.length ? p0Values.reduce((total, value) => total + value, 0) : null;
     const planesRecuperacionVencidos = projects.filter((p) => p.gatillos.includes("G-07")).length;
-    const deteriorados = projects.filter((p) => p.deterioro > 0).length;
-    const mejoraron = projects.filter((p) => p.deterioro < 0).length;
+    const deteriorados = projects.filter((p) => (p.deterioro ?? 0) > 0).length;
+    const mejoraron = projects.filter((p) => (p.deterioro ?? 0) < 0).length;
     const totalProyectos = projects.length;
     const requierenAtencion = projects.filter((p) => p.requiereAtencion).length;
 
@@ -6870,18 +6861,18 @@ const portfolioConsoleRouter = router({
     proyectosCriticos.forEach((p, idx) => {
       decisiones.push({
         id: `D-${String(idx + 1).padStart(2, "0")}`,
-        titulo: "Autorizar stop-loss o financiar continuidad",
+        titulo: "Revisar exposición y continuidad del proyecto",
         proyecto: p.projectName,
         codigo: `D-${String(idx + 1).padStart(2, "0")}`,
         impactoUf: p.ufEnRiesgo,
-        plazo: "Venció 19 ago",
-        estadoPlazo: "vencido",
+        plazo: "Sin plazo confirmado",
+        estadoPlazo: "sin_plazo",
         colorIndicador: "rojo",
       });
     });
     
     // Decisión 2: Proyectos con plan de recuperación pendiente de evaluación
-    const conPlanPendiente = projects.filter((p) => p.gatillos.includes("G-07"));
+    const conPlanPendiente = projects.filter((p) => p.gatillos.includes("G-05"));
     conPlanPendiente.forEach((p, idx) => {
       decisiones.push({
         id: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
@@ -6889,29 +6880,29 @@ const portfolioConsoleRouter = router({
         proyecto: p.projectName,
         codigo: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
         impactoUf: null,
-        plazo: "Vence hoy",
-        estadoPlazo: "hoy",
+        plazo: "Sin plazo confirmado",
+        estadoPlazo: "sin_plazo",
         colorIndicador: "rojo",
       });
     });
     
     // Decisión 3: Proyectos con hitos vencidos sin acta → re-baseline
-    const conHitosVencidos = projects.filter((p) => p.hitosVencidos > 0 && p.estado !== "CRITICO");
+    const conHitosVencidos = projects.filter((p) => (p.hitosVencidos ?? 0) > 0 && p.estado !== "CRITICO");
     conHitosVencidos.slice(0, 2).forEach((p) => {
       decisiones.push({
         id: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
-        titulo: "Aprobar re-baseline formal",
+        titulo: "Revisar hitos vencidos y evidencia contractual",
         proyecto: p.projectName,
         codigo: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
         impactoUf: p.ufEnRiesgo,
-        plazo: "22 ago",
-        estadoPlazo: "proximo",
+        plazo: "Sin plazo confirmado",
+        estadoPlazo: "sin_plazo",
         colorIndicador: "ambar",
       });
     });
     
     // Decisión 4: Proyectos sin baseline firmada
-    const sinBaseline = projects.filter((p) => p.gatillos.includes("G-01"));
+    const sinBaseline = projects.filter((p) => p.sinBaseline);
     sinBaseline.slice(0, 1).forEach((p) => {
       decisiones.push({
         id: `D-${String(decisiones.length + 1).padStart(2, "0")}`,
@@ -6934,15 +6925,9 @@ const portfolioConsoleRouter = router({
     
     projects.forEach((p) => {
       p.gatillos.forEach((gatillo) => {
-        let causa = "";
-        if (gatillo === "G-01") causa = "Sin baseline de hitos firmada";
-        else if (gatillo === "G-02") causa = "Aceptaciones entregadas sin acta formal";
-        else if (gatillo === "G-03") causa = "Backlog sin trazabilidad a hitos";
-        else if (gatillo === "G-04") causa = "Dependencias de infraestructura del cliente";
-        else if (gatillo === "G-05") causa = "Alcance no congelado";
-        else if (gatillo === "G-06") causa = "Exigencias P0 vencidas";
-        else if (gatillo === "G-07") causa = "Plan de recuperación vencido";
-        else causa = "Otras causas";
+        const causa = isGovernanceTriggerCode(gatillo)
+          ? GOVERNANCE_TRIGGER_CATALOG[gatillo].cause
+          : "Otras causas";
         
         if (!causasMap.has(causa)) {
           causasMap.set(causa, { count: 0, ufExpuesta: 0, proyectos: [] });
@@ -6972,12 +6957,12 @@ const portfolioConsoleRouter = router({
     
     // ========== ZONA 5: Higiene de gobierno ==========
     const sinMinuta3Semanas = projects.filter((p) => p.gatillos.includes("G-04")).length;
-    const sinBaselineCount = projects.filter((p) => p.gatillos.includes("G-01")).length;
-    const sinActaCierre = projects.filter((p) => p.hitosVencidos > 0).length;
-    const bajaConfiabilidad = projects.filter((p) => p.gatillos.includes("G-03")).length;
+    const sinBaselineCount = projects.filter((p) => p.sinBaseline).length;
+    const sinActaCierre = projects.filter((p) => (p.hitosVencidos ?? 0) > 0).length;
+    const bajaConfiabilidad = projects.filter((p) => p.gatillos.includes("G-07")).length;
     
-    const proyectosAbiertos = projects.filter((p) => p.estado !== "VERDE").length;
-    const proyectosCerrados = 0; // No hay datos de cierre en Fase A
+    const proyectosAbiertos = activeProjects.length;
+    const proyectosCerrados = executivePortfolio.headline.closed;
     
     // ========== ZONA 6: Resto del portafolio (estables) ==========
     const estables = projects
@@ -6987,8 +6972,8 @@ const portfolioConsoleRouter = router({
         cliente: p.clientName,
         ige: p.ige,
         delta: p.deterioro,
-        proximoHito: "[PENDIENTE]", // No hay datos de próximo hito en Fase A
-        pm: p.pmName ?? "[PENDIENTE]",
+        proximoHito: "N/D",
+        pm: p.pmName ?? "N/D",
       }));
     
     const totalEstables = estables.length;
@@ -6997,7 +6982,7 @@ const portfolioConsoleRouter = router({
       projects,
       triage: {
         estadoCounts,
-        totalUfEnRiesgo: Math.round(totalUfEnRiesgo * 100) / 100,
+        totalUfEnRiesgo: totalUfEnRiesgo === null ? null : Math.round(totalUfEnRiesgo * 100) / 100,
         totalP0Vencidas,
         planesRecuperacionVencidos,
         deteriorados,
@@ -7020,8 +7005,8 @@ const portfolioConsoleRouter = router({
         sinActaCierre,
         bajaConfiabilidad,
         hallazgo: {
-          titulo: proyectosAbiertos > 0 ? "El portafolio no tiene salida." : "Portafolio en observación.",
-          descripcion: `${proyectosAbiertos} proyectos abiertos y ${proyectosCerrados} cerrados formalmente en los últimos 12 meses. ${sinActaCierre} superaron su fecha de término y siguen consumiendo capacity sin acta de cierre ni facturación final.`,
+          titulo: sinBaselineCount > 0 ? "Existen brechas de baseline y evidencia." : "Gobernanza con evidencia disponible.",
+          descripcion: `${proyectosAbiertos} proyectos activos y ${proyectosCerrados} cerrados en PMO. ${sinBaselineCount} activos no tienen baseline ejecutivo aprobado y ${sinActaCierre} presentan hitos contractuales vencidos sin aceptación registrada.`,
         },
       },
       estables: {
@@ -7105,7 +7090,14 @@ const portfolioConsoleRouter = router({
   getFinancialConsolidated: protectedProcedure
     .input(z.object({ fechaCorte: z.string().optional() }).optional())
     .query(async ({ input }) => {
-      const fechaCorte = input?.fechaCorte ?? new Date().toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0];
+      const { calculatePortfolioFunnel, calculateInvoiceAging, normalizeFinancialCutoff } = await import("./financialEngine");
+      let fechaCorte: string;
+      try {
+        fechaCorte = normalizeFinancialCutoff(input?.fechaCorte, today);
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Fecha de corte inválida" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB no disponible" });
 
@@ -7115,7 +7107,6 @@ const portfolioConsoleRouter = router({
       const allInvoices = await db.select().from(invoices);
       const allPayments = await db.select().from(payments);
 
-      const { calculatePortfolioFunnel } = await import("./financialEngine");
       const result = calculatePortfolioFunnel(
         allContracts,
         allScheduleItems,
@@ -7148,43 +7139,8 @@ const portfolioConsoleRouter = router({
           };
         });
 
-      // Aging de AR: facturas emitidas no cobradas agrupadas por rango de días
-      const facturasPendientes = allInvoices.filter(inv => inv.estadoSII !== 'aceptada' && inv.estadoSII !== 'anulada');
-      const agingAR = [
-        { rango: '0-30 días', monto: 0, cantidad: 0 },
-        { rango: '31-60 días', monto: 0, cantidad: 0 },
-        { rango: '61-90 días', monto: 0, cantidad: 0 },
-        { rango: '91-120 días', monto: 0, cantidad: 0 },
-        { rango: '>120 días', monto: 0, cantidad: 0 },
-      ];
-      
-      facturasPendientes.forEach(inv => {
-        if (!inv.fechaVencimiento) return;
-        const diasVencidos = Math.ceil((new Date(fechaCorte).getTime() - new Date(inv.fechaVencimiento).getTime()) / (1000 * 60 * 60 * 24));
-        const monto = Number(inv.valorUF) || 0;
-        if (diasVencidos <= 30) {
-          agingAR[0].monto += monto;
-          agingAR[0].cantidad += 1;
-        } else if (diasVencidos <= 60) {
-          agingAR[1].monto += monto;
-          agingAR[1].cantidad += 1;
-        } else if (diasVencidos <= 90) {
-          agingAR[2].monto += monto;
-          agingAR[2].cantidad += 1;
-        } else if (diasVencidos <= 120) {
-          agingAR[3].monto += monto;
-          agingAR[3].cantidad += 1;
-        } else {
-          agingAR[4].monto += monto;
-          agingAR[4].cantidad += 1;
-        }
-      });
-
-      const totalAR = agingAR.reduce((sum, item) => sum + item.monto, 0);
-      const agingARConPct = agingAR.map(item => ({
-        ...item,
-        porcentaje: totalAR > 0 ? (item.monto / totalAR) * 100 : 0,
-      }));
+      // Aging de AR: sólo facturas elegibles, vencidas y con saldo al corte.
+      const agingARConPct = calculateInvoiceAging(allInvoices, allPayments, fechaCorte);
 
       // ═══════════════════════════════════════════════════════════════════
       // ZONA 8: Ciclo de facturación + Modelos de negocio + Concentración
@@ -7218,31 +7174,14 @@ const portfolioConsoleRouter = router({
         },
       ];
 
-      // Modelos de negocio: agrupación por tipo de contrato
-      const modelosNegocio = [
-        {
-          nombre: 'Proyectos de Implementación',
-          descripcion: 'Proyectos con alcance y plazo definidos',
-          monto: result.contratado * 0.65, // Estimación basada en la cartera actual
-          porcentaje: 65,
-        },
-        {
-          nombre: 'Servicios Recurrentes',
-          descripcion: 'Contratos de soporte y mantenimiento',
-          monto: result.contratado * 0.25,
-          porcentaje: 25,
-        },
-        {
-          nombre: 'Consultoría y Asesoría',
-          descripcion: 'Servicios de consultoría especializada',
-          monto: result.contratado * 0.10,
-          porcentaje: 10,
-        },
-      ];
+      // El esquema actual no clasifica contratos por modelo de negocio.
+      // Se conserva N/D hasta contar con una fuente explícita, sin porcentajes demo.
+      const modelosNegocio: Array<{ nombre: string; descripcion: string; monto: number; porcentaje: number }> = [];
+      const modelosNegocioAvailability = "unavailable" as const;
 
       // Concentración de cartera: top 5 clientes por monto contratado
       const clientesMap = new Map<string, number>();
-      allContracts.forEach(c => {
+      allContracts.filter(c => !c.esInversionInterna).forEach(c => {
         const cliente = c.clientName || 'Sin cliente';
         const monto = Number(c.valorContratadoUF) || 0;
         clientesMap.set(cliente, (clientesMap.get(cliente) || 0) + monto);
@@ -7263,6 +7202,7 @@ const portfolioConsoleRouter = router({
         agingAR: agingARConPct,
         cicloFacturacion,
         modelosNegocio,
+        modelosNegocioAvailability,
         concentracionCartera,
       };
     }),

@@ -196,6 +196,7 @@ export interface PortfolioRow {
   pmId: number | null;
   pmKey: string | null;
   pmName: string | null;
+  pmSource: "pmo_local" | "jira_snapshot" | "financial_data" | "missing";
   amount: number | null;
   currency: string | null;
   /** Un monto ausente se conserva como ausencia, no como cero. */
@@ -395,17 +396,18 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
 
   const pmFor = (project: ExecutiveProjectSource) => {
     const localName = project.pmId !== null ? (userById.get(project.pmId) ?? null) : null;
-    if (localName) return { pmId: project.pmId, pmKey: String(project.pmId), pmName: localName };
+    if (localName) return { pmId: project.pmId, pmKey: String(project.pmId), pmName: localName, source: "pmo_local" as const };
     const jiraEvidence = jiraEvidenceByProject.get(project.id);
     const jiraName = jiraEvidence?.usable
       ? jiraSnapshotByProject.get(project.id)?.projectManagerName?.trim() || null
       : null;
-    if (jiraName) return { pmId: null, pmKey: `name:${jiraName.toLowerCase()}`, pmName: jiraName };
+    if (jiraName) return { pmId: null, pmKey: `name:${jiraName.toLowerCase()}`, pmName: jiraName, source: "jira_snapshot" as const };
     const financialName = financialByDeal.get(normalizeDeal(dealFor(project)))?.pm?.trim() || null;
     return {
       pmId: null,
       pmKey: financialName ? `name:${financialName.toLowerCase()}` : null,
       pmName: financialName,
+      source: financialName ? "financial_data" as const : "missing" as const,
     };
   };
   const activeProjects = input.projects.filter(project => project.status === "activo");
@@ -578,6 +580,7 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       pmId: pm.pmId,
       pmKey: pm.pmKey,
       pmName: pm.pmName,
+      pmSource: pm.source,
       amount: contracted.amount,
       currency: contracted.currency,
       amountMissing: contracted.amount === null,

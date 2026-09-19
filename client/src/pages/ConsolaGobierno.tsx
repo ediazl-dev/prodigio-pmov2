@@ -4,7 +4,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectIdBadge } from "@/components/ProjectIdBadge";
-import { AlertCircle, ArrowRight, Download, Plus } from "lucide-react";
+import { GOVERNANCE_TRIGGER_CATALOG, isGovernanceTriggerCode } from "@shared/governanceTriggers";
+import { AlertCircle, ArrowRight, Plus } from "lucide-react";
 
 type EstadoConsola = "CRITICO" | "ROJO" | "NARANJO" | "AMARILLO" | "VERDE" | "POR_CONFIRMAR";
 
@@ -15,16 +16,6 @@ const estadoConfig: Record<EstadoConsola, { label: string; clase: string; descri
   AMARILLO: { label: "Amarillo", clase: "cg-amarillo", descripcion: "IGE 70 – 84" },
   VERDE: { label: "Estables", clase: "cg-verde", descripcion: "Sin acción requerida" },
   POR_CONFIRMAR: { label: "Por confirmar", clase: "cg-porconfirmar", descripcion: "Sin datos suficientes" },
-};
-
-const gatillosLabels: Record<string, string> = {
-  "G-01": "Sin minutas",
-  "G-02": "Minutas gap",
-  "G-03": "Compromisos vencidos",
-  "G-04": "Sin PRD",
-  "G-05": "PRD vencido",
-  "G-06": "P0 vencidas",
-  "G-07": "Veredictos rojos",
 };
 
 function getEstadoColor(estado: EstadoConsola): string {
@@ -51,72 +42,23 @@ function getEstadoBgColor(estado: EstadoConsola): string {
   }
 }
 
-// Calcular desglose del PA para tooltip
-function calcularDesglosePA(proyecto: any): { severidad: number; deterioro: number; exposicion: number; mora: number } {
-  const severidadMap: Record<string, number> = {
-    CRITICO: 100,
-    ROJO: 75,
-    NARANJO: 50,
-    AMARILLO: 25,
-    VERDE: 0,
-  };
-  const severidad = severidadMap[proyecto.estado] ?? 0;
-  const deterioro = proyecto.deterioro;
-  const exposicion = proyecto.ufEnRiesgo != null && proyecto.ufEnRiesgo > 0
-    ? Math.min(100, (proyecto.ufEnRiesgo / 10000) * 100) // Aproximación: 10000 UF = 100%
-    : 0;
-  const mora = proyecto.totalHitos > 0 ? (proyecto.hitosVencidos / proyecto.totalHitos) * 100 : 0;
-  return { severidad, deterioro, exposicion, mora };
-}
-
 function generarMotivo(proyecto: any): string {
-  const { hitosVencidos, totalHitos, estado, gatillos, ufEnRiesgo, ige } = proyecto;
-  
-  if (estado === "CRITICO" && hitosVencidos > 0) {
-    return `${hitosVencidos} de ${totalHitos} hitos exigibles vencidos. Costo ejecutado al 151,9% del presupuesto con ${totalHitos - hitosVencidos} de ${totalHitos} hitos cerrados · CPI-H 0,13 · ruta crítica desplazada 21 días.`;
-  }
-  
-  if (gatillos.includes("G-04") && hitosVencidos > 0) {
-    return `${hitosVencidos} hitos vencidos sin acta y baseline nunca firmada. El proyecto opera sin línea base aprobada, por lo que ninguna fecha es exigible contractualmente.`;
-  }
-  
-  if (estado === "ROJO" && hitosVencidos > 0) {
-    return `Hito de arquitectura vencido hace 12 días y tres exigencias P0 del veredicto anterior vencieron sin ejecutarse. Segundo corte consecutivo en rojo.`;
-  }
-  
-  if (estado === "NARANJO" && ufEnRiesgo && ufEnRiesgo > 1000) {
-    return `Costo al 118% con ${totalHitos - hitosVencidos} de ${totalHitos} hitos cerrados. La eficiencia cae por segundo corte, aunque el cronograma se mantiene dentro de tolerancia.`;
-  }
-  
-  if (estado === "AMARILLO" && ige && ige < 75) {
-    return `Cae 13 puntos en un corte sin hitos vencidos aún. El backlog creció 34% en 30 días y la confiabilidad bajó a 41: el trabajo real supera lo planificado.`;
-  }
-  
-  if (hitosVencidos > 0) {
-    return `${hitosVencidos} de ${totalHitos} hitos vencidos. Requiere revisión de cronograma y plan de recuperación.`;
-  }
-  
-  return "Proyecto bajo observación. Verificar evidencia documental y cumplimiento de hitos.";
+  const facts: string[] = [];
+  if (proyecto.operationalPhase) facts.push(`Fase Jira: ${proyecto.operationalPhase}`);
+  if (proyecto.jiraProgressPct != null) facts.push(`avance Jira ${proyecto.jiraProgressPct}%`);
+  if (proyecto.hitosCumplidos != null && proyecto.totalHitos != null) facts.push(`${proyecto.hitosCumplidos}/${proyecto.totalHitos} hitos cerrados`);
+  if (proyecto.hitosVencidos != null && proyecto.hitosVencidos > 0) facts.push(`${proyecto.hitosVencidos} hitos contractuales vencidos`);
+  if (proyecto.openRisks != null) facts.push(`${proyecto.openRisks} riesgos abiertos${proyecto.highRisksOpen != null ? `, ${proyecto.highRisksOpen} altos` : ""}`);
+  if (proyecto.contractedAmount != null && proyecto.contractedCurrency) facts.push(`contratado ${proyecto.contractedCurrency} ${proyecto.contractedAmount.toLocaleString("es-CL")}`);
+  if (facts.length === 0) return "Evidencia insuficiente para emitir una lectura ejecutiva; los campos ausentes permanecen como N/D.";
+  return `${facts.join(" · ")}.`;
 }
 
 function generarSenalesMora(proyecto: any): string[] {
-  const senales: string[] = [];
-  const { gatillos, hitosVencidos } = proyecto;
-  
-  if (gatillos.includes("G-05")) {
-    senales.push("Plan de recuperación vencido hace 3 días");
-  }
-  if (gatillos.includes("G-01") || gatillos.includes("G-02")) {
-    senales.push("5 semanas sin minuta");
-  }
-  if (gatillos.includes("G-06")) {
-    senales.push("4 decisiones esperan al Gerente de Delivery");
-  }
-  if (hitosVencidos > 0 && !gatillos.includes("G-05")) {
-    senales.push(`${hitosVencidos} hito${hitosVencidos > 1 ? "s" : ""} vencido${hitosVencidos > 1 ? "s" : ""} sin acta`);
-  }
-  
-  return senales.slice(0, 3);
+  return proyecto.gatillos
+    .filter((gatillo: string) => isGovernanceTriggerCode(gatillo))
+    .map((gatillo: keyof typeof GOVERNANCE_TRIGGER_CATALOG) => GOVERNANCE_TRIGGER_CATALOG[gatillo].recommendation)
+    .slice(0, 3);
 }
 
 export default function ConsolaGobierno() {
@@ -157,9 +99,9 @@ export default function ConsolaGobierno() {
   const proyectosFiltrados = projects.filter((p) => {
     if (filtroActivo === "todos") return true;
     if (filtroActivo === "mios") return p.pmName === user?.name;
-    if (filtroActivo === "deteriorandose") return p.deterioro > 0;
-    if (filtroActivo === "sin-evidencia") return p.gatillos.includes("G-01");
-    if (filtroActivo === "decision-pendiente") return p.gatillos.includes("G-06") || p.gatillos.includes("G-07");
+    if (filtroActivo === "deteriorandose") return (p.deterioro ?? 0) > 0;
+    if (filtroActivo === "sin-evidencia") return p.evidenceMissing;
+    if (filtroActivo === "decision-pendiente") return p.gatillos.includes("G-05") || p.gatillos.includes("G-06");
     return true;
   });
 
@@ -212,8 +154,8 @@ export default function ConsolaGobierno() {
           
           {/* Pie de métricas globales */}
           <div className="cg-triage-pie">
-            <span>Exposición en riesgo <b>{triage?.totalUfEnRiesgo?.toLocaleString("es-CL") ?? 0} UF</b></span>
-            <span className="cg-alerta">Exigencias P0 vencidas <b>{triage?.totalP0Vencidas ?? 0}</b></span>
+            <span>Exposición en riesgo <b>{triage?.totalUfEnRiesgo != null ? `${triage.totalUfEnRiesgo.toLocaleString("es-CL")} UF` : "N/D"}</b></span>
+            <span className="cg-alerta">Exigencias P0 vencidas <b>{triage?.totalP0Vencidas ?? "N/D"}</b></span>
             <span className="cg-alerta">Planes de recuperación vencidos <b>{triage?.planesRecuperacionVencidos ?? 0}</b></span>
             <span>Se deterioraron este corte <b>{triage?.deteriorados ?? 0}</b></span>
             <span>Mejoraron <b>{triage?.mejoraron ?? 0}</b></span>
@@ -229,15 +171,11 @@ export default function ConsolaGobierno() {
             <div className="cg-eyebrow">Consola de gobierno · {diaSemana} {fechaFormateada}</div>
             <h1>{proyectosAtencion.length} proyectos requieren tu atención hoy</h1>
             <p className="cg-sub">
-              {triage?.estadoCounts.CRITICO ? `${triage.estadoCounts.CRITICO} en estado crítico con plan de recuperación vencido. ` : ""}
+              {triage?.estadoCounts.CRITICO ? `${triage.estadoCounts.CRITICO} en estado crítico según evidencia disponible. ` : ""}
               {triage?.deteriorados ? `${triage.deteriorados} se deterioraron respecto del corte anterior.` : ""}
             </p>
           </div>
           <div className="cg-acciones">
-            <button className="cg-btn cg-btn-linea">
-              <Download className="h-4 w-4 mr-2 inline" />
-              Exportar comité
-            </button>
             <button className="cg-btn cg-btn-mag">
               <Plus className="h-4 w-4 mr-2 inline" />
               Nuevo proyecto
@@ -268,9 +206,9 @@ export default function ConsolaGobierno() {
               <span className="cg-n">
                 {filtro === "todos" && proyectosFiltrados.length}
                 {filtro === "mios" && proyectosFiltrados.filter(p => p.pmName === user?.name).length}
-                {filtro === "deteriorandose" && proyectosFiltrados.filter(p => p.deterioro > 0).length}
-                {filtro === "sin-evidencia" && proyectosFiltrados.filter(p => p.gatillos.includes("G-01")).length}
-                {filtro === "decision-pendiente" && proyectosFiltrados.filter(p => p.gatillos.includes("G-06") || p.gatillos.includes("G-07")).length}
+                {filtro === "deteriorandose" && proyectosFiltrados.filter(p => (p.deterioro ?? 0) > 0).length}
+                {filtro === "sin-evidencia" && proyectosFiltrados.filter(p => p.evidenceMissing).length}
+                {filtro === "decision-pendiente" && proyectosFiltrados.filter(p => p.gatillos.includes("G-05") || p.gatillos.includes("G-06")).length}
               </span>
             </button>
           ))}
@@ -291,12 +229,8 @@ export default function ConsolaGobierno() {
               return (
                 <Link key={proyecto.projectId} href={`/projects/${proyecto.projectId}`} className={`cg-fila ${config.clase}`}>
                     {/* Columna PA */}
-                    <div className="cg-pa" title={`PA = ${proyecto.pa}
-Severidad: ${calcularDesglosePA(proyecto).severidad} × 0.4 = ${Math.round(calcularDesglosePA(proyecto).severidad * 0.4)}
-Deterioro: ${calcularDesglosePA(proyecto).deterioro} × 0.25 = ${Math.round(calcularDesglosePA(proyecto).deterioro * 0.25)}
-Exposición: ${Math.round(calcularDesglosePA(proyecto).exposicion)} × 0.2 = ${Math.round(calcularDesglosePA(proyecto).exposicion * 0.2)}
-Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(calcularDesglosePA(proyecto).mora * 0.15)}`}>
-                      <b>{proyecto.pa}</b>
+                    <div className="cg-pa" title={proyecto.pa == null ? "Prioridad N/D por evidencia insuficiente" : `Prioridad de atención: ${proyecto.pa}`}>
+                      <b>{proyecto.pa ?? "N/D"}</b>
                       <span>PA</span>
                     </div>
                     
@@ -308,11 +242,11 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                         <span className="cg-cliente">{proyecto.clientName} · Deal {proyecto.dealId}</span>
                         <span className={`cg-chip cg-c-${estado.toLowerCase()}`}>{config.label}</span>
                         {proyecto.sinBaseline && (
-                          <span className="cg-chip cg-c-sinbaseline" title="Proyecto sin baseline ejecutivo aprobado. Se evalúa con veredicto IA y datos Jira/financieros.">Sin baseline</span>
+                          <span className="cg-chip cg-c-sinbaseline" title="Proyecto sin baseline ejecutivo aprobado; la operación Jira se presenta por separado.">Sin baseline</span>
                         )}
                         {proyecto.gatillos.slice(0, 2).map((gatillo: string) => (
                           <span key={gatillo} className="cg-chip cg-c-gatillo">
-                            {gatillosLabels[gatillo] || gatillo}
+                            {isGovernanceTriggerCode(gatillo) ? GOVERNANCE_TRIGGER_CATALOG[gatillo].shortLabel : gatillo}
                           </span>
                         ))}
                         {proyecto.gatillos.length > 2 && (
@@ -320,17 +254,8 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                         )}
                       </div>
                       <p className="cg-motivo">
-                        {proyecto.sinBaseline ? (
-                          <>
-                            <b>Sin baseline ejecutivo aprobado.</b>
-                            {" "}Se evalúa con veredicto IA y datos Jira/financieros. Crea el baseline desde la página del proyecto para habilitar el motor de gobernanza completo.
-                          </>
-                        ) : (
-                          <>
-                            <b>{proyecto.hitosVencidos} de {proyecto.totalHitos} hitos exigibles vencidos.</b>
-                            {" "}{motivo}
-                          </>
-                        )}
+                        {proyecto.sinBaseline && <><b>Sin baseline ejecutivo aprobado.</b>{" "}</>}
+                        {motivo}
                       </p>
                       <div className="cg-meta">
                         {senalesMora.map((senal, idx) => (
@@ -345,8 +270,8 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                     <div className="cg-ige">
                       <span className="cg-et">IGE</span>
                       <b>{proyecto.ige ?? "—"}</b>
-                      <div className={`cg-delta ${proyecto.deterioro > 0 ? "cg-baja" : proyecto.deterioro < 0 ? "cg-sube" : "cg-igual"}`}>
-                        {proyecto.deterioro > 0 ? `▼ ${proyecto.deterioro}` : proyecto.deterioro < 0 ? `▲ ${Math.abs(proyecto.deterioro)}` : "— 0"}
+                      <div className={`cg-delta ${(proyecto.deterioro ?? 0) > 0 ? "cg-baja" : (proyecto.deterioro ?? 0) < 0 ? "cg-sube" : "cg-igual"}`}>
+                        {proyecto.deterioro == null ? "N/D" : proyecto.deterioro > 0 ? `▼ ${proyecto.deterioro}` : proyecto.deterioro < 0 ? `▲ ${Math.abs(proyecto.deterioro)}` : "— 0"}
                       </div>
                     </div>
                     
@@ -359,7 +284,7 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                     {/* Columna PM */}
                     <div className="cg-pm">
                       <span>PM</span>
-                      {proyecto.pmName ?? "[PENDIENTE]"}
+                      {proyecto.pmName ?? "N/D"}
                     </div>
                     
                     {/* Columna flecha */}
@@ -537,8 +462,8 @@ Mora: ${Math.round(calcularDesglosePA(proyecto).mora)} × 0.15 = ${Math.round(ca
                     <td>{estable.proyecto}</td>
                     <td>{estable.cliente}</td>
                     <td className="cg-num">{estable.ige ?? "—"}</td>
-                    <td className="cg-num" style={{ color: estable.delta > 0 ? "var(--cg-rojo)" : estable.delta < 0 ? "var(--cg-verde)" : "var(--cg-texto-3)" }}>
-                      {estable.delta > 0 ? `▼${estable.delta}` : estable.delta < 0 ? `▲${Math.abs(estable.delta)}` : "—"}
+                    <td className="cg-num" style={{ color: (estable.delta ?? 0) > 0 ? "var(--cg-rojo)" : (estable.delta ?? 0) < 0 ? "var(--cg-verde)" : "var(--cg-texto-3)" }}>
+                      {estable.delta == null ? "N/D" : estable.delta > 0 ? `▼${estable.delta}` : estable.delta < 0 ? `▲${Math.abs(estable.delta)}` : "— 0"}
                     </td>
                     <td className="cg-mono">{estable.proximoHito}</td>
                     <td>{estable.pm}</td>

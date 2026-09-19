@@ -39,6 +39,7 @@ function row(overrides: Partial<PortfolioRow> = {}): PortfolioRow {
     pmId: 10,
     pmKey: "10",
     pmName: "Eugenio Díaz",
+    pmSource: "pmo_local",
     amount: 120000,
     currency: "USD",
     amountMissing: false,
