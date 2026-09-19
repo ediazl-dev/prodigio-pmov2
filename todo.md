@@ -638,4 +638,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F2: Migrar Consola de Gobierno y Consolidado Financiero; retirar valores demo, defaults inventados y controles de exportación falsos.
 - [x] F3: Migrar Detalle, etapas y Dashboard vinculado; separar PMO/Jira/finanzas y corregir riesgos confirmados y multimoneda.
 - [x] F4: Convertir Dashboard Ejecutivo v2 y Reportes Jira a lectores del read model; alinear IA y exports con provenance.
-- [ ] F5: Certificar rutas, UI, datos, multimoneda, stale/error/partial, ausencia de escrituras de lectura y checkpoints por bloque.
+- [x] F5: Certificar rutas, UI, datos, multimoneda, stale/error/partial, ausencia de escrituras de lectura y checkpoints por bloque.

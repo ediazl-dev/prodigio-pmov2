@@ -67,6 +67,14 @@ La cartera certificada contiene 12 proyectos. Once snapshots Jira están en `suc
 
 PAI conserva N/D en los campos no observados. Cuatro proyectos continúan con monto N/D y dos con PM N/D por ausencia real de fuente. El detalle profundo de épicas, equipo, horas e issues del reporte Jira sigue siendo una lectura live opcional; el resumen y los KPI no quedan bloqueados por ella. Regenerar una observación IA es una acción manual y crea una nueva versión revisable; esta remediación no ejecutó el LLM ni validó una observación en nombre del usuario.
 
+## Certificación final
+
+La suite determinista completa terminó con **801 pruebas aprobadas y 19 omitidas**; se excluyeron únicamente `ufService.test.ts` y `recurringServices.test.ts` por depender de servicios live externos. El build productivo finalizó correctamente. `pnpm check` conserva exactamente cinco errores heredados —cuatro en `jiraMilestoneSync.ts` y uno en `routers.ts` sobre `estadoSII`— sin errores nuevos.
+
+Después de la suite se verificaron **12 proyectos**, **12 snapshots distintos**, **11 `success` y 1 `partial`**, sin fixtures residuales. El read model confirmó Tanner con UF 8.200 desde `financial_data`, Eduardo Mercado desde `jira_snapshot`, 31% de avance, 8/10 hitos, 23 riesgos abiertos y 12 altos. También confirmó cuatro montos N/D y dos PM N/D, que permanecen visibles como brechas reales.
+
+La revisión visual cubrió escritorio y móvil. En 390 × 844 el Portafolio conserva filtros, conteos, fuentes y tabla con desplazamiento horizontal controlado; el Dashboard v2 apila correctamente evidencia, fase, salud, estado contractual e IGE N/D sin pérdida de texto.
+
 ## Reversión
 
-Los cambios están separados en checkpoints F0–F4. La reversión debe restaurar el checkpoint inmediatamente anterior al bloque afectado; no se debe hacer `reset`, `rebase`, `push` o recreación de jobs a ciegas. Las tablas, snapshots y documentos históricos no deben borrarse para revertir una presentación.
+Los cambios están separados en checkpoints F0–F5. La reversión debe restaurar el checkpoint inmediatamente anterior al bloque afectado; no se debe hacer `reset`, `rebase`, `push` o recreación de jobs a ciegas. Las tablas, snapshots y documentos históricos no deben borrarse para revertir una presentación.
