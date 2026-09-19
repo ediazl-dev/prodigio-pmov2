@@ -24,6 +24,7 @@ function row(overrides: Partial<PortfolioRow> = {}): PortfolioRow {
     dealId: "Deal 4728",
     projectType: "integracion",
     origin: "linked",
+    jiraProjectKey: "PILOT",
     status: "activo",
     stageId: "design",
     stageLabel: "Avance",

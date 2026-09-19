@@ -68,7 +68,7 @@ import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
 import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAcceptancePolicy";
 import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
 import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
-import { buildExecutiveOperationalEvidence } from "./executiveOperationalEvidence";
+import { buildExecutiveOperationalEvidenceFromSnapshot, hasCurrentAgenticEvidenceContract } from "./executiveOperationalEvidence";
 import { resolveExternalEvidence } from "./executiveExternalEvidence";
 import { runProductionJiraPreflight } from "./jiraPreflightRunner";
 import { createProductionJiraOnboardingService } from "./jiraOnboardingRepository";
@@ -3917,7 +3917,7 @@ Responde SOLO con JSON:
         });
       }
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-      const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict] = await Promise.all([
+      const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict, executivePortfolio] = await Promise.all([
         getExecutiveMilestoneAcceptances(input.projectId, source.id),
         getExecutiveMeetingMinutes(input.projectId, source.id),
         getExecutiveCommitments(input.projectId),
@@ -3928,43 +3928,29 @@ Responde SOLO con JSON:
         getLatestExecutiveFinancialSnapshot(input.projectId, source.id),
         getLatestExecutiveProductionDashboardSnapshot(input.projectId, source.id),
         getLatestPMAnalysisWithReview(input.projectId),
+        getExecutivePortfolio(),
       ]);
+      const portfolioEvidence = executivePortfolio.portfolio.find((row) => row.projectId === input.projectId) ?? null;
+      const currentAgenticVerdict = agenticVerdict.analysis && hasCurrentAgenticEvidenceContract(agenticVerdict.analysis.metricsSnapshot)
+        ? agenticVerdict
+        : { analysis: null, review: null, reason: "legacy_evidence_contract" as const };
       const cutoff = resolveExecutiveDashboardCutoff({ projectId: input.projectId, requestedCutoffDate: input.cutoffDate, productionSnapshot: persistedDashboardSnapshot });
       const cutoffDate = cutoff.date;
       const acceptanceByMilestone = new Map<number, (typeof acceptances)[number]>();
       for (const acceptance of acceptances) {
         if (!acceptanceByMilestone.has(acceptance.milestoneId)) acceptanceByMilestone.set(acceptance.milestoneId, acceptance);
       }
-      const [financialEvidenceResult, jiraEvidenceResult] = await Promise.all([
-        resolveExternalEvidence({
-          source: "finanzas",
-          load: async () => {
-            const { getFinancialDataForDeal } = await import("./financialDataFetcher");
-            return getFinancialDataForDeal(source.dealId);
-          },
-        }),
-        source.jiraProjectKey
-          ? resolveExternalEvidence({ source: "Jira", load: () => getJiraAdvanceReport(source.jiraProjectKey!) })
-          : Promise.resolve({ availability: "unavailable" as const, value: null, observedAt: null, reason: "source_error" as const }),
-      ]);
+      const financialEvidenceResult = await resolveExternalEvidence({
+        source: "finanzas",
+        load: async () => {
+          const { getFinancialDataForDeal } = await import("./financialDataFetcher");
+          return getFinancialDataForDeal(source.dealId);
+        },
+      });
       const financial = financialEvidenceResult.value as any;
-      const jiraOperationalReport = jiraEvidenceResult.value;
-      const jiraMilestoneByKey = new Map((jiraOperationalReport?.milestones ?? []).map((issue) => [issue.key, issue]));
-      if (jiraEvidenceResult.availability === "available") {
-        await Promise.all(milestones.map((milestone) => {
-          const jiraMilestone = jiraMilestoneByKey.get(milestone.jiraIssueKey);
-          if (!jiraMilestone) return Promise.resolve();
-          return updateExecutiveContractMilestoneJiraObservation(milestone.id, {
-            jiraDueDate: jiraMilestone.duedate ?? milestone.jiraDueDate,
-            jiraClosedDate: jiraMilestone.resolutiondate?.slice(0, 10) ?? null,
-            jiraStatusName: jiraMilestone.status ?? milestone.jiraStatusName,
-          });
-        }));
-      }
       const operationalEvidence = {
-        ...buildExecutiveOperationalEvidence(jiraOperationalReport, jiraEvidenceResult.observedAt),
-        availability: jiraEvidenceResult.availability,
-        retrievalReason: jiraEvidenceResult.reason,
+        ...buildExecutiveOperationalEvidenceFromSnapshot(portfolioEvidence),
+        retrievalReason: portfolioEvidence?.jiraEvidenceAvailability ?? "missing",
       };
       const financialSnapshot = financial?.projectFinancial ?? null;
       const latestFinancial = persistedFinancialSnapshot?.financialData ?? financialSnapshot;
@@ -3981,9 +3967,8 @@ Responde SOLO con JSON:
       });
       const milestoneEvidence = milestones.map((milestone) => {
         const acceptance = acceptanceByMilestone.get(milestone.id);
-        const jiraMilestone = jiraMilestoneByKey.get(milestone.jiraIssueKey);
-        const jiraDueDate = jiraMilestone?.duedate ?? milestone.jiraDueDate;
-        const jiraClosedDate = jiraMilestone?.resolutiondate?.slice(0, 10) ?? milestone.jiraClosedDate ?? null;
+        const jiraDueDate = milestone.jiraDueDate;
+        const jiraClosedDate = milestone.jiraClosedDate ?? null;
         const acceptedAt = acceptance?.acceptanceStatus === "accepted" ? acceptance.acceptedAt : null;
         const acceptanceEvidenceUrl = acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceUrl : null;
         return {
@@ -3996,7 +3981,7 @@ Responde SOLO con JSON:
           jiraIssueKey: milestone.jiraIssueKey,
           jiraDueDate,
           jiraClosedDate,
-          jiraStatusName: jiraMilestone?.status ?? milestone.jiraStatusName,
+          jiraStatusName: milestone.jiraStatusName,
           semanticStatus: milestone.semanticStatus,
           isCritical: milestone.isCritical,
           billingWeight: milestone.billingWeight,
@@ -4069,7 +4054,7 @@ Responde SOLO con JSON:
           impact: governance.financial,
         }),
         governance: { ...governance.governance, assignments, recoveryPlan, recoveryPlans, requirements, commitments, minutes, minutesCoverage },
-        agenticVerdict,
+        agenticVerdict: currentAgenticVerdict,
         operationalEvidence,
         financialAlerts: financial?.alerts ?? [],
         financialContext: financial?.portfolioContext ?? null,
@@ -4086,9 +4071,10 @@ Responde SOLO con JSON:
       const projectKey = space.jiraProjectKey ?? space.jiraProjectId;
       if (!projectKey) throw new TRPCError({ code: "NOT_FOUND", message: "No se encontró la key" });
 
-      const jiraReport = await getJiraAdvanceReport(projectKey);
+      const executivePortfolio = await getExecutivePortfolio();
+      const portfolioEvidence = executivePortfolio.portfolio.find((row) => row.projectId === input.projectId) ?? null;
       const { getFinancialDataForDeal, extractDealId } = await import("./financialDataFetcher");
-      const dealId = extractDealId(project.projectName) || "";
+      const dealId = portfolioEvidence?.dealId || extractDealId(project.projectName) || "";
       let financialData = null;
       try {
         if (dealId) {
@@ -4189,6 +4175,8 @@ Responde SOLO con JSON:
 
 IMPORTANTE: Cada perspectiva por rol debe contener 2-4 bullets concretos con datos numéricos reales del proyecto. Usa los datos proporcionados, NO inventes números. Si un dato no está disponible, indica "sin datos disponibles".
 
+REGLA DE FUENTES: Pipeline PMO, Fase Operacional Jira, Salud Jira, cumplimiento contractual y estado financiero son dimensiones distintas. Nunca uses el estado financiero como fase operacional ni conviertas N/D, stale, error o missing en cero, cumplimiento o certeza. El snapshot Jira sólo puede sustentar los campos observados y su disponibilidad debe mencionarse cuando sea parcial.
+
 Si hay SoW disponible, evalúa el cumplimiento de la promesa al cliente: ¿se están entregando los entregables comprometidos? ¿los hitos van en línea?
 Si hay Gantt disponible, evalúa el cumplimiento del cronograma: ¿hay retrasos? ¿las fases van según lo planificado?
 
@@ -4201,7 +4189,7 @@ Cada bullet debe incluir un tag de contexto entre corchetes al inicio: [Fortalez
 Responde SOLO con JSON válido.` },
           { role: "user", content: `Proyecto: ${project.projectName} (${projectKey})\nDeal: ${dealId}\nCliente: ${(project as any).clientName || "N/A"}
 ${sowSection}${ganttSection}
-${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- Finalizados: ${jiraReport.doneCount} (${jiraReport.percentComplete}%)\n- En progreso: ${jiraReport.inProgressCount}\n- Pendientes: ${jiraReport.toDoCount}\n- Épicas: ${jiraReport.epics.length} (${jiraReport.epics.filter((e: any) => e.statusCategory === "Done").length} finalizadas)\n- Hitos: ${jiraReport.milestones.length} (${jiraReport.milestonesCumplidos} cumplidos de ${jiraReport.milestones.length})\n- Riesgos registrados: ${jiraReport.risks.length} (${jiraReport.risks.filter((r: any) => r.priority === "Highest" || r.priority === "High").length} de prioridad alta)\n- Equipo: ${jiraReport.team.length} miembros\n${finSection}${portfolioSection}\nResponde SOLO con JSON con esta estructura EXACTA:\n{\n  "overallVerdict": "Párrafo de 4-6 líneas con veredicto ejecutivo integral que sintetice el estado del proyecto, incluyendo cumplimiento de SoW y Gantt si están disponibles",\n  "semaphore": "VERDE|AMARILLO|ROJO",\n  "semaphoreJustification": "Justificación breve del semáforo en 1-2 líneas",\n  "ctoInsights": {\n    "title": "Título breve de la perspectiva CTO (ej: Ejecución Técnica Sólida)",\n    "bullets": [\n      "[Tag] Bullet con dato concreto y numérico",\n      "[Tag] Segundo bullet con insight técnico",\n      "[Tag] Tercer bullet con acción o modelo"\n    ]\n  },\n  "cfoInsights": {\n    "title": "Título breve de la perspectiva CFO (ej: Resultado Financiero Superior)",\n    "bullets": [\n      "[Tag] Bullet con dato financiero concreto",\n      "[Tag] Segundo bullet con análisis de márgenes",\n      "[Tag] Tercer bullet con acción financiera"\n    ]\n  },\n  "commercialInsights": {\n    "title": "Título breve de la perspectiva Comercial (ej: Palanca de Crecimiento)",\n    "bullets": [\n      "[Tag] Bullet con insight comercial",\n      "[Tag] Segundo bullet sobre relación con cliente",\n      "[Tag] Tercer bullet con oportunidad"\n    ]\n  },\n  "keyRisks": [{ "risk": "Descripción del riesgo", "impact": "ALTO|MEDIO|BAJO", "mitigation": "Acción de mitigación" }],\n  "recommendations": [{ "title": "Título", "description": "Descripción con acción concreta", "priority": "URGENTE|ALTA|MEDIA" }]\n}` },
+${"-".repeat(60)}\nDatos JIRA — snapshot local:\n- Disponibilidad: ${portfolioEvidence?.jiraEvidenceAvailability ?? "missing"}\n- Observado en: ${portfolioEvidence?.jiraEvidenceAt ?? "N/D"}\n- Fase operacional: ${portfolioEvidence?.operationalPhase ?? "N/D"}\n- Salud Jira: ${portfolioEvidence?.executiveHealth ?? "N/D"}\n- Avance Jira: ${portfolioEvidence?.operationalProgressPct != null ? `${portfolioEvidence.operationalProgressPct}%` : "N/D"}\n- Hitos Jira: ${portfolioEvidence?.milestonesFulfilled != null && portfolioEvidence?.milestonesTotal != null ? `${portfolioEvidence.milestonesFulfilled}/${portfolioEvidence.milestonesTotal}` : "N/D"}\n- Riesgos: ${portfolioEvidence?.openRisks != null ? `${portfolioEvidence.openRisks} abiertos; ${portfolioEvidence.highRisksOpen ?? "N/D"} altos` : "N/D"}\n- Pipeline PMO separado: ${portfolioEvidence?.stageLabel ?? "N/D"}\n${finSection}${portfolioSection}\nResponde SOLO con JSON con esta estructura EXACTA:\n{\n  "overallVerdict": "Párrafo de 4-6 líneas con veredicto ejecutivo integral que sintetice el estado del proyecto, incluyendo cumplimiento de SoW y Gantt si están disponibles",\n  "semaphore": "VERDE|AMARILLO|ROJO",\n  "semaphoreJustification": "Justificación breve del semáforo en 1-2 líneas",\n  "ctoInsights": {\n    "title": "Título breve de la perspectiva CTO (ej: Ejecución Técnica Sólida)",\n    "bullets": [\n      "[Tag] Bullet con dato concreto y numérico",\n      "[Tag] Segundo bullet con insight técnico",\n      "[Tag] Tercer bullet con acción o modelo"\n    ]\n  },\n  "cfoInsights": {\n    "title": "Título breve de la perspectiva CFO (ej: Resultado Financiero Superior)",\n    "bullets": [\n      "[Tag] Bullet con dato financiero concreto",\n      "[Tag] Segundo bullet con análisis de márgenes",\n      "[Tag] Tercer bullet con acción financiera"\n    ]\n  },\n  "commercialInsights": {\n    "title": "Título breve de la perspectiva Comercial (ej: Palanca de Crecimiento)",\n    "bullets": [\n      "[Tag] Bullet con insight comercial",\n      "[Tag] Segundo bullet sobre relación con cliente",\n      "[Tag] Tercer bullet con oportunidad"\n    ]\n  },\n  "keyRisks": [{ "risk": "Descripción del riesgo", "impact": "ALTO|MEDIO|BAJO", "mitigation": "Acción de mitigación" }],\n  "recommendations": [{ "title": "Título", "description": "Descripción con acción concreta", "priority": "URGENTE|ALTA|MEDIA" }]\n}` },
         ],
         response_format: { type: "json_object" } as any,
       });
@@ -4226,18 +4214,17 @@ ${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- F
 
       // Build metrics snapshot for historical comparison
       const metricsSnapshot = {
-        jiraAdvance: jiraReport.percentComplete,
-        clientMilestoneCompletion: jiraReport.milestoneCompletionPct,
-        primaryProgressPct: jiraReport.primaryProgressPct,
-        primaryProgressSource: jiraReport.primaryProgressSource,
-        totalIssues: jiraReport.totalIssues,
-        doneCount: jiraReport.doneCount,
-        milestonesTotal: jiraReport.milestones.length,
-        milestonesCumplidos: jiraReport.milestonesCumplidos,
-        epicsTotal: jiraReport.epics.length,
-        epicsDone: jiraReport.epics.filter((e: any) => e.statusCategory === "Done").length,
-        teamSize: jiraReport.team.length,
-        risksCount: jiraReport.risks.length,
+        jiraAdvance: portfolioEvidence?.operationalProgressPct ?? null,
+        jiraEvidenceAvailability: portfolioEvidence?.jiraEvidenceAvailability ?? "missing",
+        jiraEvidenceAt: portfolioEvidence?.jiraEvidenceAt ?? null,
+        jiraOperationalPhase: portfolioEvidence?.operationalPhase ?? null,
+        jiraExecutiveHealth: portfolioEvidence?.executiveHealth ?? null,
+        milestonesTotal: portfolioEvidence?.milestonesTotal ?? null,
+        milestonesCumplidos: portfolioEvidence?.milestonesFulfilled ?? null,
+        openRisks: portfolioEvidence?.openRisks ?? null,
+        highRisksOpen: portfolioEvidence?.highRisksOpen ?? null,
+        pmName: portfolioEvidence?.pmName ?? null,
+        pmSource: portfolioEvidence?.pmSource ?? "missing",
         valorVentaUF: fin?.valorVentaUF ?? null,
         presupuestoUF: fin?.presupuestoUF ?? null,
         utilizadoUF: fin?.utilizadoUF ?? null,
@@ -4292,6 +4279,7 @@ ${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- F
     .query(async ({ input }) => {
       const verdict = await getLatestVerdict(input.projectId);
       if (!verdict) return null;
+      if (!hasCurrentAgenticEvidenceContract(verdict.metricsSnapshot)) return null;
       // Reconstruct the format expected by the frontend
       const ctoInsights = (verdict.ctoInsights as any[]) ?? [];
       const cfoInsights = (verdict.cfoInsights as any[]) ?? [];
@@ -4462,6 +4450,9 @@ ${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- F
     .query(async ({ input }) => {
       const verdict = await getLatestPMAnalysis(input.projectId);
       if (!verdict) return { found: false as const };
+      if (!hasCurrentAgenticEvidenceContract(verdict.metricsSnapshot)) {
+        return { found: false as const, reason: "legacy_evidence_contract" as const };
+      }
       let metricsSnapshot: any = verdict.metricsSnapshot;
       if (typeof metricsSnapshot === "string") {
         try {
@@ -4482,7 +4473,11 @@ ${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- F
         sources: {
           sow: { available: !!metricsSnapshot?.hasSoW },
           gantt: { available: !!metricsSnapshot?.hasGantt },
-          jira: { available: true },
+          jira: {
+            available: metricsSnapshot?.jiraEvidenceAvailability === "available" || metricsSnapshot?.jiraEvidenceAvailability === "partial",
+            availability: metricsSnapshot?.jiraEvidenceAvailability ?? "missing",
+            observedAt: metricsSnapshot?.jiraEvidenceAt ?? null,
+          },
         },
         createdAt: verdict.createdAt,
         daysSince,
@@ -4506,12 +4501,13 @@ ${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- F
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
 
-      // 1. Resolve JIRA space and get report
+      // 1. Resolver identidad Jira y evidencia operacional desde el snapshot local certificado.
       const space = await getJiraSpaceByProject(input.projectId);
       if (!space) throw new TRPCError({ code: "NOT_FOUND", message: "No hay Space JIRA vinculado" });
       const projectKey = space.jiraProjectKey ?? space.jiraProjectId;
       if (!projectKey) throw new TRPCError({ code: "NOT_FOUND", message: "No se encontró la key JIRA" });
-      const jiraReport = await getJiraAdvanceReport(projectKey);
+      const executivePortfolio = await getExecutivePortfolio();
+      const portfolioEvidence = executivePortfolio.portfolio.find((row) => row.projectId === input.projectId) ?? null;
 
       // 2. Resolve SoW and Gantt documents
       const isLinked = (project as any).origin === "linked";
@@ -4639,24 +4635,26 @@ ${"-".repeat(60)}\nDatos JIRA:\n- Issues totales: ${jiraReport.totalIssues}\n- F
 
       // 3. Get financial data
       const { getFinancialDataForDeal, extractDealId } = await import("./financialDataFetcher");
-      const dealId = extractDealId(project.projectName) || "";
+      const dealId = portfolioEvidence?.dealId || extractDealId(project.projectName) || "";
       let financialData = null;
       try {
         if (dealId) financialData = await getFinancialDataForDeal(dealId);
       } catch { /* ignore */ }
       const fin = financialData?.projectFinancial;
 
-      // 4. Build comprehensive JIRA summary
-      const jiraSummary = `DATOS JIRA - ${projectKey}\n` +
-        `MÉTRICA EJECUTIVA PRINCIPAL — Hitos cliente: ${jiraReport.milestonesCumplidos}/${jiraReport.milestones.length} (${jiraReport.milestoneCompletionPct}%)\n` +
-        `MÉTRICA OPERATIVA SECUNDARIA — Issues totales: ${jiraReport.totalIssues} | Finalizados: ${jiraReport.doneCount} (${jiraReport.percentComplete}%) | En progreso: ${jiraReport.inProgressCount} | Pendientes: ${jiraReport.toDoCount}\n` +
-        `\nÉPICAS (${jiraReport.epics.length}):\n${jiraReport.epics.map((e: any) => `  - ${e.summary} [${e.statusCategory}] ${e.totalSubtasks ? `(${e.doneSubtasks}/${e.totalSubtasks} subtareas)` : ""}`).join("\n")}\n` +
-        `\nHITOS (${jiraReport.milestonesCumplidos} cumplidos de ${jiraReport.milestones.length}):\n${jiraReport.milestones.map((m: any) => `  - ${m.summary} [${m.statusCategory === "Done" ? "CUMPLIDO" : m.status}] ${m.percentage || ""}`).join("\n")}\n` +
-        `\nRIESGOS (${jiraReport.risks.length}):\n${jiraReport.risks.map((r: any) => `  - ${r.summary} [${r.statusCategory === "Done" ? "Cerrado" : "Abierto"}] Prioridad: ${r.priority} ${r.assignee ? `→ ${r.assignee}` : ""}`).join("\n")}\n` +
-        `\nEQUIPO (${jiraReport.team.length} miembros):\n${jiraReport.team.map((t: any) => `  - ${t.name}: ${t.total} issues (${t.done} done, ${t.inProgress} in progress)`).join("\n")}\n` +
-        (jiraReport.scopeChanges?.length > 0 ? `\nCAMBIOS DE ALCANCE (${jiraReport.scopeChanges.length}):\n${jiraReport.scopeChanges.map((sc: any) => `  - ${sc.summary} [${sc.status}]`).join("\n")}\n` : "");
+      // 4. Resumen Jira con la misma procedencia, TTL y N/D del portafolio.
+      const jiraSummary = `DATOS JIRA — SNAPSHOT LOCAL ${projectKey}\n` +
+        `Disponibilidad: ${portfolioEvidence?.jiraEvidenceAvailability ?? "missing"}\n` +
+        `Observado en: ${portfolioEvidence?.jiraEvidenceAt ?? "N/D"}\n` +
+        `Fase operacional Jira: ${portfolioEvidence?.operationalPhase ?? "N/D"}\n` +
+        `Salud Jira: ${portfolioEvidence?.executiveHealth ?? "N/D"}\n` +
+        `Avance operacional Jira: ${portfolioEvidence?.operationalProgressPct != null ? `${portfolioEvidence.operationalProgressPct}%` : "N/D"}\n` +
+        `Hitos Jira: ${portfolioEvidence?.milestonesFulfilled != null && portfolioEvidence?.milestonesTotal != null ? `${portfolioEvidence.milestonesFulfilled}/${portfolioEvidence.milestonesTotal}` : "N/D"}\n` +
+        `Riesgos Jira: ${portfolioEvidence?.openRisks != null ? `${portfolioEvidence.openRisks} abiertos; ${portfolioEvidence.highRisksOpen ?? "N/D"} altos` : "N/D"}\n` +
+        `Pipeline PMO separado: ${portfolioEvidence?.stageLabel ?? "N/D"} (${portfolioEvidence?.stagesClosed ?? 0}/${portfolioEvidence?.totalStages ?? 6} etapas cerradas)\n` +
+        `PM: ${portfolioEvidence?.pmName ?? "N/D"} · fuente ${portfolioEvidence?.pmSource ?? "missing"}\n`;
 
-      const finSection = fin ? `\nDATOS FINANCIEROS:\n- Valor Venta: ${fin.valorVentaUF ?? "N/A"} UF | Presupuesto: ${fin.presupuestoUF ?? "N/A"} UF | Utilizado: ${fin.utilizadoUF ?? "N/A"} UF (${fin.utilizadoUFPorc ? (fin.utilizadoUFPorc * 100).toFixed(1) + "%" : "N/A"})\n- Margen Proyectado: ${fin.margenProyectadoUF ?? "N/A"} UF (${fin.margenProyectadoPorc ? (fin.margenProyectadoPorc * 100).toFixed(1) + "%" : "N/A"}) | Target: ${fin.margenTargetPorc ? (fin.margenTargetPorc * 100).toFixed(1) + "%" : "N/A"}\n- Avance reportado: ${fin.porcentajeAvanceProyecto ? (fin.porcentajeAvanceProyecto * 100).toFixed(0) + "%" : "N/A"}\n` : "";
+      const finSection = fin ? `\nDATOS FINANCIEROS — NO DEFINEN FASE OPERACIONAL:\n- Valor Venta: ${fin.valorVentaUF ?? "N/D"} UF | Presupuesto: ${fin.presupuestoUF ?? "N/D"} UF | Utilizado: ${fin.utilizadoUF ?? "N/D"} UF (${fin.utilizadoUFPorc != null ? (fin.utilizadoUFPorc * 100).toFixed(1) + "%" : "N/D"})\n- Margen Proyectado: ${fin.margenProyectadoUF ?? "N/D"} UF (${fin.margenProyectadoPorc != null ? (fin.margenProyectadoPorc * 100).toFixed(1) + "%" : "N/D"}) | Target: ${fin.margenTargetPorc != null ? (fin.margenTargetPorc * 100).toFixed(1) + "%" : "N/D"}\n- Avance financiero reportado: ${fin.porcentajeAvanceProyecto != null ? (fin.porcentajeAvanceProyecto * 100).toFixed(0) + "%" : "N/D"}\n` : "\nDATOS FINANCIEROS: N/D.\n";
 
       // 5. Generate PM Senior Analysis with LLM
       const response = await invokeLLM({
@@ -4673,6 +4671,8 @@ ENFOQUE DEL ANÁLISIS:
 5. RECOMENDACIONES ACCIONABLES: ¿Qué debe hacer el PM esta semana/mes?
 
 REGLA NO NEGOCIABLE DE JERARQUÍA: el cumplimiento de hitos comprometidos con el cliente es la métrica principal de avance. El porcentaje de tareas JIRA es secundario, solo describe actividad interna y puede estar incompleto. Si los hitos están por debajo del avance de tareas, debes resaltar la brecha, evaluar el proyecto de manera estricta según los hitos y no declarar salud VERDE solo por actividad interna.
+
+REGLA NO NEGOCIABLE DE FUENTES: Pipeline PMO, Fase Operacional Jira, Salud Jira, cumplimiento contractual y estado financiero son dimensiones distintas. Nunca uses estado o avance financiero como fase operacional; nunca conviertas N/D, snapshot stale/error/missing ni un dato no observado en cero, cumplimiento o certeza. Un snapshot partial sólo permite usar los campos explícitamente presentes.
 
 Si no hay SoW o Gantt disponible, indica que el análisis es parcial y recomienda cargar los documentos.
 
@@ -4790,9 +4790,13 @@ Genera un análisis PM Senior con esta estructura JSON EXACTA:
           recommendations: (parsed.weeklyActions || []).map((a: any) => ({ title: a.action, description: a.rationale, priority: a.priority })),
           metricsSnapshot: {
             type: "pm_analysis",
-            jiraAdvance: jiraReport.percentComplete,
-            totalIssues: jiraReport.totalIssues,
-            doneCount: jiraReport.doneCount,
+            jiraAdvance: portfolioEvidence?.operationalProgressPct ?? null,
+            jiraEvidenceAvailability: portfolioEvidence?.jiraEvidenceAvailability ?? "missing",
+            jiraEvidenceAt: portfolioEvidence?.jiraEvidenceAt ?? null,
+            jiraOperationalPhase: portfolioEvidence?.operationalPhase ?? null,
+            jiraExecutiveHealth: portfolioEvidence?.executiveHealth ?? null,
+            jiraMilestonesFulfilled: portfolioEvidence?.milestonesFulfilled ?? null,
+            jiraMilestonesTotal: portfolioEvidence?.milestonesTotal ?? null,
             sowComplianceScore: parsed.sowComplianceScore ?? null,
             hasSoW: !!sowContent,
             hasGantt: !!ganttContent,
@@ -4820,7 +4824,12 @@ Genera un análisis PM Senior con esta estructura JSON EXACTA:
         sources: {
           sow: sowContent ? { available: true, fileName: sowFileName } : { available: false },
           gantt: ganttContent ? { available: true, fileName: ganttFileName } : { available: false },
-          jira: { available: true, projectKey },
+          jira: {
+            available: portfolioEvidence?.jiraEvidenceAvailability === "available" || portfolioEvidence?.jiraEvidenceAvailability === "partial",
+            projectKey,
+            availability: portfolioEvidence?.jiraEvidenceAvailability ?? "missing",
+            observedAt: portfolioEvidence?.jiraEvidenceAt ?? null,
+          },
           financial: { available: !!fin },
         },
       };

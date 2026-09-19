@@ -181,6 +181,7 @@ export interface PortfolioRow {
   dealId: string | null;
   projectType: string | null;
   origin: string | null;
+  jiraProjectKey: string | null;
   status: ProjectStatus;
   stageId: string;
   stageLabel: string;
@@ -565,6 +566,7 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       dealId: dealFor(project),
       projectType: project.projectType,
       origin: project.origin ?? null,
+      jiraProjectKey: project.jiraProjectKey ?? snapshot?.jiraProjectKey ?? null,
       status: project.status,
       stageId: project.currentStage,
       stageLabel: labelFor(project.currentStage),

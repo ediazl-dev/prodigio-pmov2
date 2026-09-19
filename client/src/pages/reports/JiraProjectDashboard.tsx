@@ -39,6 +39,7 @@ export default function JiraProjectDashboard() {
   const projectKey = params?.projectKey ?? "";
 
   const { data: consolidated, isLoading: loadingConsolidated } = trpc.jira.enrichedConsolidatedReport.useQuery();
+  const portfolioQuery = trpc.projects.executive.useQuery(undefined, { staleTime: 60000 });
   const report = trpc.jira.advanceReport.useQuery({ projectKey }, { enabled: !!projectKey });
   const generateReport = trpc.jira.generateStatusReport.useMutation();
   const generatePMAnalysis = trpc.advance.generatePMAnalysis.useMutation();
@@ -61,12 +62,45 @@ export default function JiraProjectDashboard() {
     return consolidated.projects.find((p: any) => p.projectKey === projectKey);
   }, [consolidated, projectKey]);
 
-  const data = report.data;
+  const liveReportData = report.data;
+
+  const portfolioByKey = useMemo(() => (
+    portfolioQuery.data?.portfolio?.find((row: any) => row.jiraProjectKey === projectKey) ?? null
+  ), [portfolioQuery.data, projectKey]);
 
   const pmoProjectId = useMemo(() => {
-    if (!projectInfo?.pmoProjectId) return null;
-    return projectInfo.pmoProjectId as number;
-  }, [projectInfo]);
+    if (projectInfo?.pmoProjectId) return projectInfo.pmoProjectId as number;
+    return portfolioByKey?.projectId ?? null;
+  }, [projectInfo, portfolioByKey]);
+
+  const portfolioEvidence = useMemo(() => {
+    if (portfolioByKey) return portfolioByKey;
+    if (!pmoProjectId) return null;
+    return portfolioQuery.data?.portfolio?.find((row: any) => row.projectId === pmoProjectId) ?? null;
+  }, [portfolioQuery.data, pmoProjectId, portfolioByKey]);
+
+  const data = liveReportData ?? (portfolioEvidence ? {
+    projectName: projectInfo?.projectName ?? portfolioEvidence.projectName ?? projectKey,
+    totalIssues: 0,
+    doneCount: 0,
+    inProgressCount: 0,
+    toDoCount: 0,
+    percentComplete: portfolioEvidence.operationalProgressPct ?? 0,
+    totalOriginalEstimateHours: 0,
+    totalTimeSpentHours: 0,
+    epics: [],
+    milestones: [],
+    milestonesCumplidos: portfolioEvidence.milestonesFulfilled ?? 0,
+    milestonesPendientes: portfolioEvidence.milestonesTotal != null && portfolioEvidence.milestonesFulfilled != null
+      ? Math.max(0, portfolioEvidence.milestonesTotal - portfolioEvidence.milestonesFulfilled)
+      : 0,
+    risks: [],
+    scopeChanges: [],
+    team: [],
+    byStatus: [],
+    byType: [],
+    snapshotOnly: true,
+  } : null);
 
   const financialKPIs = trpc.jira.getProjectFinancialKPIs.useQuery(
     { projectKey, pmoProjectId: pmoProjectId ?? undefined },
@@ -136,10 +170,10 @@ export default function JiraProjectDashboard() {
   if (!projectKey) {
     return (<div className="min-h-screen flex items-center justify-center" style={{ background: C.g100 }}><p style={{ color: C.g400, fontSize: 14 }}>No se especificó un proyecto.</p></div>);
   }
-  if (report.isLoading || loadingConsolidated) {
+  if (!data && (report.isLoading || loadingConsolidated || portfolioQuery.isLoading)) {
     return (<div className="min-h-screen flex items-center justify-center" style={{ background: C.g100 }}><Loader2 className="animate-spin mr-2" style={{ color: C.accent }} size={24} /><span style={{ color: C.g400, fontSize: 14 }}>Cargando datos del proyecto...</span></div>);
   }
-  if (report.error || !data) {
+  if (!data) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: C.g100 }}>
         <div className="text-center">
@@ -152,9 +186,18 @@ export default function JiraProjectDashboard() {
     );
   }
 
-  const percentComplete = data.percentComplete;
+  const percentComplete = portfolioEvidence?.operationalProgressPct ?? data.percentComplete;
+  const isSnapshotOnly = Boolean((data as any).snapshotOnly);
   const jiraSemaphore = semaphoreFromPct(percentComplete);
-  const effectiveSemaphore = pmAnalysis?.overallHealth ?? jiraSemaphore;
+  const evidenceHealth = String(portfolioEvidence?.executiveHealth ?? "").toLowerCase();
+  const evidenceSemaphore = evidenceHealth.includes("rojo") || evidenceHealth.includes("crít")
+    ? "ROJO"
+    : evidenceHealth.includes("amarillo") || evidenceHealth.includes("naranjo") || evidenceHealth.includes("riesgo")
+      ? "AMARILLO"
+      : evidenceHealth.includes("verde") || evidenceHealth.includes("estable")
+        ? "VERDE"
+        : null;
+  const effectiveSemaphore = evidenceSemaphore ?? jiraSemaphore;
   const semColor = semaphoreColor(effectiveSemaphore);
   const semBg = semaphoreBg(effectiveSemaphore);
 
@@ -165,8 +208,8 @@ export default function JiraProjectDashboard() {
     pct: (e.totalSubtasks ?? 0) > 0 ? Math.round(((e.doneSubtasks ?? 0) / (e.totalSubtasks ?? 0)) * 100) : 0,
     statusCategory: e.statusCategory,
   }));
-  const milestonesDone = data.milestonesCumplidos;
-  const milestonesTotal = data.milestonesCumplidos + data.milestonesPendientes;
+  const milestonesDone = portfolioEvidence?.milestonesFulfilled ?? data.milestonesCumplidos;
+  const milestonesTotal = portfolioEvidence?.milestonesTotal ?? (data.milestonesCumplidos + data.milestonesPendientes);
 
   const analysisDate = latestAnalysisQ.data?.found ? latestAnalysisQ.data.createdAt : null;
   const daysSinceAnalysis = latestAnalysisQ.data?.found ? latestAnalysisQ.data.daysSince : null;
@@ -214,6 +257,8 @@ export default function JiraProjectDashboard() {
                 {projectInfo?.projectName ?? data.projectName}
               </h1>
               {projectInfo?.clientName && <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>{projectInfo.clientName}</p>}
+              {portfolioEvidence && <p style={{ fontSize: 10.5, color: "rgba(255,255,255,.45)", marginTop: 4 }}>Fase Jira: {portfolioEvidence.operationalPhase ?? "N/D"} · PM: {portfolioEvidence.pmName ?? "N/D"} · snapshot {portfolioEvidence.jiraEvidenceAvailability}</p>}
+              {(data as any).snapshotOnly && <p style={{ fontSize: 10.5, color: C.gold2, marginTop: 4 }}>Vista resumida desde snapshot local; épicas, equipo y detalle de issues live están N/D.</p>}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {pmoProjectId && (
@@ -282,12 +327,12 @@ export default function JiraProjectDashboard() {
           {/* KPI STRIP */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginTop: 16 }}>
             {[
-              { icon: Target, label: "Avance", value: `${percentComplete}%`, sub: `${data.doneCount}/${data.totalIssues}`, color: semaphoreColor(semaphoreFromPct(percentComplete)) },
+              { icon: Target, label: "Avance", value: `${percentComplete}%`, sub: isSnapshotOnly ? "snapshot Jira" : `${data.doneCount}/${data.totalIssues}`, color: semaphoreColor(semaphoreFromPct(percentComplete)) },
               { icon: Milestone, label: "Hitos", value: `${milestonesDone}/${milestonesTotal}`, sub: `${pct(milestonesDone, milestonesTotal)}%`, color: milestonesDone === milestonesTotal && milestonesTotal > 0 ? C.teal : C.gold },
-              { icon: Flag, label: "Épicas", value: `${data.epics.length}`, sub: `${data.epics.filter((e: any) => e.statusCategory === "Done").length} listas`, color: C.accent },
-              { icon: Clock, label: "En Progreso", value: `${data.inProgressCount}`, sub: "activos", color: C.blue2 },
-              { icon: ShieldAlert, label: "Riesgos", value: `${data.risks.length}`, sub: `${data.risks.filter((r: any) => r.statusCategory !== "Done").length} abiertos`, color: data.risks.filter((r: any) => r.statusCategory !== "Done").length > 0 ? C.red : C.teal },
-              { icon: Users, label: "Equipo", value: `${data.team.length}`, sub: "miembros", color: C.teal2 },
+              { icon: Flag, label: "Épicas", value: isSnapshotOnly ? "N/D" : `${data.epics.length}`, sub: isSnapshotOnly ? "detalle live no disponible" : `${data.epics.filter((e: any) => e.statusCategory === "Done").length} listas`, color: C.accent },
+              { icon: Clock, label: "En Progreso", value: isSnapshotOnly ? "N/D" : `${data.inProgressCount}`, sub: isSnapshotOnly ? "detalle live no disponible" : "activos", color: C.blue2 },
+              { icon: ShieldAlert, label: "Riesgos", value: `${portfolioEvidence?.openRisks ?? data.risks.length}`, sub: portfolioEvidence?.highRisksOpen != null ? `${portfolioEvidence.highRisksOpen} altos · ${portfolioEvidence.riskSource}` : `${data.risks.filter((r: any) => r.statusCategory !== "Done").length} abiertos`, color: (portfolioEvidence?.highRisksOpen ?? data.risks.filter((r: any) => r.statusCategory !== "Done").length) > 0 ? C.red : C.teal },
+              { icon: Users, label: "Equipo", value: isSnapshotOnly ? "N/D" : `${data.team.length}`, sub: isSnapshotOnly ? "detalle live no disponible" : "miembros", color: C.teal2 },
             ].map((kpi, i) => (
               <div key={i} style={{
                 background: "rgba(255,255,255,.06)", borderRadius: 10, padding: "12px 14px",
@@ -332,7 +377,7 @@ export default function JiraProjectDashboard() {
           const hhConsumed = data.totalTimeSpentHours ?? 0;
           const hhBudgeted = finKPIs?.presupuestoHH ?? data.totalOriginalEstimateHours ?? 0;
           const hhPct = hhBudgeted > 0 ? Math.round((hhConsumed / hhBudgeted) * 100) : 0;
-          const milestonesPctBilled = milestonesTotal > 0 ? Math.round((milestonesDone / milestonesTotal) * 100) : 0;
+          const milestonesPctClosed = milestonesTotal > 0 ? Math.round((milestonesDone / milestonesTotal) * 100) : 0;
           const sortedStatuses = [...data.byStatus].sort((a: any, b: any) => b.count - a.count);
           const maxStatusCount = sortedStatuses.length > 0 ? sortedStatuses[0].count : 1;
 
@@ -346,7 +391,7 @@ export default function JiraProjectDashboard() {
                 { label: "HH Consumidas", icon: Clock, value: hhPct, text: hhConsumed > 0 ? `${hhPct}% del presupuesto` : "Sin registro", color: hhPct > 100 ? C.red : hhPct > 85 ? C.gold : C.blue2, centerText: hhConsumed > 0 ? hhConsumed.toLocaleString("es-CL") : "--" },
                 { label: "HH Presupuesto", icon: Timer, value: 100, text: finKPIs?.found ? "Desde planilla" : data.totalOriginalEstimateHours > 0 ? "Estimado JIRA" : "No disponible", color: C.teal, centerText: hhBudgeted > 0 ? hhBudgeted.toLocaleString("es-CL") : "--", isStatic: true },
                 { label: "Hitos", icon: Milestone, value: milestonesTotal > 0 ? (milestonesDone / milestonesTotal) * 100 : 0, text: milestonesDone === milestonesTotal && milestonesTotal > 0 ? "Todos cumplidos" : `${milestonesTotal - milestonesDone} pendientes`, color: milestonesDone === milestonesTotal && milestonesTotal > 0 ? C.teal : C.gold, centerText: `${milestonesDone}/${milestonesTotal}` },
-                { label: "Facturado", icon: FileCheck, value: milestonesPctBilled, text: "Basado en hitos cerrados", color: milestonesPctBilled >= 80 ? C.teal : milestonesPctBilled >= 40 ? C.gold : C.red },
+                { label: "Hitos cerrados", icon: FileCheck, value: milestonesPctClosed, text: "Evidencia Jira; no equivale a facturación", color: milestonesPctClosed >= 80 ? C.teal : milestonesPctClosed >= 40 ? C.gold : C.red },
               ].map((kpi, i) => (
                 <div key={i} style={{
                   background: "#fff", borderRadius: 12, padding: "18px 16px", textAlign: "center",
@@ -733,7 +778,7 @@ export default function JiraProjectDashboard() {
                 <Flag size={15} style={{ color: C.gold }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Avance por Épica ({epicData.length})</span>
               </div>
-              {epicData.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>No se encontraron épicas.</p> : (
+              {epicData.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>{isSnapshotOnly ? "Detalle de épicas N/D en el snapshot local." : "No se encontraron épicas."}</p> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {epicData.map((epic: any, i: number) => (
                     <div key={i} className="flex items-center gap-4">
@@ -802,9 +847,9 @@ export default function JiraProjectDashboard() {
             <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
               <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
                 <ShieldAlert size={15} style={{ color: C.red }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Riesgos del Proyecto ({data.risks.length})</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Riesgos del Proyecto ({isSnapshotOnly ? portfolioEvidence?.openRisks ?? "N/D" : data.risks.length})</span>
               </div>
-              {data.risks.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>No se encontraron riesgos registrados.</p> : (
+              {data.risks.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>{isSnapshotOnly ? "El snapshot conserva conteos; el detalle de cada riesgo está N/D." : "No se encontraron riesgos registrados."}</p> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {data.risks.map((r: any, i: number) => {
                     const isOpen = r.statusCategory !== "Done";
@@ -836,9 +881,9 @@ export default function JiraProjectDashboard() {
             <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 16px rgba(10,22,40,.08)" }}>
               <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
                 <Users size={15} style={{ color: C.accent }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Equipo del Proyecto ({data.team.length} miembros)</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>Equipo del Proyecto ({isSnapshotOnly ? "N/D" : `${data.team.length} miembros`})</span>
               </div>
-              {data.team.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>No se encontraron miembros del equipo.</p> : (
+              {data.team.length === 0 ? <p style={{ fontSize: 12, color: C.g400 }}>{isSnapshotOnly ? "Detalle del equipo N/D en el snapshot local." : "No se encontraron miembros del equipo."}</p> : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                   {data.team.map((member: any, i: number) => {
                     const memberPct = member.total > 0 ? Math.round((member.done / member.total) * 100) : 0;

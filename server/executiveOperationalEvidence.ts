@@ -13,7 +13,7 @@ export type JiraOperationalSnapshot = {
 
 export type ExecutiveOperationalEvidence = {
   source: "Jira";
-  availability: "available" | "unavailable";
+  availability: "available" | "partial" | "stale" | "error" | "missing" | "unavailable";
   observedAt: string | null;
   issueProgressPct: number | null;
   totalIssues: number | null;
@@ -26,6 +26,17 @@ export type ExecutiveOperationalEvidence = {
   highOpenRisks: number | null;
   scopeChanges: number | null;
   governanceRule: "secondary_penalty_only";
+};
+
+export type JiraPortfolioOperationalSnapshot = {
+  jiraEvidenceAvailability: "available" | "partial" | "stale" | "error" | "missing";
+  jiraEvidenceAt: string | null;
+  operationalProgressPct: number | null;
+  milestonesFulfilled: number | null;
+  milestonesTotal: number | null;
+  highRisksOpen: number | null;
+  operationalPhase: string | null;
+  executiveHealth: string | null;
 };
 
 function boundedPercent(value: number | null | undefined) {
@@ -69,4 +80,65 @@ export function buildExecutiveOperationalEvidence(
     scopeChanges: Array.isArray(report.scopeChanges) ? report.scopeChanges.length : 0,
     governanceRule: "secondary_penalty_only",
   };
+}
+
+export function buildExecutiveOperationalEvidenceFromSnapshot(
+  snapshot: JiraPortfolioOperationalSnapshot | null | undefined,
+): ExecutiveOperationalEvidence & { operationalPhase: string | null; executiveHealth: string | null } {
+  const usable = snapshot?.jiraEvidenceAvailability === "available" || snapshot?.jiraEvidenceAvailability === "partial";
+  if (!snapshot || !usable) {
+    return {
+      source: "Jira",
+      availability: snapshot?.jiraEvidenceAvailability ?? "missing",
+      observedAt: snapshot?.jiraEvidenceAt ?? null,
+      issueProgressPct: null,
+      totalIssues: null,
+      doneIssues: null,
+      inProgressIssues: null,
+      pendingIssues: null,
+      milestoneIssueProgressPct: null,
+      closedMilestoneIssues: null,
+      totalMilestoneIssues: null,
+      highOpenRisks: null,
+      scopeChanges: null,
+      governanceRule: "secondary_penalty_only",
+      operationalPhase: null,
+      executiveHealth: null,
+    };
+  }
+  const milestoneIssueProgressPct = snapshot.milestonesTotal && snapshot.milestonesFulfilled != null
+    ? boundedPercent((snapshot.milestonesFulfilled / snapshot.milestonesTotal) * 100)
+    : null;
+  return {
+    source: "Jira",
+    availability: snapshot.jiraEvidenceAvailability,
+    observedAt: snapshot.jiraEvidenceAt,
+    issueProgressPct: boundedPercent(snapshot.operationalProgressPct),
+    totalIssues: null,
+    doneIssues: null,
+    inProgressIssues: null,
+    pendingIssues: null,
+    milestoneIssueProgressPct,
+    closedMilestoneIssues: snapshot.milestonesFulfilled,
+    totalMilestoneIssues: snapshot.milestonesTotal,
+    highOpenRisks: snapshot.highRisksOpen,
+    scopeChanges: null,
+    governanceRule: "secondary_penalty_only",
+    operationalPhase: snapshot.operationalPhase,
+    executiveHealth: snapshot.executiveHealth,
+  };
+}
+
+export function hasCurrentAgenticEvidenceContract(metricsSnapshot: unknown): boolean {
+  let value = metricsSnapshot;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return false;
+    }
+  }
+  if (!value || typeof value !== "object") return false;
+  const availability = (value as Record<string, unknown>).jiraEvidenceAvailability;
+  return ["available", "partial", "stale", "error", "missing"].includes(String(availability ?? ""));
 }
