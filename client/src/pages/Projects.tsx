@@ -157,7 +157,7 @@ export default function Projects() {
   }
 
   return (
-    <div className="space-y-3.5 pb-8">
+    <div className="max-w-full min-w-0 space-y-3.5 overflow-hidden pb-8">
       <section className="relative overflow-hidden rounded-2xl bg-[#0A1628] px-5 py-4 text-white shadow-[0_18px_50px_rgba(10,22,40,0.18)] sm:px-6">
         <span className="absolute left-0 top-0 h-full w-[5px] bg-[#E91E8C]" aria-hidden="true" />
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

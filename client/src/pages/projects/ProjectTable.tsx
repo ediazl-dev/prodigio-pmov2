@@ -37,15 +37,15 @@ interface ProjectTableProps {
 }
 
 const COLUMNS: Array<{ key: SortKey | null; label: string; className: string; align?: "right" | "center" }> = [
-  { key: "name", label: "Proyecto", className: "w-[300px]" },
-  { key: "client", label: "Cliente", className: "w-[150px]" },
-  { key: "stage", label: "Etapa", className: "w-[190px]" },
-  { key: "plazo", label: "Plazo", className: "w-[150px]" },
-  { key: "urgency", label: "Estado", className: "w-[104px]", align: "center" },
-  { key: null, label: "PM", className: "w-[130px]" },
-  { key: "risks", label: "Riesgos", className: "w-[92px]", align: "center" },
-  { key: "amount", label: "Contratado", className: "w-[130px]", align: "right" },
-  { key: null, label: "", className: "w-[40px]" },
+  { key: "name", label: "Proyecto", className: "w-[260px] xl:w-[24%]" },
+  { key: "client", label: "Cliente", className: "w-[115px] xl:w-[11%]" },
+  { key: "stage", label: "Etapa", className: "w-[160px] xl:w-[15%]" },
+  { key: "plazo", label: "Plazo", className: "w-[115px] xl:w-[11%]" },
+  { key: "urgency", label: "Estado", className: "w-[90px] xl:w-[9%]", align: "center" },
+  { key: null, label: "PM", className: "w-[115px] xl:w-[11%]" },
+  { key: "risks", label: "Riesgos", className: "w-[70px] xl:w-[6%]", align: "center" },
+  { key: "amount", label: "Contratado", className: "w-[112px] xl:w-[10%]", align: "right" },
+  { key: null, label: "", className: "w-[36px] xl:w-[3%]" },
 ];
 
 const PIPELINE_STAGE_IDS = ["sow", "jira", "risks", "planning", "design", "closure"] as const;
@@ -55,12 +55,12 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
 
   return (
     <div
-      className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
+      className="w-full max-w-full min-w-0 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
       role="region"
       aria-label="Portafolio de proyectos; desplázate horizontalmente en pantallas estrechas"
       tabIndex={0}
     >
-      <table className="w-full min-w-[1080px] border-collapse text-left">
+      <table className="w-full min-w-[1040px] table-fixed border-collapse text-left xl:min-w-0">
         <caption className="sr-only">
           Portafolio completo con proyecto, cliente, etapa, plazo, estado, PM, riesgos y monto contratado.
         </caption>
