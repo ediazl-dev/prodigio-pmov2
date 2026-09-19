@@ -646,4 +646,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J1: Integrar motor y adapter de insights; agregar `parent` preservando fase, avance, salud y estado financiero Jira actuales.
 - [x] J2: Reemplazar la lista por tabla accesible; medir avance por hitos, excluir cerrados y mantener N/D fuera del promedio.
 - [x] J3: Integrar manualmente los seis paneles en `JiraProjectDashboard.tsx` sin tocar IA, KPI financieros ni PPTX.
-- [ ] J4: Certificar 34 pruebas nuevas, suite de regresión, TypeScript, build, accesibilidad y responsive; guardar checkpoint final.
+- [x] J4: Certificar 34 pruebas nuevas, suite de regresión, TypeScript, build, accesibilidad y responsive; guardar checkpoint final.
