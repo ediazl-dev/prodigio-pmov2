@@ -620,3 +620,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F4: Mejorar historial con último éxito, frescura y diagnóstico por fase sin revelar credenciales.
 - [x] F5: Respaldar configuración, cargar el secreto protegido y ejecutar preflight real.
 - [x] F6: Publicar, ejecutar corrida controlada, certificar el Heartbeat HTTP real y paginar el historial.
+
+## Corrección general del Portafolio — fuentes vinculadas 2026-09-18
+
+- [x] R0: Confirmar checkpoint `c9b4297`, refs alineadas, árbol limpio y jobs Jira/finanzas existentes.
+- [ ] A1: Crear snapshot operativo Jira GET-only y su persistencia idempotente para proyectos vinculados.
+- [ ] A2: Integrar refresco manual/programado al job Jira existente sin escrituras en Jira.
+- [ ] B1: Reconstruir el read model del portafolio con fase Jira, pipeline PMO, hitos, PM, riesgos y monto financiero trazables.
+- [ ] B2: Corregir la tabla para separar ciclo de vida, salud, fase, pipeline, plazo contractual y evidencia N/D.
+- [ ] C1: Certificar Tanner como piloto y validar los demás proyectos vinculados y nativos.
+- [ ] C2: Ejecutar build, pruebas, revisión responsive, documentación y checkpoint final.
