@@ -29,6 +29,15 @@ describe("Google Drive service account credentials", () => {
     expect(parsed.client_email).toBe(SERVICE_ACCOUNT.client_email);
   });
 
+  it("reconstruye los marcadores PEM cuando el gestor conserva sólo el cuerpo PKCS8", () => {
+    const parsed = parseGoogleServiceAccountCredentials(JSON.stringify({
+      ...SERVICE_ACCOUNT,
+      private_key: "A".repeat(1704),
+    }));
+    expect(parsed.private_key).toMatch(/^-----BEGIN PRIVATE KEY-----\n/);
+    expect(parsed.private_key).toMatch(/\n-----END PRIVATE KEY-----\n$/);
+  });
+
   it("rechaza credenciales incompletas con un código no sensible", () => {
     expect(() => parseGoogleServiceAccountCredentials(JSON.stringify({ type: "service_account" }))).toThrow(
       GoogleDriveCredentialError,

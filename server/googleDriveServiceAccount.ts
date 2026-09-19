@@ -32,6 +32,22 @@ type ServiceAccountCredentials = {
   token_uri?: string;
 };
 
+function normalizePrivateKey(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/\\n/g, "\n")
+    .replace(/-----BEGIN\s*PRIVATE\s*KEY-----/i, "-----BEGIN PRIVATE KEY-----")
+    .replace(/-----END\s*PRIVATE\s*KEY-----/i, "-----END PRIVATE KEY-----");
+  if (normalized.includes("BEGIN PRIVATE KEY") && normalized.includes("END PRIVATE KEY")) {
+    return `${normalized}\n`;
+  }
+
+  const body = normalized.replace(/\s+/g, "");
+  if (body.length < 1000 || !/^[A-Za-z0-9+/=]+$/.test(body)) return normalized;
+  const lines = body.match(/.{1,64}/g) ?? [];
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----\n`;
+}
+
 export class GoogleDriveCredentialError extends Error {
   constructor(
     public readonly code:
@@ -78,12 +94,14 @@ export function parseGoogleServiceAccountCredentials(raw: string): ServiceAccoun
   }
 
   const credentials = parsed as Partial<ServiceAccountCredentials>;
+  const normalizedPrivateKey = typeof credentials.private_key === "string"
+    ? normalizePrivateKey(credentials.private_key)
+    : "";
   if (
     credentials.type !== "service_account" ||
     typeof credentials.client_email !== "string" ||
     !credentials.client_email.includes("@") ||
-    typeof credentials.private_key !== "string" ||
-    !credentials.private_key.includes("BEGIN PRIVATE KEY")
+    !normalizedPrivateKey.includes("BEGIN PRIVATE KEY")
   ) {
     throw new GoogleDriveCredentialError(
       "GOOGLE_SERVICE_ACCOUNT_INVALID",
@@ -91,7 +109,7 @@ export function parseGoogleServiceAccountCredentials(raw: string): ServiceAccoun
     );
   }
 
-  return credentials as ServiceAccountCredentials;
+  return { ...credentials, private_key: normalizedPrivateKey } as ServiceAccountCredentials;
 }
 
 class ServiceAccountTokenProvider implements DriveAccessTokenProvider {
