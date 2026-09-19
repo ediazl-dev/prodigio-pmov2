@@ -71,6 +71,7 @@ describe("portfolio · etapa", () => {
     // Está en "Avance" (índice 4) pero solo tiene 2 etapas cerradas.
     expect(nexos?.stageIndex).toBe(4);
     expect(nexos?.stagesClosed).toBe(2);
+    expect(nexos?.closedStageIds).toEqual(["sow", "jira"]);
     expect(nexos?.totalStages).toBe(6);
   });
 
@@ -130,7 +131,7 @@ describe("portfolio · PM, monto y riesgos", () => {
     expect(portfolio.find(row => row.projectId === 1)?.currency).toBe("USD");
   });
 
-  it("cuenta solo los riesgos de impacto alto que siguen abiertos", () => {
+  it("cuenta solo los riesgos confirmados de impacto alto que siguen abiertos", () => {
     const { portfolio } = buildExecutivePortfolio(baseInput());
     expect(portfolio.find(row => row.projectId === 1)?.highRisksOpen).toBe(2);
     expect(portfolio.find(row => row.projectId === 2)?.highRisksOpen).toBe(0);

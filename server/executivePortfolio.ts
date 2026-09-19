@@ -147,6 +147,7 @@ export interface PortfolioRow {
   totalStages: number;
   /** Etapas efectivamente cerradas, no la posición del cursor. */
   stagesClosed: number;
+  closedStageIds: string[];
   daysUsed: number | null;
   daysAllowed: number | null;
   overDays: number | null;
@@ -296,9 +297,11 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   const completedStages = input.compliance.filter(
     detail => detail.status === "on_time" || detail.status === "late",
   );
-  const closedStagesByProject = new Map<number, number>();
+  const closedStagesByProject = new Map<number, Set<string>>();
   for (const detail of completedStages) {
-    closedStagesByProject.set(detail.projectId, (closedStagesByProject.get(detail.projectId) ?? 0) + 1);
+    const closedStageIds = closedStagesByProject.get(detail.projectId) ?? new Set<string>();
+    closedStageIds.add(detail.stageId);
+    closedStagesByProject.set(detail.projectId, closedStageIds);
   }
 
   /* ── Etapas en curso: lo que se atrasa hoy ──────────────────────────────── */
@@ -392,7 +395,8 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       stageLabel: labelFor(project.currentStage),
       stageIndex: STAGE_ORDER.indexOf(project.currentStage),
       totalStages: STAGE_ORDER.length,
-      stagesClosed: closedStagesByProject.get(project.id) ?? 0,
+      stagesClosed: closedStagesByProject.get(project.id)?.size ?? 0,
+      closedStageIds: Array.from(closedStagesByProject.get(project.id) ?? []),
       daysUsed: deadline?.daysUsed ?? null,
       daysAllowed: deadline?.daysAllowed ?? null,
       overDays: deadline?.overDays ?? null,
