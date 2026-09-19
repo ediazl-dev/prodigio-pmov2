@@ -244,6 +244,7 @@ export default function ProjectDetail() {
   }
 
   const isLinked = (data as any).origin === "linked";
+  const portfolioEvidence = (data as any).portfolioEvidence as any | null;
   const stagesMap = Object.fromEntries((data.stages ?? []).map((s: any) => [s.stageId, s]));
   const closuresMap = Object.fromEntries(((data as any).stageClosures ?? []).map((closure: any) => [closure.stageId, closure]));
   const status = STATUS_CONFIG[data.status] ?? STATUS_CONFIG.activo;
@@ -289,11 +290,12 @@ export default function ProjectDetail() {
                 {data.clientEmail && <p style={{ color: "rgba(255,255,255,.4)", fontSize: 11, marginTop: 2 }}>{data.clientEmail}</p>}
               </div>
               <div style={{ textAlign: "right" }}>
-                {data.totalAmount && (
+                {portfolioEvidence?.amount != null && portfolioEvidence?.currency && (
                   <p style={{ fontSize: 26, fontWeight: 800, color: C.teal, fontFamily: "'Poppins', 'Inter', sans-serif" }}>
-                    {data.currency} {Number(data.totalAmount).toLocaleString()}
+                    {portfolioEvidence.currency} {Number(portfolioEvidence.amount).toLocaleString("es-CL")}
                   </p>
                 )}
+                <p style={{ fontSize: 9, color: "rgba(255,255,255,.45)", marginTop: 2 }}>Contratado · {portfolioEvidence?.amountSource ?? "N/D"}</p>
                 {data.projectType && <span style={{ fontSize: 11, color: "rgba(255,255,255,.5)", textTransform: "capitalize" }}>{data.projectType}</span>}
               </div>
             </div>
@@ -311,6 +313,22 @@ export default function ProjectDetail() {
 
         {/* Body */}
         <div style={{ maxWidth: 1100, margin: "-16px auto 0", padding: "0 24px 40px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 20 }}>
+            {[
+              { label: "Fase Jira", value: portfolioEvidence?.operationalPhase ?? "N/D", detail: portfolioEvidence?.operationalProgressPct != null ? `Avance ${portfolioEvidence.operationalProgressPct}%` : "Avance N/D" },
+              { label: "Pipeline PMO", value: portfolioEvidence?.stageLabel ?? "N/D", detail: `${portfolioEvidence?.stagesClosed ?? completedCount}/6 etapas cerradas` },
+              { label: "Hitos Jira", value: portfolioEvidence?.milestonesFulfilled != null && portfolioEvidence?.milestonesTotal != null ? `${portfolioEvidence.milestonesFulfilled}/${portfolioEvidence.milestonesTotal}` : "N/D", detail: `Fuente: ${portfolioEvidence?.milestoneSource ?? "missing"}` },
+              { label: "Project Manager", value: portfolioEvidence?.pmName ?? "N/D", detail: `Fuente: ${portfolioEvidence?.pmSource ?? "missing"}` },
+              { label: "Riesgos", value: portfolioEvidence?.openRisks != null ? `${portfolioEvidence.openRisks} abiertos` : "N/D", detail: portfolioEvidence?.highRisksOpen != null ? `${portfolioEvidence.highRisksOpen} altos · ${portfolioEvidence.riskSource}` : `Fuente: ${portfolioEvidence?.riskSource ?? "missing"}` },
+            ].map((item) => (
+              <div key={item.label} style={{ background: C.cardBg, borderRadius: 12, padding: "14px 16px", boxShadow: "0 2px 12px rgba(10,22,40,.07)", border: `1px solid ${C.border}` }}>
+                <p style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 800, color: C.textMuted }}>{item.label}</p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: C.textPrimary, marginTop: 5, overflowWrap: "anywhere" }}>{item.value}</p>
+                <p style={{ fontSize: 9, color: C.textSecondary, marginTop: 4 }}>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Homologated canonical pipeline */}
           <div style={{ background: C.cardBg, borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 16px rgba(10,22,40,.08)", border: `1px solid ${C.border}`, marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
@@ -318,7 +336,7 @@ export default function ProjectDetail() {
                 <p style={{ fontSize: 14, fontWeight: 800, color: C.textPrimary }}>Pipeline PMO canónico</p>
                 <p style={{ fontSize: 11, color: C.textSecondary, marginTop: 3 }}>Las etapas avanzan en secuencia y solo se cierran con evidencia validada. Un estado Jira no equivale a cierre PMO.</p>
               </div>
-              <div style={{ textAlign: "right" }}><span style={{ fontSize: 11, fontWeight: 700, color: C.teal }}>{homologatedCount} de 6 etapas homologadas</span>{completedCount > homologatedCount && <p style={{ fontSize: 9, color: "#b45309", marginTop: 2 }}>{completedCount - homologatedCount} estados heredados con evidencia [PENDIENTE]</p>}</div>
+              <div style={{ textAlign: "right" }}><span style={{ fontSize: 11, fontWeight: 700, color: C.teal }}>{homologatedCount} de 6 etapas homologadas</span>{completedCount > homologatedCount && <p style={{ fontSize: 9, color: "#b45309", marginTop: 2 }}>{completedCount - homologatedCount} estados heredados con evidencia N/D</p>}</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(112px, 1fr))", gap: 8, overflowX: "auto", marginTop: 14, paddingBottom: 4 }}>
               {STAGES.map((stage, index) => {
@@ -330,7 +348,7 @@ export default function ProjectDetail() {
                 return <button key={stage.id} disabled={stageStatus === "locked"} onClick={() => { if (stageStatus === "locked") return; if (isLegacyGap && canManage) setHomologationStage(stage.id); else setLocation(`/projects/${projectId}/${stage.path}`); }} style={{ minWidth: 112, textAlign: "left", borderRadius: 10, border: `1px solid ${hasEvidence ? "#a7f3d0" : isLegacyGap ? "#fed7aa" : isActiveStage ? `${stage.color}70` : C.border}`, background: hasEvidence ? "#ecfdf5" : isLegacyGap ? "#fff7ed" : isActiveStage ? `${stage.color}0d` : "#f8fafc", padding: "10px 9px", cursor: stageStatus === "locked" ? "not-allowed" : "pointer", opacity: stageStatus === "locked" ? .62 : 1 }}>
                   <p style={{ fontSize: 9, fontWeight: 800, color: hasEvidence ? C.green : isLegacyGap ? "#b45309" : isActiveStage ? stage.color : C.textMuted }}>ETAPA {index + 1}</p>
                   <p style={{ fontSize: 11, fontWeight: 700, color: C.textPrimary, marginTop: 3 }}>{stage.label}</p>
-                  <p style={{ fontSize: 9, color: hasEvidence ? C.green : isLegacyGap ? "#b45309" : isActiveStage ? stage.color : C.textMuted, marginTop: 5 }}>{hasEvidence ? "Cerrada con evidencia" : isLegacyGap ? canManage ? "Estado heredado · seleccionar para conciliar" : "Estado heredado · evidencia [PENDIENTE]" : isActiveStage ? "En progreso · evidencia [PENDIENTE]" : "Bloqueada"}</p>
+                  <p style={{ fontSize: 9, color: hasEvidence ? C.green : isLegacyGap ? "#b45309" : isActiveStage ? stage.color : C.textMuted, marginTop: 5 }}>{hasEvidence ? "Cerrada con evidencia" : isLegacyGap ? canManage ? "Estado heredado · seleccionar para conciliar" : "Estado heredado · evidencia N/D" : isActiveStage ? "En progreso · evidencia N/D" : "Bloqueada"}</p>
                 </button>;
               })}
             </div>
@@ -352,8 +370,8 @@ export default function ProjectDetail() {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary }}>Proyecto Vinculado — Dashboard Ejecutivo</p>
-              <p style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
-                Este proyecto fue vinculado desde JIRA. Accede al dashboard ejecutivo que integra datos JIRA y financieros en tiempo real.
+                <p style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+                Este proyecto fue vinculado desde JIRA. El dashboard integra evidencia Jira capturada y datos financieros con procedencia explícita.
               </p>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>

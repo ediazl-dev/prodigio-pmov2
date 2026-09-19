@@ -19,6 +19,23 @@ const mocks = vi.hoisted(() => {
     projectType: "implementación",
     currency: "CLP",
     totalAmount: null,
+    portfolioEvidence: {
+      operationalPhase: "Construcción + QA",
+      operationalProgressPct: 31,
+      stageLabel: "Análisis y Diseño",
+      stagesClosed: 0,
+      milestonesFulfilled: 8,
+      milestonesTotal: 10,
+      milestoneSource: "jira_snapshot",
+      pmName: "Eduardo Mercado",
+      pmSource: "jira_snapshot",
+      openRisks: 23,
+      highRisksOpen: 12,
+      riskSource: "jira_snapshot",
+      amount: 8200,
+      currency: "UF",
+      amountSource: "financial_data",
+    },
     stages: [
       { stageId: "sow", status: "in_progress" },
       { stageId: "jira", status: "locked" },
@@ -147,6 +164,12 @@ describe("ProjectDetail H7 integrado", () => {
     render(<ProjectDetail />);
 
     expect(screen.getByRole("heading", { name: "Proyecto H7 Integrado" })).toBeTruthy();
+    expect(screen.getByText("Construcción + QA")).toBeTruthy();
+    expect(screen.getByText("Avance 31%")).toBeTruthy();
+    expect(screen.getByText("Análisis y Diseño")).toBeTruthy();
+    expect(screen.getByText("8/10")).toBeTruthy();
+    expect(screen.getByText("Eduardo Mercado")).toBeTruthy();
+    expect(screen.getByText("23 abiertos")).toBeTruthy();
     expect(screen.getByText("Homologación Jira → Prodigio")).toBeTruthy();
     expect(screen.getByText("Historial de sincronización")).toBeTruthy();
     expect(screen.getByText("Gantt contractual [PENDIENTE]")).toBeTruthy();

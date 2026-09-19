@@ -371,14 +371,18 @@ const projectsRouter = router({
   get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
     const project = await getProjectById(input.id);
     if (!project) throw new TRPCError({ code: "NOT_FOUND" });
-    const stages = await getProjectStages(input.id);
-    const sow = await getSowByProject(input.id);
-    const stageClosures = await getAllStageClosures(input.id);
-    const onboarding = project.origin === "linked" ? await getJiraOnboardingByProjectId(input.id) : null;
+    const [stages, sow, stageClosures, onboarding, executivePortfolio] = await Promise.all([
+      getProjectStages(input.id),
+      getSowByProject(input.id),
+      getAllStageClosures(input.id),
+      project.origin === "linked" ? getJiraOnboardingByProjectId(input.id) : Promise.resolve(null),
+      getExecutivePortfolio(),
+    ]);
     const assignedPmUserId = onboarding?.identitySnapshot && typeof onboarding.identitySnapshot === "object"
       ? Number((onboarding.identitySnapshot as Record<string, unknown>).pmUserId ?? 0) || null
       : null;
-    return { ...project, stages, sow, stageClosures, assignedPmUserId };
+    const portfolioEvidence = executivePortfolio.portfolio.find((row) => row.projectId === input.id) ?? null;
+    return { ...project, stages, sow, stageClosures, assignedPmUserId, portfolioEvidence };
   }),
   create: adminOrPmo.input(z.object({
     projectName: z.string().min(1),
@@ -543,15 +547,10 @@ const stagesRouter = router({
     if (input.stageId === "risks") {
       const jiraStart = Date.now();
       try {
-        // Process confirmed risks; if none are confirmed, fall back to ALL risks (auto-confirm all)
+        // Sólo los riesgos confirmados por un usuario pueden materializarse en Jira.
         const confirmedRisks = await getConfirmedRisksByProject(input.projectId);
         const allRisks = await getRisksByProject(input.projectId);
-        // Fallback: if no risk is explicitly confirmed, treat all risks as confirmed
-        const risksToCreate = confirmedRisks.length > 0 ? confirmedRisks : allRisks;
-        const usingFallback = confirmedRisks.length === 0 && allRisks.length > 0;
-        if (usingFallback) {
-          console.log(`[formalClose] No confirmed risks found for project ${input.projectId}. Using all ${allRisks.length} risks as fallback.`);
-        }
+        const risksToCreate = confirmedRisks;
         const space = await getJiraSpaceByProject(input.projectId);
         if (risksToCreate.length > 0 && space && space.jiraProjectKey) {
           // Find the "Riesgos PMO" issue type from the space
@@ -610,7 +609,7 @@ const stagesRouter = router({
           }
 
           const createdCount = results.filter(r => r.success && r.issueKey).length;
-          const skippedCount = usingFallback ? 0 : allRisks.length - risksToCreate.length;
+          const skippedCount = allRisks.length - risksToCreate.length;
           const errorCount = results.filter(r => !r.success).length;
           const alreadyExisted = results.filter(r => r.success && r.issueKey && risksToCreate.find(rk => rk.id === r.riskId)?.jiraIssueKey).length;
           const logEntries = results.map((r, idx) => {
@@ -647,7 +646,7 @@ const stagesRouter = router({
             skipped: skippedCount,
             spaceKey: space.jiraProjectKey,
             trigger: "formal_close",
-            usingFallback,
+            confirmationPolicy: "confirmed_only",
             operationLog: results.map(r => ({
               riskCode: r.riskCode,
               status: r.success ? "created" : "error",
@@ -1791,13 +1790,14 @@ Responde SOLO con JSON:
     const projectKey = jiraSpace.jiraProjectKey;
 
     const allRisks = await getRisksByProject(input.projectId);
-    const pending = allRisks.filter(r => !r.jiraIssueKey);
+    const confirmedRisks = allRisks.filter(r => r.confirmed === true);
+    const pending = confirmedRisks.filter(r => !r.jiraIssueKey);
     if (pending.length === 0) {
       return {
-        success: true, projectKey, message: "Todos los riesgos ya tienen issue JIRA",
+        success: true, projectKey, message: confirmedRisks.length === 0 ? "No hay riesgos confirmados pendientes de sincronizar" : "Todos los riesgos confirmados ya tienen issue JIRA",
         created: 0, skipped: allRisks.length, errors: 0,
-        jiraKeys: allRisks.filter(r => r.jiraIssueKey).map(r => r.jiraIssueKey!),
-        logEntries: [], totals: { confirmed: allRisks.length, total: allRisks.length },
+        jiraKeys: confirmedRisks.filter(r => r.jiraIssueKey).map(r => r.jiraIssueKey!),
+        logEntries: [], totals: { confirmed: confirmedRisks.length, total: allRisks.length },
         elapsedMs: 0, spaceUrl: jiraSpace.jiraProjectUrl || null,
       };
     }
@@ -1823,7 +1823,7 @@ Responde SOLO con JSON:
       index: number; total: number;
     };
     const logEntries: RiskLogEntry[] = [];
-    const results = { created: 0, skipped: 0, errors: 0, jiraKeys: [] as string[] };
+    const results = { created: 0, skipped: allRisks.length - pending.length, errors: 0, jiraKeys: [] as string[] };
 
     console.log(`[JIRA retryRiskJira] Retrying: ${pending.length} pending risks -> project ${projectKey}`);
 
@@ -1912,7 +1912,7 @@ Responde SOLO con JSON:
       ...results,
       verified: results.errors === 0,
       logEntries,
-      totals: { confirmed: pending.length, total: allRisks.length },
+      totals: { confirmed: confirmedRisks.length, total: allRisks.length },
       elapsedMs,
       spaceUrl: jiraSpace.jiraProjectUrl || null,
     };
@@ -3584,44 +3584,30 @@ Responde SOLO con JSON:
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
       const space = await getJiraSpaceByProject(input.projectId);
       const projectKey = space ? (space.jiraProjectKey ?? space.jiraProjectId) : null;
+      const executivePortfolio = await getExecutivePortfolio();
+      const portfolioEvidence = executivePortfolio.portfolio.find((row) => row.projectId === input.projectId) ?? null;
 
-      // Fetch JIRA data if available, otherwise return empty
+      // La cabecera ejecutiva usa el snapshot local certificado. El detalle live
+      // no bloquea esta lectura: ausencia no se convierte en ceros operacionales.
       let jiraData = {
         totalIssues: 0, doneCount: 0, inProgressCount: 0, toDoCount: 0,
-        percentComplete: 0, epics: [] as any[], milestones: [] as any[],
-        milestonesCumplidos: 0, milestonesPendientes: 0,
-        milestoneCompletionPct: 0, primaryProgressPct: 0, primaryProgressSource: "JIRA_FALLBACK" as "MILESTONES" | "JIRA_FALLBACK",
+        percentComplete: portfolioEvidence?.operationalProgressPct ?? 0, epics: [] as any[], milestones: [] as any[],
+        milestonesCumplidos: portfolioEvidence?.milestonesFulfilled ?? 0,
+        milestonesPendientes: portfolioEvidence?.milestonesTotal != null && portfolioEvidence?.milestonesFulfilled != null
+          ? Math.max(0, portfolioEvidence.milestonesTotal - portfolioEvidence.milestonesFulfilled)
+          : 0,
+        milestoneCompletionPct: portfolioEvidence?.milestonesTotal
+          ? Math.round(((portfolioEvidence.milestonesFulfilled ?? 0) / portfolioEvidence.milestonesTotal) * 100)
+          : 0,
+        primaryProgressPct: portfolioEvidence?.operationalProgressPct ?? 0,
+        primaryProgressSource: "JIRA_FALLBACK" as "MILESTONES" | "JIRA_FALLBACK",
         risks: [] as any[], scopeChanges: [] as any[], team: [] as any[],
         byStatus: [] as any[], byType: [] as any[],
       };
       let hasJira = false;
-      if (projectKey) {
-        try {
-          const jiraReport = await getJiraAdvanceReport(projectKey);
-          jiraData = {
-            totalIssues: jiraReport.totalIssues,
-            doneCount: jiraReport.doneCount,
-            inProgressCount: jiraReport.inProgressCount,
-            toDoCount: jiraReport.toDoCount,
-            percentComplete: jiraReport.percentComplete,
-            epics: jiraReport.epics,
-            milestones: jiraReport.milestones,
-            milestonesCumplidos: jiraReport.milestonesCumplidos,
-            milestonesPendientes: jiraReport.milestonesPendientes,
-            milestoneCompletionPct: jiraReport.milestoneCompletionPct,
-            primaryProgressPct: jiraReport.primaryProgressPct,
-            primaryProgressSource: jiraReport.primaryProgressSource,
-            risks: jiraReport.risks,
-            scopeChanges: jiraReport.scopeChanges,
-            team: jiraReport.team,
-            byStatus: jiraReport.byStatus,
-            byType: jiraReport.byType,
-          };
-          hasJira = true;
-        } catch (err) {
-          console.warn("Failed to fetch JIRA data:", err);
-        }
-      }
+      const jiraFetchStatus = projectKey
+        ? `snapshot_${portfolioEvidence?.jiraEvidenceAvailability ?? "missing"}`
+        : "missing";
 
       const { getFinancialDataForDeal, extractDealId } = await import("./financialDataFetcher");
       const dealId = extractDealId(project.projectName) || "";
@@ -3667,6 +3653,8 @@ Responde SOLO con JSON:
         jira: jiraData,
         financial: financialData,
         hasJira,
+        jiraFetchStatus,
+        portfolioEvidence,
         platformStageData,
       };
     }),

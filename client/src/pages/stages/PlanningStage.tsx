@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { summarizeMonetaryItems } from "@shared/monetaryTotals";
 import {
   ArrowLeft,
   Calendar,
@@ -312,8 +313,14 @@ export default function PlanningStage() {
 
   // ── Billing helpers ──────────────────────────────────────────────────────────
   const billingItems = billing.length > 0 ? billing : (existingBilling || []);
-  const currency = billingItems[0]?.currency || "USD";
-  const totalAmount = billingItems.reduce((sum: number, m: any) => sum + (parseFloat(m.amount) || 0), 0);
+  const defaultCurrency = billingItems[0]?.currency || "USD";
+  const monetarySummary = summarizeMonetaryItems(billingItems);
+  const currencyEntries = monetarySummary.entries;
+  const billingTotalLabel = monetarySummary.isSingleCurrency
+    ? `${currencyEntries[0][0]} ${currencyEntries[0][1].toLocaleString("es-CL", { minimumFractionDigits: 0 })}`
+    : monetarySummary.isMultiCurrency
+      ? "Multimoneda — no se suma"
+      : "N/D";
   const isStageClosed = !!stageClosure;
 
   // ── Validation: responsable + email required for closure ────────────────────
@@ -333,7 +340,7 @@ export default function PlanningStage() {
       projectId,
       milestoneNumber: billingItems.length + 1,
       description: "",
-      currency: billingItems[0]?.currency || "USD",
+      currency: defaultCurrency,
       amount: "",
       percentage: "",
       dueDate: "",
@@ -1257,7 +1264,7 @@ export default function PlanningStage() {
                   <StepBadge n={2} done={section2HasContent} />
                   Hitos de Pago
                   <Badge variant="outline" className="ml-auto font-mono text-xs">
-                    Total: {currency} {totalAmount.toLocaleString("es-CL", { minimumFractionDigits: 0 })}
+                    Total: {billingTotalLabel}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -1380,9 +1387,14 @@ export default function PlanningStage() {
                 {/* Total */}
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md border">
                   <span className="text-sm font-medium">Total del Proyecto</span>
-                  <span className="text-lg font-bold font-mono">
-                    {currency} {totalAmount.toLocaleString("es-CL", { minimumFractionDigits: 0 })}
-                  </span>
+                  <div className="text-right">
+                    <span className="text-lg font-bold font-mono">{billingTotalLabel}</span>
+                    {currencyEntries.length > 1 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {currencyEntries.map(([code, amount]) => `${code} ${amount.toLocaleString("es-CL")}`).join(" · ")}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {canEdit && !section2Closed && (

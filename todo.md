@@ -636,6 +636,6 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F0: Formalizar TTL Jira de 36 h, política `success`/`partial`, `N/D`, monedas válidas, estados SII y corte mensual.
 - [x] F1: Extraer resolver común de evidencia y precedencias; bloquear snapshots stale/error y fase financiera como fase operacional.
 - [x] F2: Migrar Consola de Gobierno y Consolidado Financiero; retirar valores demo, defaults inventados y controles de exportación falsos.
-- [ ] F3: Migrar Detalle, etapas y Dashboard vinculado; separar PMO/Jira/finanzas y corregir riesgos confirmados y multimoneda.
+- [x] F3: Migrar Detalle, etapas y Dashboard vinculado; separar PMO/Jira/finanzas y corregir riesgos confirmados y multimoneda.
 - [ ] F4: Convertir Dashboard Ejecutivo v2 y Reportes Jira a lectores del read model; alinear IA y exports con provenance.
 - [ ] F5: Certificar rutas, UI, datos, multimoneda, stale/error/partial, ausencia de escrituras de lectura y checkpoints por bloque.

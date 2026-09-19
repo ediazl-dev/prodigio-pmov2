@@ -43,24 +43,18 @@ function pctOf(v: number | null | undefined): number {
 
 /* ─── Sub-components ─── */
 
-function HealthSemaphore({ milestonePct, jiraPct, hasClientMilestones, budgetPct, marginPct, targetPct }: {
-  milestonePct: number; jiraPct: number; hasClientMilestones: boolean; budgetPct: number; marginPct: number; targetPct: number;
+function HealthSemaphore({ healthLabel, availability }: {
+  healthLabel: string | null;
+  availability: string;
 }) {
-  const primaryProgressPct = hasClientMilestones ? milestonePct : jiraPct;
-  const primaryProgressLabel = hasClientMilestones ? "Cumplimiento Hitos Cliente" : "Avance Operativo JIRA";
-  const health = useMemo(() => {
-    let score = 0;
-    // El cumplimiento de hitos cliente es la señal primaria de avance ejecutivo.
-    if (primaryProgressPct >= 70) score += 2; else if (primaryProgressPct >= 40) score += 1;
-    // Budget: < 85% = good, 85-100% = mid, >100% = bad
-    if (budgetPct <= 85) score += 2; else if (budgetPct <= 100) score += 1;
-    // Margin: >= target = good, within 10pp = mid, else bad
-    if (marginPct >= targetPct) score += 2; else if (marginPct >= targetPct - 10) score += 1;
-
-    if (score >= 5) return { cls: "verde", label: "SALUDABLE", color: "#27AE60", bgLight: "#E8F5E9" };
-    if (score >= 3) return { cls: "amarillo", label: "EN RIESGO", color: "#F39C12", bgLight: "#FFF8E1" };
-    return { cls: "rojo", label: "ATRASADO", color: "#E53935", bgLight: "#FFEBEE" };
-  }, [primaryProgressPct, budgetPct, marginPct, targetPct]);
+  const normalized = healthLabel?.toLowerCase() ?? "";
+  const health = normalized.includes("rojo") || normalized.includes("crít")
+    ? { cls: "rojo", label: healthLabel ?? "Rojo", color: "#E53935", bgLight: "#FFEBEE" }
+    : normalized.includes("amarillo") || normalized.includes("naranjo") || normalized.includes("riesgo")
+      ? { cls: "amarillo", label: healthLabel ?? "En riesgo", color: "#F39C12", bgLight: "#FFF8E1" }
+      : normalized.includes("verde") || normalized.includes("estable")
+        ? { cls: "verde", label: healthLabel ?? "Estable", color: "#27AE60", bgLight: "#E8F5E9" }
+        : { cls: "ninguno", label: "N/D", color: C.g400, bgLight: C.g150 };
 
   return (
     <div className="flex flex-col gap-3" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -95,26 +89,9 @@ function HealthSemaphore({ milestonePct, jiraPct, hasClientMilestones, budgetPct
             }} />
           ))}
         </div>
-        {/* Metrics */}
         <div className="flex-1 flex flex-col gap-2">
           <div style={{ fontSize: 14, fontWeight: 800, color: health.color }}>{health.label}</div>
-          <div className="flex flex-col gap-1.5">
-            {[
-              { label: primaryProgressLabel, value: primaryProgressPct, color: C.teal },
-              ...(hasClientMilestones ? [{ label: "Avance Operativo JIRA", value: jiraPct, color: C.accent }] : []),
-              { label: "Presupuesto", value: budgetPct, color: budgetPct > 100 ? C.red : C.teal },
-            ].map(bar => (
-              <div key={bar.label}>
-                <div className="flex justify-between" style={{ fontSize: 9.5, color: C.g400, fontWeight: 500 }}>
-                  <span>{bar.label}</span>
-                  <span style={{ fontWeight: 700 }}>{bar.value.toFixed(0)}%</span>
-                </div>
-                <div style={{ height: 5, background: C.g200, borderRadius: 10, overflow: "hidden", marginTop: 2 }}>
-                  <div style={{ height: "100%", width: `${Math.min(bar.value, 100)}%`, background: bar.color, borderRadius: 10 }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <p style={{ fontSize: 10, color: C.g400 }}>Fuente: snapshot Jira · {availability}</p>
         </div>
       </div>
     </div>
@@ -353,7 +330,7 @@ export default function LinkedProjectDashboard() {
   }
 
   const data = dashQ.data!;
-  const { jira, financial, project, hasJira, platformStageData } = data as any;
+  const { jira, financial, project, hasJira, platformStageData, portfolioEvidence: evidence, jiraFetchStatus } = data as any;
   const fin = financial?.projectFinancial;
   const alerts = (financial?.alerts || []) as Array<{ type: string; category: string; title: string; description: string; value?: string }>;
   const portfolio = financial?.portfolioContext;
@@ -367,16 +344,16 @@ export default function LinkedProjectDashboard() {
   const marginCapacityPct = fin?.margenProyectadoSegunCapacity ? pctOf(fin.margenProyectadoSegunCapacity) : null;
   const brechaCapacity = marginCapacityPct !== null ? marginCapacityPct - targetPct : null;
   const criticalAlerts = alerts.filter(a => a.type === "critical");
-  const estado = fin?.estadoProyecto || "EN EJECUCIÓN";
-  const isClosed = estado.toUpperCase().includes("CERR");
+  const estado = evidence?.status ?? "N/D";
+  const isClosed = estado === "completado";
 
   // Milestones
   const milestonesPct = jira.milestones.length > 0
     ? Math.round((jira.milestonesCumplidos / jira.milestones.length) * 100) : 0;
   const hasClientMilestones = hasJira && jira.milestones.length > 0;
   const clientMilestonePct = jira.milestoneCompletionPct ?? milestonesPct;
-  const primaryProgressPct = hasClientMilestones ? clientMilestonePct : jira.percentComplete;
-  const primaryProgressLabel = hasClientMilestones ? "Cumplimiento Hitos Cliente" : "Avance Operativo JIRA";
+  const primaryProgressPct = evidence?.operationalProgressPct ?? null;
+  const primaryProgressLabel = "Avance Operativo JIRA";
 
   // Financial chart data
   const finChartData = fin ? [
@@ -417,13 +394,13 @@ export default function LinkedProjectDashboard() {
               <ProjectIdBadge projectId={projectId} tone="dark" />
             </div>
             <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>
-              {project.dealId} · PM: {fin?.pm || "N/D"} · Cliente: {project.client || fin?.clientName || "N/D"} · Línea: {fin?.lineaNegocio || "N/D"}
+              {project.dealId || "Deal N/D"} · PM: {evidence?.pmName ?? "N/D"} · Cliente: {project.client || fin?.clientName || "N/D"} · Pipeline PMO: {evidence?.stageLabel ?? "N/D"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex gap-4">
               <span style={{ fontSize: 11, color: "rgba(255,255,255,.45)" }}>
-                <strong style={{ color: "rgba(255,255,255,.8)", fontWeight: 600 }}>{hasClientMilestones ? "Hitos cliente:" : "Avance operativo:"}</strong> {primaryProgressPct}%
+                <strong style={{ color: "rgba(255,255,255,.8)", fontWeight: 600 }}>Avance Jira:</strong> {primaryProgressPct != null ? `${primaryProgressPct}%` : "N/D"}
               </span>
               {project.jiraProjectKey && (
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,.45)" }}>
@@ -627,46 +604,46 @@ export default function LinkedProjectDashboard() {
         {/* ═══ KPI ROW ═══ */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 260px", gap: 12, alignItems: "stretch" }}>
           <KPICard
-            label={hasJira ? primaryProgressLabel : "Avance Proyecto"}
-            value={hasJira ? `${primaryProgressPct}%` : (platformStageData ? `${Math.round((platformStageData.stages.filter((s: any) => s.status === 'completed').length / Math.max(platformStageData.stages.length, 1)) * 100)}%` : "N/D")}
-            sub={hasClientMilestones ? `${jira.milestonesCumplidos}/${jira.milestones.length} hitos comprometidos cumplidos` : (platformStageData ? `${platformStageData.stages.filter((s: any) => s.status === 'completed').length}/${platformStageData.stages.length} etapas completadas` : "Sin JIRA vinculado")}
+            label="Fase Jira"
+            value={evidence?.operationalPhase ?? "N/D"}
+            sub={primaryProgressPct != null ? `Avance Jira ${primaryProgressPct}%` : `Evidencia ${evidence?.jiraEvidenceAvailability ?? "missing"}`}
             borderColor={C.teal}
             valueColor={C.teal}
           />
           <KPICard
-            label={hasJira ? "Avance Operativo JIRA" : "Hitos SoW"}
-            value={hasJira ? `${jira.percentComplete}%` : (platformStageData?.sowSummary ? `${platformStageData.sowSummary.milestones}` : "N/D")}
-            sub={hasJira ? `${jira.doneCount}/${jira.totalIssues} tareas internas resueltas` : (platformStageData?.sowSummary ? `${platformStageData.sowSummary.deliverables} entregables definidos` : "Sin SoW")}
+            label="Hitos Jira"
+            value={evidence?.milestonesFulfilled != null && evidence?.milestonesTotal != null ? `${evidence.milestonesFulfilled}/${evidence.milestonesTotal}` : "N/D"}
+            sub={`Fuente: ${evidence?.milestoneSource ?? "missing"} · detalle ${jiraFetchStatus}`}
             borderColor={C.accent}
             valueColor={C.accent}
           />
           <KPICard
-            label="Valor de Venta"
-            value={fmtUF(fin?.valorVentaUF)}
-            sub={fin?.clientName || ""}
+            label="Pipeline PMO"
+            value={evidence?.stageLabel ?? "N/D"}
+            sub={evidence ? `${evidence.stagesClosed}/${evidence.totalStages} etapas cerradas` : "Sin evidencia PMO"}
             borderColor={C.blue2}
             valueColor={C.blue2}
           />
           <KPICard
-            label="Presupuesto Consumido"
-            value={fmtPct(budgetPct > 0 ? budgetPct : null, 1)}
-            sub={fin ? `${fmtUF(fin.utilizadoUF)} de ${fmtUF(fin.presupuestoUF)}` : undefined}
-            borderColor={budgetPct > 100 ? C.red : C.gold}
-            valueColor={budgetPct > 100 ? C.red : C.navy}
+            label="Project Manager"
+            value={evidence?.pmName ?? "N/D"}
+            sub={`Fuente: ${evidence?.pmSource ?? "missing"}`}
+            borderColor={C.gold}
+            valueColor={C.navy}
           />
           <KPICard
-            label="Margen Avance"
-            value={fmtPct(marginPct > 0 || marginPct < 0 ? marginPct : null, 1)}
-            sub={targetPct > 0 ? `Target: ${fmtPct(targetPct)} · Brecha: ${brechaMargen >= 0 ? "+" : ""}${brechaMargen.toFixed(1)} pp` : undefined}
-            borderColor={marginPct >= targetPct ? C.teal : C.red}
-            valueColor={marginPct >= targetPct ? C.teal : C.red}
+            label="Riesgos"
+            value={evidence?.openRisks != null ? `${evidence.openRisks} abiertos` : "N/D"}
+            sub={evidence?.highRisksOpen != null ? `${evidence.highRisksOpen} altos · ${evidence.riskSource}` : `Fuente: ${evidence?.riskSource ?? "missing"}`}
+            borderColor={evidence?.highRisksOpen > 0 ? C.red : C.teal}
+            valueColor={evidence?.highRisksOpen > 0 ? C.red : C.navy}
           />
           <KPICard
-            label="Margen Capacity"
-            value={marginCapacityPct !== null ? fmtPct(marginCapacityPct, 1) : "N/A"}
-            sub={marginCapacityPct !== null && targetPct > 0 ? `Target: ${fmtPct(targetPct)} · Brecha: ${brechaCapacity !== null && brechaCapacity >= 0 ? "+" : ""}${brechaCapacity?.toFixed(1) ?? "—"} pp` : "Sin datos de capacity"}
-            borderColor={marginCapacityPct !== null && marginCapacityPct >= targetPct ? C.blue2 : C.gold}
-            valueColor={marginCapacityPct !== null && marginCapacityPct >= targetPct ? C.blue2 : C.gold}
+            label="Contratado"
+            value={evidence?.amount != null && evidence?.currency ? `${evidence.currency} ${Number(evidence.amount).toLocaleString("es-CL")}` : "N/D"}
+            sub={`Fuente: ${evidence?.amountSource ?? "missing"}`}
+            borderColor={C.blue2}
+            valueColor={C.blue2}
           />
           {/* Health Semaphore */}
           <div style={{
@@ -674,12 +651,8 @@ export default function LinkedProjectDashboard() {
             boxShadow: "0 2px 16px rgba(10,22,40,.08)", borderTop: `3px solid ${C.green}`,
           }}>
             <HealthSemaphore
-              milestonePct={clientMilestonePct}
-              jiraPct={jira.percentComplete}
-              hasClientMilestones={hasClientMilestones}
-              budgetPct={budgetPct}
-              marginPct={marginPct}
-              targetPct={targetPct}
+              healthLabel={evidence?.executiveHealth ?? null}
+              availability={evidence?.jiraEvidenceAvailability ?? "missing"}
             />
           </div>
         </div>
