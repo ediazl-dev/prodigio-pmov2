@@ -1,58 +1,67 @@
-# Avances Jira por hitos y tareas operacionales
+# Avances Jira alineado con el Portafolio de Proyectos
 
 ## Propósito
 
-La vista **Avance Jira** fue rediseñada para responder tres preguntas distintas sin mezclar sus denominadores: cuánto ha avanzado el proyecto según sus hitos, cuánto trabajo operacional de tareas se ha completado y qué señales requieren atención inmediata. La implementación conserva la evidencia transversal ya certificada para fase, salud, PM, riesgos, finanzas y análisis agéntico.
+La vista **Avance Jira** utiliza ahora el mismo universo y el mismo read model certificado que **PMO Proyectos → Portafolio**. El objetivo es evitar que dos pantallas presenten cifras distintas para un mismo proyecto y, al mismo tiempo, conservar el detalle operacional que sólo existe en Jira.
 
-## Regla de medición
+> **Regla transversal:** el Portafolio gobierna ciclo de vida, fase Jira, avance Jira reportado, salud, PM, hitos y riesgos. La lectura Jira live agrega tareas, agenda, cobertura, carga y estancamiento, pero nunca reemplaza un dato ausente del snapshot.
 
-> El avance del proyecto es la cardinalidad de **Hitos PMO cerrados sobre Hitos PMO totales**. El avance de tareas es una lectura operacional secundaria y nunca sustituye al avance del proyecto.
+## Causa raíz corregida
 
-Los cálculos se realizan con un motor puro y determinista. El universo de tareas excluye épicas, hitos, riesgos, cambios de alcance y el marcador técnico `Proyecto PMO - Avance`. Cuando un proyecto no tiene Hitos PMO, el avance se presenta como **N/D** y queda fuera del promedio de cartera. Los proyectos con estado `completado` o `cancelado` quedan fuera del reporte operacional.
+La versión anterior de Avance Jira construía su universo directamente desde Spaces Jira y proyectos abiertos. Excluía los cuatro proyectos completados y mostraba como avance principal el porcentaje de hitos cerrados; la captura revisada incluso correspondía a una versión anterior basada en porcentaje de issues. El Portafolio, en cambio, mostraba los doce proyectos y usaba el campo operacional reportado en el snapshot Jira para **Avance Jira**. Por ello, Tanner podía aparecer como 74% en la vista antigua, 80% por hitos en el rediseño inicial y 31% en el Portafolio, aunque cada porcentaje midiera una dimensión distinta.
 
-## Lista de proyectos
+La corrección elimina esa ambigüedad. La lista presenta columnas separadas para **Avance Jira**, **Hitos** y **Tareas live**, y mantiene visible el ciclo de vida administrativo. Los porcentajes dejan de competir entre sí.
 
-La lista reemplaza las tarjetas por una tabla densa y navegable. Presenta proyecto/cliente/clave Jira, avance por hitos, avance de tareas, próximo hito, trabajo por ejecutar, riesgos, equipo y carga. Incluye búsqueda, filtros por cliente, avance, próximo hito y señales de atención, además de orden por columnas. Los valores ausentes se mantienen como N/D y quedan al final del orden.
+## Fuente de cada dimensión
 
-En la evidencia productiva del 19 de septiembre de 2026, la lista contiene **8 proyectos abiertos**, **16 de 39 hitos cerrados**, avance agregado **41%** y **3 proyectos sin hitos definidos**. Los cuatro proyectos cerrados existentes no aparecen.
+| Dimensión | Fuente autoritativa | Regla de ausencia |
+|---|---|---|
+| Universo de proyectos | Read model del Portafolio PMO | Se muestran activos, pausados, completados y cancelados |
+| Ciclo de vida | Proyecto PMO | Nunca se infiere desde Jira |
+| Fase Jira | Snapshot Jira local certificado | N/D si la evidencia no es utilizable |
+| Pipeline PMO | Etapas locales PMO | Se mantiene separado de la fase Jira |
+| Avance Jira | Campo de avance reportado del snapshot | N/D; no se sustituye por hitos o issues |
+| Salud ejecutiva | Snapshot Jira | N/D si no existe evidencia |
+| PM | Precedencia PMO local → Jira → finanzas | N/D si no existe ninguna fuente |
+| Hitos | Snapshot Jira | N/D si no hay hitos medibles |
+| Riesgos | Matriz PMO confirmada → snapshot Jira | N/D si no existe evidencia |
+| Tareas, agenda, cobertura y carga | Lectura Jira GET-only live | N/D si la lectura live no está disponible |
+
+## Lista consolidada
+
+La lista muestra **12 de 12 proyectos**, coincidiendo con Portafolio: **8 activos y 4 completados**. El filtro de ciclo de vida permite revisar ambos grupos sin retirar registros de la fuente. La tabla incluye proyecto e ID PMO, ciclo de vida y salud, fase Jira y pipeline PMO, avance Jira, hitos, tareas live, próximo hito, riesgos y PM.
+
+La evidencia autenticada del 19 de septiembre de 2026 mostró un promedio simple de **42% de avance Jira reportado**, **27 de 51 hitos cerrados** y **379 de 532 tareas live cerradas**. Estos tres indicadores tienen denominadores distintos y se presentan separados.
+
+## Casos de control
+
+| Proyecto | Avance Jira | Hitos | Tareas live | Salud / evidencia | Resultado |
+|---|---:|---:|---:|---|---|
+| Tanner `PBTISD1` | 31% | 8/10 (80%) | 115/133 (86%) | Rojo / Crítico | Coincide con Portafolio; PM Eduardo Mercado y 23 riesgos/12 altos |
+| CCLA `PMOCCLSRPM` | 0% | 2/6 (33%) | 0/24 (0%) | Salud N/D | Las 24 Stories siguen en Backlog; no se inventa el 8% del brief |
+| PAI `PAI` | N/D | N/D | 26/32 (81%) | Evidencia parcial | La tarea live no reemplaza avance, fase, salud o PM faltantes |
+| MaxAgro `PMOMAXASSD` | 75% | 4/4 (100%) | 61/68 (90%) | Completado / Verde | Permanece visible como proyecto completado |
 
 ## Detalle de proyecto
 
-El detalle conserva el análisis agéntico, KPI financieros, riesgos, fase Jira, PM, salud, generación PPTX y navegación existente. El avance por hitos queda como métrica primaria; las tareas se muestran de forma secundaria.
+El detalle mantiene análisis agéntico, información financiera, riesgos, generación PPTX y paneles de hitos, agenda, cobertura, tareas estancadas, carga y épicas. El encabezado y el strip de KPI se alinearon con Portafolio y separan seis dimensiones: **Avance Jira**, **Hitos**, **Tareas live**, **PM**, **Riesgos** y **Equipo**.
 
-Se incorporaron seis paneles:
+Para Tanner, el detalle muestra ciclo de vida activo, fase Construcción + QA, avance Jira 31%, 8/10 hitos, 115/133 tareas, Eduardo Mercado, 23 riesgos abiertos/12 altos y equipo de 10 responsables con tareas.
 
-| Panel | Pregunta que responde |
-|---|---|
-| Hitos del proyecto | ¿Qué hito habilita cada grupo de tareas y cuál es su estado/fecha? |
-| Cobertura de objetivos | ¿Las tareas cubren épicas e hitos declarados? |
-| Agenda | ¿Qué tareas están vencidas, próximas o sin fecha? |
-| Carga por persona | ¿Cómo se distribuyen tareas, vencimientos y estancamiento? |
-| Tareas estancadas | ¿Qué trabajo en curso lleva 14 días o más sin movimiento? |
-| Avance por épica | ¿Cuántas tareas hijas están cerradas por épica, sin fabricar porcentajes 0/0? |
+## Rendimiento y seguridad
 
-Para Tanner, el detalle muestra **80% por hitos (8/10)** y **86% por tareas (115/133)**, conservando Construcción + QA, Eduardo Mercado, 23 riesgos abiertos/12 altos y los componentes agénticos/financieros existentes.
-
-## Verificación de CCLA
-
-El brief sugería que CCLA debía mostrar 8% de tareas. Una lectura Jira GET-only confirmó que los **57 issues** actuales se distribuyen en 24 Stories, 19 Riesgos PMO, 7 Epic, 6 Hito PMO y 1 marcador. Las 24 Stories están en Backlog; los dos issues cerrados son Hitos PMO. Por ello, la aplicación muestra **33% de avance del proyecto (2/6 hitos)** y **0% de tareas (0/24)**. Mostrar 8% habría contradicho la fuente real.
-
-## Seguridad y trazabilidad
-
-Todas las consultas Jira usadas por estas vistas son **GET-only**. El rediseño no crea, edita ni transiciona issues. Tampoco modifica cron jobs, snapshots financieros ni datos PMO. Las señales operacionales se calculan en memoria a partir del reporte Jira; no se persisten como hechos nuevos.
+Todas las operaciones Jira utilizadas por la lista y el detalle son **GET-only**. No se crean, editan ni transicionan issues. El servidor reutiliza durante 60 segundos las lecturas GET-only y comparte solicitudes concurrentes entre lista y detalle. El cache es únicamente en memoria, no persiste hechos, no cambia snapshots y elimina inmediatamente una entrada cuando la lectura falla.
 
 ## Certificación
 
-La suite focal aprobó **51 pruebas** y la suite determinista completa aprobó **842 pruebas**, con 19 casos live/opt-in omitidos por diseño. El build productivo finalizó correctamente. `pnpm check` conserva exactamente cinco errores TypeScript heredados: cuatro en `server/jiraMilestoneSync.ts` y uno en `server/routers.ts` por `invitations.estadoSII`; no se agregaron errores nuevos.
+La suite focal aprobó **86 pruebas** y la suite determinista completa aprobó **847 pruebas**, con 19 pruebas live/opt-in omitidas por diseño. El build productivo finalizó correctamente. `pnpm check` conserva exactamente cinco errores TypeScript heredados: cuatro en `server/jiraMilestoneSync.ts` y uno en `server/routers.ts` por `invitations.estadoSII`; no se agregaron errores nuevos.
 
-La verificación read-only posterior a las pruebas confirmó **12 proyectos** en base de datos (8 abiertos y 4 completados), **12 snapshots Jira para 12 projectId distintos** y **cero nombres de proyecto duplicados**. La suite no dejó fixtures persistentes.
-
-La validación autenticada confirmó la lista y el detalle Tanner en escritorio. El código responsive usa encabezado apilable, KPI 2/3/6 columnas, tarjetas adaptativas, hitos 1/2 columnas y overflow horizontal contenido para la tabla de carga.
+La verificación read-only posterior a la suite confirmó **12 proyectos** —8 activos y 4 completados—, **12 snapshots para 12 projectId distintos**, 11 snapshots `success`, uno `partial` y cero nombres duplicados. La validación visual autenticada se realizó en escritorio y en viewport móvil 390×844. La tabla móvil mantiene overflow horizontal propio y el detalle apila los seis KPI en dos columnas.
 
 ## Limitaciones explícitas
 
-La lista y el detalle enriquecido realizan lecturas Jira GET-only y pueden permanecer varios segundos en estado de carga. Los vínculos de tareas con épicas/hitos dependen del campo `parent` de Jira; cuando la jerarquía no está poblada, el sistema informa tareas huérfanas o hitos sin tareas en vez de inventar relaciones.
+La agenda, cobertura, carga y tareas estancadas dependen de una lectura Jira live y pueden tardar algunos segundos en la primera carga. El cache corto reduce recargas consecutivas, pero no convierte esos datos en evidencia persistida. Los vínculos de tareas con épicas e hitos dependen del campo `parent`; cuando la jerarquía no está poblada, el sistema informa tareas huérfanas o hitos sin tareas en lugar de inventar relaciones.
 
 ## Recuperación
 
-El checkpoint funcional previo a la certificación final es `f996f9ce`. El rollback debe hacerse mediante el historial de versiones/checkpoints; no se debe ejecutar `reset`, `rebase` ni sobrescribir refs manualmente.
+El checkpoint funcional de esta corrección es `ff3a8eaf`. La recuperación debe hacerse desde el historial de versiones/checkpoints. No se debe ejecutar `reset`, `rebase` ni sobrescribir refs manualmente.

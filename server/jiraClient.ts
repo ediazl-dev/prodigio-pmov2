@@ -1357,8 +1357,55 @@ export function calculateExecutiveProgress(milestonesTotal: number, milestonesCu
   };
 }
 
-/** Build a comprehensive advance report from JIRA issues for the PMO dashboard */
+const JIRA_ADVANCE_REPORT_CACHE_TTL_MS = 60_000;
+
+interface JiraAdvanceReportCacheEntry {
+  expiresAt: number;
+  report?: JiraAdvanceReport;
+  pending?: Promise<JiraAdvanceReport>;
+}
+
+const jiraAdvanceReportCache = new Map<string, JiraAdvanceReportCacheEntry>();
+
+/**
+ * Reutiliza por 60 segundos una lectura GET-only entre lista y detalle. Nunca
+ * persiste datos ni oculta errores: una lectura fallida se elimina del cache.
+ */
 export async function getJiraAdvanceReport(projectKey: string): Promise<JiraAdvanceReport> {
+  const normalizedKey = projectKey.trim().toUpperCase();
+  const now = Date.now();
+  const cached = jiraAdvanceReportCache.get(normalizedKey);
+  if (cached?.pending) return cached.pending;
+  if (cached?.report && cached.expiresAt > now) return cached.report;
+
+  const pending = buildJiraAdvanceReport(normalizedKey)
+    .then(report => {
+      jiraAdvanceReportCache.set(normalizedKey, {
+        expiresAt: Date.now() + JIRA_ADVANCE_REPORT_CACHE_TTL_MS,
+        report,
+      });
+      if (jiraAdvanceReportCache.size > 50) {
+        const pruneAt = Date.now();
+        jiraAdvanceReportCache.forEach((entry, key) => {
+          if (entry.expiresAt <= pruneAt) jiraAdvanceReportCache.delete(key);
+        });
+      }
+      return report;
+    })
+    .catch(error => {
+      jiraAdvanceReportCache.delete(normalizedKey);
+      throw error;
+    });
+
+  jiraAdvanceReportCache.set(normalizedKey, {
+    expiresAt: now + JIRA_ADVANCE_REPORT_CACHE_TTL_MS,
+    pending,
+  });
+  return pending;
+}
+
+/** Build a comprehensive advance report from JIRA issues for the PMO dashboard */
+async function buildJiraAdvanceReport(projectKey: string): Promise<JiraAdvanceReport> {
   const [project, allIssues] = await Promise.all([
     getJiraProject(projectKey).catch(() => ({
       id: projectKey,

@@ -654,4 +654,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] K1: Fusionar el read model del Portafolio con insights Jira GET-only sin duplicar fuentes ni inventar datos.
 - [x] K2: Mostrar los mismos 12 proyectos y separar ciclo de vida, fase Jira, avance reportado, hitos y tareas.
 - [x] K3: Alinear el detalle Jira a las mismas dimensiones y fuentes del Portafolio, preservando IA, finanzas y PPTX.
-- [ ] K4: Certificar Tanner, CCLA, cerrados, PAI parcial, N/D, desktop/móvil, pruebas, build y checkpoint final.
+- [x] K4: Certificar Tanner, CCLA, cerrados, PAI parcial, N/D, desktop/móvil, pruebas, build y checkpoint final.

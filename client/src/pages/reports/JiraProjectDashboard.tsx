@@ -239,7 +239,7 @@ export default function JiraProjectDashboard() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: C.g100, fontFamily: "'Inter', sans-serif", color: C.navy }}>
+    <div className="min-h-screen w-full max-w-full min-w-0 overflow-x-hidden" style={{ background: C.g100, fontFamily: "'Inter', sans-serif", color: C.navy }}>
       {/* ═══ HERO HEADER ═══ */}
       <div style={{
         background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navy2} 55%, ${C.navy3} 100%)`,

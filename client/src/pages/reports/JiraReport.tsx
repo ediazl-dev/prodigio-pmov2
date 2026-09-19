@@ -101,7 +101,7 @@ export default function JiraReport() {
   const activeFilters = countActiveReportFilters(filters);
 
   return (
-    <div className="space-y-3 pb-8">
+    <div className="w-full max-w-[calc(100vw-1rem)] min-w-0 space-y-3 overflow-x-hidden pb-8 sm:max-w-full">
       <section className="relative overflow-hidden rounded-2xl bg-[#0A1628] px-5 py-4 text-white shadow-[0_18px_50px_rgba(10,22,40,0.18)] sm:px-6">
         <span className="absolute left-0 top-0 h-full w-[5px] bg-[#E91E8C]" aria-hidden="true" />
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -223,7 +223,7 @@ export default function JiraReport() {
           <p className="mt-3 font-bold text-slate-800">No hay proyectos para estos filtros</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]" role="region" aria-label="Reporte Jira alineado al Portafolio" tabIndex={0}>
+        <div className="w-full max-w-[calc(100vw-1rem)] min-w-0 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:max-w-full" role="region" aria-label="Reporte Jira alineado al Portafolio; desplázate horizontalmente en pantallas estrechas" tabIndex={0}>
           <table className="w-full min-w-[1270px] table-fixed border-collapse text-left">
             <caption className="sr-only">Proyectos con ciclo de vida, salud, fase, avance Jira, hitos, tareas, riesgos y PM.</caption>
             <thead>
