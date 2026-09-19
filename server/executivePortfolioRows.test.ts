@@ -144,6 +144,75 @@ describe("portfolio · PM, monto y riesgos", () => {
     // Un proyecto sin `origin` en la fuente no revienta.
     expect(portfolio.find(row => row.projectId === 3)?.origin).toBeNull();
   });
+
+  it("resuelve un proyecto Jira vinculado sin confundir la fase operativa con el pipeline PMO", () => {
+    const tanner = buildExecutivePortfolio(baseInput({
+      projects: [{
+        id: 180002,
+        projectName: "[PMO Banco Tanner] - Implementacion SFA - Deal 1934",
+        clientName: "Banco Tanner",
+        dealId: null,
+        projectType: "desarrollo",
+        status: "activo",
+        currentStage: "design",
+        pmId: null,
+        totalAmount: null,
+        currency: null,
+        startDate: null,
+        endDate: null,
+        origin: "linked",
+        jiraProjectKey: "PBTISD1",
+      }],
+      compliance: [],
+      risks: [],
+      financial: [{
+        dealId: "Deal1934",
+        projectName: "Banco Tanner",
+        clientName: "Banco Tanner",
+        pm: "Eduardo Mercado",
+        estadoProyecto: "Activo",
+        valorVentaUF: "8200",
+        syncedAt: "2026-09-18T21:48:00Z",
+      }],
+      jiraSnapshots: [{
+        projectId: 180002,
+        jiraProjectKey: "PBTISD1",
+        status: "success",
+        operationalPhase: "Construcción + QA",
+        executiveStatus: "Rojo | Crítico",
+        financialStatus: "Sin desviación",
+        advanceReportedPct: 31,
+        projectManagerName: "Eduardo Mercado",
+        milestonesTotal: 10,
+        milestonesFulfilled: 8,
+        milestonesPending: 2,
+        risksTotal: 26,
+        risksOpen: 23,
+        risksHighPriorityOpen: 12,
+        sourceUpdatedAt: "2026-09-18T15:00:00Z",
+        capturedAt: "2026-09-18T16:00:00Z",
+        lastSuccessAt: "2026-09-18T16:00:00Z",
+        errorCode: null,
+      }],
+    })).portfolio[0];
+
+    expect(tanner).toMatchObject({
+      dealId: "Deal1934",
+      stageId: "design",
+      stageLabel: "Avance",
+      deadlineReason: "missing_stage_opening",
+      operationalPhase: "Construcción + QA",
+      operationalProgressPct: 31,
+      pmName: "Eduardo Mercado",
+      amount: 8200,
+      currency: "UF",
+      amountSource: "financial_data",
+      openRisks: 23,
+      highRisksOpen: 12,
+      milestonesTotal: 10,
+      milestonesFulfilled: 8,
+    });
+  });
 });
 
 describe("portfolio · coherencia con la lectura agregada", () => {

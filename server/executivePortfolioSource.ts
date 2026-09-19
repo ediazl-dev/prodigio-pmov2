@@ -12,6 +12,8 @@
 import { getComplianceMetrics, getDb } from "./db";
 import {
   billingMilestones,
+  financialData,
+  jiraPortfolioSnapshots,
   lessonsLearned,
   projects,
   risks,
@@ -57,6 +59,8 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
     milestoneRows,
     lessonRows,
     userRows,
+    financialRows,
+    jiraSnapshotRows,
     compliance,
   ] = await Promise.all([
     db.select().from(projects),
@@ -66,6 +70,8 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
     db.select().from(billingMilestones),
     db.select().from(lessonsLearned),
     db.select().from(users),
+    db.select().from(financialData),
+    db.select().from(jiraPortfolioSnapshots),
     getComplianceMetrics(),
   ]);
 
@@ -85,6 +91,7 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
       currency: row.currency ?? null,
       startDate: row.startDate ?? null,
       endDate: row.endDate ?? null,
+      jiraProjectKey: row.jiraProjectKey ?? null,
       origin: row.origin ?? null,
     })),
     compliance: compliance.details,
@@ -119,6 +126,35 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
       finalScore: row.finalScore ?? null,
     })),
     users: userRows.map(row => ({ id: row.id, name: row.name ?? null })),
+    financial: financialRows.map(row => ({
+      dealId: row.dealId,
+      projectName: row.projectName ?? null,
+      clientName: row.clientName ?? null,
+      pm: row.pm ?? null,
+      estadoProyecto: row.estadoProyecto ?? null,
+      valorVentaUF: row.valorVentaUF ?? null,
+      syncedAt: row.syncedAt ?? null,
+    })),
+    jiraSnapshots: jiraSnapshotRows.map(row => ({
+      projectId: row.projectId,
+      jiraProjectKey: row.jiraProjectKey,
+      status: row.status,
+      operationalPhase: row.operationalPhase ?? null,
+      executiveStatus: row.executiveStatus ?? null,
+      financialStatus: row.financialStatus ?? null,
+      advanceReportedPct: row.advanceReportedPct ?? null,
+      projectManagerName: row.projectManagerName ?? null,
+      milestonesTotal: row.milestonesTotal ?? null,
+      milestonesFulfilled: row.milestonesFulfilled ?? null,
+      milestonesPending: row.milestonesPending ?? null,
+      risksTotal: row.risksTotal ?? null,
+      risksOpen: row.risksOpen ?? null,
+      risksHighPriorityOpen: row.risksHighPriorityOpen ?? null,
+      sourceUpdatedAt: row.sourceUpdatedAt ?? null,
+      capturedAt: row.capturedAt,
+      lastSuccessAt: row.lastSuccessAt ?? null,
+      errorCode: row.errorCode ?? null,
+    })),
   };
 
   return buildExecutivePortfolio(input);

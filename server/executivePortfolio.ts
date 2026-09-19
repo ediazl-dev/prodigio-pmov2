@@ -37,6 +37,7 @@ export interface ExecutiveProjectSource {
   currency: string | null;
   startDate: string | null;
   endDate: string | null;
+  jiraProjectKey?: string | null;
   /** Distingue proyectos creados en PMO de proyectos vinculados desde Jira. */
   origin?: string | null;
 }
@@ -91,6 +92,37 @@ export interface ExecutiveUserSource {
   name: string | null;
 }
 
+export interface ExecutiveFinancialSource {
+  dealId: string;
+  projectName: string | null;
+  clientName: string | null;
+  pm: string | null;
+  estadoProyecto: string | null;
+  valorVentaUF: string | number | null;
+  syncedAt: Date | string | null;
+}
+
+export interface ExecutiveJiraSnapshotSource {
+  projectId: number;
+  jiraProjectKey: string;
+  status: "success" | "partial" | "error";
+  operationalPhase: string | null;
+  executiveStatus: string | null;
+  financialStatus: string | null;
+  advanceReportedPct: number | null;
+  projectManagerName: string | null;
+  milestonesTotal: number | null;
+  milestonesFulfilled: number | null;
+  milestonesPending: number | null;
+  risksTotal: number | null;
+  risksOpen: number | null;
+  risksHighPriorityOpen: number | null;
+  sourceUpdatedAt: Date | string | null;
+  capturedAt: Date | string;
+  lastSuccessAt: Date | string | null;
+  errorCode: string | null;
+}
+
 export interface ExecutivePortfolioInput {
   cutOffDate: string;
   generatedAt: string;
@@ -102,6 +134,8 @@ export interface ExecutivePortfolioInput {
   milestones: ExecutiveMilestoneSource[];
   lessons: ExecutiveLessonSource[];
   users: ExecutiveUserSource[];
+  financial?: ExecutiveFinancialSource[];
+  jiraSnapshots?: ExecutiveJiraSnapshotSource[];
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -153,12 +187,27 @@ export interface PortfolioRow {
   overDays: number | null;
   deadlineState: DeadlineState;
   pmId: number | null;
+  pmKey: string | null;
   pmName: string | null;
   amount: number | null;
   currency: string | null;
   /** Un monto ausente se conserva como ausencia, no como cero. */
   amountMissing: boolean;
+  amountSource: "financial_data" | "project" | "billing_milestones" | "missing";
   highRisksOpen: number;
+  openRisks: number | null;
+  riskSource: "pmo_confirmed" | "jira_snapshot" | "missing";
+  operationalPhase: string | null;
+  operationalPhaseSource: "jira_snapshot" | "financial_data" | "missing";
+  operationalProgressPct: number | null;
+  executiveHealth: string | null;
+  jiraEvidenceStatus: "success" | "partial" | "error" | "missing";
+  jiraEvidenceAt: string | null;
+  jiraEvidenceStale: boolean;
+  milestonesTotal: number | null;
+  milestonesFulfilled: number | null;
+  milestoneSource: "jira_snapshot" | "missing";
+  deadlineReason: "measured" | "missing_stage_opening" | "not_applicable";
   startDate: string | null;
   endDate: string | null;
 }
@@ -280,6 +329,61 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     stageId;
 
   const userById = new Map(input.users.map(user => [user.id, user.name]));
+  const normalizeDeal = (value: string | null | undefined) => value?.replace(/\s+/g, "").toLowerCase() ?? "";
+  const financialByDeal = new Map(
+    (input.financial ?? []).map(row => [normalizeDeal(row.dealId), row]),
+  );
+  const jiraSnapshotByProject = new Map(
+    (input.jiraSnapshots ?? []).map(snapshot => [snapshot.projectId, snapshot]),
+  );
+  const milestonesByProject = new Map<number, ExecutiveMilestoneSource[]>();
+  for (const milestone of input.milestones) {
+    const existing = milestonesByProject.get(milestone.projectId) ?? [];
+    existing.push(milestone);
+    milestonesByProject.set(milestone.projectId, existing);
+  }
+
+  const dealFor = (project: ExecutiveProjectSource) => {
+    if (project.dealId?.trim()) return project.dealId.trim();
+    const match = project.projectName.match(/\bDeal\s*([A-Za-z0-9_-]+)/i);
+    return match ? `Deal${match[1]}` : null;
+  };
+
+  const amountFor = (project: ExecutiveProjectSource) => {
+    const financial = financialByDeal.get(normalizeDeal(dealFor(project)));
+    const financialAmount = toNumber(financial?.valorVentaUF);
+    if (financialAmount !== null) {
+      return { amount: financialAmount, currency: "UF", source: "financial_data" as const };
+    }
+    const projectAmount = toNumber(project.totalAmount);
+    if (projectAmount !== null) {
+      return { amount: projectAmount, currency: normalizeCurrency(project.currency), source: "project" as const };
+    }
+    const projectMilestones = milestonesByProject.get(project.id) ?? [];
+    const milestoneCurrencies = Array.from(new Set(projectMilestones.map(item => normalizeCurrency(item.currency))));
+    const milestoneAmounts = projectMilestones.map(item => toNumber(item.amount));
+    if (projectMilestones.length > 0 && milestoneCurrencies.length === 1 && milestoneAmounts.every((value): value is number => value !== null)) {
+      return {
+        amount: milestoneAmounts.reduce((sum, value) => sum + value, 0),
+        currency: milestoneCurrencies[0],
+        source: "billing_milestones" as const,
+      };
+    }
+    return { amount: null, currency: null, source: "missing" as const };
+  };
+
+  const pmFor = (project: ExecutiveProjectSource) => {
+    const localName = project.pmId !== null ? (userById.get(project.pmId) ?? null) : null;
+    if (localName) return { pmId: project.pmId, pmKey: String(project.pmId), pmName: localName };
+    const jiraName = jiraSnapshotByProject.get(project.id)?.projectManagerName?.trim() || null;
+    if (jiraName) return { pmId: null, pmKey: `name:${jiraName.toLowerCase()}`, pmName: jiraName };
+    const financialName = financialByDeal.get(normalizeDeal(dealFor(project)))?.pm?.trim() || null;
+    return {
+      pmId: null,
+      pmKey: financialName ? `name:${financialName.toLowerCase()}` : null,
+      pmName: financialName,
+    };
+  };
   const activeProjects = input.projects.filter(project => project.status === "activo");
   const closedProjects = input.projects.filter(project => project.status === "completado");
   const closedIds = new Set(closedProjects.map(project => project.id));
@@ -293,6 +397,32 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   for (const risk of highOpenRisks) {
     highOpenByProject.set(risk.projectId, (highOpenByProject.get(risk.projectId) ?? 0) + 1);
   }
+  const confirmedRisksByProject = new Map<number, ExecutiveRiskSource[]>();
+  for (const risk of input.risks.filter(item => item.confirmed)) {
+    const existing = confirmedRisksByProject.get(risk.projectId) ?? [];
+    existing.push(risk);
+    confirmedRisksByProject.set(risk.projectId, existing);
+  }
+
+  const risksFor = (projectId: number) => {
+    const local = confirmedRisksByProject.get(projectId) ?? [];
+    if (local.length > 0) {
+      return {
+        openRisks: local.filter(risk => risk.status === "abierto").length,
+        highRisksOpen: highOpenByProject.get(projectId) ?? 0,
+        source: "pmo_confirmed" as const,
+      };
+    }
+    const snapshot = jiraSnapshotByProject.get(projectId);
+    if (snapshot?.lastSuccessAt && snapshot.risksOpen !== null) {
+      return {
+        openRisks: snapshot.risksOpen,
+        highRisksOpen: snapshot.risksHighPriorityOpen ?? 0,
+        source: "jira_snapshot" as const,
+      };
+    }
+    return { openRisks: null, highRisksOpen: 0, source: "missing" as const };
+  };
 
   const completedStages = input.compliance.filter(
     detail => detail.status === "on_time" || detail.status === "late",
@@ -339,22 +469,25 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
 
   const attention: AttentionRow[] = activeProjects.map(project => {
     const deadline = deadlineFor(project);
+    const pm = pmFor(project);
+    const risk = risksFor(project.id);
+    const contracted = amountFor(project);
 
     return {
       projectId: project.id,
       projectName: project.projectName,
       clientName: project.clientName,
-      dealId: project.dealId,
-      pmName: project.pmId !== null ? (userById.get(project.pmId) ?? null) : null,
+      dealId: dealFor(project),
+      pmName: pm.pmName,
       stageId: deadline.detail?.stageId ?? project.currentStage,
       stageLabel: labelFor(deadline.detail?.stageId ?? project.currentStage),
       daysUsed: deadline.daysUsed,
       daysAllowed: deadline.daysAllowed,
       overDays: deadline.overDays,
       state: deadline.state,
-      highRisksOpen: highOpenByProject.get(project.id) ?? 0,
-      amount: toNumber(project.totalAmount),
-      currency: normalizeCurrency(project.currency),
+      highRisksOpen: risk.highRisksOpen,
+      amount: contracted.amount,
+      currency: contracted.currency,
     };
   });
 
@@ -381,13 +514,39 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   const portfolio: PortfolioRow[] = input.projects.map(project => {
     const hasLiveDeadline = project.status === "activo" || project.status === "pausado";
     const deadline = hasLiveDeadline ? deadlineFor(project) : null;
-    const amount = toNumber(project.totalAmount);
+    const contracted = amountFor(project);
+    const pm = pmFor(project);
+    const risk = risksFor(project.id);
+    const snapshot = jiraSnapshotByProject.get(project.id) ?? null;
+    const financial = financialByDeal.get(normalizeDeal(dealFor(project)));
+    const jiraEvidenceAt = toIso(snapshot?.lastSuccessAt ?? null);
+    const jiraEvidenceAgeMs = jiraEvidenceAt
+      ? new Date(input.generatedAt).getTime() - new Date(jiraEvidenceAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    const jiraEvidenceStale = !snapshot || snapshot.status === "error" || jiraEvidenceAgeMs > 36 * 60 * 60 * 1000;
+    const operationalPhase = snapshot?.lastSuccessAt && snapshot.operationalPhase?.trim()
+      ? snapshot.operationalPhase.trim()
+      : financial?.estadoProyecto?.trim() || null;
+    const operationalPhaseSource = snapshot?.lastSuccessAt && snapshot.operationalPhase?.trim()
+      ? "jira_snapshot" as const
+      : financial?.estadoProyecto?.trim()
+        ? "financial_data" as const
+        : "missing" as const;
+    const milestonesTotal = snapshot?.lastSuccessAt ? snapshot.milestonesTotal : null;
+    const milestonesFulfilled = snapshot?.lastSuccessAt ? snapshot.milestonesFulfilled : null;
+    const operationalProgressPct = snapshot?.lastSuccessAt
+      ? snapshot.advanceReportedPct ?? (
+          milestonesTotal && milestonesFulfilled !== null
+            ? round1((milestonesFulfilled / milestonesTotal) * 100)
+            : null
+        )
+      : null;
 
     return {
       projectId: project.id,
       projectName: project.projectName,
       clientName: project.clientName,
-      dealId: project.dealId,
+      dealId: dealFor(project),
       projectType: project.projectType,
       origin: project.origin ?? null,
       status: project.status,
@@ -401,12 +560,27 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       daysAllowed: deadline?.daysAllowed ?? null,
       overDays: deadline?.overDays ?? null,
       deadlineState: deadline?.state ?? "not_applicable",
-      pmId: project.pmId,
-      pmName: project.pmId !== null ? (userById.get(project.pmId) ?? null) : null,
-      amount,
-      currency: amount === null ? null : normalizeCurrency(project.currency),
-      amountMissing: amount === null,
-      highRisksOpen: highOpenByProject.get(project.id) ?? 0,
+      deadlineReason: !hasLiveDeadline ? "not_applicable" : deadline?.detail ? "measured" : "missing_stage_opening",
+      pmId: pm.pmId,
+      pmKey: pm.pmKey,
+      pmName: pm.pmName,
+      amount: contracted.amount,
+      currency: contracted.currency,
+      amountMissing: contracted.amount === null,
+      amountSource: contracted.source,
+      highRisksOpen: risk.highRisksOpen,
+      openRisks: risk.openRisks,
+      riskSource: risk.source,
+      operationalPhase,
+      operationalPhaseSource,
+      operationalProgressPct,
+      executiveHealth: snapshot?.lastSuccessAt ? snapshot.executiveStatus : null,
+      jiraEvidenceStatus: snapshot?.status ?? "missing",
+      jiraEvidenceAt,
+      jiraEvidenceStale,
+      milestonesTotal,
+      milestonesFulfilled,
+      milestoneSource: snapshot?.lastSuccessAt ? "jira_snapshot" : "missing",
       startDate: project.startDate,
       endDate: project.endDate,
     };
@@ -432,11 +606,11 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   };
 
   for (const project of input.projects) {
-    const amount = toNumber(project.totalAmount);
-    if (amount === null) continue;
-    const figure = figureFor(normalizeCurrency(project.currency));
-    if (project.status === "activo") figure.contractedActive += amount;
-    else if (project.status === "completado") figure.contractedClosed += amount;
+    const contracted = amountFor(project);
+    if (contracted.amount === null || contracted.currency === null) continue;
+    const figure = figureFor(contracted.currency);
+    if (project.status === "activo") figure.contractedActive += contracted.amount;
+    else if (project.status === "completado") figure.contractedClosed += contracted.amount;
   }
 
   for (const milestone of input.milestones) {
@@ -577,6 +751,12 @@ function toNumber(value: string | number | null | undefined): number | null {
 function normalizeCurrency(value: string | null | undefined): string {
   const normalized = value?.trim().toUpperCase();
   return normalized || "N/D";
+}
+
+function toIso(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 /** null con lista vacía: un promedio de nada no es 0. */
