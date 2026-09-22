@@ -63,7 +63,7 @@ import { projectHealthSnapshots, contracts, paymentScheduleItems, revenueEvents,
 import { eq, desc, and, lt } from "drizzle-orm";
 import { pmAnalysisJsonSchema, pmAnalysisSchema, validatePMAnalysisOutput } from "./pmAnalysisSchema";
 import { runRiskGenerationAttempts } from "./riskGeneration";
-import { isExecutiveDashboardV2PilotEnabled } from "./executiveDashboardV2";
+import { assessExecutiveEvidenceAccess } from "./executiveEvidenceAccess";
 import { calculateExecutiveGovernance, classifyMilestoneTimeline } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
@@ -139,6 +139,24 @@ async function requireLinkedProjectDocumentOperator(ctx: { user: { id: number; r
   });
   if (!permission.allowed) throw new TRPCError({ code: "FORBIDDEN", message: permission.reason ?? "Acceso denegado" });
   return project;
+}
+
+async function requireExecutiveEvidenceContext(projectId: number) {
+  const [project, source] = await Promise.all([
+    getProjectById(projectId),
+    getExecutiveProjectSource(projectId),
+  ]);
+  const eligibility = assessExecutiveEvidenceAccess({
+    projectExists: Boolean(project),
+    approvedSourceExists: Boolean(source),
+  });
+  if (!eligibility.allowed) {
+    throw new TRPCError({
+      code: eligibility.code === "PROJECT_NOT_FOUND" ? "NOT_FOUND" : "PRECONDITION_FAILED",
+      message: eligibility.reason,
+    });
+  }
+  return { project: project!, source: source! };
 }
 
 const EXECUTIVE_EVIDENCE_MAX_BYTES = 25 * 1024 * 1024;
@@ -3670,7 +3688,7 @@ Responde SOLO con JSON:
     projectId: z.number(),
     rawText: z.string().trim().min(20).max(30000),
   })).mutation(async ({ input }) => {
-    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "La preclasificación documental v2 está habilitada sólo para el piloto Tanner" });
+    await requireExecutiveEvidenceContext(input.projectId);
     const commitments = extractReviewableCommitments(input.rawText);
     return {
       commitments,
@@ -3686,9 +3704,7 @@ Responde SOLO con JSON:
     mimeType: z.string().trim().min(1).max(150),
     contentBase64: z.string().min(4).max(36_000_000),
   })).mutation(async ({ input, ctx }) => {
-    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "La carga documental v2 está habilitada sólo para el piloto Tanner" });
-    const source = await getExecutiveProjectSource(input.projectId);
-    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const { source } = await requireExecutiveEvidenceContext(input.projectId);
     const validated = validateExecutiveEvidenceUpload(input);
     const folder = input.documentType === "acceptance" ? "actas" : input.documentType === "minute" ? "minutas" : "prd";
     const key = `executive-evidence/project-${input.projectId}/${folder}/${Date.now()}-${nanoid(10)}-${validated.fileName}`;
@@ -3726,9 +3742,7 @@ Responde SOLO con JSON:
       notes: z.string().trim().max(5000).optional(),
     })).max(50).default([]),
   })).mutation(async ({ input, ctx }) => {
-    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "El registro documental v2 está habilitado sólo para el piloto Tanner" });
-    const source = await getExecutiveProjectSource(input.projectId);
-    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const { source } = await requireExecutiveEvidenceContext(input.projectId);
     const minuteId = await createExecutiveMeetingMinute({
       projectId: input.projectId,
       sourceId: source.id,
@@ -3764,9 +3778,7 @@ Responde SOLO con JSON:
     evidenceSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
     notes: z.string().trim().max(10000).optional(),
   })).mutation(async ({ input, ctx }) => {
-    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "Las actas v2 están habilitadas sólo para el piloto Tanner" });
-    const source = await getExecutiveProjectSource(input.projectId);
-    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const { source } = await requireExecutiveEvidenceContext(input.projectId);
     const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
     const acceptances = await getExecutiveMilestoneAcceptances(input.projectId, source.id);
     const milestone = milestones.find((item) => item.id === input.milestoneId);
@@ -3802,9 +3814,7 @@ Responde SOLO con JSON:
     acceptanceCriteria: z.string().trim().min(3).max(10000),
     consequence: z.string().trim().min(3).max(10000),
   })).mutation(async ({ input, ctx }) => {
-    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "Las exigencias v2 están habilitadas sólo para el piloto Tanner" });
-    const source = await getExecutiveProjectSource(input.projectId);
-    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const { source } = await requireExecutiveEvidenceContext(input.projectId);
     const id = await createExecutiveRequirement({ ...input, sourceId: source.id, requirementStatus: "open" });
     await audit(ctx, "executive_requirement_created", "executive_requirement", id, input.title, { projectId: input.projectId, sourceId: source.id, priority: input.priority, requirementCode: input.requirementCode });
     return { id };
@@ -3843,9 +3853,7 @@ Responde SOLO con JSON:
     fileSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
     summary: z.string().trim().min(3).max(10000),
   })).mutation(async ({ input, ctx }) => {
-    if (!isExecutiveDashboardV2PilotEnabled(input.projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "El PRD v2 está habilitado sólo para el piloto Tanner" });
-    const source = await getExecutiveProjectSource(input.projectId);
-    if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "El proyecto no tiene un baseline ejecutivo aprobado" });
+    const { source } = await requireExecutiveEvidenceContext(input.projectId);
     const id = await createExecutiveRecoveryPlan({ ...input, sourceId: source.id, recoveryStatus: "draft", fileSha256: input.fileSha256 ?? null });
     await audit(ctx, "executive_recovery_plan_recorded", "executive_recovery_plan", id, `PRD ${input.version}`, { projectId: input.projectId, sourceId: source.id, dueDate: input.dueDate });
     return { id, status: "draft" as const };
@@ -3872,16 +3880,15 @@ Responde SOLO con JSON:
     reviewStatus: z.enum(["VALIDATED", "REJECTED"]),
     reviewNote: z.string().trim().min(3).max(10000),
   })).mutation(async ({ input, ctx }) => {
+    await requireExecutiveEvidenceContext(input.projectId);
     const { analysis, review } = await getLatestPMAnalysisWithReview(input.projectId);
     const eligibility = assessVerdictReviewEligibility({
-      pilotEnabled: isExecutiveDashboardV2PilotEnabled(input.projectId),
       currentAnalysisId: analysis?.id,
       requestedVerdictId: input.verdictId,
       currentReviewStatus: review?.reviewStatus as "PENDING" | "VALIDATED" | "REJECTED" | undefined,
     });
     if (!eligibility.allowed) {
       const errorMap = {
-        PILOT_DISABLED: { code: "FORBIDDEN" as const, message: "La revisión ejecutiva v2 está habilitada sólo para el piloto Tanner" },
         STALE_VERDICT: { code: "NOT_FOUND" as const, message: "El veredicto agéntico indicado no corresponde a la observación vigente del proyecto" },
         ALREADY_REVIEWED: { code: "BAD_REQUEST" as const, message: "El veredicto ya fue revisado y no puede modificarse" },
       };
@@ -3909,7 +3916,7 @@ Responde SOLO con JSON:
   /** Dashboard Ejecutivo v2: baseline SoW contractual + evidencia operativa Jira */
   getExecutiveDashboardV2: protectedProcedure.input(z.object({ projectId: z.number(), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
     .query(async ({ input }) => {
-      // Dashboard Ejecutivo v2 disponible para todos los proyectos (antes: solo piloto Tanner)
+      // Dashboard Ejecutivo v2 disponible para proyectos con baseline ejecutivo aprobado.
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
       const source = await getExecutiveProjectSource(input.projectId);

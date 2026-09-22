@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const component = readFileSync(new URL("../client/src/pages/stages/ExecutiveDashboardV2.tsx", import.meta.url), "utf8");
 
-describe("Dashboard Ejecutivo v2 — paridad estructural del piloto Tanner", () => {
+describe("Dashboard Ejecutivo v2 — paridad estructural del caso Tanner", () => {
   it("conserva las siete zonas de gobierno y sus anclas de navegación", () => {
     [
       "#hitos",

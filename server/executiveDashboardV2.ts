@@ -19,13 +19,6 @@ const COMPLETED_STATUS_NAMES = new Set(["cumplido (entregable)", "cumplido", "do
 const DELAYED_STATUS_NAMES = new Set(["retrasado", "atrasado", "delayed"]);
 const BLOCKED_STATUS_NAMES = new Set(["bloqueado", "blocked"]);
 
-/** Mantiene la lectura contractual v2 limitada al piloto aprobado hasta F3. */
-const EXECUTIVE_DASHBOARD_V2_PILOT_PROJECT_IDS = new Set([180002]);
-
-export function isExecutiveDashboardV2PilotEnabled(projectId: number): boolean {
-  return EXECUTIVE_DASHBOARD_V2_PILOT_PROJECT_IDS.has(projectId);
-}
-
 export function normalizeExecutiveMilestoneStatus(statusName?: string | null, dueDate?: string | null, now = new Date()): ExecutiveSemanticStatus {
   const normalized = (statusName ?? "").trim().toLowerCase();
   if (COMPLETED_STATUS_NAMES.has(normalized)) return "fulfilled";

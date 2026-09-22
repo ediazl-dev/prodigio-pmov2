@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { calculateContractualProgress, calculateExecutiveSemaphore, isExecutiveDashboardV2PilotEnabled, normalizeExecutiveMilestoneStatus } from "./executiveDashboardV2";
+import { calculateContractualProgress, calculateExecutiveSemaphore, normalizeExecutiveMilestoneStatus } from "./executiveDashboardV2";
 
 describe("Dashboard Ejecutivo v2 — evidencia contractual", () => {
-  it("habilita el piloto sólo para Tanner mientras la expansión no esté aprobada", () => {
-    expect(isExecutiveDashboardV2PilotEnabled(180002)).toBe(true);
-    expect(isExecutiveDashboardV2PilotEnabled(270005)).toBe(false);
-  });
-
   it("prioriza el nombre de estado contractual por sobre statusCategory de Jira", () => {
     expect(normalizeExecutiveMilestoneStatus("Cumplido (Entregable)", "2026-02-02", new Date("2026-08-18"))).toBe("fulfilled");
   });

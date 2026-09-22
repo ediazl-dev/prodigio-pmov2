@@ -662,3 +662,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] T1: Hacer que el read model distinga etapas completadas del registro formal de cierre y no muestre 0/6 falso.
 - [x] T2: Mostrar `Avance Proyecto` para `design`, explicar `Sin apertura PMO` y conservar `Construcción + QA` como fase Jira.
 - [x] T3: Certificar Tanner y los 12 proyectos, build, pruebas, responsive, documentación y checkpoint final.
+
+## Evidencia documental ejecutiva para todos los proyectos — 2026-09-22
+
+- [x] E0: Crear rama desde `7e72f5c`, confirmar refs alineadas y preservar la línea base certificada.
+- [x] E1: Sustituir el gate piloto Tanner por elegibilidad basada en proyecto, baseline aprobado y roles vigentes.
+- [ ] E2: Crear recibos durables de carga y adjuntar evidencia al mismo proyecto/tipo de forma transaccional.
+- [ ] E3: Separar estado de upload por formulario, impedir submit sin archivo validado y mostrar errores comprensibles.
+- [ ] E4: Completar auditoría de upload/adjunto/fallo sin bytes ni secretos y evitar duplicados/reintentos inválidos.
+- [ ] E5: Certificar Staffing, Tanner, proyecto sin baseline, formatos, desktop/móvil, suite, build, documentación y checkpoint final.
