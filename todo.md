@@ -667,7 +667,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 - [x] E0: Crear rama desde `7e72f5c`, confirmar refs alineadas y preservar la línea base certificada.
 - [x] E1: Sustituir el gate piloto Tanner por elegibilidad basada en proyecto, baseline aprobado y roles vigentes.
-- [ ] E2: Crear recibos durables de carga y adjuntar evidencia al mismo proyecto/tipo de forma transaccional.
-- [ ] E3: Separar estado de upload por formulario, impedir submit sin archivo validado y mostrar errores comprensibles.
-- [ ] E4: Completar auditoría de upload/adjunto/fallo sin bytes ni secretos y evitar duplicados/reintentos inválidos.
+- [x] E2: Crear recibos durables de carga y adjuntar evidencia al mismo proyecto/tipo de forma transaccional.
+- [x] E3: Separar estado de upload por formulario, impedir submit sin archivo validado y mostrar errores comprensibles.
+- [x] E4: Completar auditoría de upload/adjunto/fallo sin bytes ni secretos y evitar duplicados/reintentos inválidos.
 - [ ] E5: Certificar Staffing, Tanner, proyecto sin baseline, formatos, desktop/móvil, suite, build, documentación y checkpoint final.

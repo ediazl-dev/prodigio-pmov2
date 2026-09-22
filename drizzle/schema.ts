@@ -796,6 +796,38 @@ export const executiveMilestoneAcceptances = mysqlTable("executive_milestone_acc
 export type ExecutiveMilestoneAcceptance = typeof executiveMilestoneAcceptances.$inferSelect;
 export type InsertExecutiveMilestoneAcceptance = typeof executiveMilestoneAcceptances.$inferInsert;
 
+export const executiveEvidenceUploads = mysqlTable(
+  "executive_evidence_uploads",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    receiptToken: varchar("receiptToken", { length: 64 }).notNull(),
+    projectId: int("projectId").notNull(),
+    sourceId: int("sourceId").notNull(),
+    documentType: mysqlEnum("documentType", ["minute", "acceptance", "recovery_plan"]).notNull(),
+    fileName: varchar("fileName", { length: 500 }).notNull(),
+    fileKey: varchar("fileKey", { length: 1000 }).notNull(),
+    fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
+    fileSha256: varchar("fileSha256", { length: 64 }).notNull(),
+    mimeType: varchar("mimeType", { length: 150 }).notNull(),
+    sizeBytes: int("sizeBytes").notNull(),
+    uploadStatus: mysqlEnum("uploadStatus", ["pending", "attached"]).default("pending").notNull(),
+    attachedEntityType: mysqlEnum("attachedEntityType", ["minute", "acceptance", "recovery_plan"]),
+    attachedEntityId: int("attachedEntityId"),
+    uploadedBy: int("uploadedBy").notNull(),
+    uploadedByName: varchar("uploadedByName", { length: 200 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    attachedAt: timestamp("attachedAt"),
+  },
+  table => ({
+    receiptTokenUnique: uniqueIndex("executive_evidence_uploads_receipt_uq").on(table.receiptToken),
+    fileKeyUnique: uniqueIndex("executive_evidence_uploads_file_key_uq").on(table.fileKey),
+    projectStatusIndex: index("executive_evidence_uploads_project_status_idx").on(table.projectId, table.uploadStatus),
+  }),
+);
+
+export type ExecutiveEvidenceUpload = typeof executiveEvidenceUploads.$inferSelect;
+export type InsertExecutiveEvidenceUpload = typeof executiveEvidenceUploads.$inferInsert;
+
 export const executiveMeetingMinutes = mysqlTable("executive_meeting_minutes", {
   id: int("id").autoincrement().primaryKey(),
   projectId: int("projectId").notNull(),

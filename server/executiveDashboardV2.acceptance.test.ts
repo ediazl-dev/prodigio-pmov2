@@ -181,6 +181,8 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     [
       "uploadExecutiveEvidence: adminOrPmo",
       "validateExecutiveEvidenceUpload",
+      "createExecutiveEvidenceUploadReceipt",
+      "uploadReceiptToken",
       "25 * 1024 * 1024",
       "Formato inválido para esta evidencia.",
       "Archivo validado y almacenado.",
@@ -189,11 +191,30 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       "Documento PRD",
       "La carga por sí sola no acredita el hito.",
       "La aprobación de Delivery sigue siendo obligatoria.",
+      "evidenceUploadFeedback.acceptance",
+      "evidenceUploadFeedback.minute",
+      "evidenceUploadFeedback.recovery_plan",
       "type=\"file\"",
     ].forEach((detail) => expect(`${component}\n${router}`).toContain(detail));
 
     expect(component).not.toContain('type="url" value={acceptanceForm.evidenceUrl}');
     expect(component).not.toContain('type="url" value={minuteForm.fileUrl}');
     expect(component).not.toContain('type="url" value={recoveryPlanForm.fileUrl}');
+    expect(component).not.toContain("evidenceUploadError");
+    expect(component).not.toContain("evidenceUploadNotice");
+    expect(router).not.toContain("evidenceUrl: input.evidenceUrl");
+    expect(router).not.toContain("fileUrl: input.fileUrl");
+  });
+
+  it("audita carga, adjunto y fallos sin registrar el contenido base64", () => {
+    [
+      'audit(ctx, "executive_evidence_uploaded"',
+      'audit(ctx, "executive_evidence_upload_failed"',
+      'audit(ctx, "executive_evidence_attached"',
+      'audit(ctx, "executive_evidence_attach_failed"',
+      "errorCode: executiveEvidenceErrorCode(error)",
+    ].forEach((detail) => expect(router).toContain(detail));
+
+    expect(router).not.toContain("contentBase64: input.contentBase64");
   });
 });

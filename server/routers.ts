@@ -52,7 +52,7 @@ import {
   indexJiraSpacesByProjectId,
   type JiraReportSpaceDescriptor,
 } from "./jiraPortfolioReportModel";
-import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveMilestoneAcceptance, createExecutiveMeetingMinute, createExecutiveCommitment, createExecutiveRequirement, createExecutiveRecoveryPlan, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
+import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { buildFinancialSyncHealth } from "./financialSyncHealth";
 import { getDriveCredentialStatus } from "./googleDriveServiceAccount";
@@ -71,7 +71,6 @@ import { isoWeekFromDate } from "./executiveMinutes";
 import { canApproveExecutiveRecoveryPlan } from "./executiveRecoveryPlanPolicy";
 import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
 import { assessVerdictReviewEligibility } from "./executiveVerdictReviewPolicy";
-import { assessMilestoneAcceptanceEligibility } from "./executiveMilestoneAcceptancePolicy";
 import { extractReviewableCommitments } from "./executiveCommitmentExtraction";
 import { calculateExecutiveMinutesCoverage } from "./executiveMinutesCoverage";
 import { buildExecutiveOperationalEvidenceFromSnapshot, hasCurrentAgenticEvidenceContract } from "./executiveOperationalEvidence";
@@ -87,6 +86,14 @@ import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
 import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 import { getExecutivePortfolio } from "./executivePortfolioSource";
+import {
+  attachExecutiveMilestoneAcceptanceWithReceipt,
+  attachExecutiveMinuteWithReceipt,
+  attachExecutiveRecoveryPlanWithReceipt,
+  createExecutiveEvidenceUploadReceipt,
+  ExecutiveEvidencePersistenceError,
+  ExecutiveEvidenceReceiptError,
+} from "./executiveEvidenceRepository";
 import { buildPortfolioConsoleFallback } from "./portfolioConsoleModel";
 import { GOVERNANCE_TRIGGER_CATALOG, isGovernanceTriggerCode } from "../shared/governanceTriggers";
 import {
@@ -198,6 +205,23 @@ export function validateExecutiveEvidenceUpload(input: {
   }
 
   return { buffer, fileName, mimeType: input.mimeType, sha256: createHash("sha256").update(buffer).digest("hex") };
+}
+
+function executiveEvidenceErrorCode(error: unknown): string {
+  if (error instanceof ExecutiveEvidenceReceiptError || error instanceof ExecutiveEvidencePersistenceError) return error.code;
+  if (error instanceof TRPCError) return error.code;
+  return "EXECUTIVE_EVIDENCE_INTERNAL_ERROR";
+}
+
+function throwExecutiveEvidenceRegistrationError(error: unknown): never {
+  if (error instanceof TRPCError) throw error;
+  if (error instanceof ExecutiveEvidenceReceiptError) {
+    throw new TRPCError({ code: error.code === "RECEIPT_ALREADY_ATTACHED" ? "CONFLICT" : "BAD_REQUEST", message: error.message });
+  }
+  if (error instanceof ExecutiveEvidencePersistenceError) {
+    throw new TRPCError({ code: error.code === "MILESTONE_NOT_FOUND" ? "NOT_FOUND" : "CONFLICT", message: error.message });
+  }
+  throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No fue posible registrar la evidencia documental" });
 }
 
 // ==================== AUTH ROUTER ====================
@@ -3705,27 +3729,56 @@ Responde SOLO con JSON:
     contentBase64: z.string().min(4).max(36_000_000),
   })).mutation(async ({ input, ctx }) => {
     const { source } = await requireExecutiveEvidenceContext(input.projectId);
-    const validated = validateExecutiveEvidenceUpload(input);
-    const folder = input.documentType === "acceptance" ? "actas" : input.documentType === "minute" ? "minutas" : "prd";
-    const key = `executive-evidence/project-${input.projectId}/${folder}/${Date.now()}-${nanoid(10)}-${validated.fileName}`;
-    const stored = await storagePut(key, validated.buffer, validated.mimeType);
-    await audit(ctx, "executive_evidence_uploaded", "executive_evidence_file", stored.key, validated.fileName, {
-      projectId: input.projectId,
-      sourceId: source.id,
-      documentType: input.documentType,
-      sizeBytes: validated.buffer.length,
-      mimeType: validated.mimeType,
-      sha256: validated.sha256,
-      status: "uploaded_pending_governance_registration",
-    });
-    return {
-      fileName: validated.fileName,
-      fileUrl: stored.url,
-      sha256: validated.sha256,
-      sizeBytes: validated.buffer.length,
-      mimeType: validated.mimeType,
-      notice: "Archivo validado y almacenado. Aún debes registrar y revisar la evidencia para que afecte al gobierno ejecutivo.",
-    };
+    try {
+      const validated = validateExecutiveEvidenceUpload(input);
+      const folder = input.documentType === "acceptance" ? "actas" : input.documentType === "minute" ? "minutas" : "prd";
+      const key = `executive-evidence/project-${input.projectId}/${folder}/${Date.now()}-${nanoid(10)}-${validated.fileName}`;
+      const stored = await storagePut(key, validated.buffer, validated.mimeType);
+      const receiptToken = nanoid(32);
+      const receipt = await createExecutiveEvidenceUploadReceipt({
+        receiptToken,
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: input.documentType,
+        fileName: validated.fileName,
+        fileKey: stored.key,
+        fileUrl: stored.url,
+        fileSha256: validated.sha256,
+        mimeType: validated.mimeType,
+        sizeBytes: validated.buffer.length,
+        uploadStatus: "pending",
+        uploadedBy: ctx.user.id,
+        uploadedByName: ctx.user.name ?? null,
+      });
+      await audit(ctx, "executive_evidence_uploaded", "executive_evidence_upload", receipt.id, validated.fileName, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: input.documentType,
+        sizeBytes: validated.buffer.length,
+        mimeType: validated.mimeType,
+        sha256: validated.sha256,
+        fileKey: stored.key,
+        status: "pending",
+      });
+      return {
+        uploadReceiptToken: receiptToken,
+        fileName: validated.fileName,
+        sha256: validated.sha256,
+        sizeBytes: validated.buffer.length,
+        mimeType: validated.mimeType,
+        notice: "Archivo validado y almacenado. Aún debes registrar y revisar la evidencia para que afecte al gobierno ejecutivo.",
+      };
+    } catch (error) {
+      await audit(ctx, "executive_evidence_upload_failed", "executive_evidence_upload", null, input.fileName, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: input.documentType,
+        mimeType: input.mimeType,
+        errorCode: executiveEvidenceErrorCode(error),
+      }).catch(() => undefined);
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No fue posible almacenar el archivo de evidencia" });
+    }
   }),
 
   /** Registro de una minuta real. Sólo PMO/Admin puede cargar la referencia y sus compromisos revisables. */
@@ -3733,8 +3786,7 @@ Responde SOLO con JSON:
     projectId: z.number(),
     meetingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     title: z.string().trim().min(3).max(500),
-    fileName: z.string().trim().min(1).max(500),
-    fileUrl: z.string().url().max(1000),
+    uploadReceiptToken: z.string().trim().min(20).max(64),
     commitments: z.array(z.object({
       title: z.string().trim().min(3).max(500),
       ownerName: z.string().trim().max(200).optional(),
@@ -3743,29 +3795,35 @@ Responde SOLO con JSON:
     })).max(50).default([]),
   })).mutation(async ({ input, ctx }) => {
     const { source } = await requireExecutiveEvidenceContext(input.projectId);
-    const minuteId = await createExecutiveMeetingMinute({
-      projectId: input.projectId,
-      sourceId: source.id,
-      meetingDate: input.meetingDate,
-      isoWeek: isoWeekFromDate(input.meetingDate),
-      title: input.title,
-      fileName: input.fileName,
-      fileUrl: input.fileUrl,
-      reviewStatus: "received",
-      uploadedBy: ctx.user.id,
-      uploadedByName: ctx.user.name ?? null,
-    });
-    const commitmentIds = await Promise.all(input.commitments.map((commitment) => createExecutiveCommitment({
-      projectId: input.projectId,
-      minuteId,
-      title: commitment.title,
-      ownerName: commitment.ownerName ?? null,
-      dueDate: commitment.dueDate ?? null,
-      notes: commitment.notes ?? null,
-      commitmentStatus: "open",
-    })));
-    await audit(ctx, "executive_minute_recorded", "executive_meeting_minute", minuteId, input.title, { projectId: input.projectId, sourceId: source.id, commitments: commitmentIds.length });
-    return { minuteId, commitmentIds, isoWeek: isoWeekFromDate(input.meetingDate) };
+    try {
+      const result = await attachExecutiveMinuteWithReceipt({
+        receiptToken: input.uploadReceiptToken,
+        projectId: input.projectId,
+        meetingDate: input.meetingDate,
+        title: input.title,
+        commitments: input.commitments,
+        sourceId: source.id,
+        isoWeek: isoWeekFromDate(input.meetingDate),
+        actorId: ctx.user.id,
+        actorName: ctx.user.name ?? null,
+      });
+      await audit(ctx, "executive_evidence_attached", "executive_meeting_minute", result.minuteId, input.title, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: "minute",
+        receiptId: result.receipt.id,
+        commitments: result.commitmentIds.length,
+      });
+      return { minuteId: result.minuteId, commitmentIds: result.commitmentIds, isoWeek: isoWeekFromDate(input.meetingDate) };
+    } catch (error) {
+      await audit(ctx, "executive_evidence_attach_failed", "executive_meeting_minute", null, input.title, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: "minute",
+        errorCode: executiveEvidenceErrorCode(error),
+      }).catch(() => undefined);
+      throwExecutiveEvidenceRegistrationError(error);
+    }
   }),
 
   /** El acta es la única evidencia que puede incorporar un hito al avance cardinal. */
@@ -3773,33 +3831,40 @@ Responde SOLO con JSON:
     projectId: z.number(),
     milestoneId: z.number(),
     acceptedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    evidenceFileName: z.string().trim().min(1).max(500),
-    evidenceUrl: z.string().url().max(1000),
-    evidenceSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+    uploadReceiptToken: z.string().trim().min(20).max(64),
     notes: z.string().trim().max(10000).optional(),
   })).mutation(async ({ input, ctx }) => {
     const { source } = await requireExecutiveEvidenceContext(input.projectId);
-    const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
-    const acceptances = await getExecutiveMilestoneAcceptances(input.projectId, source.id);
-    const milestone = milestones.find((item) => item.id === input.milestoneId);
-    const eligibility = assessMilestoneAcceptanceEligibility({
-      milestoneExists: Boolean(milestone),
-      alreadyAccepted: acceptances.some((acceptance) => acceptance.milestoneId === input.milestoneId && acceptance.acceptanceStatus === "accepted"),
-      evidenceUrl: input.evidenceUrl,
-      evidenceFileName: input.evidenceFileName,
-    });
-    if (!eligibility.allowed) throw new TRPCError({ code: "BAD_REQUEST", message: eligibility.reason });
-    const id = await createExecutiveMilestoneAcceptance({
-      ...input,
-      sourceId: source.id,
-      acceptanceStatus: "accepted",
-      evidenceSha256: input.evidenceSha256 ?? null,
-      notes: input.notes ?? null,
-      recordedBy: ctx.user.id,
-      recordedByName: ctx.user.name ?? null,
-    });
-    await audit(ctx, "executive_milestone_accepted", "executive_milestone_acceptance", id, milestone?.milestoneCode ?? null, { projectId: input.projectId, sourceId: source.id, milestoneId: input.milestoneId, acceptedAt: input.acceptedAt, evidenceUrl: input.evidenceUrl });
-    return { id, milestoneId: input.milestoneId, acceptanceStatus: "accepted" as const };
+    try {
+      const result = await attachExecutiveMilestoneAcceptanceWithReceipt({
+        receiptToken: input.uploadReceiptToken,
+        projectId: input.projectId,
+        milestoneId: input.milestoneId,
+        acceptedAt: input.acceptedAt,
+        notes: input.notes ?? null,
+        sourceId: source.id,
+        actorId: ctx.user.id,
+        actorName: ctx.user.name ?? null,
+      });
+      await audit(ctx, "executive_evidence_attached", "executive_milestone_acceptance", result.id, result.milestoneCode, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: "acceptance",
+        receiptId: result.receipt.id,
+        milestoneId: input.milestoneId,
+        acceptedAt: input.acceptedAt,
+      });
+      return { id: result.id, milestoneId: input.milestoneId, acceptanceStatus: "accepted" as const };
+    } catch (error) {
+      await audit(ctx, "executive_evidence_attach_failed", "executive_milestone_acceptance", null, null, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: "acceptance",
+        milestoneId: input.milestoneId,
+        errorCode: executiveEvidenceErrorCode(error),
+      }).catch(() => undefined);
+      throwExecutiveEvidenceRegistrationError(error);
+    }
   }),
 
   /** Exigencias ejecutivas: sólo Admin/PMO crea y cierra con evidencia; Delivery asignado puede anular con motivo. */
@@ -3848,15 +3913,38 @@ Responde SOLO con JSON:
     projectId: z.number(),
     version: z.string().trim().min(1).max(50),
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    fileName: z.string().trim().min(1).max(500),
-    fileUrl: z.string().url().max(1000),
-    fileSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+    uploadReceiptToken: z.string().trim().min(20).max(64),
     summary: z.string().trim().min(3).max(10000),
   })).mutation(async ({ input, ctx }) => {
     const { source } = await requireExecutiveEvidenceContext(input.projectId);
-    const id = await createExecutiveRecoveryPlan({ ...input, sourceId: source.id, recoveryStatus: "draft", fileSha256: input.fileSha256 ?? null });
-    await audit(ctx, "executive_recovery_plan_recorded", "executive_recovery_plan", id, `PRD ${input.version}`, { projectId: input.projectId, sourceId: source.id, dueDate: input.dueDate });
-    return { id, status: "draft" as const };
+    try {
+      const result = await attachExecutiveRecoveryPlanWithReceipt({
+        receiptToken: input.uploadReceiptToken,
+        projectId: input.projectId,
+        version: input.version,
+        dueDate: input.dueDate,
+        summary: input.summary,
+        sourceId: source.id,
+        actorId: ctx.user.id,
+        actorName: ctx.user.name ?? null,
+      });
+      await audit(ctx, "executive_evidence_attached", "executive_recovery_plan", result.id, `PRD ${input.version}`, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: "recovery_plan",
+        receiptId: result.receipt.id,
+        dueDate: input.dueDate,
+      });
+      return { id: result.id, status: "draft" as const };
+    } catch (error) {
+      await audit(ctx, "executive_evidence_attach_failed", "executive_recovery_plan", null, `PRD ${input.version}`, {
+        projectId: input.projectId,
+        sourceId: source.id,
+        documentType: "recovery_plan",
+        errorCode: executiveEvidenceErrorCode(error),
+      }).catch(() => undefined);
+      throwExecutiveEvidenceRegistrationError(error);
+    }
   }),
 
   approveExecutiveRecoveryPlan: protectedProcedure.input(z.object({ projectId: z.number(), planId: z.number() }))
