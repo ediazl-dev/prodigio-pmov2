@@ -695,3 +695,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F2: Asignar monto contractual a cada hito sólo con monto directo o venta UF × peso; mantener N/D si la base no existe.
 - [x] F3: Reformular Eje 01 y Eje 02 con cifras de proyecto, embudo de facturación, costos y márgenes sin inventar datos.
 - [x] F4: Certificar CCLA, Tanner, proyectos sin evidencia, multimoneda, responsive, pruebas, build, documentación y checkpoint final.
+
+## Claridad de homologación Jira, finanzas e historial — 2026-09-22
+
+- [x] S0: Confirmar `e741550`, refs alineadas, árbol limpio y evidencia real de PMO-2670001 sin escribir Jira ni datos locales.
+- [x] S1: Crear read model estructurado para vínculo financiero, cifras UF, cobertura, acciones pendientes y excepciones operativas.
+- [x] S2: Limitar el cuerpo a tres corridas recientes y exponer historial auditable paginado, ordenado de más reciente a más antiguo.
+- [x] S3: Rediseñar la tarjeta en español con procedencia/corte, estados claros, impacto y siguiente acción, sin equiparar hitos con facturación.
+- [x] S4: Certificar CCLA, proyecto sin finanzas, vínculo formal, responsive, pruebas, build, TypeScript, secretos y checkpoint final.

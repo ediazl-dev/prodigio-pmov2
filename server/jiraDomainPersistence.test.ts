@@ -174,7 +174,7 @@ describe.runIf(shouldRun)("persistencia H6 aislada", () => {
         wbs: { imported: 1, mapped: 0 },
         documents: { sow: 1, gantt: 0, milestoneAcceptances: 0 },
       },
-      pending: expect.arrayContaining(["Onboarding Jira [PENDIENTE]", "Gantt contractual [PENDIENTE]"]),
+      pending: expect.arrayContaining(["Completar onboarding Jira", "Cargar Gantt contractual"]),
     });
 
     await cleanup();

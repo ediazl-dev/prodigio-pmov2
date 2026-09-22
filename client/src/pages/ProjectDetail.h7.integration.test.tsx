@@ -63,24 +63,55 @@ const mocks = vi.hoisted(() => {
   };
 
   const status = {
-    project: { dealId: "Deal901" },
+    project: { dealId: null, projectName: "Proyecto H7 Integrado Deal 4728" },
     onboarding: { status: "ready", jiraProjectKey: "PILOT" },
     latestRun: { status: "partial", createdAt: "2026-08-29T20:00:00.000Z", finishedAt: "2026-08-29T20:01:00.000Z" },
     latestReconciliation: historyRun,
     reconciliationHistory: [historyRun],
+    history: {
+      recentRuns: [historyRun],
+      totalRuns: 16,
+      hasMore: true,
+      visibleLimit: 3,
+      statusCounts: { applied: 16, partial: 0, error: 0, running: 0 },
+    },
     counts: {
       risks: { imported: 2, mapped: 2 },
       wbs: { imported: 3, mapped: 4 },
       documents: { sow: 1, gantt: 0, milestoneAcceptances: 2 },
       openExceptions: 1,
     },
-    exceptions: [{ id: 1, domain: "documents", sourceKey: "PILOT-30", reason: "El mapping no contiene una clave S3 real." }],
-    pending: ["Gantt contractual [PENDIENTE]", "Backlog mapeado [POR CONFIRMAR]"],
+    financial: {
+      status: "available", dealId: "Deal4728", dealSource: "name_match", formallyLinked: false,
+      sourceLabel: "Planilla financiera sincronizada", syncedAt: "2026-09-22T03:07:47.000Z", currency: "UF",
+      contractedUf: 6533.3333, budgetUf: 2255, consumedUf: 708.98, projectedCostUf: 3544.9,
+      projectedMarginUf: 2988.4333, projectedMarginPct: 0.4574132653, capacityProjectedUf: 1522.772,
+    },
+    coverage: [
+      { key: "onboarding", label: "Vínculo Jira", status: "available", detail: "Listo" },
+      { key: "financial", label: "Datos financieros", status: "available", detail: "Deal4728" },
+      { key: "sow", label: "SoW", status: "available", detail: "1" },
+      { key: "gantt", label: "Gantt", status: "missing", detail: "0" },
+      { key: "risks", label: "Riesgos", status: "available", detail: "2/2" },
+      { key: "wbs", label: "Backlog", status: "partial", detail: "3/4" },
+    ],
+    gaps: [
+      { kind: "financial", severity: "info", label: "Formalizar el vínculo financiero", explanation: "Deal4728 coincide con la planilla.", recommendedAction: "Guardar el Deal en la ficha.", blocksSync: false },
+      { kind: "document", severity: "warning", label: "Cargar Gantt contractual", explanation: "No existe una línea base cargada.", recommendedAction: "Cargar la Gantt aprobada.", blocksSync: false },
+      { kind: "mapping", severity: "warning", label: "Completar mappings de backlog", explanation: "Se importaron 3 de 4 ítems esperados.", recommendedAction: "Revisar mappings pendientes.", blocksSync: false },
+    ],
+    exceptions: [{
+      id: 1, domain: "documents", sourceKey: "PILOT-30", reason: "El mapping no contiene una clave S3 real.", severity: "warning",
+      title: "Documento requiere validación", whatHappened: "El mapping no contiene una clave S3 real.",
+      impact: "La referencia no se incorporó como evidencia válida.", recommendedAction: "Cargar o corregir el archivo.", blocksSync: false,
+    }],
+    pending: ["Formalizar el vínculo financiero", "Cargar Gantt contractual", "Completar mappings de backlog"],
   };
 
   return {
     project,
     status,
+    historyRun,
     idleMutation: () => ({ mutate: vi.fn(), isPending: false }),
     invalidateProject: vi.fn(async () => undefined),
     refetchStatus: vi.fn(async () => undefined),
@@ -135,6 +166,14 @@ vi.mock("@/lib/trpc", () => ({
           refetch: mocks.refetchStatus,
         }),
       },
+      getExistingProjectImportHistory: {
+        useQuery: () => ({
+          data: { items: [mocks.historyRun], total: 16, page: 1, pageSize: 10, totalPages: 2 },
+          isLoading: false,
+          isFetching: false,
+          error: null,
+        }),
+      },
       syncExistingProjectNow: {
         useMutation: () => ({
           isPending: false,
@@ -160,7 +199,7 @@ describe("ProjectDetail H7 integrado", () => {
 
   afterEach(() => cleanup());
 
-  it("monta la ruta vinculada con la tarjeta H7, historial, faltantes y acción manual", () => {
+  it("monta la ruta vinculada con finanzas, acciones, historial navegable y sincronización manual", () => {
     render(<ProjectDetail />);
 
     expect(screen.getByRole("heading", { name: "Proyecto H7 Integrado" })).toBeTruthy();
@@ -170,11 +209,13 @@ describe("ProjectDetail H7 integrado", () => {
     expect(screen.getByText("8/10")).toBeTruthy();
     expect(screen.getByText("Eduardo Mercado")).toBeTruthy();
     expect(screen.getByText("23 abiertos")).toBeTruthy();
-    expect(screen.getByText("Homologación Jira → Prodigio")).toBeTruthy();
+    expect(screen.getByText("Homologación y sincronización Jira → PMO")).toBeTruthy();
     expect(screen.getByText("Historial de sincronización")).toBeTruthy();
-    expect(screen.getByText("Gantt contractual [PENDIENTE]")).toBeTruthy();
-    expect(screen.getByText("Backlog mapeado [POR CONFIRMAR]")).toBeTruthy();
-    expect(screen.getByText("Jira 6/6 · 4 actualizados · 1 creados · 0 excepciones")).toBeTruthy();
+    expect(screen.getByText("Deal4728")).toBeTruthy();
+    expect(screen.getByText("Detectado en el nombre · coincide con la planilla")).toBeTruthy();
+    expect(screen.getByText("Cargar Gantt contractual")).toBeTruthy();
+    expect(screen.getByText("Completar mappings de backlog")).toBeTruthy();
+    expect(screen.getByText("Jira 6/6 · 4 actualizados · 1 creados · 0 casos a revisar")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Sincronizar ahora/i }));
 
@@ -183,5 +224,10 @@ describe("ProjectDetail H7 integrado", () => {
       projectId: mocks.project.id,
       operationId: expect.stringMatching(/^manual:/),
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver las 16 corridas" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("Historial completo de sincronización Jira")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Página siguiente" })).toBeTruthy();
   });
 });

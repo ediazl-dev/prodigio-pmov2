@@ -11,6 +11,7 @@ import {
   getFinancialDataByDealId,
   getActiveFinancialData,
 } from "./db";
+import { normalizeDealId } from "./projectFinancialIdentity";
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -308,15 +309,5 @@ export async function getFinancialDataForDeal(dealId: string): Promise<Financial
  *   "1996" → "Deal1996"
  */
 export function extractDealId(projectNameOrDealId: string): string | null {
-  if (!projectNameOrDealId) return null;
-
-  // Pattern 1: "Deal 1996" or "Deal1996" (with optional space)
-  const match = projectNameOrDealId.match(/Deal\s*(\d+)/i);
-  if (match) return `Deal${match[1]}`;
-
-  // Pattern 2: standalone number that looks like a deal
-  const numMatch = projectNameOrDealId.match(/\b(\d{4,5})\b/);
-  if (numMatch) return `Deal${numMatch[1]}`;
-
-  return null;
+  return normalizeDealId(projectNameOrDealId);
 }

@@ -235,7 +235,7 @@ describe.runIf(shouldRun)("conciliación H7 persistente aislada", () => {
     expect(integratedHtml).toContain("Aplicada");
     expect(integratedHtml).toContain("Diaria");
     expect(integratedHtml).toContain("1/1");
-    expect(integratedHtml).toContain("SoW contractual [PENDIENTE]");
+    expect(integratedHtml).toContain("Cargar SoW contractual");
 
     if (process.env.HOLD_H7_VISUAL_FIXTURE === "true") {
       console.log(`[H7_VISUAL_FIXTURE] projectId=${projectId}`);

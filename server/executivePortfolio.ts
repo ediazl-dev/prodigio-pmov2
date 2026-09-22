@@ -21,6 +21,7 @@ import {
   normalizeEvidenceCurrency,
   type EvidenceAvailability,
 } from "./projectEvidencePolicy";
+import { resolveProjectDeal } from "./projectFinancialIdentity";
 
 export const EXECUTIVE_PORTFOLIO_VERSION = "1.0" as const;
 
@@ -375,9 +376,10 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   }
 
   const dealFor = (project: ExecutiveProjectSource) => {
-    if (project.dealId?.trim()) return project.dealId.trim();
-    const match = project.projectName.match(/\bDeal\s*([A-Za-z0-9_-]+)/i);
-    return match ? `Deal${match[1]}` : null;
+    return resolveProjectDeal({
+      projectDealId: project.dealId,
+      projectName: project.projectName,
+    }).dealId;
   };
 
   const amountFor = (project: ExecutiveProjectSource) => {

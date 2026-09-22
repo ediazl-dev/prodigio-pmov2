@@ -6,7 +6,7 @@ import {
   billingMilestones, designDocuments, lessonsLearned, uploadedFiles, adminSettings,
   invitations, sowVersions, stageDeadlines, stageOpenings, holidays,
   stageDeadlineExtensions, deadlineNotifications, stageApprovals, stageClosures, jiraSpaces, riskVersions, auditLogs,
-  ganttUploads, financialData, executiveVerdicts, linkedProjectDocuments, recurringServices,
+  ganttUploads, financialData, executiveVerdicts, linkedProjectDocuments, recurringServices, contracts,
   executiveProjectSources, executiveContractMilestones, executiveMilestoneAcceptances, executiveMeetingMinutes,
   executiveCommitments, executiveRequirements, executiveRecoveryPlans, executiveGovernanceAssignments,
   executiveFinancialSnapshots, executiveDashboardSnapshots, executiveVerdictReviews,
@@ -33,6 +33,8 @@ import {
   normalizeProjectName,
   type ProjectIdentityConflict,
 } from "../shared/projectIdentity";
+import { buildJiraHomologationStatusModel } from "./jiraHomologationStatusModel";
+import { resolveProjectDeal } from "./projectFinancialIdentity";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -2405,17 +2407,50 @@ export async function getLinkedProjectDocumentById(id: number) {
   return rows[0] ?? null;
 }
 
+const H7_RECONCILIATION_SCOPE = sql<boolean>`JSON_UNQUOTE(JSON_EXTRACT(${jiraSyncLogs.details}, '$.reconciliationScope')) = 'h7_jira_to_pmo'`;
+
+function toJiraHomologationRun(run: typeof jiraSyncLogs.$inferSelect) {
+  const details = run.details as Record<string, unknown> | null;
+  const jiraRead = details?.jiraRead as Record<string, unknown> | null | undefined;
+  return {
+    id: run.id,
+    runId: run.runId,
+    source: run.source,
+    status: run.status,
+    inputCount: run.inputCount,
+    createdCount: run.createdCount,
+    updatedCount: run.updatedCount,
+    skippedCount: run.skippedCount,
+    errorCount: run.errorCount,
+    errorMessage: run.errorMessage,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    createdAt: run.createdAt,
+    details: {
+      jiraRead: {
+        requestedCount: Number(jiraRead?.requestedCount ?? run.inputCount),
+        returnedCount: Number(jiraRead?.returnedCount ?? 0),
+      },
+    },
+  };
+}
+
 export async function getJiraHomologationImportStatus(projectId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const projectRows = await db.select({
     id: projects.id,
+    projectName: projects.projectName,
     origin: projects.origin,
     jiraProjectKey: projects.jiraProjectKey,
     dealId: projects.dealId,
   }).from(projects).where(eq(projects.id, projectId)).limit(1);
   const project = projectRows[0];
   if (!project) return null;
+
+  const linkedContractRows = await db.select({ dealId: contracts.dealId })
+    .from(contracts)
+    .where(and(eq(contracts.projectId, projectId), isNotNull(contracts.dealId)));
 
   const onboardingRows = await db.select().from(jiraProjectOnboardings)
     .where(eq(jiraProjectOnboardings.projectId, projectId)).limit(1);
@@ -2444,53 +2479,76 @@ export async function getJiraHomologationImportStatus(projectId: number) {
     ))
     : [];
   const exceptions = onboarding
-    ? await db.select().from(jiraImportExceptions).where(and(
+    ? await db.select({
+      id: jiraImportExceptions.id,
+      domain: jiraImportExceptions.domain,
+      sourceKey: jiraImportExceptions.sourceKey,
+      reason: jiraImportExceptions.reason,
+      severity: jiraImportExceptions.severity,
+      updatedAt: jiraImportExceptions.updatedAt,
+    }).from(jiraImportExceptions).where(and(
       eq(jiraImportExceptions.onboardingId, onboarding.id),
       eq(jiraImportExceptions.status, "open"),
       inArray(jiraImportExceptions.domain, ["risks", "planning", "documents", "finance"]),
     )).orderBy(desc(jiraImportExceptions.updatedAt))
     : [];
-  const syncRuns = onboarding
-    ? await db.select().from(jiraSyncLogs).where(
-      eq(jiraSyncLogs.onboardingId, onboarding.id),
-    ).orderBy(desc(jiraSyncLogs.createdAt)).limit(50)
-    : [];
-  const latestRun = syncRuns.find(run => {
-    const details = run.details as Record<string, unknown> | null;
-    return run.source === "initial_import" && details?.importScope === "h6_domains";
-  }) ?? null;
-  const reconciliationHistory = syncRuns.filter(run => {
-    const details = run.details as Record<string, unknown> | null;
-    return details?.reconciliationScope === "h7_jira_to_pmo";
-  }).slice(0, 10).map(run => ({
-    id: run.id,
-    runId: run.runId,
-    source: run.source,
-    status: run.status,
-    inputCount: run.inputCount,
-    createdCount: run.createdCount,
-    updatedCount: run.updatedCount,
-    skippedCount: run.skippedCount,
-    errorCount: run.errorCount,
-    errorMessage: run.errorMessage,
-    startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
-    createdAt: run.createdAt,
-    details: run.details,
-  }));
-  const latestReconciliation = reconciliationHistory[0] ?? null;
+  const [latestRunRows, recentReconciliationRows, reconciliationTotalRows, reconciliationStatusRows] = onboarding
+    ? await Promise.all([
+      db.select().from(jiraSyncLogs).where(and(
+        eq(jiraSyncLogs.onboardingId, onboarding.id),
+        eq(jiraSyncLogs.source, "initial_import"),
+        sql<boolean>`JSON_UNQUOTE(JSON_EXTRACT(${jiraSyncLogs.details}, '$.importScope')) = 'h6_domains'`,
+      )).orderBy(desc(jiraSyncLogs.createdAt)).limit(1),
+      db.select().from(jiraSyncLogs).where(and(
+        eq(jiraSyncLogs.onboardingId, onboarding.id),
+        H7_RECONCILIATION_SCOPE,
+      )).orderBy(desc(jiraSyncLogs.createdAt)).limit(3),
+      db.select({ total: count() }).from(jiraSyncLogs).where(and(
+        eq(jiraSyncLogs.onboardingId, onboarding.id),
+        H7_RECONCILIATION_SCOPE,
+      )),
+      db.select({ status: jiraSyncLogs.status, total: count() }).from(jiraSyncLogs).where(and(
+        eq(jiraSyncLogs.onboardingId, onboarding.id),
+        H7_RECONCILIATION_SCOPE,
+      )).groupBy(jiraSyncLogs.status),
+    ])
+    : [[], [], [{ total: 0 }], []];
+  const latestRun = latestRunRows[0] ? toJiraHomologationRun(latestRunRows[0]) : null;
+  const reconciliationRuns = recentReconciliationRows.map(toJiraHomologationRun);
 
   const expectedRisks = mappings.filter(mapping => mapping.targetEntityType === "risk").length;
   const expectedWbs = mappings.filter(mapping => ["epic", "task"].includes(mapping.targetEntityType)).length;
   const sowCount = documents.filter(document => document.docType === "sow").length;
   const ganttCount = documents.filter(document => document.docType === "gantt").length;
-  const pending: string[] = [];
-  if (!onboarding) pending.push("Onboarding Jira [PENDIENTE]");
-  if (!project.dealId) pending.push("Deal financiero [POR CONFIRMAR]");
-  if (!sowCount) pending.push("SoW contractual [PENDIENTE]");
-  if (!ganttCount) pending.push("Gantt contractual [PENDIENTE]");
-  if (expectedRisks > importedRisks.length) pending.push("Riesgos mapeados [POR CONFIRMAR]");
-  if (expectedWbs > importedWbs.length) pending.push("Backlog mapeado [POR CONFIRMAR]");
+  const counts = {
+    risks: { imported: importedRisks.length, mapped: expectedRisks },
+    wbs: { imported: importedWbs.length, mapped: expectedWbs },
+    documents: { sow: sowCount, gantt: ganttCount, milestoneAcceptances: acceptances.length },
+    openExceptions: exceptions.length,
+  };
+  const resolvedDeal = resolveProjectDeal({
+    projectDealId: project.dealId,
+    projectName: project.projectName,
+    linkedDealIds: linkedContractRows.map(row => row.dealId),
+  });
+  const financialRows = resolvedDeal.dealId
+    ? await db.select().from(financialData).where(eq(financialData.dealId, resolvedDeal.dealId)).limit(1)
+    : [];
+  const reconciliationStatusCounts = Object.fromEntries(
+    reconciliationStatusRows.map(row => [row.status, Number(row.total)]),
+  );
+  const model = buildJiraHomologationStatusModel({
+    project: { projectName: project.projectName, dealId: project.dealId },
+    linkedDealIds: linkedContractRows.map(row => row.dealId),
+    onboardingStatus: onboarding?.status ?? null,
+    financial: financialRows[0] ?? null,
+    counts,
+    exceptions,
+    reconciliationRuns,
+    totalReconciliationRuns: Number(reconciliationTotalRows[0]?.total ?? 0),
+    reconciliationStatusCounts,
+    visibleHistoryLimit: 3,
+  });
 
   return {
     project,
@@ -2501,16 +2559,55 @@ export async function getJiraHomologationImportStatus(projectId: number) {
       jiraProjectKey: onboarding.jiraProjectKey,
     } : null,
     latestRun,
-    latestReconciliation,
-    reconciliationHistory,
-    counts: {
-      risks: { imported: importedRisks.length, mapped: expectedRisks },
-      wbs: { imported: importedWbs.length, mapped: expectedWbs },
-      documents: { sow: sowCount, gantt: ganttCount, milestoneAcceptances: acceptances.length },
-      openExceptions: exceptions.length,
-    },
-    exceptions,
-    pending,
+    latestReconciliation: model.history.recentRuns[0] ?? null,
+    reconciliationHistory: model.history.recentRuns,
+    history: model.history,
+    counts,
+    financial: model.financial,
+    coverage: model.coverage,
+    gaps: model.gaps,
+    exceptions: model.exceptions,
+    pending: model.gaps.map(gap => gap.label),
+  };
+}
+
+export async function getJiraHomologationHistoryPage(input: {
+  projectId: number;
+  page?: number;
+  pageSize?: number;
+  source?: "all" | "manual" | "scheduled" | "retry";
+  status?: "all" | "applied" | "partial" | "error" | "running";
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = Math.max(1, Math.min(20, input.pageSize ?? 10));
+  const onboardingRows = await db.select({ id: jiraProjectOnboardings.id })
+    .from(jiraProjectOnboardings)
+    .where(eq(jiraProjectOnboardings.projectId, input.projectId))
+    .limit(1);
+  const onboarding = onboardingRows[0];
+  if (!onboarding) return { items: [], total: 0, page, pageSize, totalPages: 1 };
+
+  const filters = [eq(jiraSyncLogs.onboardingId, onboarding.id), H7_RECONCILIATION_SCOPE];
+  if (input.source && input.source !== "all") filters.push(eq(jiraSyncLogs.source, input.source));
+  if (input.status && input.status !== "all") filters.push(eq(jiraSyncLogs.status, input.status));
+  const where = and(...filters);
+  const [rows, totalRows] = await Promise.all([
+    db.select().from(jiraSyncLogs)
+      .where(where)
+      .orderBy(desc(jiraSyncLogs.createdAt))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize),
+    db.select({ total: count() }).from(jiraSyncLogs).where(where),
+  ]);
+  const total = Number(totalRows[0]?.total ?? 0);
+  return {
+    items: rows.map(toJiraHomologationRun),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
 }
 

@@ -84,7 +84,7 @@ import { assessJiraBaselineOperator } from "./jiraBaselineProposal";
 import { loadProductionJiraBaselineImportContext, markProductionJiraOnboardingReady, runProductionInitialJiraBaselineImport } from "./jiraBaselineImportRunner";
 import { runProductionInitialJiraDomainImport } from "./jiraDomainImportRunner";
 import { runProductionJiraReconciliation } from "./jiraReconciliationRunner";
-import { getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
+import { getJiraHomologationHistoryPage, getJiraHomologationImportStatus, upsertLinkedProjectDocument } from "./db";
 import { assessLinkedProjectDocumentOperator, validateLinkedProjectDocumentUpload } from "./jiraDocumentPolicy";
 import { getExecutivePortfolio } from "./executivePortfolioSource";
 import {
@@ -5798,6 +5798,17 @@ const jiraRouter = router({
       if (!status) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
       return status;
     }),
+
+  /** Historial H7 auditable, paginado y ordenado desde la corrida más reciente. */
+  getExistingProjectImportHistory: protectedProcedure
+    .input(z.object({
+      projectId: z.number().int().positive(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(20).default(10),
+      source: z.enum(["all", "manual", "scheduled", "retry"]).default("all"),
+      status: z.enum(["all", "applied", "partial", "error", "running"]).default("all"),
+    }))
+    .query(({ input }) => getJiraHomologationHistoryPage(input)),
 
   /** Import approved Jira mappings into canonical PMO domains. Never writes to Jira. */
   importExistingProjectDomains: adminOrPmo
