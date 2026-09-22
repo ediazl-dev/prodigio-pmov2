@@ -670,4 +670,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] E2: Crear recibos durables de carga y adjuntar evidencia al mismo proyecto/tipo de forma transaccional.
 - [x] E3: Separar estado de upload por formulario, impedir submit sin archivo validado y mostrar errores comprensibles.
 - [x] E4: Completar auditoría de upload/adjunto/fallo sin bytes ni secretos y evitar duplicados/reintentos inválidos.
-- [ ] E5: Certificar Staffing, Tanner, proyecto sin baseline, formatos, desktop/móvil, suite, build, documentación y checkpoint final.
+- [x] E5: Certificar Staffing, Tanner, proyecto sin baseline, formatos, desktop/móvil, suite, build, documentación y checkpoint final.
