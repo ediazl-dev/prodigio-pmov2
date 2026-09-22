@@ -411,7 +411,7 @@
 /* ===== Gantt contractual — Dashboard Ejecutivo v2 (Tanner) ===== */
 .edv2-root .edv2-gantt-wrap { position: relative; padding: 10px 16px 40px; }
 .edv2-root .edv2-gantt-header { display: grid; grid-template-columns: 260px minmax(0, 1fr); border-bottom: 1px solid #DDE3EA; padding-bottom: 14px; }
-.edv2-root .edv2-gantt-label-col { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-right: 14px; }
+.edv2-root .edv2-gantt-label-col { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 8px; padding-right: 14px; }
 .edv2-root .edv2-gantt-header .edv2-gantt-label-col { color: #7E8896; font: 700 9px "JetBrains Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
 .edv2-root .edv2-gantt-timeline { position: relative; min-height: 20px; }
 .edv2-root .edv2-gantt-months-track { position: relative; height: 14px; }
@@ -419,8 +419,9 @@
 .edv2-root .edv2-gantt-row { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: center; border-bottom: 1px solid #EDF1F5; min-height: 46px; }
 .edv2-root .edv2-gantt-row:hover { background: #F7F9FB; }
 .edv2-root .edv2-gantt-code { color: #0D1117; font: 800 11px "JetBrains Mono", monospace; }
-.edv2-root .edv2-gantt-name { color: #39424E; font-size: 11px; line-height: 1.3; overflow-wrap: break-word; }
-.edv2-root .edv2-gantt-weight { color: #7E8896; font: 700 10px "JetBrains Mono", monospace; }
+.edv2-root .edv2-gantt-copy { min-width: 0; }
+.edv2-root .edv2-gantt-name { color: #39424E; font-size: 11px; line-height: 1.3; overflow-wrap: anywhere; }
+.edv2-root .edv2-gantt-weight { color: #7E8896; font: 700 10px "JetBrains Mono", monospace; line-height: 1.35; margin-top: 3px; overflow-wrap: anywhere; }
 .edv2-root .edv2-gantt-row .edv2-gantt-timeline { min-height: 46px; }
 /* Rombo de línea base (carta Gantt) */
 .edv2-root .edv2-gantt-baseline { background: #0D1117; height: 10px; position: absolute; top: 18px; transform: translateX(-50%) rotate(45deg); width: 10px; }

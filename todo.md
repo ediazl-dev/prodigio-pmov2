@@ -687,3 +687,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] X1: Diferenciar salud ejecutiva de exigencias formalizadas y presentar brecha de gobierno según severidad.
 - [x] X2: Mostrar señales observadas sin crear exigencias automáticas ni confundir riesgos, hitos o Jira con decisiones de comité.
 - [x] X3: Certificar PMO-2670001, estados estable/amarillo/crítico, responsive, pruebas, build y checkpoint final.
+
+## Reformulación financiera del Dashboard Ejecutivo v2 — 2026-09-22
+
+- [x] F0: Crear rama desde `3e8f42f`, confirmar refs alineadas e inventariar cobertura financiera real.
+- [x] F1: Crear read model determinista por proyecto con contratado, costo, margen, devengado, facturado, cobrado y procedencia.
+- [x] F2: Asignar monto contractual a cada hito sólo con monto directo o venta UF × peso; mantener N/D si la base no existe.
+- [x] F3: Reformular Eje 01 y Eje 02 con cifras de proyecto, embudo de facturación, costos y márgenes sin inventar datos.
+- [ ] F4: Certificar CCLA, Tanner, proyectos sin evidencia, multimoneda, responsive, pruebas, build, documentación y checkpoint final.

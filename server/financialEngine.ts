@@ -16,6 +16,7 @@ export interface ContractData {
   clientName: string;
   contractName: string;
   valorContratadoUF: string | null;
+  moneda?: string | null;
   esInversionInterna: boolean | null;
   estado: string | null;
 }

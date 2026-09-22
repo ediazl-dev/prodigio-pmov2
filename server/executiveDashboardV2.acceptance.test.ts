@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const component = readFileSync(new URL("../client/src/pages/stages/ExecutiveDashboardV2.tsx", import.meta.url), "utf8");
+const financialAxis = readFileSync(new URL("../client/src/pages/stages/ExecutiveFinancialAxis.tsx", import.meta.url), "utf8");
+const dashboardSource = `${component}\n${financialAxis}`;
 const requirementEmptyState = readFileSync(new URL("../client/src/pages/stages/ExecutiveRequirementEmptyState.tsx", import.meta.url), "utf8");
 const router = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../client/src/index.css", import.meta.url), "utf8");
@@ -11,7 +13,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     const orderedZones = [
       'id="veredicto"',
       'id="hitos"',
-      'id="finanzas"',
+      '<ExecutiveFinancialAxis',
       'id="exigencias"',
       'id="remediacion"',
       'id="operacion"',
@@ -45,11 +47,11 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       "Eje primario — cumplimiento cardinal de hitos",
       "Línea de tiempo contractual — baseline vs. real",
       "Hitos vencidos sin aceptación y evidencia por hito",
-      "Impacto y costo financiero de la desviación",
-      "Daño cuantificado y proyección a término",
-      "Puente de destrucción de margen",
-      "Componentes del puente:",
-      "Descalce entre curva de pago y cumplimiento",
+      "Finanzas del proyecto — costos, margen y ciclo de caja",
+      "Embudo de facturación real",
+      "Facturado (SII)",
+      "Costo consumido",
+      "Impacto de la desviación sobre costo y margen",
       "Exigencias, pauta de remediación y descargos",
       "Exigencias vigentes",
       "Pauta del Plan de Recuperación y Descargo (PRD)",
@@ -69,7 +71,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       "Decisión requerida:",
       "[POR CONFIRMAR]",
       "[PENDIENTE]",
-    ].forEach((label) => expect(component).toContain(label));
+    ].forEach((label) => expect(dashboardSource).toContain(label));
 
     expect(component).not.toContain('>N/A<');
   });
@@ -162,13 +164,13 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
   it("mantiene tres vistas derivadas con métricas y restricciones diferenciadas", () => {
     [
       "Exposición de margen y caja con base cardinal.",
-      "Facturación y cumplimiento se muestran por separado.",
+      "Hitos aceptados y facturación SII se muestran por separado.",
       "La trazabilidad técnica se observa, pero no acredita entrega.",
       "CV ·",
-      "Facturación aceptada",
+      "Valor de hitos aceptados",
       "Hitos con issue Jira",
       "La aceptación documentada sigue siendo el único gatillo de avance.",
-    ].forEach((detail) => expect(component).toContain(detail));
+    ].forEach((detail) => expect(dashboardSource).toContain(detail));
 
     expect((component.match(/role="tab"/g) ?? []).length).toBeGreaterThanOrEqual(1);
     expect(component).toContain('role="tabpanel"');

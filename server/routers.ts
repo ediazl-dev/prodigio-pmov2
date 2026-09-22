@@ -67,6 +67,7 @@ import { assessExecutiveEvidenceAccess } from "./executiveEvidenceAccess";
 import { calculateExecutiveGovernance, classifyMilestoneTimeline } from "./executiveGovernanceEngine";
 import { resolveExecutiveDashboardCutoff } from "./executiveDashboardFixture";
 import { buildExecutiveFinancialEvidence } from "./executiveFinancialEvidence";
+import { loadExecutiveProjectFinance } from "./executiveProjectFinanceSource";
 import { isoWeekFromDate } from "./executiveMinutes";
 import { canApproveExecutiveRecoveryPlan } from "./executiveRecoveryPlanPolicy";
 import { canCloseExecutiveRequirement, canWaiveExecutiveRequirement } from "./executiveRequirements";
@@ -4131,6 +4132,26 @@ Responde SOLO con JSON:
           backlogConfidencePct: null,
         },
       });
+      const executiveFinancialEvidence = buildExecutiveFinancialEvidence({
+        persistedSnapshot: persistedFinancialSnapshot,
+        syncedFinancial: financialSnapshot,
+        impact: governance.financial,
+      });
+      const projectFinance = await loadExecutiveProjectFinance({
+        projectId: input.projectId,
+        dealId: source.dealId,
+        cutoffDate,
+        financial: latestFinancial,
+        financialSource: executiveFinancialEvidence.source,
+        capturedAt: executiveFinancialEvidence.capturedAt,
+        milestones: milestoneEvidence.map((milestone) => ({
+          milestoneCode: milestone.milestoneCode,
+          title: milestone.title,
+          billingWeight: milestone.billingWeight,
+          jiraIssueKey: milestone.jiraIssueKey,
+          acceptanceStatus: milestone.acceptanceStatus,
+        })),
+      });
       return {
         project: { id: project.id, name: project.projectName, client: (project as any).clientName || "" },
         source: {
@@ -4156,11 +4177,8 @@ Responde SOLO con JSON:
         },
         commercialExposure: governance.exposure,
         financial: latestFinancial,
-        financialEvidence: buildExecutiveFinancialEvidence({
-          persistedSnapshot: persistedFinancialSnapshot,
-          syncedFinancial: financialSnapshot,
-          impact: governance.financial,
-        }),
+        financialEvidence: executiveFinancialEvidence,
+        projectFinance,
         governance: { ...governance.governance, assignments, recoveryPlan, recoveryPlans, requirements, commitments, minutes, minutesCoverage },
         agenticVerdict: currentAgenticVerdict,
         operationalEvidence,
