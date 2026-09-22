@@ -5,7 +5,7 @@ import { ExecutiveDerivedPerspectivePanel, type ExecutiveDerivedMetrics } from "
 
 const metrics: ExecutiveDerivedMetrics = {
   cfo: { cv: "[POR CONFIRMAR]", cpiH: "[POR CONFIRMAR]", totalDamage: "[POR CONFIRMAR]" },
-  commercial: { acceptedBilling: "0%", mismatch: "60.0 pp", retainedUf: "[POR CONFIRMAR]" },
+  commercial: { acceptedBilling: "0,00 UF", mismatch: "60.0 pp", retainedUf: "[POR CONFIRMAR]" },
   cto: { linkedMilestones: "10/10", overdue: "6", reliableBacklog: "[POR CONFIRMAR]" },
 };
 
@@ -22,7 +22,8 @@ describe("Dashboard Ejecutivo v2 — render de perspectivas derivadas", () => {
     const html = renderToStaticMarkup(createElement(ExecutiveDerivedPerspectivePanel, { view: "commercial", metrics }));
 
     expect(html).toContain('data-derived-view="commercial"');
-    ["Lectura comercial", "Facturación aceptada", "Descalce", "UF retenidas", "Facturación y cumplimiento se muestran por separado.", "requiere acta de aceptación"].forEach((text) => expect(html).toContain(text));
+    ["Lectura comercial", "Hitos aceptados y facturación SII se muestran por separado.", "Valor de hitos aceptados", "Descalce", "UF retenidas", "no se declara una nueva fecha comercial como aceptada"].forEach((text) => expect(html).toContain(text));
+    expect(html).toContain("0,00 UF");
     expect(html).toContain("60.0 pp");
   });
 

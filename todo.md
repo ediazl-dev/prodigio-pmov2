@@ -694,4 +694,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F1: Crear read model determinista por proyecto con contratado, costo, margen, devengado, facturado, cobrado y procedencia.
 - [x] F2: Asignar monto contractual a cada hito sólo con monto directo o venta UF × peso; mantener N/D si la base no existe.
 - [x] F3: Reformular Eje 01 y Eje 02 con cifras de proyecto, embudo de facturación, costos y márgenes sin inventar datos.
-- [ ] F4: Certificar CCLA, Tanner, proyectos sin evidencia, multimoneda, responsive, pruebas, build, documentación y checkpoint final.
+- [x] F4: Certificar CCLA, Tanner, proyectos sin evidencia, multimoneda, responsive, pruebas, build, documentación y checkpoint final.
