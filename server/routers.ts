@@ -99,6 +99,7 @@ import {
   getExecutiveEvidenceAdminSummary,
   listExecutiveEvidenceAdmin,
   listExecutiveEvidenceProjects,
+  restoreExecutiveEvidenceReceipt,
 } from "./executiveEvidenceAdmin";
 import { buildPortfolioConsoleFallback } from "./portfolioConsoleModel";
 import { GOVERNANCE_TRIGGER_CATALOG, isGovernanceTriggerCode } from "../shared/governanceTriggers";
@@ -6525,6 +6526,28 @@ const executiveEvidenceAdminRouter = router({
       documentType: result.receipt.documentType,
       sizeBytes: result.receipt.sizeBytes,
       reason: input.reason,
+    });
+    return { success: true };
+  }),
+
+  restore: adminOnly.input(z.object({
+    id: z.number().int().positive(),
+  })).mutation(async ({ ctx, input }) => {
+    const result = await restoreExecutiveEvidenceReceipt({ id: input.id });
+    if (result.outcome === "not_found") {
+      throw new TRPCError({ code: "NOT_FOUND", message: "El documento descartado no existe" });
+    }
+    if (result.outcome === "not_restorable") {
+      throw new TRPCError({ code: "CONFLICT", message: "El documento ya no puede restaurarse porque fue adjuntado, no está descartado o expiró" });
+    }
+    if (result.outcome === "conflict") {
+      throw new TRPCError({ code: "CONFLICT", message: "El documento cambió mientras se procesaba; actualiza la vista" });
+    }
+    await audit(ctx, "executive_evidence_restored", "executive_evidence_upload", result.receipt.id, result.receipt.fileName, {
+      projectId: result.receipt.projectId,
+      sourceId: result.receipt.sourceId,
+      documentType: result.receipt.documentType,
+      sizeBytes: result.receipt.sizeBytes,
     });
     return { success: true };
   }),

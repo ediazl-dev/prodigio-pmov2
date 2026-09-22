@@ -28,6 +28,7 @@ import JiraSpacesPage from "./pages/admin/JiraSpaces";
 import JsmSpacesPage from "./pages/admin/JsmSpaces";
 import AdminJiraToken from "./pages/admin/AdminJiraToken";
 import AdminFinancialSync from "./pages/admin/AdminFinancialSync";
+import AdminEvidenceHistory from "./pages/admin/AdminEvidenceHistory";
 import FinancialConsolidated from "./pages/FinancialConsolidated";
 import JiraReport from "./pages/reports/JiraReport";
 import JiraProjectDashboard from "./pages/reports/JiraProjectDashboard";
@@ -100,6 +101,7 @@ function Router() {
             <Route path="/admin/jsm-spaces">{() => <JsmViewerGuard><JsmSpacesPage /></JsmViewerGuard>}</Route>
             <Route path="/admin/jira-token">{() => <AdminGuard><AdminJiraToken /></AdminGuard>}</Route>
             <Route path="/admin/financial-sync">{() => <AdminGuard><AdminFinancialSync /></AdminGuard>}</Route>
+            <Route path="/admin/evidence-history">{() => <AdminGuard><AdminEvidenceHistory /></AdminGuard>}</Route>
             <Route path="/admin/financial-consolidated">{() => <AdminGuard><FinancialConsolidated /></AdminGuard>}</Route>
             <Route path="/recurring-services" component={RecurringServicesList} />
             <Route path="/recurring-services/new" component={RecurringServiceCreate} />

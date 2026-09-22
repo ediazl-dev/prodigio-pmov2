@@ -22,10 +22,12 @@ const ACTION_LABELS: Record<string, string> = {
   save_billing: "Guardar facturación", save_design: "Guardar diseño", save_closure: "Guardar cierre",
   setup_jira: "Configurar Jira", update_deadline: "Actualizar plazo", bulk_update_deadlines: "Actualizar plazos masivo",
   pause_stage: "Pausar etapa", resume_stage: "Reanudar etapa", extend_deadline: "Extender plazo",
+  executive_evidence_discarded: "Descartar evidencia", executive_evidence_restored: "Restaurar evidencia",
 };
 const ENTITY_LABELS: Record<string, string> = {
   user: "Usuario", project: "Proyecto", stage: "Etapa", sow: "SoW", risks: "Riesgos",
   wbs: "WBS", design: "Avance", closure: "Cierre", jira: "Jira", deadline: "Plazo", extension: "Extensión",
+  executive_evidence_upload: "Evidencia documental",
 };
 const ENTITY_ICONS: Record<string, React.ReactNode> = {
   user: <User className="h-3.5 w-3.5" />, project: <FolderOpen className="h-3.5 w-3.5" />,
@@ -34,6 +36,7 @@ const ENTITY_ICONS: Record<string, React.ReactNode> = {
   design: <Settings className="h-3.5 w-3.5" />, closure: <Settings className="h-3.5 w-3.5" />,
   jira: <Settings className="h-3.5 w-3.5" />, deadline: <Clock className="h-3.5 w-3.5" />,
   extension: <Clock className="h-3.5 w-3.5" />,
+  executive_evidence_upload: <FileText className="h-3.5 w-3.5" />,
 };
 
 function getActionBadge(action: string): { bg: string; color: string } {

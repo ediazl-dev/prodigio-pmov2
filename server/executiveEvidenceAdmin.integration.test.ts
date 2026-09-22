@@ -6,6 +6,7 @@ import {
   discardExecutiveEvidenceReceipt,
   getExecutiveEvidenceAdminSummary,
   listExecutiveEvidenceAdmin,
+  restoreExecutiveEvidenceReceipt,
 } from "./executiveEvidenceAdmin";
 import { createExecutiveEvidenceUploadReceipt } from "./executiveEvidenceRepository";
 import { assessExecutiveEvidenceReceipt } from "./executiveEvidenceReceipt";
@@ -90,5 +91,9 @@ describeDb("executive evidence admin — historial y descarte", () => {
       documentType: "minute",
       actorId: 1,
     })).toMatchObject({ allowed: false, code: "RECEIPT_DISCARDED" });
+
+    expect((await restoreExecutiveEvidenceReceipt({ id: receipt.id })).outcome).toBe("restored");
+    expect((await listExecutiveEvidenceAdmin({ page: 1, pageSize: 20, status: "pending", projectId })).total).toBe(1);
+    expect((await restoreExecutiveEvidenceReceipt({ id: receipt.id })).outcome).toBe("not_restorable");
   });
 });

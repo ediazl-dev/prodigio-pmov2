@@ -678,5 +678,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] H1: Extender recibos con descarte administrativo reversible y política de estados derivados.
 - [x] H2: Crear read model paginado con filtros, KPIs y trazabilidad por proyecto/documento/usuario.
 - [x] H3: Exponer procedimientos admin-only para listar, resumir y descartar recibos pendientes con auditoría.
-- [ ] H4: Implementar página administrativa responsive, navegación, búsqueda, filtros, paginación y confirmación de descarte.
-- [ ] H5: Certificar datos, permisos, estados, desktop/móvil, suite, build, documentación y checkpoint final.
+- [x] H4: Implementar página administrativa responsive, navegación, búsqueda, filtros, paginación y confirmación de descarte.
+- [x] H5: Certificar datos, permisos, estados, desktop/móvil, suite, build, documentación y checkpoint final.

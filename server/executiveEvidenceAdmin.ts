@@ -27,6 +27,12 @@ export function canDiscardExecutiveEvidence(status: ExecutiveEvidenceAdminStatus
   return status === "pending" || status === "expired";
 }
 
+export function canRestoreExecutiveEvidence(receipt: ExecutiveEvidenceAdminReceiptLike, now = new Date()) {
+  if (!receipt.discardedAt || receipt.uploadStatus !== "pending") return false;
+  const createdAtMs = new Date(receipt.createdAt).getTime();
+  return Number.isFinite(createdAtMs) && now.getTime() - createdAtMs <= EXECUTIVE_EVIDENCE_RECEIPT_TTL_MS;
+}
+
 function statusCondition(status: ExecutiveEvidenceAdminStatusFilter, now: Date): SQL | undefined {
   const expiryCutoff = new Date(now.getTime() - EXECUTIVE_EVIDENCE_RECEIPT_TTL_MS);
   if (status === "pending") {
@@ -124,6 +130,7 @@ export async function listExecutiveEvidenceAdmin(input: {
         ...row,
         status,
         canDiscard: canDiscardExecutiveEvidence(status),
+        canRestore: canRestoreExecutiveEvidence(row, now),
         expiresAt,
       };
     }),
@@ -213,5 +220,32 @@ export async function discardExecutiveEvidenceReceipt(input: {
   const affectedRows = Number((result as { affectedRows?: number }).affectedRows ?? 0);
   return affectedRows === 1
     ? { outcome: "discarded" as const, receipt: { ...receipt, discardedAt } }
+    : { outcome: "conflict" as const, receipt };
+}
+
+export async function restoreExecutiveEvidenceReceipt(input: {
+  id: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [receipt] = await db
+    .select()
+    .from(executiveEvidenceUploads)
+    .where(eq(executiveEvidenceUploads.id, input.id))
+    .limit(1);
+  if (!receipt) return { outcome: "not_found" as const, receipt: null };
+  if (!canRestoreExecutiveEvidence(receipt)) return { outcome: "not_restorable" as const, receipt };
+
+  const [result] = await db
+    .update(executiveEvidenceUploads)
+    .set({ discardedAt: null, discardedBy: null, discardedByName: null, discardReason: null })
+    .where(and(
+      eq(executiveEvidenceUploads.id, input.id),
+      eq(executiveEvidenceUploads.uploadStatus, "pending"),
+      isNotNull(executiveEvidenceUploads.discardedAt),
+    ));
+  const affectedRows = Number((result as { affectedRows?: number }).affectedRows ?? 0);
+  return affectedRows === 1
+    ? { outcome: "restored" as const, receipt }
     : { outcome: "conflict" as const, receipt };
 }
