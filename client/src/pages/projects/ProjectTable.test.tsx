@@ -27,13 +27,14 @@ function row(overrides: Partial<PortfolioRow> = {}): PortfolioRow {
     jiraProjectKey: "PILOT",
     status: "activo",
     stageId: "design",
-    stageLabel: "Avance",
+    stageLabel: "Avance Proyecto",
     stageIndex: 4,
     totalStages: 6,
     stagesClosed: 2,
     closedStageIds: ["sow", "risks"],
     daysUsed: 21,
     daysAllowed: 18,
+    configuredDaysAllowed: 18,
     overDays: 3,
     deadlineState: "overdue",
     deadlineReason: "measured",
@@ -92,7 +93,7 @@ describe("ProjectTable", () => {
     expect(screen.getByText("3")).toBeTruthy();
   });
 
-  it("mantiene el pipeline de etapas cerradas reales y no por posición", () => {
+  it("mantiene el pipeline de etapas completadas reales y no por posición", () => {
     render(
       <ProjectTable
         rows={[row()]}
@@ -103,7 +104,7 @@ describe("ProjectTable", () => {
       />,
     );
 
-    const pipeline = screen.getByRole("img", { name: /2 de 6 etapas PMO cerradas/ });
+    const pipeline = screen.getByRole("img", { name: /2 de 6 etapas PMO completadas/ });
     const segments = pipeline.querySelectorAll("i");
     expect(segments).toHaveLength(6);
     expect(segments[0].getAttribute("style")).toBe(segments[2].getAttribute("style"));
@@ -159,7 +160,8 @@ describe("ProjectTable", () => {
     );
 
     expect(screen.getByText("Sin apertura PMO")).toBeTruthy();
-    expect(screen.getByText("No mide avance Jira")).toBeTruthy();
+    expect(screen.getByText("Plazo configurado: 18 días hábiles")).toBeTruthy();
+    expect(screen.getByText(/no mide avance Jira/i)).toBeTruthy();
     expect(screen.getByText("Evidencia Jira parcial")).toBeTruthy();
   });
 });

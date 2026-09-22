@@ -75,9 +75,9 @@ describe("portfolio · etapa", () => {
     expect(nexos?.totalStages).toBe(6);
   });
 
-  it("usa la etiqueta configurada en stage_deadlines", () => {
+  it("usa la etiqueta canónica Avance Proyecto para el stageId histórico design", () => {
     const { portfolio } = buildExecutivePortfolio(baseInput());
-    expect(portfolio.find(row => row.projectId === 1)?.stageLabel).toBe("Avance");
+    expect(portfolio.find(row => row.projectId === 1)?.stageLabel).toBe("Avance Proyecto");
     expect(portfolio.find(row => row.projectId === 4)?.stageLabel).toBe("Riesgos");
   });
 });
@@ -192,6 +192,14 @@ describe("portfolio · PM, monto y riesgos", () => {
         jiraProjectKey: "PBTISD1",
       }],
       compliance: [],
+      projectStages: [
+        { projectId: 180002, stageId: "sow", status: "completed", progress: 100, completedAt: "2026-03-12T16:04:33Z" },
+        { projectId: 180002, stageId: "jira", status: "completed", progress: 100, completedAt: "2026-03-12T16:04:33Z" },
+        { projectId: 180002, stageId: "risks", status: "completed", progress: 100, completedAt: "2026-03-12T16:04:33Z" },
+        { projectId: 180002, stageId: "planning", status: "completed", progress: 100, completedAt: "2026-03-12T16:04:33Z" },
+        { projectId: 180002, stageId: "design", status: "in_progress", progress: 0, completedAt: null },
+        { projectId: 180002, stageId: "closure", status: "locked", progress: 0, completedAt: null },
+      ],
       risks: [],
       financial: [{
         dealId: "Deal1934",
@@ -227,8 +235,11 @@ describe("portfolio · PM, monto y riesgos", () => {
     expect(tanner).toMatchObject({
       dealId: "Deal1934",
       stageId: "design",
-      stageLabel: "Avance",
+      stageLabel: "Avance Proyecto",
+      stagesClosed: 4,
+      closedStageIds: ["sow", "jira", "risks", "planning"],
       deadlineReason: "missing_stage_opening",
+      configuredDaysAllowed: 18,
       operationalPhase: "Construcción + QA",
       operationalProgressPct: 31,
       pmName: "Eduardo Mercado",

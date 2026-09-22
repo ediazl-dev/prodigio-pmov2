@@ -270,7 +270,7 @@ export default function JiraReport() {
                     <td className="px-3 py-2.5">
                       <p className="text-[11px] font-bold text-slate-900">{row.operationalPhase ?? "Fase Jira N/D"}</p>
                       <p className="mt-0.5 text-[9.5px] text-slate-500">Pipeline PMO: {row.stageLabel}</p>
-                      <p className="text-[9px] text-slate-400">{row.stagesClosed}/{row.totalStages} etapas cerradas</p>
+                      <p className="text-[9px] text-slate-400">{row.stagesClosed}/{row.totalStages} etapas completadas</p>
                     </td>
 
                     <td className="px-3 py-2.5">

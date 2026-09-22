@@ -620,7 +620,7 @@ export default function LinkedProjectDashboard() {
           <KPICard
             label="Pipeline PMO"
             value={evidence?.stageLabel ?? "N/D"}
-            sub={evidence ? `${evidence.stagesClosed}/${evidence.totalStages} etapas cerradas` : "Sin evidencia PMO"}
+            sub={evidence ? `${evidence.stagesClosed}/${evidence.totalStages} etapas completadas` : "Sin evidencia PMO"}
             borderColor={C.blue2}
             valueColor={C.blue2}
           />

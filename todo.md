@@ -655,3 +655,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] K2: Mostrar los mismos 12 proyectos y separar ciclo de vida, fase Jira, avance reportado, hitos y tareas.
 - [x] K3: Alinear el detalle Jira a las mismas dimensiones y fuentes del Portafolio, preservando IA, finanzas y PPTX.
 - [x] K4: Certificar Tanner, CCLA, cerrados, PAI parcial, N/D, desktop/móvil, pruebas, build y checkpoint final.
+
+## Consistencia de etapas PMO y plazo — Tanner — 2026-09-19
+
+- [x] T0: Confirmar versión publicada, estado físico de etapas y causa exacta sin modificar datos.
+- [x] T1: Hacer que el read model distinga etapas completadas del registro formal de cierre y no muestre 0/6 falso.
+- [x] T2: Mostrar `Avance Proyecto` para `design`, explicar `Sin apertura PMO` y conservar `Construcción + QA` como fase Jira.
+- [x] T3: Certificar Tanner y los 12 proyectos, build, pruebas, responsive, documentación y checkpoint final.

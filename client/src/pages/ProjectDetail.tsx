@@ -316,7 +316,7 @@ export default function ProjectDetail() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 20 }}>
             {[
               { label: "Fase Jira", value: portfolioEvidence?.operationalPhase ?? "N/D", detail: portfolioEvidence?.operationalProgressPct != null ? `Avance ${portfolioEvidence.operationalProgressPct}%` : "Avance N/D" },
-              { label: "Pipeline PMO", value: portfolioEvidence?.stageLabel ?? "N/D", detail: `${portfolioEvidence?.stagesClosed ?? completedCount}/6 etapas cerradas` },
+              { label: "Pipeline PMO", value: portfolioEvidence?.stageLabel ?? "N/D", detail: `${portfolioEvidence?.stagesClosed ?? completedCount}/6 etapas completadas` },
               { label: "Hitos Jira", value: portfolioEvidence?.milestonesFulfilled != null && portfolioEvidence?.milestonesTotal != null ? `${portfolioEvidence.milestonesFulfilled}/${portfolioEvidence.milestonesTotal}` : "N/D", detail: `Fuente: ${portfolioEvidence?.milestoneSource ?? "missing"}` },
               { label: "Project Manager", value: portfolioEvidence?.pmName ?? "N/D", detail: `Fuente: ${portfolioEvidence?.pmSource ?? "missing"}` },
               { label: "Riesgos", value: portfolioEvidence?.openRisks != null ? `${portfolioEvidence.openRisks} abiertos` : "N/D", detail: portfolioEvidence?.highRisksOpen != null ? `${portfolioEvidence.highRisksOpen} altos · ${portfolioEvidence.riskSource}` : `Fuente: ${portfolioEvidence?.riskSource ?? "missing"}` },

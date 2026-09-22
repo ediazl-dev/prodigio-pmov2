@@ -173,12 +173,12 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
                     {row.operationalPhase ?? "Fase operativa N/D"}
                   </div>
                   <div className="mt-0.5 text-[9.5px] text-slate-500">
-                    Pipeline PMO: {row.stageLabel} · {row.stagesClosed}/{row.totalStages} cerradas
+                    Pipeline PMO: {row.stageLabel} · {row.stagesClosed}/{row.totalStages} completadas
                   </div>
                   <div
                     className="mt-1 flex gap-[3px]"
                     role="img"
-                    aria-label={`${row.stagesClosed} de ${row.totalStages} etapas PMO cerradas, cursor en ${row.stageLabel}`}
+                    aria-label={`${row.stagesClosed} de ${row.totalStages} etapas PMO completadas, cursor en ${row.stageLabel}`}
                   >
                     {PIPELINE_STAGE_IDS.slice(0, row.totalStages).map((stageId, position) => (
                       <i
@@ -226,7 +226,14 @@ export function ProjectTable({ rows, sort, onSortChange, canDelete, onDelete }: 
                     <div>
                       <span className="text-[10px] font-semibold text-slate-700">{deadlineSummary(row)}</span>
                       {row.deadlineReason === "missing_stage_opening" && (
-                        <span className="mt-0.5 block text-[8.5px] leading-3 text-slate-500">No mide avance Jira</span>
+                        <>
+                          <span className="mt-0.5 block text-[8.5px] leading-3 text-slate-500">
+                            {row.configuredDaysAllowed !== null
+                              ? `Plazo configurado: ${row.configuredDaysAllowed} días hábiles`
+                              : "Sin plazo configurado"}
+                          </span>
+                          <span className="block text-[8.5px] leading-3 text-slate-500">Falta fecha de apertura · no mide avance Jira</span>
+                        </>
                       )}
                     </div>
                   )}

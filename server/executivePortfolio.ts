@@ -72,6 +72,14 @@ export interface ExecutiveExtensionSource {
   extraDays: number | null;
 }
 
+export interface ExecutiveProjectStageSource {
+  projectId: number;
+  stageId: StageId;
+  status: "locked" | "in_progress" | "completed";
+  progress: number | null;
+  completedAt: Date | string | null;
+}
+
 export interface ExecutiveRiskSource {
   projectId: number;
   status: "abierto" | "mitigado" | "cerrado" | null;
@@ -137,6 +145,7 @@ export interface ExecutivePortfolioInput {
   compliance: ExecutiveComplianceDetail[];
   deadlines: ExecutiveDeadlineSource[];
   extensions: ExecutiveExtensionSource[];
+  projectStages?: ExecutiveProjectStageSource[];
   risks: ExecutiveRiskSource[];
   milestones: ExecutiveMilestoneSource[];
   lessons: ExecutiveLessonSource[];
@@ -192,6 +201,8 @@ export interface PortfolioRow {
   closedStageIds: string[];
   daysUsed: number | null;
   daysAllowed: number | null;
+  /** Plazo configurado para la etapa actual aunque aún no exista apertura. */
+  configuredDaysAllowed: number | null;
   overDays: number | null;
   deadlineState: DeadlineState;
   pmId: number | null;
@@ -324,7 +335,7 @@ const STAGE_LABEL_FALLBACK: Record<string, string> = {
   jira: "Jira",
   risks: "Riesgos",
   planning: "Planificación",
-  design: "Avance",
+  design: "Avance Proyecto",
   closure: "Cierre",
 };
 
@@ -334,10 +345,13 @@ const STAGE_ORDER: StageId[] = ["sow", "jira", "risks", "planning", "design", "c
 const AT_RISK_RATIO = 0.8;
 
 export function buildExecutivePortfolio(input: ExecutivePortfolioInput): ExecutivePortfolio {
-  const labelFor = (stageId: string) =>
-    input.deadlines.find(deadline => deadline.stageId === stageId)?.label ??
-    STAGE_LABEL_FALLBACK[stageId] ??
-    stageId;
+  const labelFor = (stageId: string) => {
+    // `design` es un ID histórico. En la interfaz siempre significa Avance Proyecto.
+    if (stageId === "design") return STAGE_LABEL_FALLBACK.design;
+    return input.deadlines.find(deadline => deadline.stageId === stageId)?.label ??
+      STAGE_LABEL_FALLBACK[stageId] ??
+      stageId;
+  };
 
   const userById = new Map(input.users.map(user => [user.id, user.name]));
   const normalizeDeal = (value: string | null | undefined) => value?.replace(/\s+/g, "").toLowerCase() ?? "";
@@ -462,6 +476,16 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     closedStagesByProject.set(detail.projectId, closedStageIds);
   }
 
+  const completedStageStatusByProject = new Map<number, Set<string>>();
+  const projectsWithStageRows = new Set<number>();
+  for (const stage of input.projectStages ?? []) {
+    projectsWithStageRows.add(stage.projectId);
+    if (stage.status !== "completed") continue;
+    const completedIds = completedStageStatusByProject.get(stage.projectId) ?? new Set<string>();
+    completedIds.add(stage.stageId);
+    completedStageStatusByProject.set(stage.projectId, completedIds);
+  }
+
   /* ── Etapas en curso: lo que se atrasa hoy ──────────────────────────────── */
 
   const inProgress = input.compliance.filter(detail => detail.status === "in_progress");
@@ -493,6 +517,15 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       daysUsed: detail?.daysUsed ?? null,
       daysAllowed: measurable ? detail.totalAllowed : null,
     };
+  }
+
+  function configuredDaysFor(project: ExecutiveProjectSource): number | null {
+    const deadline = input.deadlines.find(item => item.stageId === project.currentStage);
+    if (!deadline) return null;
+    const extraDays = input.extensions
+      .filter(item => item.projectId === project.id && item.stageId === project.currentStage && item.type === "extend")
+      .reduce((sum, item) => sum + (item.extraDays ?? 0), 0);
+    return deadline.maxBusinessDays + extraDays;
   }
 
   const attention: AttentionRow[] = activeProjects.map(project => {
@@ -547,6 +580,9 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     const risk = risksFor(project.id);
     const snapshot = jiraSnapshotByProject.get(project.id) ?? null;
     const jiraEvidence = jiraEvidenceByProject.get(project.id) ?? assessJiraEvidence(null, input.generatedAt);
+    const completedStageIds = projectsWithStageRows.has(project.id)
+      ? completedStageStatusByProject.get(project.id) ?? new Set<string>()
+      : closedStagesByProject.get(project.id) ?? new Set<string>();
     const operationalPhase = evidenceValue(jiraEvidence, snapshot?.operationalPhase?.trim() || null);
     const operationalPhaseSource = operationalPhase ? "jira_snapshot" as const : "missing" as const;
     const milestonesTotal = evidenceValue(jiraEvidence, snapshot?.milestonesTotal);
@@ -572,10 +608,11 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       stageLabel: labelFor(project.currentStage),
       stageIndex: STAGE_ORDER.indexOf(project.currentStage),
       totalStages: STAGE_ORDER.length,
-      stagesClosed: closedStagesByProject.get(project.id)?.size ?? 0,
-      closedStageIds: Array.from(closedStagesByProject.get(project.id) ?? []),
+      stagesClosed: completedStageIds.size,
+      closedStageIds: Array.from(completedStageIds),
       daysUsed: deadline?.daysUsed ?? null,
       daysAllowed: deadline?.daysAllowed ?? null,
+      configuredDaysAllowed: configuredDaysFor(project),
       overDays: deadline?.overDays ?? null,
       deadlineState: deadline?.state ?? "not_applicable",
       deadlineReason: !hasLiveDeadline ? "not_applicable" : deadline?.detail ? "measured" : "missing_stage_opening",

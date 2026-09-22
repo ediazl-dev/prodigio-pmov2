@@ -62,10 +62,10 @@ En la lectura consolidada final hay 12 filas, 11 con fase operacional Jira, 10 c
 | Campo | Resultado certificado | Fuente |
 |---|---|---|
 | Fase operacional | Construcción + QA | Jira |
-| Pipeline PMO | Análisis y Diseño, 0/6 etapas cerradas | PMO local |
+| Pipeline PMO | Avance Proyecto, 4/6 etapas completadas | `project_stages` local |
 | Avance | 31% | Jira |
 | Hitos | 8/10 cerrados | Jira |
-| Plazo PMO | Sin apertura PMO; no mide avance Jira | Aperturas PMO |
+| Plazo PMO | Sin apertura PMO; 10 días hábiles configurados; no mide avance Jira | Configuración y aperturas PMO |
 | Ciclo de vida | Activo | PMO local |
 | Salud | Rojo \| Crítico | Jira |
 | Project Manager | Eduardo Mercado | Jira |
@@ -97,6 +97,10 @@ La suite integral sin exclusiones detectó dos dependencias externas no relacion
 ## 9. Limitaciones conocidas
 
 Los campos `N/D` son brechas explícitas de fuente, no fallas de cálculo. PMO-390001 seguirá parcial hasta que Jira disponga del issue operacional esperado. Cuatro proyectos seguirán sin monto mientras no exista `financial_data`, monto en ficha o hitos de una moneda única. La deuda TypeScript heredada se concentra en `server/jiraMilestoneSync.ts` y `server/routers.ts`; no forma parte de esta corrección.
+
+### Ajuste del 19 de septiembre de 2026
+
+Se detectó que el conteo `0/6` se calculaba exclusivamente desde `getComplianceMetrics()`. Ese cálculo requiere una fila en `stage_openings`, por lo que descartaba etapas que ya estaban físicamente `completed` en `project_stages` durante la materialización de proyectos vinculados. El read model ahora cuenta el estado físico de las seis etapas y reserva `stage_openings` para medir tiempo. En Tanner esto produce **4/6 etapas completadas**, cursor **Avance Proyecto** y plazo **configurado en 10 días hábiles**, pero mantiene días usados en `N/D` porque no existe una fecha de apertura verificable. No se inventó ninguna fecha.
 
 ## 10. Rollback
 

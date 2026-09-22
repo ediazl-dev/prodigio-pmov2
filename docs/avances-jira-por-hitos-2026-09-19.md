@@ -37,7 +37,7 @@ La evidencia autenticada del 19 de septiembre de 2026 mostró un promedio simple
 
 | Proyecto | Avance Jira | Hitos | Tareas live | Salud / evidencia | Resultado |
 |---|---:|---:|---:|---|---|
-| Tanner `PBTISD1` | 31% | 8/10 (80%) | 115/133 (86%) | Rojo / Crítico | Coincide con Portafolio; PM Eduardo Mercado y 23 riesgos/12 altos |
+| Tanner `PBTISD1` | 31% | 8/10 (80%) | 115/133 (86%) | Rojo / Crítico | Coincide con Portafolio; PM Eduardo Mercado, 23 riesgos/12 altos y pipeline PMO 4/6 |
 | CCLA `PMOCCLSRPM` | 0% | 2/6 (33%) | 0/24 (0%) | Salud N/D | Las 24 Stories siguen en Backlog; no se inventa el 8% del brief |
 | PAI `PAI` | N/D | N/D | 26/32 (81%) | Evidencia parcial | La tarea live no reemplaza avance, fase, salud o PM faltantes |
 | MaxAgro `PMOMAXASSD` | 75% | 4/4 (100%) | 61/68 (90%) | Completado / Verde | Permanece visible como proyecto completado |
@@ -47,6 +47,8 @@ La evidencia autenticada del 19 de septiembre de 2026 mostró un promedio simple
 El detalle mantiene análisis agéntico, información financiera, riesgos, generación PPTX y paneles de hitos, agenda, cobertura, tareas estancadas, carga y épicas. El encabezado y el strip de KPI se alinearon con Portafolio y separan seis dimensiones: **Avance Jira**, **Hitos**, **Tareas live**, **PM**, **Riesgos** y **Equipo**.
 
 Para Tanner, el detalle muestra ciclo de vida activo, fase Construcción + QA, avance Jira 31%, 8/10 hitos, 115/133 tareas, Eduardo Mercado, 23 riesgos abiertos/12 altos y equipo de 10 responsables con tareas.
+
+El pipeline PMO se obtiene de `project_stages`, no de la posición Jira ni de la existencia de aperturas de plazo. Tanner muestra **Avance Proyecto · 4/6 etapas completadas**. La configuración asigna 10 días hábiles a Avance Proyecto, pero `stage_openings` no contiene una apertura para ese proyecto; por eso se informa **Sin apertura PMO · plazo configurado 10 días hábiles** y los días consumidos permanecen en `N/D`.
 
 ## Rendimiento y seguridad
 

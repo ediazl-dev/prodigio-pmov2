@@ -15,6 +15,7 @@ import {
   financialData,
   jiraPortfolioSnapshots,
   lessonsLearned,
+  projectStages,
   projects,
   risks,
   stageDeadlineExtensions,
@@ -61,6 +62,7 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
     userRows,
     financialRows,
     jiraSnapshotRows,
+    projectStageRows,
     compliance,
   ] = await Promise.all([
     db.select().from(projects),
@@ -72,6 +74,7 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
     db.select().from(users),
     db.select().from(financialData),
     db.select().from(jiraPortfolioSnapshots),
+    db.select().from(projectStages),
     getComplianceMetrics(),
   ]);
 
@@ -105,6 +108,13 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
       stageId: row.stageId,
       type: row.type,
       extraDays: row.extraDays ?? 0,
+    })),
+    projectStages: projectStageRows.map(row => ({
+      projectId: row.projectId,
+      stageId: row.stageId,
+      status: row.status,
+      progress: row.progress,
+      completedAt: row.completedAt ?? null,
     })),
     risks: riskRows.map(row => ({
       projectId: row.projectId,
