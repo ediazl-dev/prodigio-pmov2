@@ -680,3 +680,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] H3: Exponer procedimientos admin-only para listar, resumir y descartar recibos pendientes con auditoría.
 - [x] H4: Implementar página administrativa responsive, navegación, búsqueda, filtros, paginación y confirmación de descarte.
 - [x] H5: Certificar datos, permisos, estados, desktop/móvil, suite, build, documentación y checkpoint final.
+
+## Mensaje contextual de exigencias ejecutivas — 2026-09-22
+
+- [x] X0: Crear rama desde `a318aeb`, confirmar refs alineadas y preservar datos.
+- [x] X1: Diferenciar salud ejecutiva de exigencias formalizadas y presentar brecha de gobierno según severidad.
+- [x] X2: Mostrar señales observadas sin crear exigencias automáticas ni confundir riesgos, hitos o Jira con decisiones de comité.
+- [x] X3: Certificar PMO-2670001, estados estable/amarillo/crítico, responsive, pruebas, build y checkpoint final.

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const component = readFileSync(new URL("../client/src/pages/stages/ExecutiveDashboardV2.tsx", import.meta.url), "utf8");
+const requirementEmptyState = readFileSync(new URL("../client/src/pages/stages/ExecutiveRequirementEmptyState.tsx", import.meta.url), "utf8");
 const router = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../client/src/index.css", import.meta.url), "utf8");
 
@@ -71,6 +72,16 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     ].forEach((label) => expect(component).toContain(label));
 
     expect(component).not.toContain('>N/A<');
+  });
+
+  it("presenta la ausencia de exigencias como brecha de gobierno cuando el estado es crítico", () => {
+    expect(component).toContain("ExecutiveRequirementEmptyState");
+    expect(component).toContain("requirementsHeaderTag");
+    expect(requirementEmptyState).toContain("BRECHA DE GOBIERNO");
+    expect(requirementEmptyState).toContain("Esto no significa que el proyecto esté conforme");
+    expect(requirementEmptyState).toContain("sólo incluye decisiones de comité persistidas");
+    expect(requirementEmptyState).toContain("Revisar y formalizar exigencia");
+    expect(component).not.toContain("[PENDIENTE] No hay exigencias persistidas.");
   });
 
   it("ofrece navegación lateral accesible y muestra la línea de tiempo Jira con aceptación documentada", () => {
