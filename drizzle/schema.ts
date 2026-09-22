@@ -817,6 +817,10 @@ export const executiveEvidenceUploads = mysqlTable(
     uploadedByName: varchar("uploadedByName", { length: 200 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     attachedAt: timestamp("attachedAt"),
+    discardedAt: timestamp("discardedAt"),
+    discardedBy: int("discardedBy"),
+    discardedByName: varchar("discardedByName", { length: 200 }),
+    discardReason: text("discardReason"),
   },
   table => ({
     receiptTokenUnique: uniqueIndex("executive_evidence_uploads_receipt_uq").on(table.receiptToken),

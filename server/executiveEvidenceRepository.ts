@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   executiveCommitments,
   executiveContractMilestones,
@@ -71,6 +71,7 @@ async function requireAndClaimReceipt(
     .where(and(
       eq(executiveEvidenceUploads.id, receipt.id),
       eq(executiveEvidenceUploads.uploadStatus, "pending"),
+      isNull(executiveEvidenceUploads.discardedAt),
     ));
   const affectedRows = Number((claimResult as { affectedRows?: number }).affectedRows ?? 0);
   if (affectedRows !== 1) {

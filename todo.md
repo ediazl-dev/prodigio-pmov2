@@ -671,3 +671,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] E3: Separar estado de upload por formulario, impedir submit sin archivo validado y mostrar errores comprensibles.
 - [x] E4: Completar auditoría de upload/adjunto/fallo sin bytes ni secretos y evitar duplicados/reintentos inválidos.
 - [x] E5: Certificar Staffing, Tanner, proyecto sin baseline, formatos, desktop/móvil, suite, build, documentación y checkpoint final.
+
+## Historial administrativo de evidencia documental — 2026-09-22
+
+- [x] H0: Crear rama desde `df1d349`, confirmar refs alineadas y preservar línea base.
+- [x] H1: Extender recibos con descarte administrativo reversible y política de estados derivados.
+- [x] H2: Crear read model paginado con filtros, KPIs y trazabilidad por proyecto/documento/usuario.
+- [x] H3: Exponer procedimientos admin-only para listar, resumir y descartar recibos pendientes con auditoría.
+- [ ] H4: Implementar página administrativa responsive, navegación, búsqueda, filtros, paginación y confirmación de descarte.
+- [ ] H5: Certificar datos, permisos, estados, desktop/móvil, suite, build, documentación y checkpoint final.

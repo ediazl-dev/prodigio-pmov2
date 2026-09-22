@@ -94,6 +94,12 @@ import {
   ExecutiveEvidencePersistenceError,
   ExecutiveEvidenceReceiptError,
 } from "./executiveEvidenceRepository";
+import {
+  discardExecutiveEvidenceReceipt,
+  getExecutiveEvidenceAdminSummary,
+  listExecutiveEvidenceAdmin,
+  listExecutiveEvidenceProjects,
+} from "./executiveEvidenceAdmin";
 import { buildPortfolioConsoleFallback } from "./portfolioConsoleModel";
 import { GOVERNANCE_TRIGGER_CATALOG, isGovernanceTriggerCode } from "../shared/governanceTriggers";
 import {
@@ -6479,6 +6485,51 @@ const complianceRouter = router({
   metrics: protectedProcedure.query(async () => getComplianceMetrics()),
 });
 
+// ==================== EXECUTIVE EVIDENCE ADMIN ROUTER ====================
+const executiveEvidenceAdminRouter = router({
+  list: adminOnly.input(z.object({
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(10).max(100).default(20),
+    status: z.enum(["all", "pending", "expired", "attached", "discarded"]).default("pending"),
+    documentType: z.enum(["minute", "acceptance", "recovery_plan"]).optional(),
+    projectId: z.number().int().positive().optional(),
+    search: z.string().trim().max(100).optional(),
+  })).query(({ input }) => listExecutiveEvidenceAdmin(input)),
+
+  summary: adminOnly.query(() => getExecutiveEvidenceAdminSummary()),
+
+  projects: adminOnly.query(() => listExecutiveEvidenceProjects()),
+
+  discard: adminOnly.input(z.object({
+    id: z.number().int().positive(),
+    reason: z.string().trim().min(5, "Indica una razón de al menos 5 caracteres").max(500),
+  })).mutation(async ({ ctx, input }) => {
+    const result = await discardExecutiveEvidenceReceipt({
+      id: input.id,
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      reason: input.reason,
+    });
+    if (result.outcome === "not_found") {
+      throw new TRPCError({ code: "NOT_FOUND", message: "El documento pendiente no existe" });
+    }
+    if (result.outcome === "not_pending") {
+      throw new TRPCError({ code: "CONFLICT", message: "El documento ya fue adjuntado o descartado" });
+    }
+    if (result.outcome === "conflict") {
+      throw new TRPCError({ code: "CONFLICT", message: "El documento cambió mientras se procesaba; actualiza la vista" });
+    }
+    await audit(ctx, "executive_evidence_discarded", "executive_evidence_upload", result.receipt.id, result.receipt.fileName, {
+      projectId: result.receipt.projectId,
+      sourceId: result.receipt.sourceId,
+      documentType: result.receipt.documentType,
+      sizeBytes: result.receipt.sizeBytes,
+      reason: input.reason,
+    });
+    return { success: true };
+  }),
+});
+
 // ==================== AUDIT ROUTER ====================
 const auditRouter = router({
   list: adminOnly.input(z.object({
@@ -7275,6 +7326,7 @@ export const appRouter = router({
   extensions: extensionsRouter,
   deadlineNotifications: deadlineNotificationsRouter,
   compliance: complianceRouter,
+  executiveEvidenceAdmin: executiveEvidenceAdminRouter,
   audit: auditRouter,
   financial: financialRouter,
   recurringServices: recurringServicesRouter,

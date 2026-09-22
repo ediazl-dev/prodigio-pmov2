@@ -9,13 +9,14 @@ export type ExecutiveEvidenceReceiptLike = {
   uploadStatus: "pending" | "attached";
   uploadedBy: number;
   createdAt: Date | string;
+  discardedAt?: Date | string | null;
 };
 
 export type ExecutiveEvidenceReceiptAssessment =
   | { allowed: true }
   | {
       allowed: false;
-      code: "RECEIPT_NOT_FOUND" | "RECEIPT_ALREADY_ATTACHED" | "RECEIPT_PROJECT_MISMATCH" | "RECEIPT_SOURCE_MISMATCH" | "RECEIPT_TYPE_MISMATCH" | "RECEIPT_ACTOR_MISMATCH" | "RECEIPT_EXPIRED";
+      code: "RECEIPT_NOT_FOUND" | "RECEIPT_ALREADY_ATTACHED" | "RECEIPT_DISCARDED" | "RECEIPT_PROJECT_MISMATCH" | "RECEIPT_SOURCE_MISMATCH" | "RECEIPT_TYPE_MISMATCH" | "RECEIPT_ACTOR_MISMATCH" | "RECEIPT_EXPIRED";
       reason: string;
     };
 
@@ -30,6 +31,9 @@ export function assessExecutiveEvidenceReceipt(input: {
   const { receipt } = input;
   if (!receipt) {
     return { allowed: false, code: "RECEIPT_NOT_FOUND", reason: "La carga validada no existe o ya no está disponible" };
+  }
+  if (receipt.discardedAt) {
+    return { allowed: false, code: "RECEIPT_DISCARDED", reason: "El documento pendiente fue descartado por administración" };
   }
   if (receipt.uploadStatus !== "pending") {
     return { allowed: false, code: "RECEIPT_ALREADY_ATTACHED", reason: "El archivo ya fue adjuntado a otro registro" };

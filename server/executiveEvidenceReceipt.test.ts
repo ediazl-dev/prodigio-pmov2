@@ -29,6 +29,7 @@ describe("assessExecutiveEvidenceReceipt", () => {
 
   it("bloquea reutilización y cruces de proyecto, baseline, tipo o usuario", () => {
     expect(assess({ receipt: { ...receipt, uploadStatus: "attached" } })).toMatchObject({ allowed: false, code: "RECEIPT_ALREADY_ATTACHED" });
+    expect(assess({ receipt: { ...receipt, discardedAt: new Date() } })).toMatchObject({ allowed: false, code: "RECEIPT_DISCARDED" });
     expect(assess({ projectId: 180002 })).toMatchObject({ allowed: false, code: "RECEIPT_PROJECT_MISMATCH" });
     expect(assess({ sourceId: 60002 })).toMatchObject({ allowed: false, code: "RECEIPT_SOURCE_MISMATCH" });
     expect(assess({ documentType: "acceptance" })).toMatchObject({ allowed: false, code: "RECEIPT_TYPE_MISMATCH" });
