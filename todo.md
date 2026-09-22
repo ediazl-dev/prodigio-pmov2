@@ -703,3 +703,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] S2: Limitar el cuerpo a tres corridas recientes y exponer historial auditable paginado, ordenado de más reciente a más antiguo.
 - [x] S3: Rediseñar la tarjeta en español con procedencia/corte, estados claros, impacto y siguiente acción, sin equiparar hitos con facturación.
 - [x] S4: Certificar CCLA, proyecto sin finanzas, vínculo formal, responsive, pruebas, build, TypeScript, secretos y checkpoint final.
+
+## Dashboard Ejecutivo v2 integrado en detalle — 2026-09-22
+
+- [x] D0: Confirmar checkpoint 9782c443 limpio, rutas vigentes y ausencia de cambios en los archivos v2 respecto de e741550.
+- [x] D1: Convertir ExecutiveDashboardV2 en una vista reutilizable con modo autónomo e integrado, sin duplicar lógica ni consultas.
+- [x] D2: Renderizar el Dashboard Ejecutivo v2 dentro de la vista detalle de proyectos vinculados y nativos; conservar la ruta completa como acceso secundario.
+- [x] D3: Mostrar carga y ausencia de baseline dentro del detalle con estados explícitos, sin ocultar el dashboard ni reemplazarlo por un botón.
+- [x] D4: Certificar CCLA, Tanner y Staffing, accesibilidad, responsive, pruebas, build, TypeScript, secretos y checkpoint final.

@@ -73,7 +73,7 @@ function Router() {
       {/* Public routes - no sidebar */}
       <Route path="/invite/:token" component={InviteAccept} />
       {/* Vista ejecutiva autónoma: conserva autenticación propia y no hereda el sidebar operativo. */}
-      <Route path="/projects/:id/executive-dashboard-v2" component={ExecutiveDashboardV2} />
+      <Route path="/projects/:id/executive-dashboard-v2">{() => <ExecutiveDashboardV2 />}</Route>
       {/* Dashboard routes - with sidebar */}
       <Route>
         <DashboardLayout>

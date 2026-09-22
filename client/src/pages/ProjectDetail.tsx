@@ -3,6 +3,7 @@ import { BaselineExecutiveCard } from "@/components/BaselineExecutiveCard";
 import { JiraHomologationStatusCard } from "@/components/JiraHomologationStatusCard";
 import { ProjectIdBadge } from "@/components/ProjectIdBadge";
 import { Button } from "@/components/ui/button";
+import ExecutiveDashboardV2 from "./stages/ExecutiveDashboardV2";
 import {
   Dialog,
   DialogContent,
@@ -135,6 +136,52 @@ function HealthIndicator({ completedCount, totalStages, timeData }: {
         {health.label}
       </span>
     </div>
+  );
+}
+
+function IntegratedExecutiveDashboard({
+  projectId,
+  isLinked,
+  onNavigate,
+}: {
+  projectId: number;
+  isLinked: boolean;
+  onNavigate: (path: string) => void;
+}) {
+  return (
+    <section aria-labelledby={`executive-dashboard-v2-${projectId}`} style={{ marginBottom: 24 }}>
+      <div style={{
+        background: C.cardBg,
+        borderRadius: 14,
+        padding: "16px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        boxShadow: "0 2px 16px rgba(10,22,40,.08)",
+        border: `1px solid ${C.border}`,
+        marginBottom: 10,
+        flexWrap: "wrap",
+      }}>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg, #7c3aed, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <FolderKanban style={{ width: 18, height: 18, color: "#fff" }} aria-hidden="true" />
+        </div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <h2 id={`executive-dashboard-v2-${projectId}`} style={{ fontSize: 14, fontWeight: 800, color: C.textPrimary }}>Dashboard Ejecutivo v2 integrado</h2>
+          <p style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+            El dashboard completo forma parte del detalle del proyecto. La pantalla autónoma se conserva sólo como vista ampliada.
+          </p>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
+          <Button size="sm" onClick={() => onNavigate(`/projects/${projectId}/executive-dashboard-v2`)} style={{ background: C.accent, color: "#fff", border: "none", fontWeight: 700, fontSize: 12, padding: "8px 16px", borderRadius: 8 }}>
+            Abrir en pantalla completa
+          </Button>
+          {isLinked ? <Button size="sm" variant="outline" onClick={() => onNavigate(`/projects/${projectId}/linked-dashboard`)} style={{ color: "#4b5563", borderColor: C.border, fontWeight: 600, fontSize: 12, padding: "8px 14px", borderRadius: 8 }}>
+            Dashboard heredado
+          </Button> : null}
+        </div>
+      </div>
+      <ExecutiveDashboardV2 projectIdOverride={projectId} embedded />
+    </section>
   );
 }
 
@@ -360,31 +407,8 @@ export default function ProjectDetail() {
             )}
           </div>
 
-          {/* Dashboard Ejecutivo CTA */}
-          <div style={{
-            background: C.cardBg, borderRadius: 14, padding: "18px 24px", display: "flex", alignItems: "center", gap: 14,
-            boxShadow: "0 2px 16px rgba(10,22,40,.08)", border: `1px solid ${C.border}`, marginBottom: 20,
-          }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg, #7c3aed, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <FolderKanban style={{ width: 18, height: 18, color: "#fff" }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary }}>Proyecto Vinculado — Dashboard Ejecutivo</p>
-                <p style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
-                Este proyecto fue vinculado desde JIRA. El dashboard integra evidencia Jira capturada y datos financieros con procedencia explícita.
-              </p>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
-              <Button size="sm" onClick={() => setLocation(`/projects/${projectId}/executive-dashboard-v2`)}
-                style={{ background: "#e91e8c", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, padding: "8px 18px", borderRadius: 8 }}>
-                Dashboard Ejecutivo v2
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setLocation(`/projects/${projectId}/linked-dashboard`)}
-                style={{ color: "#4b5563", borderColor: C.border, fontWeight: 600, fontSize: 12, padding: "8px 14px", borderRadius: 8 }}>
-                Dashboard heredado
-              </Button>
-            </div>
-          </div>
+          {/* Dashboard Ejecutivo v2 — parte inseparable del detalle */}
+          <IntegratedExecutiveDashboard projectId={projectId} isLinked onNavigate={setLocation} />
 
           {/* Baseline Ejecutivo */}
           <BaselineExecutiveCard projectId={projectId} canManage={canManageBaseline} />
@@ -539,6 +563,9 @@ export default function ProjectDetail() {
             );
           })}
         </div>
+
+        {/* Dashboard Ejecutivo v2 — visible en el detalle de todo proyecto */}
+        <IntegratedExecutiveDashboard projectId={projectId} isLinked={false} onNavigate={setLocation} />
 
         {/* ── Section Title ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>

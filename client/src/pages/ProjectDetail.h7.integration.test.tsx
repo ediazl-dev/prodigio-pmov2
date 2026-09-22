@@ -133,6 +133,14 @@ vi.mock("@/components/BaselineExecutiveCard", () => ({
   BaselineExecutiveCard: () => null,
 }));
 
+vi.mock("./stages/ExecutiveDashboardV2", () => ({
+  default: ({ projectIdOverride, embedded }: { projectIdOverride?: number; embedded?: boolean }) => (
+    <section data-testid="executive-dashboard-v2" data-project-id={projectIdOverride} data-presentation={embedded ? "embedded" : "standalone"}>
+      Dashboard Ejecutivo v2 completo
+    </section>
+  ),
+}));
+
 vi.mock("@/components/AppBreadcrumb", () => ({
   default: () => null,
   AppBreadcrumb: () => null,
@@ -191,6 +199,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("ProjectDetail H7 integrado", () => {
   beforeEach(() => {
+    mocks.project.origin = "linked";
     mocks.invalidateProject.mockClear();
     mocks.refetchStatus.mockClear();
     mocks.syncMutate.mockClear();
@@ -209,6 +218,12 @@ describe("ProjectDetail H7 integrado", () => {
     expect(screen.getByText("8/10")).toBeTruthy();
     expect(screen.getByText("Eduardo Mercado")).toBeTruthy();
     expect(screen.getByText("23 abiertos")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Dashboard Ejecutivo v2 integrado" })).toBeTruthy();
+    expect(screen.getByTestId("executive-dashboard-v2").getAttribute("data-presentation")).toBe("embedded");
+    expect(screen.getByTestId("executive-dashboard-v2").getAttribute("data-project-id")).toBe(String(mocks.project.id));
+    expect(screen.getByRole("button", { name: "Abrir en pantalla completa" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir en pantalla completa" }));
+    expect(mocks.setLocation).toHaveBeenCalledWith(`/projects/${mocks.project.id}/executive-dashboard-v2`);
     expect(screen.getByText("Homologación y sincronización Jira → PMO")).toBeTruthy();
     expect(screen.getByText("Historial de sincronización")).toBeTruthy();
     expect(screen.getByText("Deal4728")).toBeTruthy();
@@ -229,5 +244,16 @@ describe("ProjectDetail H7 integrado", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText("Historial completo de sincronización Jira")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Página siguiente" })).toBeTruthy();
+  });
+
+  it("integra el Dashboard Ejecutivo v2 también en el detalle de un proyecto nativo", () => {
+    mocks.project.origin = "platform";
+
+    render(<ProjectDetail />);
+
+    expect(screen.getByRole("heading", { name: "Dashboard Ejecutivo v2 integrado" })).toBeTruthy();
+    expect(screen.getByTestId("executive-dashboard-v2").getAttribute("data-presentation")).toBe("embedded");
+    expect(screen.getByRole("button", { name: "Abrir en pantalla completa" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Dashboard heredado" })).toBeNull();
   });
 });
