@@ -19,6 +19,12 @@ describe("guardrails transversales de evidencia", () => {
     expect(source).toContain("buildExecutiveOperationalEvidenceFromSnapshot(portfolioEvidence)");
   });
 
+  it("la portada ejecutiva histórica usa snapshot local y el Deal resuelto por el Portafolio", () => {
+    const source = section("getLinkedDashboard:", "/** Preclasificación no persistente");
+    expect(source).not.toContain("getJiraAdvanceReport(");
+    expect(source).toContain("portfolioEvidence?.dealId || (project as any).dealId || extractDealId(project.projectName)");
+  });
+
   it("los dos análisis agénticos consumen el read model compartido", () => {
     const linkedVerdict = section("generateLinkedVerdict:", "getLatestVerdict:");
     const pmAnalysis = section("generatePMAnalysis:", "// ==================== LINKED PROJECT DOCUMENTS");

@@ -711,3 +711,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D2: Renderizar el Dashboard Ejecutivo v2 dentro de la vista detalle de proyectos vinculados y nativos; conservar la ruta completa como acceso secundario.
 - [x] D3: Mostrar carga y ausencia de baseline dentro del detalle con estados explícitos, sin ocultar el dashboard ni reemplazarlo por un botón.
 - [x] D4: Certificar CCLA, Tanner y Staffing, accesibilidad, responsive, pruebas, build, TypeScript, secretos y checkpoint final.
+
+## Portada ejecutiva compacta y Dashboard completo — 2026-09-23
+
+- [x] P0: Confirmar checkpoint 352d2c76, refs alineadas, árbol limpio y fuentes existentes reutilizables.
+- [x] P1: Crear una portada compacta con estado, hitos, valores, costos, margen, riesgos y última evidencia disponible.
+- [x] P2: Retirar el Dashboard v2 completo del cuerpo del detalle y dejar un único acceso a pantalla completa.
+- [x] P3: En proyectos sin baseline v2, abrir el dashboard ejecutivo histórico disponible sin mostrar una pantalla muerta.
+- [x] P4: Certificar Tanner, CCLA, Caja Los Andes, Staffing, responsive, pruebas, build, TypeScript y checkpoint final.

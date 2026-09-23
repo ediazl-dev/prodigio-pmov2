@@ -3666,7 +3666,7 @@ Responde SOLO con JSON:
         : "missing";
 
       const { getFinancialDataForDeal, extractDealId } = await import("./financialDataFetcher");
-      const dealId = extractDealId(project.projectName) || "";
+      const dealId = portfolioEvidence?.dealId || (project as any).dealId || extractDealId(project.projectName) || "";
       let financialData = null;
       try {
         if (dealId) {

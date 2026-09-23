@@ -133,10 +133,11 @@ vi.mock("@/components/BaselineExecutiveCard", () => ({
   BaselineExecutiveCard: () => null,
 }));
 
-vi.mock("./stages/ExecutiveDashboardV2", () => ({
-  default: ({ projectIdOverride, embedded }: { projectIdOverride?: number; embedded?: boolean }) => (
-    <section data-testid="executive-dashboard-v2" data-project-id={projectIdOverride} data-presentation={embedded ? "embedded" : "standalone"}>
-      Dashboard Ejecutivo v2 completo
+vi.mock("@/components/ProjectExecutiveSummary", () => ({
+  ProjectExecutiveSummary: ({ projectId, onNavigate }: { projectId: number; onNavigate: (path: string) => void }) => (
+    <section data-testid="project-executive-summary" data-project-id={projectId}>
+      <h2>Vista ejecutiva del proyecto</h2>
+      <button type="button" onClick={() => onNavigate(`/projects/${projectId}/executive-dashboard-v2`)}>Abrir Dashboard Ejecutivo</button>
     </section>
   ),
 }));
@@ -218,11 +219,10 @@ describe("ProjectDetail H7 integrado", () => {
     expect(screen.getByText("8/10")).toBeTruthy();
     expect(screen.getByText("Eduardo Mercado")).toBeTruthy();
     expect(screen.getByText("23 abiertos")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Dashboard Ejecutivo v2 integrado" })).toBeTruthy();
-    expect(screen.getByTestId("executive-dashboard-v2").getAttribute("data-presentation")).toBe("embedded");
-    expect(screen.getByTestId("executive-dashboard-v2").getAttribute("data-project-id")).toBe(String(mocks.project.id));
-    expect(screen.getByRole("button", { name: "Abrir en pantalla completa" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Abrir en pantalla completa" }));
+    expect(screen.getByRole("heading", { name: "Vista ejecutiva del proyecto" })).toBeTruthy();
+    expect(screen.getByTestId("project-executive-summary").getAttribute("data-project-id")).toBe(String(mocks.project.id));
+    expect(screen.queryByText("Dashboard Ejecutivo v2 completo")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Dashboard Ejecutivo" }));
     expect(mocks.setLocation).toHaveBeenCalledWith(`/projects/${mocks.project.id}/executive-dashboard-v2`);
     expect(screen.getByText("Homologación y sincronización Jira → PMO")).toBeTruthy();
     expect(screen.getByText("Historial de sincronización")).toBeTruthy();
@@ -246,14 +246,14 @@ describe("ProjectDetail H7 integrado", () => {
     expect(screen.getByRole("button", { name: "Página siguiente" })).toBeTruthy();
   });
 
-  it("integra el Dashboard Ejecutivo v2 también en el detalle de un proyecto nativo", () => {
+  it("integra la misma portada ejecutiva compacta en un proyecto nativo", () => {
     mocks.project.origin = "platform";
 
     render(<ProjectDetail />);
 
-    expect(screen.getByRole("heading", { name: "Dashboard Ejecutivo v2 integrado" })).toBeTruthy();
-    expect(screen.getByTestId("executive-dashboard-v2").getAttribute("data-presentation")).toBe("embedded");
-    expect(screen.getByRole("button", { name: "Abrir en pantalla completa" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Dashboard heredado" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Vista ejecutiva del proyecto" })).toBeTruthy();
+    expect(screen.getByTestId("project-executive-summary").getAttribute("data-project-id")).toBe(String(mocks.project.id));
+    expect(screen.queryByText("Dashboard Ejecutivo v2 completo")).toBeNull();
+    expect(screen.getByRole("button", { name: "Abrir Dashboard Ejecutivo" })).toBeTruthy();
   });
 });

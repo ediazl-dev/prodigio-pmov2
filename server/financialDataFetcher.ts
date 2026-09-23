@@ -41,6 +41,7 @@ export interface ProjectFinancial {
   presupuestoHH: number | null;
   capacityHH: number | null;
   hhPorcUtilizado: number | null;
+  syncedAt?: Date | string | null;
 }
 
 export interface Alert {
@@ -102,6 +103,7 @@ function rowToProjectFinancial(row: any): ProjectFinancial {
     presupuestoHH: toNum(row.presupuestoHH),
     capacityHH: toNum(row.capacityHH),
     hhPorcUtilizado: toNum(row.hhPorcUtilizado),
+    syncedAt: row.syncedAt ?? null,
   };
 }
 
