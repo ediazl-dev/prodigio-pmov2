@@ -735,6 +735,6 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 - [x] U0: Confirmar checkpoint `8397b11c`, refs alineadas, usuarios candidatos, dependencias y respaldo recuperable.
 - [x] U1: Eliminar sólo cuentas inequívocamente de prueba y sus invitaciones, preservando auditoría y usuarios reales.
-- [ ] U2: Mover Financiero, Plazos por Etapa y Evidencia documental al cuerpo `Reportes` con rutas canónicas.
-- [ ] U3: Permitir lectura a todos los roles autenticados y mantener edición, descarte y restauración sólo para Admin.
-- [ ] U4: Certificar roles admin/pmo/pm/consulta, navegación, pruebas, build, TypeScript, secretos y checkpoint final.
+- [x] U2: Mover Financiero, Plazos por Etapa y Evidencia documental al cuerpo `Reportes` con rutas canónicas.
+- [x] U3: Permitir lectura a todos los roles autenticados y mantener edición, descarte y restauración sólo para Admin.
+- [x] U4: Certificar roles admin/pmo/pm/consulta, navegación, pruebas, build, TypeScript, secretos y checkpoint final.

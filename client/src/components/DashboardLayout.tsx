@@ -78,16 +78,16 @@ const mainMenuItems = [
 
 const reportMenuItems = [
   { icon: LineChart, label: "Avance JIRA", path: "/reports/jira" },
+  { icon: BarChart3, label: "Financiero", path: "/reports/finance" },
+  { icon: Clock, label: "Plazos por Etapa", path: "/reports/deadlines" },
+  { icon: FileClock, label: "Evidencia documental", path: "/reports/evidence" },
 ];
 
 const adminMenuItems = [
   { icon: Users, label: "Usuarios", path: "/admin/users" },
-  { icon: BarChart3, label: "Financiero", path: "/admin/finance" },
   { icon: RefreshCw, label: "Sincronización Financiera", path: "/admin/financial-sync" },
-  { icon: Clock, label: "Plazos por Etapa", path: "/admin/deadlines" },
   { icon: TrendingUp, label: "Cumplimiento", path: "/admin/compliance" },
   { icon: Shield, label: "Auditoría", path: "/admin/audit" },
-  { icon: FileClock, label: "Evidencia documental", path: "/admin/evidence-history" },
   { icon: Building2, label: "Spaces JIRA", path: "/admin/jira-spaces" },
   { icon: Headphones, label: "Spaces JSM", path: "/admin/jsm-spaces" },
   { icon: BookOpen, label: "Plantillas", path: "/admin/templates" },

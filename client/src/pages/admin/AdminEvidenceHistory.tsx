@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -97,6 +98,8 @@ function StatusBadge({ status }: { status: Exclude<EvidenceStatus, "all"> }) {
 }
 
 export default function AdminEvidenceHistory() {
+  const { user } = useAuth();
+  const canManage = (user as any)?.role === "admin";
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [status, setStatus] = useState<EvidenceStatus>("pending");
@@ -191,7 +194,7 @@ export default function AdminEvidenceHistory() {
               letterSpacing: ".1em",
               textTransform: "uppercase",
             }}>
-              Administración
+              Reportes
             </span>
             <h1 className="mt-2 flex items-center gap-2 text-2xl font-extrabold text-white sm:text-[26px]">
               <FileClock className="h-6 w-6" style={{ color: C.accent }} /> Historial de evidencia documental
@@ -199,6 +202,7 @@ export default function AdminEvidenceHistory() {
             <p className="mt-1 text-xs text-white/50">
               Monitorea cargas pendientes, adjuntos, expiraciones y descartes sin exponer URLs internas ni contenido de archivos.
             </p>
+            {!canManage && <p className="mt-2 text-xs font-semibold text-sky-200">Modo de consulta: descarte y restauración están reservados a administradores.</p>}
           </div>
           <Button
             variant="outline"
@@ -318,7 +322,7 @@ export default function AdminEvidenceHistory() {
                   <th style={thStyle}>Responsable</th>
                   <th style={thStyle}>Estado</th>
                   <th style={thStyle}>Trazabilidad</th>
-                  <th style={{ ...thStyle, textAlign: "right" }}>Acciones</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>{canManage ? "Acciones" : "Acceso"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -383,17 +387,17 @@ export default function AdminEvidenceHistory() {
                       )}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
-                      {item.canDiscard && (
+                      {canManage && item.canDiscard && (
                         <Button variant="outline" size="sm" onClick={() => { setDiscardTarget(item); setDiscardReason(""); }} className="border-red-200 text-red-700 hover:bg-red-50">
                           <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Descartar
                         </Button>
                       )}
-                      {item.canRestore && (
+                      {canManage && item.canRestore && (
                         <Button variant="outline" size="sm" disabled={restoreMutation.isPending} onClick={() => restoreMutation.mutate({ id: item.id })}>
                           <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Restaurar
                         </Button>
                       )}
-                      {!item.canDiscard && !item.canRestore && <span className="text-[10px] text-slate-400">Sin acciones</span>}
+                      {(!canManage || (!item.canDiscard && !item.canRestore)) && <span className="text-[10px] text-slate-400">Sólo lectura</span>}
                     </td>
                   </tr>
                 ))}
@@ -404,11 +408,11 @@ export default function AdminEvidenceHistory() {
       </main>
 
       <footer style={footerStyle} className="gap-3">
-        <span style={footerText}>Prodigio Tech · Gestión administrativa de evidencia documental</span>
+        <span style={footerText}>Prodigio Tech · Reporte de evidencia documental</span>
         <span style={footerText}>Actualizado {formatDate(new Date())}</span>
       </footer>
 
-      <Dialog open={Boolean(discardTarget)} onOpenChange={open => { if (!open) { setDiscardTarget(null); setDiscardReason(""); } }}>
+      <Dialog open={canManage && Boolean(discardTarget)} onOpenChange={open => { if (!open) { setDiscardTarget(null); setDiscardReason(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Descartar documento pendiente</DialogTitle>

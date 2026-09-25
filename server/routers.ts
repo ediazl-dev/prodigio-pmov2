@@ -6517,7 +6517,7 @@ const complianceRouter = router({
 
 // ==================== EXECUTIVE EVIDENCE ADMIN ROUTER ====================
 const executiveEvidenceAdminRouter = router({
-  list: adminOnly.input(z.object({
+  list: protectedProcedure.input(z.object({
     page: z.number().int().min(1).default(1),
     pageSize: z.number().int().min(10).max(100).default(20),
     status: z.enum(["all", "pending", "expired", "attached", "discarded"]).default("pending"),
@@ -6526,9 +6526,9 @@ const executiveEvidenceAdminRouter = router({
     search: z.string().trim().max(100).optional(),
   })).query(({ input }) => listExecutiveEvidenceAdmin(input)),
 
-  summary: adminOnly.query(() => getExecutiveEvidenceAdminSummary()),
+  summary: protectedProcedure.query(() => getExecutiveEvidenceAdminSummary()),
 
-  projects: adminOnly.query(() => listExecutiveEvidenceProjects()),
+  projects: protectedProcedure.query(() => listExecutiveEvidenceProjects()),
 
   discard: adminOnly.input(z.object({
     id: z.number().int().positive(),

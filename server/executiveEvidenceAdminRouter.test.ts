@@ -8,9 +8,11 @@ const section = source.slice(
 );
 
 describe("executiveEvidenceAdminRouter guardrails", () => {
-  it("protege listado, resumen, proyectos, descarte y restauración con adminOnly", () => {
-    expect(section.match(/adminOnly/g)?.length).toBe(5);
-    expect(section).not.toContain("protectedProcedure");
+  it("abre listado, resumen y proyectos a usuarios autenticados y reserva mutaciones a Admin", () => {
+    expect(section.match(/protectedProcedure/g)?.length).toBe(3);
+    expect(section.match(/adminOnly/g)?.length).toBe(2);
+    expect(section).toContain("discard: adminOnly");
+    expect(section).toContain("restore: adminOnly");
   });
 
   it("audita el descarte sin exponer token, URL o hash", () => {

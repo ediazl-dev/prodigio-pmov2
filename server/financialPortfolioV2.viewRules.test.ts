@@ -13,8 +13,9 @@ describe("Portafolio financiero v2 — guardrails de vista y fuente", () => {
   });
 
   it("mantiene una sola entrada Financiero y redirige la URL antigua", () => {
-    expect(app).toContain('<Route path="/admin/finance">{() => <AdminGuard><FinancialConsolidated /></AdminGuard>}</Route>');
-    expect(app).toContain('<Route path="/admin/financial-consolidated">{() => <AdminGuard><Redirect to="/admin/finance" /></AdminGuard>}</Route>');
+    expect(app).toContain('<Route path="/reports/finance" component={FinancialConsolidated} />');
+    expect(app).toContain('<Route path="/admin/finance">{() => <Redirect to="/reports/finance" />}</Route>');
+    expect(app).toContain('<Route path="/admin/financial-consolidated">{() => <Redirect to="/reports/finance" />}</Route>');
     expect(layout.match(/label: "Financiero"/g)).toHaveLength(1);
     expect(layout).not.toContain('label: "Consolidado Facturación"');
   });

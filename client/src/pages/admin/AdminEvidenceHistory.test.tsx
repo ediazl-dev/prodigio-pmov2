@@ -8,9 +8,10 @@ const layout = readFileSync(resolve(process.cwd(), "client/src/components/Dashbo
 const audit = readFileSync(resolve(process.cwd(), "client/src/pages/admin/AdminAuditLog.tsx"), "utf8");
 
 describe("AdminEvidenceHistory", () => {
-  it("está protegida por AdminGuard y accesible desde Administración", () => {
-    expect(app).toContain('<Route path="/admin/evidence-history">{() => <AdminGuard><AdminEvidenceHistory /></AdminGuard>}</Route>');
-    expect(layout).toContain('label: "Evidencia documental", path: "/admin/evidence-history"');
+  it("está disponible como reporte autenticado y conserva redirección desde la URL anterior", () => {
+    expect(app).toContain('<Route path="/reports/evidence" component={AdminEvidenceHistory} />');
+    expect(app).toContain('<Route path="/admin/evidence-history">{() => <Redirect to="/reports/evidence" />}</Route>');
+    expect(layout).toContain('label: "Evidencia documental", path: "/reports/evidence"');
   });
 
   it("ofrece filtros, paginación y gestión segura de pendientes", () => {
