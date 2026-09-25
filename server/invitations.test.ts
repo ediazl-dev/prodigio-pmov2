@@ -1,7 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
-import { getUserByEmail, upsertUser } from "./db";
+import { getDb, getUserByEmail, upsertUser } from "./db";
 import type { TrpcContext } from "./_core/context";
+import { invitations, users } from "../drizzle/schema";
+import { inArray } from "drizzle-orm";
+
+const createdTestEmails: string[] = [];
+
+afterEach(async () => {
+  if (createdTestEmails.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("DB no disponible para limpiar usuarios temporales");
+  const emails = [...createdTestEmails];
+  createdTestEmails.length = 0;
+  await db.transaction(async tx => {
+    await tx.delete(invitations).where(inArray(invitations.email, emails));
+    await tx.delete(users).where(inArray(users.email, emails));
+  });
+});
 
 function createAdminContext(): TrpcContext {
   return {
@@ -37,6 +53,7 @@ describe("invitaciones y vinculación de cuentas", () => {
     const caller = appRouter.createCaller(createAdminContext());
     const suffix = `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const email = `invitado-${suffix}@prodigio.test`;
+    createdTestEmails.push(email);
 
     const invitation = await caller.users.invite({
       email,

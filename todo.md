@@ -730,3 +730,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] R5: Rediseñar Financiero con presets, rango personalizado, comparaciones, filtros, gráficos y detalle expandible.
 - [x] R6: Unificar `/admin/finance` y conservar redirección compatible desde el consolidado anterior.
 - [x] R7: Cargar datos reales, validar 43 ítems, 5 abiertos/38 no abiertos, casos Tanner/CCLA/Caja/Ruta/MaxAgro/Camanchaca y certificar.
+
+## Limpieza de usuarios de prueba y reportes para todos — 2026-09-25
+
+- [x] U0: Confirmar checkpoint `8397b11c`, refs alineadas, usuarios candidatos, dependencias y respaldo recuperable.
+- [x] U1: Eliminar sólo cuentas inequívocamente de prueba y sus invitaciones, preservando auditoría y usuarios reales.
+- [ ] U2: Mover Financiero, Plazos por Etapa y Evidencia documental al cuerpo `Reportes` con rutas canónicas.
+- [ ] U3: Permitir lectura a todos los roles autenticados y mantener edición, descarte y restauración sólo para Admin.
+- [ ] U4: Certificar roles admin/pmo/pm/consulta, navegación, pruebas, build, TypeScript, secretos y checkpoint final.
