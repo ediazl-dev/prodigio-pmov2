@@ -724,9 +724,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 - [x] R0: Confirmar checkpoint `34a2e598`, refs alineadas, árbol limpio, esquema físico y respaldo financiero recuperable.
 - [x] R1: Implementar política pura de Deal canónico, ciclo de vida, rango temporal, comparación y multimoneda.
-- [ ] R2: Crear tablas aditivas de lotes e hitos financieros y ampliar la sincronización atómica a `Artefactos_facturacion`.
-- [ ] R3: Marcar vigencia de fuente sin borrar historia y reconciliar Deals/aliases sin doble conteo.
-- [ ] R4: Construir read model v2 paginado con KPIs, series, rankings, desviaciones, pendientes y cobertura.
-- [ ] R5: Rediseñar Financiero con presets, rango personalizado, comparaciones, filtros, gráficos y detalle expandible.
-- [ ] R6: Unificar `/admin/finance` y conservar redirección compatible desde el consolidado anterior.
-- [ ] R7: Cargar datos reales, validar 43 ítems, 5 abiertos/38 cerrados, casos Tanner/CCLA/Caja/Ruta/MaxAgro/Camanchaca y certificar.
+- [x] R2: Crear tablas aditivas de lotes e hitos financieros y ampliar la sincronización atómica a `Artefactos_facturacion`.
+- [x] R3: Marcar vigencia de fuente sin borrar historia y reconciliar Deals/aliases sin doble conteo.
+- [x] R4: Construir read model v2 paginado con KPIs, series, rankings, desviaciones, pendientes y cobertura.
+- [x] R5: Rediseñar Financiero con presets, rango personalizado, comparaciones, filtros, gráficos y detalle expandible.
+- [x] R6: Unificar `/admin/finance` y conservar redirección compatible desde el consolidado anterior.
+- [x] R7: Cargar datos reales, validar 43 ítems, 5 abiertos/38 no abiertos, casos Tanner/CCLA/Caja/Ruta/MaxAgro/Camanchaca y certificar.

@@ -156,6 +156,10 @@ export interface FinancialPortfolioV2Result {
   };
   lifecycle: { total: number; open: number; closed: number; internal: number };
   portfolio: {
+    selectedContractedUF: number;
+    selectedProjectedCostUF: number;
+    selectedProjectedMarginUF: number;
+    commercialContractedUF: number;
     openContractedUF: number;
     closedContractedUF: number;
     internalInvestmentUF: number;
@@ -583,6 +587,10 @@ export function buildFinancialPortfolioV2(input: FinancialPortfolioV2Input): Fin
       internal: items.filter(item => item.lifecycle === "internal").length,
     },
     portfolio: {
+      selectedContractedUF: sumNullable(items.map(item => item.contractedUF)),
+      selectedProjectedCostUF: sumNullable(items.map(item => item.projectedCostUF)),
+      selectedProjectedMarginUF: sumNullable(items.map(item => item.projectedMarginUF)),
+      commercialContractedUF: sumNullable(items.filter(item => item.lifecycle !== "internal").map(item => item.contractedUF)),
       openContractedUF: sumNullable(items.filter(item => item.lifecycle === "open").map(item => item.contractedUF)),
       closedContractedUF: sumNullable(items.filter(item => item.lifecycle === "closed").map(item => item.contractedUF)),
       internalInvestmentUF: sumNullable(items.filter(item => item.lifecycle === "internal").map(item => item.contractedUF)),

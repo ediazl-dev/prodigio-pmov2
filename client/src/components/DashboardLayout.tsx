@@ -84,7 +84,6 @@ const adminMenuItems = [
   { icon: Users, label: "Usuarios", path: "/admin/users" },
   { icon: BarChart3, label: "Financiero", path: "/admin/finance" },
   { icon: RefreshCw, label: "Sincronización Financiera", path: "/admin/financial-sync" },
-  { icon: BarChart3, label: "Consolidado Facturación", path: "/admin/financial-consolidated" },
   { icon: Clock, label: "Plazos por Etapa", path: "/admin/deadlines" },
   { icon: TrendingUp, label: "Cumplimiento", path: "/admin/compliance" },
   { icon: Shield, label: "Auditoría", path: "/admin/audit" },

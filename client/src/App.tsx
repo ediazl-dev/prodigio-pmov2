@@ -18,7 +18,6 @@ import LinkedProjectDashboard from "./pages/stages/LinkedProjectDashboard";
 import ExecutiveDashboardV2 from "./pages/stages/ExecutiveDashboardV2";
 import ClosureStage from "./pages/stages/ClosureStage";
 import AdminUsers from "./pages/admin/AdminUsers";
-import AdminFinance from "./pages/admin/AdminFinance";
 import AdminTemplates from "./pages/admin/AdminTemplates";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminDeadlines from "./pages/admin/AdminDeadlines";
@@ -92,7 +91,7 @@ function Router() {
             <Route path="/projects/:id/closure" component={ClosureStage} />
             {/* Admin-only routes */}
             <Route path="/admin/users">{() => <AdminGuard><AdminUsers /></AdminGuard>}</Route>
-            <Route path="/admin/finance">{() => <AdminGuard><AdminFinance /></AdminGuard>}</Route>
+            <Route path="/admin/finance">{() => <AdminGuard><FinancialConsolidated /></AdminGuard>}</Route>
             <Route path="/admin/templates">{() => <AdminGuard><AdminTemplates /></AdminGuard>}</Route>
             <Route path="/admin/deadlines">{() => <AdminGuard><AdminDeadlines /></AdminGuard>}</Route>
             <Route path="/admin/compliance">{() => <AdminGuard><ComplianceReport /></AdminGuard>}</Route>
@@ -102,7 +101,7 @@ function Router() {
             <Route path="/admin/jira-token">{() => <AdminGuard><AdminJiraToken /></AdminGuard>}</Route>
             <Route path="/admin/financial-sync">{() => <AdminGuard><AdminFinancialSync /></AdminGuard>}</Route>
             <Route path="/admin/evidence-history">{() => <AdminGuard><AdminEvidenceHistory /></AdminGuard>}</Route>
-            <Route path="/admin/financial-consolidated">{() => <AdminGuard><FinancialConsolidated /></AdminGuard>}</Route>
+            <Route path="/admin/financial-consolidated">{() => <AdminGuard><Redirect to="/admin/finance" /></AdminGuard>}</Route>
             <Route path="/recurring-services" component={RecurringServicesList} />
             <Route path="/recurring-services/new" component={RecurringServiceCreate} />
             <Route path="/recurring-services/:id" component={RecurringServiceDetail} />

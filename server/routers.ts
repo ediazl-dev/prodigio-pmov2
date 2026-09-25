@@ -7227,7 +7227,33 @@ const portfolioConsoleRouter = router({
       }
     }),
 
-  // ─── Consolidado de Facturación ────────────────────────────────────────────
+  // ─── Portafolio financiero v2 ──────────────────────────────────────────────
+  getFinancialPortfolioV2: protectedProcedure
+    .input(z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      granularity: z.enum(["month", "quarter", "year"]).default("month"),
+      compareMode: z.enum(["none", "previous_period", "prior_year"]).default("prior_year"),
+      lifecycle: z.enum(["all", "open", "closed", "internal"]).default("all"),
+      client: z.string().trim().max(255).nullable().optional(),
+      lineOfBusiness: z.string().trim().max(100).nullable().optional(),
+      search: z.string().trim().max(200).nullable().optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(10).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      try {
+        const { loadFinancialPortfolioV2 } = await import("./financialPortfolioV2Source");
+        return await loadFinancialPortfolioV2(input);
+      } catch (error) {
+        if (error instanceof Error && /período|fecha inicial|YYYY-MM-DD/.test(error.message)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
+  // ─── Consolidado de Facturación heredado ───────────────────────────────────
   getFinancialConsolidated: protectedProcedure
     .input(z.object({ fechaCorte: z.string().optional() }).optional())
     .query(async ({ input }) => {

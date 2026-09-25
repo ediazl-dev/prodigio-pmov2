@@ -2145,10 +2145,13 @@ export async function getActiveFinancialData() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(financialData).where(
-    or(
-      eq(financialData.estadoProyecto, "EN EJECUCION"),
-      eq(financialData.estadoProyecto, "EN EJECUCIÓN"),
-      eq(financialData.estadoProyecto, "CERRADO")
+    and(
+      eq(financialData.sourceActive, true),
+      or(
+        eq(financialData.estadoProyecto, "EN EJECUCION"),
+        eq(financialData.estadoProyecto, "EN EJECUCIÓN"),
+        eq(financialData.estadoProyecto, "CERRADO")
+      )
     )
   );
 }

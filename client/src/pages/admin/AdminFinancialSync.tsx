@@ -70,7 +70,7 @@ export default function AdminFinancialSync() {
       }
       setFeedback({
         kind: "success",
-        text: `Sincronización aplicada: ${outcome.inputDeals} Deals leídos, ${outcome.insert} insertados, ${outcome.update} actualizados.`,
+        text: `Sincronización aplicada: ${outcome.inputDeals} ítems financieros (${outcome.insert} nuevos, ${outcome.update} actualizados, ${outcome.inactivated} fuera de la fuente vigente) y ${outcome.billingInputItems} hitos (${outcome.billingInsert} nuevos, ${outcome.billingUpdate} actualizados).`,
       });
       utils.financial.syncLogs.invalidate();
       utils.financial.syncHealth.invalidate();
