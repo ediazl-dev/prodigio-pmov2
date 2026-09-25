@@ -615,6 +615,31 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
 // ==================== FINANCIAL DATA (Datos financieros de la planilla Google Sheets) ====================
+/** Lote aplicado desde el libro corporativo. Mantiene procedencia y cobertura sin guardar secretos. */
+export const financialSyncBatches = mysqlTable("financial_sync_batch", {
+  id: int("id").autoincrement().primaryKey(),
+  workbookSha256: varchar("workbookSha256", { length: 64 }).notNull(),
+  projectSourceRows: int("projectSourceRows").notNull().default(0),
+  billingSourceRows: int("billingSourceRows").notNull().default(0),
+  activeFinancialItems: int("activeFinancialItems").notNull().default(0),
+  activeBillingItems: int("activeBillingItems").notNull().default(0),
+  financialInserted: int("financialInserted").notNull().default(0),
+  financialUpdated: int("financialUpdated").notNull().default(0),
+  financialInactivated: int("financialInactivated").notNull().default(0),
+  billingInserted: int("billingInserted").notNull().default(0),
+  billingUpdated: int("billingUpdated").notNull().default(0),
+  billingInactivated: int("billingInactivated").notNull().default(0),
+  billingPeriodFrom: date("billingPeriodFrom", { mode: "string" }),
+  billingPeriodTo: date("billingPeriodTo", { mode: "string" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  workbookIdx: index("financial_sync_batch_workbook_idx").on(table.workbookSha256),
+  createdAtIdx: index("financial_sync_batch_created_at_idx").on(table.createdAt),
+}));
+
+export type FinancialSyncBatch = typeof financialSyncBatches.$inferSelect;
+export type InsertFinancialSyncBatch = typeof financialSyncBatches.$inferInsert;
+
 export const financialData = mysqlTable("financial_data", {
   id: int("id").autoincrement().primaryKey(),
   dealId: varchar("dealId", { length: 50 }).notNull().unique(), // e.g. "Deal1996"
@@ -657,13 +682,57 @@ export const financialData = mysqlTable("financial_data", {
   notas: text("notas"),
   otrosCostosUF: decimal("otrosCostosUF", { precision: 14, scale: 4 }),
   lineaNegocio: varchar("lineaNegocio", { length: 100 }),
+  sourceActive: boolean("sourceActive").default(true).notNull(),
+  sourceBatchId: int("sourceBatchId"),
+  sourceFirstSeenAt: timestamp("sourceFirstSeenAt").defaultNow().notNull(),
+  sourceLastSeenAt: timestamp("sourceLastSeenAt").defaultNow().notNull(),
   syncedAt: timestamp("syncedAt").defaultNow().notNull(), // Last sync from Google Sheets
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, table => ({
+  sourceActiveIdx: index("financial_data_source_active_idx").on(table.sourceActive),
+  clientIdx: index("financial_data_client_idx").on(table.clientName),
+  lineIdx: index("financial_data_line_idx").on(table.lineaNegocio),
+  batchIdx: index("financial_data_batch_idx").on(table.sourceBatchId),
+}));
 
 export type FinancialData = typeof financialData.$inferSelect;
 export type InsertFinancialData = typeof financialData.$inferInsert;
+
+/** Hito de facturación importado desde `Artefactos_facturacion`; no equivale a factura SII. */
+export const financialBillingItems = mysqlTable("financial_billing_item", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceKey: varchar("sourceKey", { length: 64 }).notNull().unique(),
+  dealId: varchar("dealId", { length: 100 }).notNull(),
+  projectName: varchar("projectName", { length: 500 }),
+  clientName: varchar("clientName", { length: 255 }),
+  milestoneName: varchar("milestoneName", { length: 500 }).notNull(),
+  plannedDate: date("plannedDate", { mode: "string" }),
+  deliveredAt: date("deliveredAt", { mode: "string" }),
+  invoicedAt: date("invoicedAt", { mode: "string" }),
+  amount: decimal("amount", { precision: 18, scale: 4 }),
+  currency: varchar("currency", { length: 10 }),
+  amountUsdSource: decimal("amountUsdSource", { precision: 18, scale: 4 }),
+  billingStatus: varchar("billingStatus", { length: 50 }),
+  deliveryStatus: varchar("deliveryStatus", { length: 100 }),
+  delayCause: text("delayCause"),
+  lineOfBusiness: varchar("lineOfBusiness", { length: 100 }),
+  sourceActive: boolean("sourceActive").default(true).notNull(),
+  sourceBatchId: int("sourceBatchId"),
+  sourceFirstSeenAt: timestamp("sourceFirstSeenAt").defaultNow().notNull(),
+  sourceLastSeenAt: timestamp("sourceLastSeenAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  dealIdx: index("financial_billing_item_deal_idx").on(table.dealId),
+  invoiceDateIdx: index("financial_billing_item_invoice_date_idx").on(table.invoicedAt),
+  plannedDateIdx: index("financial_billing_item_planned_date_idx").on(table.plannedDate),
+  sourceActiveIdx: index("financial_billing_item_source_active_idx").on(table.sourceActive),
+  batchIdx: index("financial_billing_item_batch_idx").on(table.sourceBatchId),
+}));
+
+export type FinancialBillingItem = typeof financialBillingItems.$inferSelect;
+export type InsertFinancialBillingItem = typeof financialBillingItems.$inferInsert;
 
 // ==================== EXECUTIVE VERDICTS (Historial de veredictos ejecutivos por proyecto) ====================
 export const executiveVerdicts = mysqlTable("executive_verdicts", {

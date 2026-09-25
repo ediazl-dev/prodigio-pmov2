@@ -15,8 +15,9 @@
 import * as XLSX from "xlsx";
 import { createHash } from "node:crypto";
 import mysql from "mysql2/promise";
-import { bulkUpsertFinancialData } from "./db";
-import type { InsertFinancialData } from "../drizzle/schema";
+import type { InsertFinancialBillingItem, InsertFinancialData } from "../drizzle/schema";
+import { canonicalFinancialId } from "./financialPortfolioV2";
+import { applyFinancialWorkbookSnapshot } from "./financialSyncRepository";
 import {
   createDriveAccessTokenProvider,
   GoogleDriveCredentialError,
@@ -24,6 +25,7 @@ import {
 } from "./googleDriveServiceAccount";
 
 const SHEET_NAME = "Artefactos_proyectos";
+const BILLING_SHEET_NAME = "Artefactos_facturacion";
 const SPREADSHEET_ID = "1ncyMnVgrwJ9DYWJDRorgnxNpGBPwaMAi3j8BYhxkjqQ";
 const DRIVE_EXPORT_URL = `https://www.googleapis.com/drive/v3/files/${SPREADSHEET_ID}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`;
 
@@ -57,6 +59,24 @@ const FIELD_MAP: Record<string, keyof InsertFinancialData> = {
 
 export const FINANCIAL_SYNC_REQUIRED_HEADERS = ["Deal", ...Object.keys(FIELD_MAP)] as const;
 
+const BILLING_FIELD_MAP = {
+  Deal: "dealId",
+  Proyecto: "projectName",
+  "Hito de Facturación": "milestoneName",
+  "Fecha planificada (Compromiso segun plan kickoff)": "plannedDate",
+  "Fecha de Entrega (fecha de aprobacion de la entrega por parte del cliente)": "deliveredAt",
+  "Fecha de Factura (real) lo completa finanzas": "invoicedAt",
+  "MONTO ( lo completa finanzas)": "amount",
+  "TIPO DE MONEDA": "currency",
+  "EN_USD (valor calculado, no completar)": "amountUsdSource",
+  "Estado Facturacion (valor calculado, no completar)": "billingStatus",
+  "Estado Entrega Hito (valor calculado, no completar)": "deliveryStatus",
+  "CAUSA ATRASO (valor calculado, no completar)": "delayCause",
+  Linea_de_negocio: "lineOfBusiness",
+} as const;
+
+export const FINANCIAL_BILLING_REQUIRED_HEADERS = Object.keys(BILLING_FIELD_MAP) as Array<keyof typeof BILLING_FIELD_MAP>;
+
 const TEXT_FIELDS = new Set<keyof InsertFinancialData>([
   "estadoProyecto",
   "projectName",
@@ -71,6 +91,14 @@ export type FinancialSyncOutcome = {
   inputDeals: number;
   insert: number;
   update: number;
+  inactivated: number;
+  billingInputItems: number;
+  billingInsert: number;
+  billingUpdate: number;
+  billingInactivated: number;
+  billingPeriodFrom: string | null;
+  billingPeriodTo: string | null;
+  batchId: number;
   status: "applied";
   workbookSha256: string;
 };
@@ -80,6 +108,14 @@ export type FinancialSyncSkippedOutcome = {
   inputDeals: 0;
   insert: 0;
   update: 0;
+  inactivated: 0;
+  billingInputItems: 0;
+  billingInsert: 0;
+  billingUpdate: 0;
+  billingInactivated: 0;
+  billingPeriodFrom: null;
+  billingPeriodTo: null;
+  batchId: null;
   status: "skipped";
   skipped: "already_running";
   workbookSha256: null;
@@ -118,15 +154,22 @@ export function classifyFinancialSyncError(error: unknown): FinancialSyncOperati
   });
 }
 
-export type FinancialSyncPreflight = Omit<FinancialSyncOutcome, "status"> & {
+export type FinancialSyncPreflight = Omit<FinancialSyncOutcome, "status" | "batchId"> & {
   status: "dry_run";
   skippedRows: number;
+  billingSkippedRows: number;
+  batchId: null;
 };
 
 export type ParsedFinancialWorkbook = {
   records: InsertFinancialData[];
+  billingRecords: InsertFinancialBillingItem[];
   sourceRows: number;
   skippedRows: number;
+  billingSourceRows: number;
+  billingSkippedRows: number;
+  billingPeriodFrom: string | null;
+  billingPeriodTo: string | null;
   workbookSha256: string;
 };
 
@@ -146,6 +189,43 @@ function cleanNumber(value: unknown, field: string, dealId: string): string | nu
     throw new Error(`Valor numérico inválido en ${field} para ${dealId}`);
   }
   return String(parsed);
+}
+
+function cleanDate(value: unknown, field: string, financialId: string): string | null {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+  }
+  const text = String(value).trim();
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const local = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (local) return `${local[3]}-${local[2].padStart(2, "0")}-${local[1].padStart(2, "0")}`;
+  const parsed = new Date(text);
+  if (Number.isFinite(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  throw new Error(`Fecha inválida en ${field} para ${financialId}`);
+}
+
+function billingSourceKey(input: {
+  financialId: string;
+  milestoneName: string;
+  plannedDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  occurrence: number;
+}): string {
+  return createHash("sha256")
+    .update([
+      input.financialId.toLocaleLowerCase("es-CL"),
+      input.milestoneName.trim().toLocaleLowerCase("es-CL"),
+      input.plannedDate ?? "",
+      input.amount ?? "",
+      input.currency?.toUpperCase() ?? "",
+      String(input.occurrence),
+    ].join("|"))
+    .digest("hex");
 }
 
 type WorkbookDownloadOptions = {
@@ -248,9 +328,12 @@ export async function downloadFinancialWorkbook(options: WorkbookDownloadOptions
 }
 
 export function parseFinancialWorkbook(buffer: Buffer): ParsedFinancialWorkbook {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   if (!workbook.SheetNames.includes(SHEET_NAME)) {
     throw new Error(`No existe la hoja requerida: ${SHEET_NAME}`);
+  }
+  if (!workbook.SheetNames.includes(BILLING_SHEET_NAME)) {
+    throw new Error(`No existe la hoja requerida: ${BILLING_SHEET_NAME}`);
   }
   const sheet = workbook.Sheets[SHEET_NAME];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
@@ -272,8 +355,8 @@ export function parseFinancialWorkbook(buffer: Buffer): ParsedFinancialWorkbook 
   let skippedRows = 0;
 
   for (const row of rows) {
-    const dealId = cleanText(row["Deal"]);
-    if (!dealId || !dealId.startsWith("Deal")) {
+    const dealId = canonicalFinancialId(cleanText(row["Deal"]));
+    if (!dealId || /^(total|subtotal)$/i.test(dealId)) {
       skippedRows += 1;
       continue;
     }
@@ -297,15 +380,73 @@ export function parseFinancialWorkbook(buffer: Buffer): ParsedFinancialWorkbook 
   if (duplicates.size > 0) {
     throw new Error(`Deal IDs duplicados en la planilla: ${Array.from(duplicates).sort().join(", ")}`);
   }
+
+  const billingSheet = workbook.Sheets[BILLING_SHEET_NAME];
+  const billingRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(billingSheet, { defval: null });
+  const billingFirstRow = billingRows[0] ?? {};
+  const billingHeaders = new Set(Object.keys(billingFirstRow));
+  const billingMissing = FINANCIAL_BILLING_REQUIRED_HEADERS.filter(header => !billingHeaders.has(header));
+  if (billingMissing.length > 0) {
+    throw new Error(`Faltan columnas de facturación requeridas: ${billingMissing.join(", ")}`);
+  }
+  const billingRecords: InsertFinancialBillingItem[] = [];
+  const billingOccurrences = new Map<string, number>();
+  let billingSkippedRows = 0;
+  for (const row of billingRows) {
+    const dealId = canonicalFinancialId(cleanText(row.Deal));
+    const milestoneName = cleanText(row["Hito de Facturación"]);
+    if (!dealId || /^(total|subtotal)$/i.test(dealId) || !milestoneName) {
+      billingSkippedRows += 1;
+      continue;
+    }
+    const plannedDate = cleanDate(row["Fecha planificada (Compromiso segun plan kickoff)"], "Fecha planificada", dealId);
+    const deliveredAt = cleanDate(row["Fecha de Entrega (fecha de aprobacion de la entrega por parte del cliente)"], "Fecha Entrega", dealId);
+    const invoicedAt = cleanDate(row["Fecha de Factura (real) lo completa finanzas"], "Fecha Facturación", dealId);
+    const amount = cleanNumber(row["MONTO ( lo completa finanzas)"], "Importe", dealId);
+    const amountUsdSource = cleanNumber(row["EN_USD (valor calculado, no completar)"], "EN_USD", dealId);
+    const currency = cleanText(row["TIPO DE MONEDA"])?.toUpperCase() ?? null;
+    const fingerprint = [dealId.toLowerCase(), milestoneName.toLowerCase(), plannedDate ?? "", amount ?? "", currency ?? ""].join("|");
+    const occurrence = (billingOccurrences.get(fingerprint) ?? 0) + 1;
+    billingOccurrences.set(fingerprint, occurrence);
+    billingRecords.push({
+      sourceKey: billingSourceKey({ financialId: dealId, milestoneName, plannedDate, amount, currency, occurrence }),
+      dealId,
+      projectName: cleanText(row.Proyecto),
+      clientName: null,
+      milestoneName,
+      plannedDate,
+      deliveredAt,
+      invoicedAt,
+      amount,
+      currency,
+      amountUsdSource,
+      billingStatus: cleanText(row["Estado Facturacion (valor calculado, no completar)"]),
+      deliveryStatus: cleanText(row["Estado Entrega Hito (valor calculado, no completar)"]),
+      delayCause: cleanText(row["CAUSA ATRASO (valor calculado, no completar)"]),
+      lineOfBusiness: cleanText(row.Linea_de_negocio),
+    });
+  }
+  if (billingRecords.length === 0) throw new Error("No se encontraron hitos financieros válidos; no se escribirá nada");
+  const billingDates = billingRecords.map(record => record.invoicedAt).filter((value): value is string => Boolean(value)).sort();
   return {
     records,
+    billingRecords,
     sourceRows: rows.length,
     skippedRows,
+    billingSourceRows: billingRows.length,
+    billingSkippedRows,
+    billingPeriodFrom: billingDates[0] ?? null,
+    billingPeriodTo: billingDates.at(-1) ?? null,
     workbookSha256: createHash("sha256").update(buffer).digest("hex"),
   };
 }
 
-async function buildFinancialPreflight(buffer: Buffer): Promise<FinancialSyncPreflight & { records: InsertFinancialData[] }> {
+async function buildFinancialPreflight(buffer: Buffer): Promise<FinancialSyncPreflight & {
+  records: InsertFinancialData[];
+  billingRecords: InsertFinancialBillingItem[];
+  projectSourceRows: number;
+  billingSourceRows: number;
+}> {
   let parsed: ParsedFinancialWorkbook;
   try {
     parsed = parseFinancialWorkbook(buffer);
@@ -319,26 +460,51 @@ async function buildFinancialPreflight(buffer: Buffer): Promise<FinancialSyncPre
   }
 
   const existing = new Set<string>();
+  const activeExisting = new Set<string>();
+  const existingBilling = new Set<string>();
+  const activeExistingBilling = new Set<string>();
   try {
     const { getDb } = await import("./db");
     const db = await getDb();
     if (!db) throw new Error("Base de datos no disponible");
-    const { financialData } = await import("../drizzle/schema");
+    const { financialBillingItems, financialData, financialSyncBatches } = await import("../drizzle/schema");
     const { inArray } = await import("drizzle-orm");
 
     // Fuerza a la base a validar el esquema completo antes de cualquier escritura.
     await db.select().from(financialData).limit(0);
+    await db.select().from(financialBillingItems).limit(0);
+    await db.select().from(financialSyncBatches).limit(0);
 
     const dealIds = parsed.records.map(record => record.dealId);
     const batchSize = 500;
     for (let offset = 0; offset < dealIds.length; offset += batchSize) {
       const batch = dealIds.slice(offset, offset + batchSize);
       const found = await db
-        .select({ dealId: financialData.dealId })
+        .select({ dealId: financialData.dealId, sourceActive: financialData.sourceActive })
         .from(financialData)
         .where(inArray(financialData.dealId, batch));
-      for (const row of found) existing.add(row.dealId);
+      for (const row of found) {
+        existing.add(row.dealId);
+        if (row.sourceActive) activeExisting.add(row.dealId);
+      }
     }
+    const allActiveFinancial = await db.select({ dealId: financialData.dealId }).from(financialData).where(inArray(financialData.sourceActive, [true]));
+    for (const row of allActiveFinancial) activeExisting.add(row.dealId);
+
+    const billingKeys = parsed.billingRecords.map(record => record.sourceKey);
+    for (let offset = 0; offset < billingKeys.length; offset += batchSize) {
+      const batch = billingKeys.slice(offset, offset + batchSize);
+      const found = await db
+        .select({ sourceKey: financialBillingItems.sourceKey, sourceActive: financialBillingItems.sourceActive })
+        .from(financialBillingItems)
+        .where(inArray(financialBillingItems.sourceKey, batch));
+      for (const row of found) {
+        existingBilling.add(row.sourceKey);
+        if (row.sourceActive) activeExistingBilling.add(row.sourceKey);
+      }
+    }
+    const allActiveBilling = await db.select({ sourceKey: financialBillingItems.sourceKey }).from(financialBillingItems).where(inArray(financialBillingItems.sourceActive, [true]));
+    for (const row of allActiveBilling) activeExistingBilling.add(row.sourceKey);
   } catch (error) {
     throw new FinancialSyncOperationalError(
       "database_error",
@@ -348,21 +514,41 @@ async function buildFinancialPreflight(buffer: Buffer): Promise<FinancialSyncPre
     );
   }
 
+  const incomingDeals = new Set(parsed.records.map(record => record.dealId));
+  const incomingBillingKeys = new Set(parsed.billingRecords.map(record => record.sourceKey));
   return {
     timestampUtc: new Date().toISOString(),
     inputDeals: parsed.records.length,
     insert: parsed.records.filter(record => !existing.has(record.dealId)).length,
     update: parsed.records.filter(record => existing.has(record.dealId)).length,
+    inactivated: Array.from(activeExisting).filter(dealId => !incomingDeals.has(dealId)).length,
+    billingInputItems: parsed.billingRecords.length,
+    billingInsert: parsed.billingRecords.filter(record => !existingBilling.has(record.sourceKey)).length,
+    billingUpdate: parsed.billingRecords.filter(record => existingBilling.has(record.sourceKey)).length,
+    billingInactivated: Array.from(activeExistingBilling).filter(sourceKey => !incomingBillingKeys.has(sourceKey)).length,
+    billingPeriodFrom: parsed.billingPeriodFrom,
+    billingPeriodTo: parsed.billingPeriodTo,
+    batchId: null,
     status: "dry_run",
     skippedRows: parsed.skippedRows,
+    billingSkippedRows: parsed.billingSkippedRows,
     workbookSha256: parsed.workbookSha256,
     records: parsed.records,
+    billingRecords: parsed.billingRecords,
+    projectSourceRows: parsed.sourceRows,
+    billingSourceRows: parsed.billingSourceRows,
   };
 }
 
 export async function runFinancialSyncPreflight(): Promise<FinancialSyncPreflight> {
   const buffer = await downloadFinancialWorkbook();
-  const { records: _records, ...preflight } = await buildFinancialPreflight(buffer);
+  const {
+    records: _records,
+    billingRecords: _billingRecords,
+    projectSourceRows: _projectSourceRows,
+    billingSourceRows: _billingSourceRows,
+    ...preflight
+  } = await buildFinancialPreflight(buffer);
   return preflight;
 }
 
@@ -372,9 +558,28 @@ export async function runFinancialSyncPreflight(): Promise<FinancialSyncPrefligh
  */
 async function runFinancialSyncInternal(): Promise<FinancialSyncOutcome> {
   const buffer = await downloadFinancialWorkbook();
-  const { records, skippedRows: _skippedRows, status: _status, ...preflight } = await buildFinancialPreflight(buffer);
+  const {
+    records,
+    billingRecords,
+    projectSourceRows,
+    billingSourceRows,
+    skippedRows: _skippedRows,
+    billingSkippedRows: _billingSkippedRows,
+    status: _status,
+    batchId: _batchId,
+    ...preflight
+  } = await buildFinancialPreflight(buffer);
+  let applied: Awaited<ReturnType<typeof applyFinancialWorkbookSnapshot>>;
   try {
-    await bulkUpsertFinancialData(records);
+    applied = await applyFinancialWorkbookSnapshot({
+      workbookSha256: preflight.workbookSha256,
+      projectSourceRows,
+      billingSourceRows,
+      financialRecords: records,
+      billingRecords,
+      billingPeriodFrom: preflight.billingPeriodFrom,
+      billingPeriodTo: preflight.billingPeriodTo,
+    });
   } catch (error) {
     throw new FinancialSyncOperationalError(
       "database_error",
@@ -386,6 +591,14 @@ async function runFinancialSyncInternal(): Promise<FinancialSyncOutcome> {
 
   return {
     ...preflight,
+    insert: applied.financialInsert,
+    update: applied.financialUpdate,
+    inactivated: applied.financialInactivated,
+    billingInputItems: billingRecords.length,
+    billingInsert: applied.billingInsert,
+    billingUpdate: applied.billingUpdate,
+    billingInactivated: applied.billingInactivated,
+    batchId: applied.batchId,
     status: "applied",
   };
 }
@@ -471,6 +684,14 @@ export async function runFinancialSyncWithDependencies(
         inputDeals: 0,
         insert: 0,
         update: 0,
+        inactivated: 0,
+        billingInputItems: 0,
+        billingInsert: 0,
+        billingUpdate: 0,
+        billingInactivated: 0,
+        billingPeriodFrom: null,
+        billingPeriodTo: null,
+        batchId: null,
         status: "skipped",
         skipped: "already_running",
         workbookSha256: null,
