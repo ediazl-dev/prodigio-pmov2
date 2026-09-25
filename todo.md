@@ -723,7 +723,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Portafolio financiero v2 multianual — 2026-09-25
 
 - [x] R0: Confirmar checkpoint `34a2e598`, refs alineadas, árbol limpio, esquema físico y respaldo financiero recuperable.
-- [ ] R1: Implementar política pura de Deal canónico, ciclo de vida, rango temporal, comparación y multimoneda.
+- [x] R1: Implementar política pura de Deal canónico, ciclo de vida, rango temporal, comparación y multimoneda.
 - [ ] R2: Crear tablas aditivas de lotes e hitos financieros y ampliar la sincronización atómica a `Artefactos_facturacion`.
 - [ ] R3: Marcar vigencia de fuente sin borrar historia y reconciliar Deals/aliases sin doble conteo.
 - [ ] R4: Construir read model v2 paginado con KPIs, series, rankings, desviaciones, pendientes y cobertura.
