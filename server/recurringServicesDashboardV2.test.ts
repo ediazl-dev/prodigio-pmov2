@@ -189,22 +189,22 @@ describe("buildRecurringServicesDashboardV2", () => {
   it("construye series financieras mensuales sin sumar monedas", () => {
     const result = buildRecurringServicesDashboardV2(source, { cutOffDate: "2026-03-16" });
 
-    expect(result.trends.finance).toContainEqual({
+    expect(result.trends.finance).toContainEqual(expect.objectContaining({
       month: "2026-02",
       currency: "UF",
       scheduled: 60,
       invoiced: 0,
       pending: 60,
       overdue: 60,
-    });
-    expect(result.trends.finance).toContainEqual({
+    }));
+    expect(result.trends.finance).toContainEqual(expect.objectContaining({
       month: "2026-02",
       currency: "USD",
       scheduled: 1200,
-      invoiced: 1200,
-      pending: 0,
-      overdue: 0,
-    });
+      invoiced: 0,
+      pending: 1200,
+      overdue: 1200,
+    }));
   });
 
   it("marca como facturada una cuota cuando la fuente corporativa coincide por Deal", () => {
@@ -230,8 +230,8 @@ describe("buildRecurringServicesDashboardV2", () => {
     );
 
     const service = result.matrix.find(item => item.serviceId === 1)!;
-    expect(service.financeByCurrency.UF.invoiced).toBe(120);
-    expect(service.financeByCurrency.UF.pending).toBe(0);
+    expect(service.financeByCurrency.UF.invoiced).toBe(60);
+    expect(service.financeByCurrency.UF.pending).toBe(60);
     expect(service.financeByCurrency.UF).not.toHaveProperty("collected");
     expect(result.financeAnalytics.summary.verifiedInvoiceEvidence).toBe(1);
   });

@@ -862,13 +862,14 @@ export async function getRecurringDashboardV2Data() {
       reportEvidence: [],
       financialEvidence: [],
       slaConfigs: [],
+      penalties: [],
       jsmSnapshots: [],
       financialReferences: [],
       corporateBillingItems: [],
     };
   }
 
-  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, jsmSnapshots, financialReferences, corporateBillingItems] = await Promise.all([
+  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, penalties, jsmSnapshots, financialReferences, corporateBillingItems] = await Promise.all([
     db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)),
     db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)),
     db.select().from(recurringServiceWorkPlan).orderBy(asc(recurringServiceWorkPlan.dueDate)),
@@ -877,6 +878,7 @@ export async function getRecurringDashboardV2Data() {
     db.select().from(recurringServiceReportEvidence).orderBy(asc(recurringServiceReportEvidence.dueDate)),
     db.select().from(recurringServiceFinancialEvidence).orderBy(asc(recurringServiceFinancialEvidence.occurredAt)),
     db.select().from(recurringServiceSlaConfig),
+    db.select().from(recurringServicePenalties).orderBy(desc(recurringServicePenalties.penaltyDate)),
     db.select().from(recurringServiceJsmSnapshots).orderBy(desc(recurringServiceJsmSnapshots.capturedAt)),
     db
       .select({
@@ -905,6 +907,7 @@ export async function getRecurringDashboardV2Data() {
     reportEvidence,
     financialEvidence,
     slaConfigs,
+    penalties,
     jsmSnapshots,
     financialReferences,
     corporateBillingItems,

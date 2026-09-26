@@ -40,6 +40,14 @@ export interface RecurringBillingMetricSource {
   currency: string | null;
   status: "pendiente" | "facturado" | "pagado";
   invoiceNumber?: string | null;
+  expectedAmount?: string | number;
+  expectedCurrency?: string;
+  expectedDueDate?: string | null;
+  invoiceAmount?: string | number | null;
+  invoiceCurrency?: string | null;
+  invoiceSource?: "corporate_financial" | "local_status" | "schedule";
+  invoiceDate?: string | null;
+  reconciliationStatus?: string;
 }
 
 export interface RecurringWorkPlanMetricSource {
@@ -274,20 +282,28 @@ export function calculateRecurringServicesMetrics(
     financeByCurrency[serviceCurrency] = contractBucket;
 
     for (const row of billing) {
-      const currency = normalizeCurrency(row.currency ?? service.currency);
-      const bucket = financeByCurrency[currency] ?? createCurrencyMetrics(currency);
-      const rowAmount = amount(row.amount);
-      bucket.scheduled += rowAmount;
-      if (row.status === "facturado" || row.status === "pagado") {
-        bucket.invoiced += rowAmount;
-      } else {
-        bucket.pending += rowAmount;
-        if (row.dueDate && row.dueDate < input.cutOffDate) {
-          bucket.overdue += rowAmount;
-          bucket.overdueItems += 1;
+      const expectedCurrency = normalizeCurrency(row.expectedCurrency ?? row.currency ?? service.currency);
+      const expectedBucket = financeByCurrency[expectedCurrency] ?? createCurrencyMetrics(expectedCurrency);
+      const expectedAmount = amount(row.expectedAmount ?? row.amount);
+      const expectedDueDate = row.expectedDueDate ?? row.dueDate;
+      expectedBucket.scheduled += expectedAmount;
+
+      const hasVerifiedInvoice = row.invoiceSource === "corporate_financial";
+      if (!hasVerifiedInvoice) {
+        expectedBucket.pending += expectedAmount;
+        if (expectedDueDate && expectedDueDate < input.cutOffDate) {
+          expectedBucket.overdue += expectedAmount;
+          expectedBucket.overdueItems += 1;
         }
       }
-      financeByCurrency[currency] = bucket;
+      financeByCurrency[expectedCurrency] = expectedBucket;
+
+      if (hasVerifiedInvoice) {
+        const invoiceCurrency = normalizeCurrency(row.invoiceCurrency ?? expectedCurrency);
+        const invoiceBucket = financeByCurrency[invoiceCurrency] ?? createCurrencyMetrics(invoiceCurrency);
+        invoiceBucket.invoiced += amount(row.invoiceAmount ?? expectedAmount);
+        financeByCurrency[invoiceCurrency] = invoiceBucket;
+      }
     }
 
     const currencies = Object.keys(financeByCurrency);

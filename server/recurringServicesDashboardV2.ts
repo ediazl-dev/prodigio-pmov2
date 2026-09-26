@@ -15,6 +15,7 @@ import {
   reconcileRecurringBillingMonths,
   type CorporateBillingItem,
 } from "./recurringBillingReconciliation";
+import { buildRecurringManagementAnalytics } from "./recurringManagementDashboard";
 
 export type DashboardHealthFilter = "critical" | "attention" | "stable" | "no_data";
 
@@ -80,6 +81,16 @@ export interface RecurringDashboardV2Source
     coverageType?: string;
     customCoverageDescription?: string | null;
   }>;
+  penalties?: Array<{
+    id: number;
+    serviceId: number;
+    penaltyDate: string;
+    description: string;
+    amount: string | number | null;
+    currency: string | null;
+    status: "identificada" | "aplicada" | "disputada" | "resuelta";
+    evidenceFileUrl?: string | null;
+  }>;
   corporateBillingItems?: CorporateBillingItem[];
 }
 
@@ -129,6 +140,7 @@ function latestOperationalEvidence(
 ): RecurringOperationalEvidenceSource[] {
   const latest = new Map<number, DashboardV2JsmSnapshot>();
   for (const snapshot of snapshots) {
+    if (isoDate(snapshot.capturedAt).slice(0, 10) > cutOffDate) continue;
     const current = latest.get(snapshot.serviceId);
     if (!current || isoDate(snapshot.capturedAt) > isoDate(current.capturedAt)) latest.set(snapshot.serviceId, snapshot);
   }
@@ -194,6 +206,7 @@ function restrictSource(source: RecurringDashboardV2Source, serviceIds: Set<numb
     documentControls: source.documentControls.filter(item => serviceIds.has(item.serviceId)),
     reportEvidence: source.reportEvidence.filter(item => serviceIds.has(item.serviceId)),
     financialEvidence: source.financialEvidence.filter(item => serviceIds.has(item.serviceId)),
+    penalties: (source.penalties ?? []).filter(item => serviceIds.has(item.serviceId)),
   };
 }
 
@@ -210,23 +223,37 @@ function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: stri
 }
 
 function financeTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
-  const buckets = new Map<string, { month: string; currency: string; scheduled: number; invoiced: number; pending: number; overdue: number }>();
+  const buckets = new Map<string, { month: string; currency: string; scheduled: number; future: number; invoiced: number; pending: number; overdue: number; expectedItems: number; invoiceItems: number }>();
   for (const row of source.billingMonths) {
-    const month = monthKey(row.dueDate);
+    const expectedDueDate = row.expectedDueDate ?? row.dueDate;
+    const month = monthKey(expectedDueDate);
     if (!month) continue;
     const service = source.services.find(item => item.id === row.serviceId);
-    const currency = normalizedCurrency(row.currency ?? service?.currency);
-    const key = `${month}:${currency}`;
-    const bucket = buckets.get(key) ?? { month, currency, scheduled: 0, invoiced: 0, pending: 0, overdue: 0 };
-    const value = numeric(row.amount);
-    bucket.scheduled += value;
-    if (row.status === "facturado" || row.status === "pagado") {
-      bucket.invoiced += value;
+    const expectedCurrency = normalizedCurrency(row.expectedCurrency ?? row.currency ?? service?.currency);
+    const expectedKey = `${month}:${expectedCurrency}`;
+    const expectedBucket = buckets.get(expectedKey) ?? { month, currency: expectedCurrency, scheduled: 0, future: 0, invoiced: 0, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 0 };
+    const expectedValue = numeric(row.expectedAmount ?? row.amount);
+    expectedBucket.expectedItems += 1;
+    if (expectedDueDate && expectedDueDate > cutOffDate) {
+      expectedBucket.future += expectedValue;
     } else {
-      bucket.pending += value;
-      if (row.dueDate && row.dueDate < cutOffDate) bucket.overdue += value;
+      expectedBucket.scheduled += expectedValue;
+      if (row.invoiceSource !== "corporate_financial") {
+        expectedBucket.pending += expectedValue;
+        if (expectedDueDate && expectedDueDate < cutOffDate) expectedBucket.overdue += expectedValue;
+      }
     }
-    buckets.set(key, bucket);
+    buckets.set(expectedKey, expectedBucket);
+
+    if (row.invoiceSource === "corporate_financial") {
+      const invoiceMonth = monthKey(row.invoiceDate ?? expectedDueDate) ?? month;
+      const invoiceCurrency = normalizedCurrency(row.invoiceCurrency ?? expectedCurrency);
+      const invoiceKey = `${invoiceMonth}:${invoiceCurrency}`;
+      const invoiceBucket = buckets.get(invoiceKey) ?? { month: invoiceMonth, currency: invoiceCurrency, scheduled: 0, future: 0, invoiced: 0, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 0 };
+      invoiceBucket.invoiced += numeric(row.invoiceAmount ?? row.expectedAmount ?? row.amount);
+      invoiceBucket.invoiceItems += 1;
+      buckets.set(invoiceKey, invoiceBucket);
+    }
   }
   return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month) || a.currency.localeCompare(b.currency));
 }
@@ -520,10 +547,11 @@ function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month));
 }
 
-function incidentTrend(source: RecurringDashboardV2Source) {
+function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   const buckets = new Map<string, { capturedAt: string; total: number; open: number; criticalOpen: number; servicesMeasured: number }>();
   for (const snapshot of source.jsmSnapshots.filter(item => item.status === "success" || item.status === "partial")) {
     const capturedAt = isoDate(snapshot.capturedAt).slice(0, 10);
+    if (capturedAt > cutOffDate) continue;
     const bucket = buckets.get(capturedAt) ?? { capturedAt, total: 0, open: 0, criticalOpen: 0, servicesMeasured: 0 };
     bucket.total += snapshot.incidentCount ?? 0;
     bucket.open += snapshot.openIncidentCount ?? 0;
@@ -534,7 +562,7 @@ function incidentTrend(source: RecurringDashboardV2Source) {
   return Array.from(buckets.values()).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
 }
 
-function operationsAnalytics(source: RecurringDashboardV2Source, services: ServiceMetricsV2[]) {
+function operationsAnalytics(source: RecurringDashboardV2Source, services: ServiceMetricsV2[], cutOffDate: string) {
   const measuredServices = services.filter(service => service.incidents.availability === "available");
   const total = measuredServices.reduce((sum, service) => sum + (service.incidents.total ?? 0), 0);
   const open = measuredServices.reduce((sum, service) => sum + (service.incidents.open ?? 0), 0);
@@ -546,6 +574,7 @@ function operationsAnalytics(source: RecurringDashboardV2Source, services: Servi
   for (const snapshot of source.jsmSnapshots) {
     if (!visibleServiceIds.has(snapshot.serviceId) || !["success", "partial"].includes(snapshot.status)) continue;
     const capturedAt = isoDate(snapshot.capturedAt);
+    if (capturedAt.slice(0, 10) > cutOffDate) continue;
     const key = `${snapshot.serviceId}:${capturedAt.slice(0, 7)}`;
     const existing = latestSnapshotByServiceMonth.get(key);
     if (!existing || capturedAt > isoDate(existing.capturedAt)) latestSnapshotByServiceMonth.set(key, snapshot);
@@ -671,12 +700,20 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
 
   const latestSnapshotAt = filteredSource.jsmSnapshots
     .map(item => isoDate(item.capturedAt))
+    .filter(value => value.slice(0, 10) <= options.cutOffDate)
     .sort()
     .at(-1) ?? null;
   const financeAnalytics = financialAnalytics(filteredSource, metrics.services, options.cutOffDate);
-  const operations = operationsAnalytics(filteredSource, metrics.services);
+  const operations = operationsAnalytics(filteredSource, metrics.services, options.cutOffDate);
   const deliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
   const documents = documentAnalytics(filteredSource, options.cutOffDate);
+  const management = buildRecurringManagementAnalytics({
+    source: filteredSource,
+    services: metrics.services,
+    cutOffDate: options.cutOffDate,
+    deliverables,
+    documents,
+  });
 
   return {
     metadata: {
@@ -700,12 +737,13 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     trends: {
       finance: financeTrend(filteredSource, options.cutOffDate),
       reports: reportTrend(filteredSource, options.cutOffDate),
-      incidents: incidentTrend(filteredSource),
+      incidents: incidentTrend(filteredSource, options.cutOffDate),
     },
     financeAnalytics,
     operations,
     deliverables,
     documents,
+    management,
     matrix,
     quality,
     evidenceInventory: {

@@ -789,3 +789,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] T2: Incorporar esas cuatro dimensiones completas en Clásico antes del resumen final por servicio.
 - [x] T3: Preservar telemetría en Torre V2, roles, N/D, multimoneda y navegación JSM.
 - [x] T4: Actualizar pruebas, validar escritorio/móvil, suite, build, TypeScript y checkpoint final.
+
+## Dashboard gerencial de servicios recurrentes v2 — 2026-09-26
+
+- [x] M0: Confirmar `3a5a46e`, refs alineadas, árbol limpio y tres casos de aceptación reales.
+- [x] M1: Separar programación contractual y factura real sin reemplazar monto ni moneda esperada.
+- [ ] M2: Implementar atribución por servicio, período, moneda y estados de reconciliación explícitos.
+- [ ] M3: Separar configuración SLA, cobertura JSM, medición y cumplimiento; corregir incidentes, reportes y formalidad.
+- [ ] M4: Rediseñar Clásico con respuestas inmediatas, filtros, gráfico esperado vs. facturado, excepciones y resumen final.
+- [ ] M5: Validar Camanchaca, Consalud 4687/4727, multimoneda, N/D, móvil y escritorio.
+- [ ] M6: Certificar suite, build, cinco errores TypeScript heredados, secretos, refs y checkpoint final.
