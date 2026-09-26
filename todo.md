@@ -749,5 +749,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D5: Agregar resumen, brechas y detalle expandible con acciones contextuales.
 - [x] D6: Conservar el historial técnico de cargas como pestaña secundaria y sin vacío engañoso.
 - [x] D7: Mantener lectura para Admin/PMO/PM/Consulta y mutaciones sólo para Admin.
-- [ ] D8: Validar CCLA, Tanner, Staffing, Caja Los Andes, Ruta Pass, MaxAgro y Camanchaca.
-- [ ] D9: Certificar pruebas, build, TypeScript heredado, responsive, secretos, refs y checkpoint final.
+- [x] D8: Validar CCLA, Tanner, Staffing, Caja Los Andes, Ruta Pass, MaxAgro y Camanchaca.
+- [x] D9: Certificar pruebas, build, TypeScript heredado, responsive, secretos, refs y checkpoint final.
