@@ -50,8 +50,9 @@ type EvidenceStatus = "all" | "pending" | "expired" | "attached" | "discarded";
 type DocumentType = "all" | "minute" | "acceptance" | "recovery_plan";
 type CoverageLifecycle = "all" | "open" | "historical" | "unconfirmed";
 type CoverageEntityType = "all" | "project" | "recurring_service";
-type CoverageStatus = "all" | "gaps" | "compliant" | "pending_validation" | "missing" | "overdue" | "not_applicable" | "unconfirmed" | "historical_gap";
-type CoverageItem = RouterOutputs["executiveEvidenceAdmin"]["coverage"]["items"][number];
+type CoverageStatus = "all" | "gaps" | "compliant" | "pending_validation" | "missing" | "expired" | "rejected" | "not_applicable" | "unconfirmed";
+type RequirementCode = "all" | "contract" | "sow" | "technical_economic_proposal" | "costed_pnl" | "work_plan_milestones";
+type CoverageItem = RouterOutputs["documentGovernance"]["portfolio"]["items"][number];
 type CoverageRequirement = CoverageItem["requirements"][number];
 
 const HISTORY_STATUS_LABELS: Record<Exclude<EvidenceStatus, "all">, string> = {
@@ -78,10 +79,10 @@ const COVERAGE_STATUS: Record<CoverageRequirement["status"], { label: string; cl
   compliant: { label: "Cumple", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   pending_validation: { label: "Pendiente de validación", className: "border-amber-200 bg-amber-50 text-amber-800" },
   missing: { label: "Faltante", className: "border-rose-200 bg-rose-50 text-rose-700" },
-  overdue: { label: "Vencido", className: "border-red-300 bg-red-50 text-red-800" },
+  expired: { label: "Vencido", className: "border-red-300 bg-red-50 text-red-800" },
+  rejected: { label: "Rechazado", className: "border-red-300 bg-red-50 text-red-800" },
   not_applicable: { label: "No aplica", className: "border-slate-200 bg-slate-50 text-slate-500" },
   unconfirmed: { label: "Por confirmar", className: "border-sky-200 bg-sky-50 text-sky-700" },
-  historical_gap: { label: "Brecha histórica", className: "border-violet-200 bg-violet-50 text-violet-700" },
 };
 
 function formatDate(value: string | Date | null | undefined, includeTime = true) {
@@ -135,19 +136,11 @@ function RequirementRow({ requirement }: { requirement: CoverageRequirement }) {
         </div>
         <CoverageBadge status={requirement.status} />
       </div>
-      <p className="mt-2 text-[11px] leading-4 text-slate-400">{requirement.rationale}</p>
-      {requirement.dueDate && <p className="mt-2 text-[11px] font-medium text-slate-500">Fecha exigible: {formatDate(requirement.dueDate, false)}</p>}
-      {requirement.evidence.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {requirement.evidence.map(item => (
-            <span key={item.id} className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600">
-              <FileCheck2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{item.fileName || item.label}</span>
-              {item.validation && <span className="text-slate-400">· {item.validation}</span>}
-            </span>
-          ))}
-        </div>
-      )}
+      <p className="mt-2 text-[11px] leading-4 text-slate-400">{requirement.description}</p>
+      {requirement.activeArtifact && <div className="mt-3 flex flex-wrap gap-2"><span className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600"><FileCheck2 className="h-3 w-3 shrink-0" /><span className="truncate">v{requirement.activeArtifact.version} · {requirement.activeArtifact.fileName}</span></span><span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-500">{requirement.activeArtifact.sha256?.slice(0, 10) ?? "sin hash"}</span></div>}
+      {requirement.latestDecision && <p className="mt-2 text-[11px] text-slate-500">Decisión: <b>{requirement.latestDecision.decision}</b> · vigencia {requirement.latestDecision.openEndedValidity ? "abierta" : requirement.latestDecision.validUntil ?? "N/D"}{requirement.latestDecision.decidedByName ? ` · ${requirement.latestDecision.decidedByName}` : ""}</p>}
+      {requirement.workPlanSnapshot && <p className="mt-2 text-[11px] font-medium text-sky-700">Plan versionado: {requirement.workPlanSnapshot.milestoneCount} hito(s) · fuente {requirement.workPlanSnapshot.sourceType}</p>}
+      <p className="mt-2 text-[10px] text-slate-400">Historial: {requirement.historyCount} versión(es) · aplicabilidad {requirement.applicability}</p>
     </div>
   );
 }
@@ -167,7 +160,7 @@ function CoverageEntityCard({ item }: { item: CoverageItem }) {
             </div>
             <h3 className="mt-3 break-words text-base font-bold text-slate-900">{item.entityName}</h3>
             <p className="mt-1 text-xs text-slate-500">{item.clientName} · {item.ownerName || "Responsable N/D"}</p>
-            <p className="mt-2 max-w-3xl text-[11px] leading-5 text-slate-400">{item.lifecycleReason}</p>
+            <p className="mt-2 max-w-3xl text-[11px] leading-5 text-slate-400">Política {item.policyVersion} · corte {formatDate(item.cutoffAt, false)} · ID interno {item.entityId}</p>
           </div>
           <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[430px]">
             <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] uppercase tracking-wide text-slate-400">Cobertura</p><p className="mt-1 text-xl font-extrabold text-slate-900">{percent == null ? "N/D" : `${percent}%`}</p></div>
@@ -177,22 +170,22 @@ function CoverageEntityCard({ item }: { item: CoverageItem }) {
           </div>
         </div>
 
-        {item.lifecycle === "open" && item.activeActions.length > 0 && (
+        {item.lifecycle === "open" && item.blockers.length > 0 && (
           <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3">
             <p className="flex items-center gap-2 text-xs font-bold text-rose-800"><AlertTriangle className="h-4 w-4" /> Acciones activas</p>
             <div className="mt-2 space-y-2">
-              {item.activeActions.slice(0, 3).map(action => (
-                <div key={action.id} className="flex flex-col justify-between gap-2 rounded-md bg-white/70 p-2.5 sm:flex-row sm:items-center">
-                  <div><p className="text-xs font-semibold text-slate-800">{action.label}</p><p className="mt-0.5 text-[11px] text-slate-500">{action.impact}</p></div>
-                  <Link href={action.href} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-sky-700 hover:underline">Resolver en detalle <ExternalLink className="h-3.5 w-3.5" /></Link>
+              {item.blockers.slice(0, 3).map(blocker => (
+                <div key={blocker.code} className="flex flex-col justify-between gap-2 rounded-md bg-white/70 p-2.5 sm:flex-row sm:items-center">
+                  <div><p className="text-xs font-semibold text-slate-800">{blocker.label}</p><p className="mt-0.5 text-[11px] text-slate-500">{blocker.detail}</p></div>
+                  <Link href={item.entityType === "project" ? `/projects/${item.entityId}` : `/recurring-services/${item.entityId}/init`} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-sky-700 hover:underline">{blocker.action ?? "Revisar expediente"} <ExternalLink className="h-3.5 w-3.5" /></Link>
                 </div>
               ))}
-              {item.activeActions.length > 3 && <p className="text-[11px] font-medium text-rose-700">+ {item.activeActions.length - 3} acción(es) adicional(es) en el detalle</p>}
+              {item.blockers.length > 3 && <p className="text-[11px] font-medium text-rose-700">+ {item.blockers.length - 3} acción(es) adicional(es) en el detalle</p>}
             </div>
           </div>
         )}
 
-        {isHistorical && item.historicalObservations.length > 0 && (
+        {isHistorical && item.blockers.length > 0 && (
           <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
             <p className="flex items-center gap-2 text-xs font-bold text-violet-800"><Archive className="h-4 w-4" /> Antecedentes del expediente</p>
             <p className="mt-1 text-[11px] leading-5 text-violet-700">Estas brechas no generan acciones operativas automáticas; quedan visibles para completar el expediente histórico.</p>
@@ -204,8 +197,9 @@ function CoverageEntityCard({ item }: { item: CoverageItem }) {
           Ver {item.requirements.length} requisito(s) y evidencia · Última evidencia {formatDate(item.latestEvidenceAt, false)}
         </summary>
         <div className="grid gap-3 px-4 pb-4 sm:px-5 md:grid-cols-2">
-          {item.requirements.map(requirement => <RequirementRow key={requirement.id} requirement={requirement} />)}
+          {item.requirements.map(requirement => <RequirementRow key={requirement.code} requirement={requirement} />)}
         </div>
+        {item.supplementaryRequirements.length > 0 && <div className="border-t border-slate-200 px-4 pb-4 pt-3 sm:px-5"><p className="mb-2 text-[10px] font-black uppercase tracking-[.08em] text-slate-500">Controles complementarios · no integran el denominador base</p><div className="grid gap-2 md:grid-cols-2">{item.supplementaryRequirements.map(requirement => <div key={requirement.id} className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="text-xs font-semibold text-slate-800">{requirement.label}</p><span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold uppercase text-slate-600">{requirement.status.replaceAll("_", " ")}</span></div><p className="mt-1 text-[11px] leading-5 text-slate-500">{requirement.detail}</p></div>)}</div></div>}
       </details>
     </article>
   );
@@ -221,6 +215,7 @@ export default function AdminEvidenceHistory() {
   const [lifecycle, setLifecycle] = useState<CoverageLifecycle>("open");
   const [entityType, setEntityType] = useState<CoverageEntityType>("all");
   const [coverageStatus, setCoverageStatus] = useState<CoverageStatus>("gaps");
+  const [requirementCode, setRequirementCode] = useState<RequirementCode>("all");
   const [client, setClient] = useState("all");
   const [owner, setOwner] = useState("all");
   const [coverageSearch, setCoverageSearch] = useState("");
@@ -244,7 +239,7 @@ export default function AdminEvidenceHistory() {
     const timer = window.setTimeout(() => setDebouncedHistorySearch(historySearch.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [historySearch]);
-  useEffect(() => setCoveragePage(1), [lifecycle, entityType, coverageStatus, client, owner, debouncedCoverageSearch]);
+  useEffect(() => setCoveragePage(1), [lifecycle, entityType, coverageStatus, requirementCode, client, owner, debouncedCoverageSearch]);
   useEffect(() => setHistoryPage(1), [historyStatus, documentType, projectId, debouncedHistorySearch]);
 
   const coverageInput = useMemo(() => ({
@@ -253,10 +248,11 @@ export default function AdminEvidenceHistory() {
     lifecycle,
     entityType,
     coverageStatus,
+    requirementCode,
     ...(client !== "all" ? { client } : {}),
     ...(owner !== "all" ? { owner } : {}),
     ...(debouncedCoverageSearch ? { search: debouncedCoverageSearch } : {}),
-  }), [coveragePage, coveragePageSize, lifecycle, entityType, coverageStatus, client, owner, debouncedCoverageSearch]);
+  }), [coveragePage, coveragePageSize, lifecycle, entityType, coverageStatus, requirementCode, client, owner, debouncedCoverageSearch]);
 
   const historyInput = useMemo(() => ({
     page: historyPage,
@@ -268,7 +264,7 @@ export default function AdminEvidenceHistory() {
   }), [historyPage, historyPageSize, historyStatus, documentType, projectId, debouncedHistorySearch]);
 
   const utils = trpc.useUtils();
-  const coverageQuery = trpc.executiveEvidenceAdmin.coverage.useQuery(coverageInput, { enabled: activeTab === "coverage", refetchOnWindowFocus: true });
+  const coverageQuery = trpc.documentGovernance.portfolio.useQuery(coverageInput, { enabled: activeTab === "coverage", refetchOnWindowFocus: true });
   const listQuery = trpc.executiveEvidenceAdmin.list.useQuery(historyInput, { enabled: activeTab === "history", refetchOnWindowFocus: true });
   const historySummaryQuery = trpc.executiveEvidenceAdmin.summary.useQuery(undefined, { enabled: activeTab === "history", refetchOnWindowFocus: true });
   const projectsQuery = trpc.executiveEvidenceAdmin.projects.useQuery(undefined, { enabled: activeTab === "history", refetchOnWindowFocus: true });
@@ -278,14 +274,14 @@ export default function AdminEvidenceHistory() {
       toast.success("Documento pendiente descartado");
       setDiscardTarget(null);
       setDiscardReason("");
-      await Promise.all([utils.executiveEvidenceAdmin.list.invalidate(), utils.executiveEvidenceAdmin.summary.invalidate(), utils.executiveEvidenceAdmin.coverage.invalidate()]);
+      await Promise.all([utils.executiveEvidenceAdmin.list.invalidate(), utils.executiveEvidenceAdmin.summary.invalidate(), utils.documentGovernance.portfolio.invalidate()]);
     },
     onError: error => toast.error(error.message),
   });
   const restoreMutation = trpc.executiveEvidenceAdmin.restore.useMutation({
     onSuccess: async () => {
       toast.success("Documento restaurado como pendiente");
-      await Promise.all([utils.executiveEvidenceAdmin.list.invalidate(), utils.executiveEvidenceAdmin.summary.invalidate(), utils.executiveEvidenceAdmin.coverage.invalidate()]);
+      await Promise.all([utils.executiveEvidenceAdmin.list.invalidate(), utils.executiveEvidenceAdmin.summary.invalidate(), utils.documentGovernance.portfolio.invalidate()]);
     },
     onError: error => toast.error(error.message),
   });
@@ -320,9 +316,9 @@ export default function AdminEvidenceHistory() {
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
             {[
               { label: "Entidades evaluadas", value: coverageData?.summary.entities ?? 0, note: "Según filtros actuales" },
-              { label: "Cobertura medible", value: coverageData?.summary.averageCoveragePct == null ? "N/D" : `${coverageData.summary.averageCoveragePct}%`, note: "Sólo requisitos exigibles" },
-              { label: "Con brechas activas", value: coverageData?.summary.entitiesWithActiveGaps ?? 0, note: "Proyectos/servicios abiertos" },
-              { label: "Expedientes históricos", value: coverageData?.summary.historicalFilesWithGaps ?? 0, note: "Brechas sin acción automática" },
+              { label: "Cobertura medible", value: coverageData?.summary.percentage == null ? "N/D" : `${coverageData.summary.percentage}%`, note: "Sólo requisitos exigibles" },
+              { label: "Requisitos faltantes", value: coverageData?.summary.missing ?? 0, note: "Sin versión activa" },
+              { label: "Rechazados o vencidos", value: (coverageData?.summary.rejected ?? 0) + (coverageData?.summary.expired ?? 0), note: "Requieren nueva versión" },
               { label: "Pendientes de validar", value: coverageData?.summary.pendingValidation ?? 0, note: "Archivo presente, no acreditado" },
             ].map(card => <div key={card.label} style={headerKpiCard}><div style={headerKpiLabel}>{card.label}</div><div style={headerKpiValue}>{card.value}</div><p className="mt-1 text-[10px] text-white/40">{card.note}</p></div>)}
           </div>
@@ -340,24 +336,25 @@ export default function AdminEvidenceHistory() {
             <section style={{ ...cardStyle, padding: "16px 18px" }}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div><h2 className="flex items-center gap-2 text-sm font-bold" style={{ color: C.navy }}><Filter className="h-4 w-4" /> Alcance y filtros</h2><p className="mt-1 text-[11px] text-slate-500">Corte {formatDate(coverageData?.cutoffAt, false)} · Abiertos e históricos se evalúan por separado.</p></div>
-                <button type="button" onClick={() => { setLifecycle("open"); setEntityType("all"); setCoverageStatus("gaps"); setClient("all"); setOwner("all"); setCoverageSearch(""); }} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900"><X className="h-3.5 w-3.5" /> Restablecer</button>
+                <button type="button" onClick={() => { setLifecycle("open"); setEntityType("all"); setCoverageStatus("gaps"); setRequirementCode("all"); setClient("all"); setOwner("all"); setCoverageSearch(""); }} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900"><X className="h-3.5 w-3.5" /> Restablecer</button>
               </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
                 <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input value={coverageSearch} onChange={event => setCoverageSearch(event.target.value)} placeholder="Nombre, cliente, Deal o PMO-ID" className="pl-9" /></div>
                 <Select value={lifecycle} onValueChange={value => setLifecycle(value as CoverageLifecycle)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Abiertos</SelectItem><SelectItem value="historical">Históricos</SelectItem><SelectItem value="all">Todos</SelectItem><SelectItem value="unconfirmed">Por confirmar</SelectItem></SelectContent></Select>
                 <Select value={entityType} onValueChange={value => setEntityType(value as CoverageEntityType)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Proyectos y servicios</SelectItem><SelectItem value="project">Sólo proyectos</SelectItem><SelectItem value="recurring_service">Sólo servicios recurrentes</SelectItem></SelectContent></Select>
-                <Select value={coverageStatus} onValueChange={value => setCoverageStatus(value as CoverageStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="gaps">Con brechas o pendientes</SelectItem><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="compliant">Cumplimiento completo</SelectItem><SelectItem value="pending_validation">Pendiente de validación</SelectItem><SelectItem value="missing">Faltante</SelectItem><SelectItem value="overdue">Vencido</SelectItem><SelectItem value="unconfirmed">Por confirmar</SelectItem><SelectItem value="historical_gap">Brecha histórica</SelectItem></SelectContent></Select>
+                <Select value={coverageStatus} onValueChange={value => setCoverageStatus(value as CoverageStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="gaps">Con brechas o pendientes</SelectItem><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="compliant">Cumplimiento completo</SelectItem><SelectItem value="pending_validation">Pendiente de validación</SelectItem><SelectItem value="missing">Faltante</SelectItem><SelectItem value="expired">Vencido</SelectItem><SelectItem value="rejected">Rechazado</SelectItem><SelectItem value="unconfirmed">Por confirmar</SelectItem></SelectContent></Select>
+                <Select value={requirementCode} onValueChange={value => setRequirementCode(value as RequirementCode)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los requisitos</SelectItem><SelectItem value="contract">Contrato</SelectItem><SelectItem value="sow">SoW</SelectItem><SelectItem value="technical_economic_proposal">Propuesta técnico-económica</SelectItem><SelectItem value="costed_pnl">P&amp;L con costeo</SelectItem><SelectItem value="work_plan_milestones">Plan con hitos</SelectItem></SelectContent></Select>
                 <Select value={client} onValueChange={setClient}><SelectTrigger><SelectValue placeholder="Cliente" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los clientes</SelectItem>{(coverageData?.options.clients ?? []).map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
                 <Select value={owner} onValueChange={setOwner}><SelectTrigger><SelectValue placeholder="Responsable" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los responsables</SelectItem>{(coverageData?.options.owners ?? []).map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
               </div>
             </section>
 
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <KpiCard label="Abiertos" value={coverageData?.summary.open ?? 0} note="Activos y pausados" icon={FolderOpen} tone="emerald" />
-              <KpiCard label="Históricos" value={coverageData?.summary.historical ?? 0} note="Completados o cancelados" icon={Archive} tone="violet" />
-              <KpiCard label="Actas faltantes" value={coverageData?.summary.closedMilestonesWithoutAcceptance ?? 0} note="Cierres exigibles sin aceptación" icon={FileClock} tone="rose" />
-              <KpiCard label="Reportes vencidos" value={coverageData?.summary.overdueServiceReports ?? 0} note="Períodos persistidos no cumplidos" icon={Clock3} tone="amber" />
-              <KpiCard label="Por confirmar" value={coverageData?.summary.unconfirmed ?? 0} note="Entidades sin estado operativo" icon={CircleHelp} tone="sky" />
+              <KpiCard label="Abiertos" value={coverageData?.summary.openEntities ?? 0} note="Activos y pausados" icon={FolderOpen} tone="emerald" />
+              <KpiCard label="Históricos" value={coverageData?.summary.historicalEntities ?? 0} note="Completados o cancelados" icon={Archive} tone="violet" />
+              <KpiCard label="Faltantes" value={coverageData?.summary.missing ?? 0} note="Requisitos sin versión activa" icon={FileClock} tone="rose" />
+              <KpiCard label="Por validar" value={coverageData?.summary.pendingValidation ?? 0} note="Presentes, aún no acreditados" icon={Clock3} tone="amber" />
+              <KpiCard label="Por confirmar" value={coverageData?.summary.unconfirmedEntities ?? 0} note="Entidades sin ciclo confirmado" icon={CircleHelp} tone="sky" />
             </section>
 
             {(coverageData?.quality.orphanSowCount ?? 0) > 0 && (

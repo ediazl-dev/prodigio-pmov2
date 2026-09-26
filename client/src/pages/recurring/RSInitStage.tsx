@@ -9,9 +9,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
+import DocumentGovernancePanel from "@/components/DocumentGovernancePanel";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, FileText, Loader2, Lock,
-  Plus, Sparkles, Trash2, Upload, X, DollarSign, Building2,
+  Plus, Sparkles, DollarSign, Building2,
   Phone, Mail, Calendar, BarChart3, AlertTriangle, Lightbulb,
   ClipboardList, RefreshCw,
 } from "lucide-react";
@@ -107,21 +108,6 @@ export default function RSInitStage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  // ─── Document upload ───
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [uploadDocType, setUploadDocType] = useState<string>("propuesta_tecnica");
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-
-  const uploadMutation = trpc.recurringServices.uploadDocument.useMutation({
-    onSuccess: () => { toast.success("Documento subido"); utils.recurringServices.getById.invalidate({ id }); setShowUploadDialog(false); setUploadFile(null); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const deleteMutation = trpc.recurringServices.deleteDocument.useMutation({
-    onSuccess: () => { toast.success("Documento eliminado"); utils.recurringServices.getById.invalidate({ id }); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
   // ─── Pipedrive sync ───
   const [showPipedriveDialog, setShowPipedriveDialog] = useState(false);
   const [pdDealId, setPdDealId] = useState("");
@@ -168,22 +154,6 @@ export default function RSInitStage() {
     setShowBillingDialog(true);
   }, [data]);
 
-  const handleUpload = async () => {
-    if (!uploadFile) return toast.error("Selecciona un archivo");
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      uploadMutation.mutate({
-        serviceId: id,
-        docType: uploadDocType as any,
-        fileName: uploadFile.name,
-        fileBase64: base64,
-        mimeType: uploadFile.type || "application/pdf",
-      });
-    };
-    reader.readAsDataURL(uploadFile);
-  };
-
   const handleSyncPipedrive = () => {
     const dealToSync = pdDealId || svc?.dealId || "";
     if (!dealToSync) return toast.error("Ingresa un Deal ID");
@@ -207,14 +177,6 @@ export default function RSInitStage() {
   };
 
   const billingTotal = data.billingMonths?.reduce((s: number, m: any) => s + (parseFloat(m.amount) || 0), 0) ?? 0;
-
-  const docTypes: Record<string, string> = {
-    propuesta_tecnica: "Propuesta Técnica",
-    pl: "P&L",
-    sow: "Statement of Work",
-    contrato: "Contrato",
-    otro: "Otro",
-  };
 
   return (
     <div style={pageBackground}>
@@ -257,7 +219,7 @@ export default function RSInitStage() {
           </div>
           <div style={headerKpiCard}>
             <div style={headerKpiLabel}>Moneda</div>
-            <div style={headerKpiValue}>{svc.currency || "USD"}</div>
+            <div style={headerKpiValue}>{svc.currency || "N/D"}</div>
           </div>
         </div>
       </div>
@@ -416,59 +378,8 @@ export default function RSInitStage() {
           {step1Done && (
             <>
               {/* Documents section */}
-              <div style={{ ...cardStyle, padding: "20px 24px", marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h3 style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 8 }}>
-                    <FileText size={16} color={C.accent} /> Documentación del Servicio
-                  </h3>
-                  {isActive && (
-                    <Button size="sm" variant="outline" onClick={() => setShowUploadDialog(true)} style={{ fontSize: 12 }}>
-                      <Upload size={14} className="mr-1" /> Subir Documento
-                    </Button>
-                  )}
-                </div>
-
-                {/* Required docs checklist */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 16 }}>
-                  {(["propuesta_tecnica", "pl", "sow", "contrato"] as const).map((dt) => {
-                    const hasDoc = data.documents.some((d: any) => d.docType === dt);
-                    return (
-                      <div key={dt} style={{
-                        display: "flex", alignItems: "center", gap: 6, padding: "8px 12px",
-                        borderRadius: 8, background: hasDoc ? "rgba(26,122,74,.06)" : C.g100,
-                        border: `1px solid ${hasDoc ? "rgba(26,122,74,.2)" : C.g200}`,
-                      }}>
-                        {hasDoc ? <CheckCircle2 size={14} color={C.green} /> : <div style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${C.g300}` }} />}
-                        <span style={{ fontSize: 11, fontWeight: 600, color: hasDoc ? C.green : C.g400 }}>{docTypes[dt]}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {data.documents.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "30px 0" }}>
-                    <FileText size={28} color={C.g300} style={{ margin: "0 auto 8px" }} />
-                    <p style={{ fontSize: 12, color: C.g400 }}>Sube la propuesta técnica, P&L, SoW y/o contrato del servicio</p>
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {data.documents.map((doc: any) => (
-                      <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 8, background: C.g100 }}>
-                        <FileText size={16} color={C.accent} />
-                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: 12, fontWeight: 500, color: C.accent, textDecoration: "none" }}>
-                          {doc.fileName}
-                        </a>
-                        <span style={badgeStyle("#EEF2FF", "#4338CA")}>{docTypes[doc.docType as keyof typeof docTypes] || doc.docType}</span>
-                        <span style={{ fontSize: 10, color: C.g400 }}>{new Date(doc.uploadedAt).toLocaleDateString("es-CL")}</span>
-                        {isActive && (
-                          <button onClick={() => deleteMutation.mutate({ serviceId: id, documentId: doc.id })} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                            <Trash2 size={14} color={C.red} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div style={{ marginBottom: 16 }}>
+                <DocumentGovernancePanel entityType="recurring_service" entityId={id} gateCode="recurring_initialization" title="Documentación obligatoria del servicio" />
               </div>
 
               {/* Pipedrive integration section */}
@@ -644,36 +555,6 @@ export default function RSInitStage() {
           )}
         </>
       )}
-
-      {/* ═══ Upload Document Dialog ═══ */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Subir Documento del Servicio</DialogTitle></DialogHeader>
-          <div style={{ display: "grid", gap: 16 }}>
-            <div>
-              <Label>Tipo de Documento</Label>
-              <Select value={uploadDocType} onValueChange={setUploadDocType}>
-                <SelectTrigger style={{ marginTop: 4 }}><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="propuesta_tecnica">Propuesta Técnica</SelectItem>
-                  <SelectItem value="pl">P&L (Estructura de Costos)</SelectItem>
-                  <SelectItem value="sow">Statement of Work (SoW)</SelectItem>
-                  <SelectItem value="contrato">Contrato Firmado</SelectItem>
-                  <SelectItem value="otro">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Archivo</Label>
-              <Input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} style={{ marginTop: 4 }} />
-            </div>
-            <Button onClick={handleUpload} disabled={uploadMutation.isPending} style={{ background: C.accent, color: "#fff" }}>
-              {uploadMutation.isPending ? <Loader2 size={16} className="animate-spin mr-1" /> : <Upload size={16} className="mr-1" />}
-              Subir Documento
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* ═══ Billing Plan Dialog ═══ */}
       <Dialog open={showBillingDialog} onOpenChange={setShowBillingDialog}>

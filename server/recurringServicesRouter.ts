@@ -776,10 +776,10 @@ Responde en español con formato JSON:
     }
     // Durante rollout observe/off se conserva el gate legacy; enforce lo reemplaza por los 4 requisitos canónicos.
     const docs = await getServiceDocuments(input.serviceId);
-    if (readiness.mode !== "enforce" && docs.length === 0)
+    if (readiness.mode !== "enforce" && docs.length === 0 && readiness.coverage.missing === readiness.coverage.required)
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "Debe subir al menos un documento (propuesta, P&L, SoW o contrato)",
+        message: "Debe subir al menos un documento canónico (contrato, SoW, propuesta técnico-económica o P&L con costeo)",
       });
     // Validate Pipedrive sync
     if (!svc.dealId)

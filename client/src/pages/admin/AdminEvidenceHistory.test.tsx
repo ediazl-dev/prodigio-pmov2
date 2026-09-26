@@ -19,9 +19,10 @@ describe("AdminEvidenceHistory", () => {
     expect(page).toContain('value="coverage"');
     expect(page).toContain("Entidades evaluadas");
     expect(page).toContain("Cobertura medible");
-    expect(page).toContain("Con brechas activas");
-    expect(page).toContain("Expedientes históricos");
+    expect(page).toContain("Requisitos faltantes");
+    expect(page).toContain("Rechazados o vencidos");
     expect(page).toContain("Pendientes de validar");
+    expect(page).toContain("trpc.documentGovernance.portfolio.useQuery");
   });
 
   it("diferencia abiertos, históricos, proyectos y servicios recurrentes", () => {
@@ -29,6 +30,9 @@ describe("AdminEvidenceHistory", () => {
     expect(page).toContain('<SelectItem value="historical">Históricos</SelectItem>');
     expect(page).toContain('<SelectItem value="project">Sólo proyectos</SelectItem>');
     expect(page).toContain('<SelectItem value="recurring_service">Sólo servicios recurrentes</SelectItem>');
+    expect(page).toContain('<SelectItem value="technical_economic_proposal">Propuesta técnico-económica</SelectItem>');
+    expect(page).toContain('<SelectItem value="costed_pnl">P&amp;L con costeo</SelectItem>');
+    expect(page).toContain('<SelectItem value="work_plan_milestones">Plan con hitos</SelectItem>');
     expect(page).toContain("Acciones activas");
     expect(page).toContain("Antecedentes del expediente");
   });
@@ -50,11 +54,12 @@ describe("AdminEvidenceHistory", () => {
     expect(page).toContain("Este resultado corresponde sólo al alcance seleccionado");
   });
 
-  it("no expone token, URL, fileKey ni hash en la interfaz", () => {
+  it("no expone token, URL ni fileKey y muestra sólo un prefijo de hash trazable", () => {
     expect(page).not.toContain("receiptToken");
     expect(page).not.toContain("fileUrl");
     expect(page).not.toContain("fileKey");
     expect(page).not.toContain("fileSha256");
+    expect(page).toContain("sha256?.slice(0, 10)");
   });
 
   it("presenta descarte y restauración con etiquetas legibles en Auditoría", () => {

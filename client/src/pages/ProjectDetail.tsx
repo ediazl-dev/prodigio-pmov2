@@ -3,6 +3,7 @@ import { BaselineExecutiveCard } from "@/components/BaselineExecutiveCard";
 import { JiraHomologationStatusCard } from "@/components/JiraHomologationStatusCard";
 import { ProjectExecutiveSummary } from "@/components/ProjectExecutiveSummary";
 import { ProjectIdBadge } from "@/components/ProjectIdBadge";
+import DocumentGovernancePanel from "@/components/DocumentGovernancePanel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -369,7 +370,7 @@ export default function ProjectDetail() {
           {/* H6 homologation status */}
           <JiraHomologationStatusCard projectId={projectId} canImport={canManage} />
           {/* Documents */}
-          <LinkedProjectDocuments projectId={projectId} canManage={canManageBaseline} />
+          <DocumentGovernancePanel entityType="project" entityId={projectId} gateCode="project_planning" title="Documentación obligatoria del proyecto" />
 
           {/* Unlink */}
           {canManage && <div style={{ marginTop: 20 }}><UnlinkSection projectId={projectId} projectName={data.projectName} /></div>}

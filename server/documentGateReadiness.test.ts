@@ -28,7 +28,7 @@ describe("document gate rollout", () => {
     const completionPosition = block.indexOf("completeRecurringStageWithDocumentGate");
     expect(readinessPosition).toBeGreaterThan(0);
     expect(completionPosition).toBeGreaterThan(readinessPosition);
-    expect(block).toContain('if (readiness.mode !== "enforce" && docs.length === 0)');
+    expect(block).toContain('if (readiness.mode !== "enforce" && docs.length === 0 && readiness.coverage.missing === readiness.coverage.required)');
     expect(block).toContain("PRECONDITION_FAILED");
   });
 

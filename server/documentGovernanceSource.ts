@@ -31,6 +31,14 @@ export type DocumentGovernancePortfolioQuery = {
   cutoffAt?: string;
 };
 
+type SupplementaryPortfolio = Awaited<ReturnType<typeof loadDocumentCoveragePortfolio>>;
+type SupplementaryRequirement = SupplementaryPortfolio["items"][number]["requirements"][number];
+type SupplementaryCounters = SupplementaryPortfolio["items"][number]["counters"];
+export type DocumentGovernancePortfolioEntity = CanonicalDocumentEntity & {
+  supplementaryRequirements: SupplementaryRequirement[];
+  supplementaryCounters: SupplementaryCounters;
+};
+
 function groupBy<T>(rows: T[], key: (row: T) => number) {
   const grouped = new Map<number, T[]>();
   for (const row of rows) {
@@ -59,7 +67,7 @@ function matchesStatus(entity: CanonicalDocumentEntity, status: NonNullable<Docu
   return entity.requirements.some(requirement => requirement.status === status);
 }
 
-export function filterDocumentGovernanceEntities(entities: CanonicalDocumentEntity[], query: DocumentGovernancePortfolioQuery) {
+export function filterDocumentGovernanceEntities<T extends CanonicalDocumentEntity>(entities: T[], query: DocumentGovernancePortfolioQuery): T[] {
   const lifecycle = query.lifecycle ?? "open";
   const entityType = query.entityType ?? "all";
   const coverageStatus = query.coverageStatus ?? "gaps";
@@ -107,7 +115,7 @@ export async function loadDocumentGovernancePortfolio(query: DocumentGovernanceP
   const resolutionsByProject = groupBy(resolutions.filter((row: any) => row.entityType === "project"), (row: any) => Number(row.entityId));
   const resolutionsByService = groupBy(resolutions.filter((row: any) => row.entityType === "recurring_service"), (row: any) => Number(row.entityId));
   const snapshotsByArtifact = groupBy(snapshots, (row: any) => Number(row.artifactId));
-  const supplementaryByEntity = new Map(supplementarySource.items.map((item: any) => [`${item.entityType}:${item.entityId}`, item]));
+  const supplementaryByEntity = new Map<string, SupplementaryPortfolio["items"][number]>(supplementarySource.items.map(item => [`${item.entityType}:${item.entityId}`, item]));
 
   const assembleContext = (entityArtifacts: any[]) => ({
     artifacts: entityArtifacts,
@@ -115,7 +123,7 @@ export async function loadDocumentGovernancePortfolio(query: DocumentGovernanceP
     workPlanSnapshots: entityArtifacts.flatMap(artifact => snapshotsByArtifact.get(Number(artifact.id)) ?? []),
   });
 
-  const canonical: CanonicalDocumentEntity[] = [
+  const canonical: DocumentGovernancePortfolioEntity[] = [
     ...projectRows.map((project: any) => {
       const lifecycle = resolveDocumentLifecycle(project.status);
       const context = assembleContext(artifactsByProject.get(Number(project.id)) ?? []);
@@ -154,7 +162,7 @@ export async function loadDocumentGovernancePortfolio(query: DocumentGovernanceP
     const supplementary = supplementaryByEntity.get(`${entity.entityType}:${entity.entityId}`);
     return {
       ...entity,
-      supplementaryRequirements: (supplementary?.requirements ?? []).filter((requirement: any) => SUPPLEMENTARY_REQUIREMENT_KINDS.has(requirement.kind)),
+      supplementaryRequirements: (supplementary?.requirements ?? []).filter(requirement => SUPPLEMENTARY_REQUIREMENT_KINDS.has(requirement.kind)),
       supplementaryCounters: supplementary?.counters ?? { closedMilestonesWithoutAcceptance: 0, overdueServiceReports: 0 },
     };
   });

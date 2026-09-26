@@ -88,3 +88,13 @@ Los cierres de Inicialización recurrente y Planificación de proyectos consulta
 El cierre de etapa, el desbloqueo de la siguiente y el snapshot de gate se escriben dentro de una misma transacción. Los reintentos son idempotentes. En recurrentes, Pipedrive continúa como bloqueador separado. En proyectos, los caminos genérico, formal, automático y manual de Planificación pasan por el mismo gate.
 
 El adaptador `snapshotProjectWorkPlan` genera una versión del plan desde hitos ejecutivos o WBS local sincronizado con Jira, calcula hash y la deja `pending`; nunca transforma Jira en contrato, propuesta o P&L ni valida automáticamente el plan.
+
+### R7 — carga y reporte canónicos implementados
+
+- `DocumentGovernancePanel` se reutiliza en la Inicialización de servicios y en el detalle de proyectos.
+- Servicios muestran exactamente cuatro requisitos base; proyectos agregan el plan de trabajo con hitos.
+- La UI permite cargar una nueva versión, revisar, descargar, archivar, cambiar aplicabilidad y consultar historial sin borrar trazabilidad.
+- La revisión del P&L exige confirmar ingreso/presupuesto, costos, margen, moneda, corte y aprobación financiera.
+- Los proyectos pueden crear un snapshot Jira/WBS local, versionado y pendiente de validación humana.
+- El reporte `Evidencia documental` consume `documentGovernance.portfolio`, incluye filtro por requisito y separa los controles complementarios del denominador base.
+- La navegación contextual fue verificada para `/reports/evidence`, `/projects/:id` y `/recurring-services/:id/init` en escritorio y móvil.
