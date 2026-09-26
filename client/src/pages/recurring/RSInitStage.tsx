@@ -197,6 +197,15 @@ export default function RSInitStage() {
   if (!data) return null;
   const svc = data.service;
 
+  const saveBillingPlan = () => {
+    if (!svc.currency || !["UF", "USD", "CLP"].includes(svc.currency)) {
+      toast.error("La ficha no tiene una moneda contractual válida. Corrígela antes de guardar el plan de cobro.");
+      return;
+    }
+    const currency = svc.currency as "UF" | "USD" | "CLP";
+    saveBillingMutation.mutate({ serviceId: id, months: billingMonths.map(month => ({ ...month, currency })) });
+  };
+
   const billingTotal = data.billingMonths?.reduce((s: number, m: any) => s + (parseFloat(m.amount) || 0), 0) ?? 0;
 
   const docTypes: Record<string, string> = {
@@ -707,7 +716,7 @@ export default function RSInitStage() {
               Total: {svc.currency} {billingMonths.reduce((s, m) => s + m.amount, 0).toLocaleString()}
             </span>
             <Button
-              onClick={() => saveBillingMutation.mutate({ serviceId: id, months: billingMonths.map(m => ({ ...m, currency: svc.currency ?? "USD" })) })}
+              onClick={saveBillingPlan}
               disabled={saveBillingMutation.isPending}
               style={{ background: C.accent, color: "#fff", fontWeight: 700 }}
             >

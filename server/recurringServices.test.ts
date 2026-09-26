@@ -181,6 +181,7 @@ describe("recurringServices access control", () => {
         serviceType: "soporte_incidentes",
         durationMonths: 12,
         billingType: "cuota_fija",
+        currency: "USD",
       })
     ).rejects.toThrow();
   });
@@ -194,6 +195,7 @@ describe("recurringServices access control", () => {
         serviceType: "soporte_incidentes",
         durationMonths: 12,
         billingType: "cuota_fija",
+        currency: "USD",
       })
     ).rejects.toThrow();
   });
@@ -303,6 +305,7 @@ describe("recurringServices billing plan", () => {
       label: `Mes ${i + 1}`,
       amount: 5000,
       status: "pendiente" as const,
+      currency: "USD" as const,
     }));
 
     await caller.recurringServices.saveBillingPlan({

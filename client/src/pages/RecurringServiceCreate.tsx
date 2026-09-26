@@ -39,7 +39,7 @@ export default function RecurringServiceCreate() {
     durationMonths: 12,
     billingType: "cuota_fija" as "cuota_fija" | "cuotas_variables",
     fixedMonthlyAmount: 0,
-    currency: "USD",
+    currency: "" as "" | "UF" | "USD" | "CLP",
     estimatedStartDate: "",
   });
 
@@ -47,8 +47,11 @@ export default function RecurringServiceCreate() {
     if (!form.clientName.trim()) return toast.error("Ingresa el nombre del cliente");
     if (!form.serviceName.trim()) return toast.error("Ingresa el nombre del servicio");
     if (form.durationMonths < 1) return toast.error("La duración debe ser al menos 1 mes");
+    const currency = form.currency;
+    if (!currency) return toast.error("Selecciona la moneda indicada en el contrato, SoW u orden de compra");
     createMutation.mutate({
       ...form,
+      currency,
       fixedMonthlyAmount: form.billingType === "cuota_fija" ? form.fixedMonthlyAmount : undefined,
     });
   };
@@ -87,7 +90,7 @@ export default function RecurringServiceCreate() {
       {/* Form */}
       <div style={{ background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`, padding: 32, maxWidth: 700 }}>
         <div style={{ display: "grid", gap: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Cliente *</Label>
               <Input
@@ -108,7 +111,7 @@ export default function RecurringServiceCreate() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Tipo de Servicio *</Label>
               <Select value={form.serviceType} onValueChange={(v: any) => setForm({ ...form, serviceType: v })}>
@@ -133,7 +136,7 @@ export default function RecurringServiceCreate() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Tipo de Facturación *</Label>
               <Select value={form.billingType} onValueChange={(v: any) => setForm({ ...form, billingType: v })}>
@@ -145,21 +148,22 @@ export default function RecurringServiceCreate() {
               </Select>
             </div>
             <div>
-              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Moneda</Label>
-              <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
-                <SelectTrigger style={{ marginTop: 4 }}><SelectValue /></SelectTrigger>
+              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Moneda contractual *</Label>
+              <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v as "UF" | "USD" | "CLP" })}>
+                <SelectTrigger aria-label="Moneda contractual" style={{ marginTop: 4 }}><SelectValue placeholder="Selecciona moneda" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="UF">UF</SelectItem>
                   <SelectItem value="USD">USD</SelectItem>
                   <SelectItem value="CLP">CLP</SelectItem>
-                  <SelectItem value="UF">UF</SelectItem>
                 </SelectContent>
               </Select>
+              <p style={{ marginTop: 4, fontSize: 10, lineHeight: 1.4, color: C.g400 }}>Debe coincidir con el contrato, SoW u orden de compra; no se convierte automáticamente.</p>
             </div>
           </div>
 
           {form.billingType === "cuota_fija" && (
             <div style={{ maxWidth: 340 }}>
-              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Monto Mensual Fijo</Label>
+              <Label style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>Monto Mensual Fijo{form.currency ? ` (${form.currency})` : ""}</Label>
               <Input
                 type="number"
                 min={0}

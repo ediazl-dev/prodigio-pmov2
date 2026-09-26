@@ -37,9 +37,10 @@ describe("vista clásica gerencial de servicios recurrentes", () => {
   });
 
   it("expone respuestas financieras, stock de tickets y SLA sin cobros ni falsos flujos", () => {
-    expect(dashboard).toContain("Facturación real USD");
+    expect(dashboard).toContain("Facturación registrada USD");
     expect(dashboard).toContain("Programado al corte");
-    expect(dashboard).toContain("Facturado real");
+    expect(dashboard).toContain("Facturación registrada");
+    expect(dashboard).toContain("esto no sustituye una factura SII");
     expect(dashboard).toContain("Evolución del stock de tickets");
     expect(dashboard).toContain("Embudo de cobertura SLA");
     expect(dashboard).toContain("sin fecha exigible");

@@ -362,7 +362,7 @@ export const recurringServicesRouter = router({
         durationMonths: z.number().min(1).max(120),
         billingType: z.enum(["cuota_fija", "cuotas_variables"]),
         fixedMonthlyAmount: z.number().optional(),
-        currency: z.string().default("USD"),
+        currency: z.enum(["UF", "USD", "CLP"]),
         estimatedStartDate: z.string().optional(),
         dealId: z.string().optional(),
         pmId: z.number().optional(),
@@ -377,6 +377,10 @@ export const recurringServicesRouter = router({
       await audit(ctx, "create", "recurring_service", id, input.serviceName, {
         clientName: input.clientName,
         serviceType: input.serviceType,
+        durationMonths: input.durationMonths,
+        billingType: input.billingType,
+        currency: input.currency,
+        fixedMonthlyAmount: input.fixedMonthlyAmount ?? null,
       });
       return { id };
     }),
@@ -392,7 +396,7 @@ export const recurringServicesRouter = router({
           durationMonths: z.number().optional(),
           billingType: z.enum(["cuota_fija", "cuotas_variables"]).optional(),
           fixedMonthlyAmount: z.number().optional(),
-          currency: z.string().optional(),
+          currency: z.enum(["UF", "USD", "CLP"]).optional(),
           estimatedStartDate: z.string().optional(),
           dealId: z.string().optional(),
           pmId: z.number().optional(),
@@ -403,6 +407,15 @@ export const recurringServicesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const svc = await getRecurringServiceById(input.id);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
+      if (input.data.currency && input.data.currency !== svc.currency) {
+        const existingBillingMonths = await getBillingMonths(input.id);
+        if (existingBillingMonths.length > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "La moneda no puede cambiarse mientras exista un plan de cobro. Use una corrección administrativa auditada para actualizar ficha y cuotas en conjunto.",
+          });
+        }
+      }
       const updateData: any = { ...input.data };
       if (input.data.fixedMonthlyAmount !== undefined) {
         updateData.fixedMonthlyAmount = String(input.data.fixedMonthlyAmount);
@@ -446,7 +459,7 @@ export const recurringServicesRouter = router({
             monthNumber: z.number(),
             dueDate: z.string().optional(),
             amount: z.number(),
-            currency: z.string().default("USD"),
+            currency: z.enum(["UF", "USD", "CLP"]),
           })
         ),
       })
@@ -454,6 +467,12 @@ export const recurringServicesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!svc.currency || !["UF", "USD", "CLP"].includes(svc.currency)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La ficha del servicio no tiene una moneda contractual válida." });
+      }
+      if (input.months.some(month => month.currency !== svc.currency)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La moneda de todas las cuotas debe coincidir con la moneda contractual del servicio." });
+      }
       await saveBillingMonths(
         input.serviceId,
         input.months.map(m => ({
@@ -464,7 +483,11 @@ export const recurringServicesRouter = router({
           currency: m.currency,
         }))
       );
-      await audit(ctx, "save_billing_plan", "recurring_service", input.serviceId, svc.serviceName, { monthCount: input.months.length });
+      await audit(ctx, "save_billing_plan", "recurring_service", input.serviceId, svc.serviceName, {
+        monthCount: input.months.length,
+        currency: svc.currency,
+        totalAmount: input.months.reduce((sum, month) => sum + month.amount, 0),
+      });
     }),
 
   uploadDocument: adminOrPmo

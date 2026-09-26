@@ -155,6 +155,30 @@ describe("dashboard gerencial recurrente", () => {
     ]);
   });
 
+  it("concilia la cartera real en UF sin crear una programación USD inexistente", () => {
+    const correctedSource: RecurringDashboardV2Source = {
+      ...source,
+      services: source.services.map(item => ({ ...item, currency: "UF" })),
+      billingMonths: source.billingMonths.map(item => ({ ...item, currency: "UF" })),
+    };
+    const result = buildRecurringServicesDashboardV2(correctedSource, { cutOffDate: "2026-09-26" });
+    const management = result.management;
+    const uf = management.currencies.find(row => row.currency === "UF")!;
+    const camanchaca = management.services.find(row => row.dealId === "Deal2383")!;
+
+    expect(management.currencies.map(row => row.currency)).toEqual(["UF"]);
+    expect(uf).toMatchObject({ expectedToDate: 1152, expectedFuture: 1062, invoicedReal: 282, comparableGap: 870 });
+    expect(camanchaca).toMatchObject({
+      contractCurrency: "UF",
+      expectedToDate: { UF: 282 },
+      expectedFuture: { UF: 282 },
+      invoicedReal: { UF: 282 },
+      reconciliationStatus: "matched",
+    });
+    expect(management.summary).toMatchObject({ withVerifiedInvoices: 1, financeExceptions: 2 });
+    expect(management.exceptions.some(row => row.code === "CURRENCY_MISMATCH")).toBe(false);
+  });
+
   it("mantiene SLA como N/D sin denominador y expone operación, gobierno y brechas", () => {
     const result = buildRecurringServicesDashboardV2(source, { cutOffDate: "2026-09-26" });
     const camanchaca = result.management.services.find(row => row.dealId === "Deal2383")!;

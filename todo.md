@@ -799,3 +799,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] M4: Rediseñar Clásico con respuestas inmediatas, filtros, gráfico esperado vs. facturado, excepciones y resumen final.
 - [x] M5: Validar Camanchaca, Consalud 4687/4727, multimoneda, N/D, móvil y escritorio.
 - [x] M6: Certificar suite, build, cinco errores TypeScript heredados, secretos, refs y checkpoint final.
+
+## Corrección de moneda contractual recurrente — 2026-09-26
+- [x] K0: Respaldar 3 fichas, 15 cuotas, 6 registros corporativos y referencias financieras antes de modificar datos.
+- [x] K1: Corregir exclusivamente de USD a UF las fichas y cuotas de Camanchaca 2383 y Consalud 4687/4727, preservando montos, fechas y estados.
+- [x] K2: Registrar la corrección en auditoría y validar el read model real en UF.
+- [x] K3: Eliminar USD predeterminado, exigir selección contractual y bloquear planes con moneda inconsistente.
+- [x] K4: Ajustar la UI para distinguir registros corporativos facturados de facturas SII.
+- [x] K5: Certificar suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.

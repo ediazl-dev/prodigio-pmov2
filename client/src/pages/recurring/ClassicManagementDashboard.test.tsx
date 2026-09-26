@@ -62,7 +62,7 @@ const managementServices = [
     deliverables: { planned: 5, due: 0, delivered: 0, accepted: 0, overdue: 0, withoutDate: 5 },
     documents: { present: 2, valid: 0, required: 2 },
     penalties: { count: 0, byCurrency: [], withEvidence: 0 },
-    exceptions: [{ code: "MISSING_VERIFIED_INVOICE", severity: "critical", label: "Programación sin factura corporativa vinculada", impact: "No se puede afirmar facturación real para el servicio.", action: "Vincular el Deal con la fuente financiera o confirmar que aún no existe factura." }],
+    exceptions: [{ code: "MISSING_VERIFIED_INVOICE", severity: "critical", label: "Programación sin registro corporativo facturado", impact: "No existe evidencia suficiente para afirmar facturación del servicio en la fuente corporativa.", action: "Vincular el Deal con la fuente financiera o confirmar que aún no existe un registro marcado Facturado." }],
   })),
 ] as any[];
 
@@ -165,8 +165,8 @@ describe("ClassicManagementDashboard", () => {
     const onOpenService = vi.fn();
     render(<ClassicManagementDashboard data={data} controls={controls} onControlsChange={() => undefined} onOpenService={onOpenService} />);
 
-    expect(screen.getByText("Facturación real USD: USD 0")).toBeTruthy();
-    expect(screen.getByText("Ningún servicio tiene una factura corporativa USD verificada en la ventana seleccionada.")).toBeTruthy();
+    expect(screen.getByText("Facturación registrada USD: USD 0")).toBeTruthy();
+    expect(screen.getByText("Ningún servicio tiene facturación USD registrada en la fuente corporativa para la ventana seleccionada.")).toBeTruthy();
     expect(screen.getByText(/Camanchaca · Deal Deal2383 programado en USD/)).toBeTruthy();
     expect(screen.getByText("3/3", { selector: "p" })).toBeTruthy();
     expect(screen.getAllByText("1/3", { selector: "p" }).length).toBeGreaterThan(0);
