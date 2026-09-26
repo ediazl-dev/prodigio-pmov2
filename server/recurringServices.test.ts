@@ -3,6 +3,7 @@ import { afterAll } from "vitest";
 import { inArray, and, eq } from "drizzle-orm";
 import {
   auditLogs,
+  documentGateSnapshots,
   recurringServiceAiAnalyses,
   recurringServiceBillingMonths,
   recurringServiceDocumentControls,
@@ -31,6 +32,7 @@ afterAll(async () => {
   const db = await getDb();
   if (!db) return;
 
+  await db.delete(documentGateSnapshots).where(and(eq(documentGateSnapshots.entityType, "recurring_service"), inArray(documentGateSnapshots.entityId, serviceIds)));
   await db.delete(recurringServiceDocumentControls).where(inArray(recurringServiceDocumentControls.serviceId, serviceIds));
   await db.delete(recurringServiceReportEvidence).where(inArray(recurringServiceReportEvidence.serviceId, serviceIds));
   await db.delete(recurringServiceFinancialEvidence).where(inArray(recurringServiceFinancialEvidence.serviceId, serviceIds));

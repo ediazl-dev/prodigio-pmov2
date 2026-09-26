@@ -142,6 +142,10 @@ vi.mock("@/components/ProjectExecutiveSummary", () => ({
   ),
 }));
 
+vi.mock("@/components/DocumentGovernancePanel", () => ({
+  default: () => null,
+}));
+
 vi.mock("@/components/AppBreadcrumb", () => ({
   default: () => null,
   AppBreadcrumb: () => null,

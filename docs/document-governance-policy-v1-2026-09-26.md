@@ -98,3 +98,11 @@ El adaptador `snapshotProjectWorkPlan` genera una versión del plan desde hitos 
 - Los proyectos pueden crear un snapshot Jira/WBS local, versionado y pendiente de validación humana.
 - El reporte `Evidencia documental` consume `documentGovernance.portfolio`, incluye filtro por requisito y separa los controles complementarios del denominador base.
 - La navegación contextual fue verificada para `/reports/evidence`, `/projects/:id` y `/recurring-services/:id/init` en escritorio y móvil.
+
+### R8 — rollout y certificación
+
+El rollout queda deliberadamente en `observe` para proyectos y servicios: hoy existen 47 referencias importadas y 47 decisiones `pending`, pero ninguna validación humana. Activar `enforce` ahora bloquearía cierres con evidencia aún no revisada. La activación futura está limitada por cohortes explícitas y no requiere migrar ni borrar datos.
+
+La base quedó con 47 artefactos canónicos, 47 decisiones pendientes, 17 snapshots versionados de planes y cero snapshots transitorios de pruebas. Se corrigió la limpieza del fixture recurrente para que las pruebas de cierre no dejen residuos.
+
+Certificación final: 1.085 pruebas deterministas aprobadas y 19 omitidas, excluyendo únicamente la prueba UF externa conocida; build productivo exitoso; revisión autenticada de reporte, proyecto y servicio en escritorio y móvil; cinco errores TypeScript heredados sin regresiones nuevas.
