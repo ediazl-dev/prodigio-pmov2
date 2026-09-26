@@ -33,6 +33,7 @@ export function buildRecurringManagementAnalytics(input: {
   source: RecurringDashboardV2Source;
   services: ServiceMetricsV2[];
   cutOffDate: string;
+  fromDate?: string;
   deliverables: {
     rows: Array<{
       serviceId: number;
@@ -46,7 +47,7 @@ export function buildRecurringManagementAnalytics(input: {
     }>;
   };
 }) {
-  const { source, services, cutOffDate } = input;
+  const { source, services, cutOffDate, fromDate } = input;
   const deliverablesByService = new Map(input.deliverables.rows.map(row => [row.serviceId, row]));
   const documentsByService = new Map(input.documents.services.map(row => [row.serviceId, row]));
   const sourceServiceById = new Map(source.services.map(service => [service.id, service]));
@@ -74,21 +75,24 @@ export function buildRecurringManagementAnalytics(input: {
       const expectedCurrency = currency(row.expectedCurrency ?? row.currency ?? sourceService?.currency);
       const expectedAmount = numeric(row.expectedAmount ?? row.amount);
       const expectedDate = row.expectedDueDate ?? row.dueDate;
-      if (expectedDate && expectedDate > cutOffDate) addAmount(expectedFuture, expectedCurrency, expectedAmount);
-      else addAmount(expectedToDate, expectedCurrency, expectedAmount);
+      const expectedInWindow = !fromDate || !expectedDate || expectedDate >= fromDate;
+      if (expectedInWindow) {
+        if (expectedDate && expectedDate > cutOffDate) addAmount(expectedFuture, expectedCurrency, expectedAmount);
+        else addAmount(expectedToDate, expectedCurrency, expectedAmount);
+      }
 
       if (row.invoiceSource === "corporate_financial") {
         const invoiceCurrency = currency(row.invoiceCurrency ?? expectedCurrency);
         const invoiceAmount = numeric(row.invoiceAmount ?? expectedAmount);
-        addAmount(invoicedReal, invoiceCurrency, invoiceAmount);
+        if (!fromDate || !row.invoiceDate || row.invoiceDate >= fromDate) addAmount(invoicedReal, invoiceCurrency, invoiceAmount);
         verifiedInvoiceCount += 1;
         if (row.reconciliationStatus === "currency_mismatch" || row.reconciliationStatus === "currency_and_amount_mismatch") currencyMismatchCount += 1;
         if (row.reconciliationStatus === "amount_mismatch" || row.reconciliationStatus === "currency_and_amount_mismatch") amountMismatchCount += 1;
-        if (invoiceCurrency === expectedCurrency) addAmount(comparableGap, expectedCurrency, Math.max(0, expectedAmount - invoiceAmount));
+        if (expectedInWindow && invoiceCurrency === expectedCurrency) addAmount(comparableGap, expectedCurrency, Math.max(0, expectedAmount - invoiceAmount));
       } else if (row.invoiceSource === "local_status") {
         localInvoiceOnlyCount += 1;
-        if (!expectedDate || expectedDate <= cutOffDate) addAmount(comparableGap, expectedCurrency, expectedAmount);
-      } else if (!expectedDate || expectedDate <= cutOffDate) {
+        if (expectedInWindow && (!expectedDate || expectedDate <= cutOffDate)) addAmount(comparableGap, expectedCurrency, expectedAmount);
+      } else if (expectedInWindow && (!expectedDate || expectedDate <= cutOffDate)) {
         addAmount(comparableGap, expectedCurrency, expectedAmount);
       }
       if (row.reconciliationStatus === "ambiguous") ambiguousCount += 1;
@@ -97,7 +101,7 @@ export function buildRecurringManagementAnalytics(input: {
     const expectedCurrencies = Object.keys(expectedToDate).filter(key => expectedToDate[key] > 0);
     const invoiceCurrencies = Object.keys(invoicedReal).filter(key => invoicedReal[key] > 0);
     const currencyMismatch = currencyMismatchCount > 0;
-    const missingVerifiedInvoice = verifiedInvoiceCount === 0 && Object.values(expectedToDate).some(value => value > 0);
+    const missingVerifiedInvoice = verifiedInvoiceCount === 0 && billing.some(row => !(row.expectedDueDate ?? row.dueDate) || (row.expectedDueDate ?? row.dueDate)! <= cutOffDate);
     const reconciliationStatus = ambiguousCount > 0
       ? "ambiguous"
       : currencyMismatch
@@ -159,6 +163,15 @@ export function buildRecurringManagementAnalytics(input: {
       sla: {
         configuredRules: service.sla.configuredRules,
         jsmLinked: Boolean(sourceService?.jsmServiceDeskId),
+        rules: source.slaConfigs
+          .filter(rule => rule.serviceId === service.id)
+          .map(rule => ({
+            priority: rule.priority,
+            firstResponseMinutes: rule.firstResponseMinutes ?? null,
+            resolutionMinutes: rule.resolutionMinutes ?? null,
+            coverageType: rule.coverageType ?? null,
+            customCoverageDescription: rule.customCoverageDescription ?? null,
+          })),
         firstResponseMeasured,
         firstResponseCompliance: service.sla.firstResponseCompliance,
         resolutionMeasured,
@@ -197,6 +210,23 @@ export function buildRecurringManagementAnalytics(input: {
   }));
 
   return {
+    sourceCuts: {
+      financialAt: source.financialReferences
+        .map(reference => reference.syncedAt ? iso(reference.syncedAt) : null)
+        .filter((value): value is string => value !== null)
+        .sort()
+        .at(-1) ?? null,
+      jsmAt: source.jsmSnapshots
+        .map(snapshot => iso(snapshot.capturedAt))
+        .filter(value => value.slice(0, 10) <= cutOffDate)
+        .sort()
+        .at(-1) ?? null,
+      documentsAt: source.documentControls
+        .map(control => control.validatedAt ? iso(control.validatedAt) : null)
+        .filter((value): value is string => value !== null)
+        .sort()
+        .at(-1) ?? null,
+    },
     summary: {
       services: rows.length,
       withVerifiedInvoices: rows.filter(row => row.verifiedInvoiceCount > 0).length,

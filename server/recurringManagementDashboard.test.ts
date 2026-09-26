@@ -202,4 +202,40 @@ describe("dashboard gerencial recurrente", () => {
     expect(result.management.services.find(row => row.dealId === "Deal2383")?.incidents.open).toBe(32);
     expect(result.metadata.latestJsmSnapshotAt).toBe("2026-09-26T06:00:00.000Z");
   });
+
+  it("aplica la fecha inicial a series y montos visibles sin perder las excepciones del servicio", () => {
+    const result = buildRecurringServicesDashboardV2(source, {
+      cutOffDate: "2026-09-26",
+      fromDate: "2026-02-01",
+    });
+
+    expect(result.metadata.fromDate).toBe("2026-02-01");
+    expect(result.trends.finance.every(row => row.month >= "2026-02")).toBe(true);
+    expect(result.management.services.find(row => row.dealId === "Deal2383")?.reconciliationStatus).toBe("currency_mismatch");
+    expect(result.management.currencies.find(row => row.currency === "UF")?.invoicedReal).toBe(188);
+  });
+
+  it("filtra todo el universo cuando se solicitan sólo servicios con excepciones", () => {
+    const cleanSource: RecurringDashboardV2Source = {
+      ...source,
+      services: [{ ...source.services[0], dealId: "Deal999", currency: "USD", totalContractAmount: "100" }],
+      billingMonths: [{ id: 999, serviceId: 1, monthNumber: 1, dueDate: "2026-01-31", amount: "100", currency: "USD", status: "pendiente" }],
+      workPlanItems: [],
+      documents: source.documents.filter(row => row.serviceId === 1),
+      documentControls: [
+        { id: 1, serviceId: 1, documentId: 1, validationStatus: "valid", validFrom: "2026-01-01", validUntil: "2026-12-31", validatedAt: "2026-01-02T10:00:00.000Z" },
+        { id: 2, serviceId: 1, documentId: 2, validationStatus: "valid", validFrom: "2026-01-01", validUntil: "2026-12-31", validatedAt: "2026-01-02T10:00:00.000Z" },
+      ],
+      slaConfigs: [],
+      penalties: [],
+      corporateBillingItems: [{ id: 999, sourceKey: "Deal999:mes-1", dealId: "Deal999", milestoneName: "Mes 1", plannedDate: "2026-01-31", invoicedAt: "2026-01-30", amount: "100", currency: "USD", sourceActive: true }],
+    };
+    const all = buildRecurringServicesDashboardV2(cleanSource, { cutOffDate: "2026-09-26" });
+    const exceptionsOnly = buildRecurringServicesDashboardV2(cleanSource, { cutOffDate: "2026-09-26", filters: { onlyExceptions: true } });
+
+    expect(all.management.services).toHaveLength(1);
+    expect(all.management.exceptions).toHaveLength(0);
+    expect(exceptionsOnly.management.services).toHaveLength(0);
+    expect(exceptionsOnly.metadata.totalAfterFilters).toBe(0);
+  });
 });

@@ -19,6 +19,11 @@ import {
 } from "@shared/recurringServiceTypes";
 import RecurringServicesDashboardV2 from "./recurring/RecurringServicesDashboardV2";
 import { ClassicManagementDashboard } from "./recurring/ClassicManagementDashboard";
+import {
+  DEFAULT_CLASSIC_CONTROLS,
+  deriveClassicFromDate,
+  type ClassicDashboardControls,
+} from "./recurring/classicManagementViewModel";
 
 const C = {
   navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
@@ -69,7 +74,22 @@ export default function RecurringServicesList() {
     if (requested === "list") return "list";
     return "tower";
   });
-  const classicInput = useMemo(() => ({ cutOffDate: new Date().toISOString().slice(0, 10) }), []);
+  const [classicControls, setClassicControls] = useState<ClassicDashboardControls>(() => ({
+    ...DEFAULT_CLASSIC_CONTROLS,
+    cutOffDate: new Date().toISOString().slice(0, 10),
+  }));
+  const classicFromDate = useMemo(
+    () => deriveClassicFromDate(classicControls.window, classicControls.cutOffDate, classicControls.customFromDate),
+    [classicControls.window, classicControls.cutOffDate, classicControls.customFromDate],
+  );
+  const classicInput = useMemo(() => ({
+    cutOffDate: classicControls.cutOffDate,
+    fromDate: classicFromDate,
+    clientName: classicControls.clientName === "all" ? undefined : classicControls.clientName,
+    status: classicControls.status === "all" ? undefined : classicControls.status,
+    serviceType: classicControls.serviceType === "all" ? undefined : classicControls.serviceType as any,
+    onlyExceptions: classicControls.onlyExceptions || undefined,
+  }), [classicControls.cutOffDate, classicControls.clientName, classicControls.onlyExceptions, classicControls.serviceType, classicControls.status, classicFromDate]);
   const {
     data: classicData,
     isLoading: loadingClassic,
@@ -86,7 +106,14 @@ export default function RecurringServicesList() {
     });
   }, [services, search, statusFilter, typeFilter]);
 
-  const isLoading = loadingList || loadingKpis || (view === "dashboard" && loadingClassic);
+  const isLoading = view === "list" ? loadingList || loadingKpis : view === "dashboard" ? loadingClassic : false;
+  const selectView = (nextView: "tower" | "dashboard" | "list") => {
+    setView(nextView);
+    const url = new URL(window.location.href);
+    if (nextView === "tower") url.searchParams.delete("view");
+    else url.searchParams.set("view", nextView === "dashboard" ? "classic" : "list");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
 
   return (
     <div style={{ background: C.g100, fontFamily: "'Inter', sans-serif", color: C.navy, minHeight: "100vh" }}>
@@ -119,7 +146,7 @@ export default function RecurringServicesList() {
             {/* View toggle */}
             <div style={{ display: "flex", background: "rgba(255,255,255,.08)", borderRadius: 8, padding: 2 }}>
               <button
-                onClick={() => setView("tower")}
+                onClick={() => selectView("tower")}
                 style={{
                   padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer",
                   background: view === "tower" ? C.accent : "transparent",
@@ -129,7 +156,7 @@ export default function RecurringServicesList() {
                 <Activity size={13} style={{ marginRight: 4, verticalAlign: "middle" }} /> Torre V2
               </button>
               <button
-                onClick={() => setView("dashboard")}
+                onClick={() => selectView("dashboard")}
                 style={{
                   padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer",
                   background: view === "dashboard" ? C.accent : "transparent",
@@ -139,7 +166,7 @@ export default function RecurringServicesList() {
                 <BarChart3 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} /> Clásico
               </button>
               <button
-                onClick={() => setView("list")}
+                onClick={() => selectView("list")}
                 style={{
                   padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer",
                   background: view === "list" ? C.accent : "transparent",
@@ -204,13 +231,14 @@ export default function RecurringServicesList() {
       {view === "tower" && <RecurringServicesDashboardV2 />}
 
       {/* Dashboard View */}
-      {!isLoading && view === "dashboard" && classicData && kpis && (
+      {!isLoading && view === "dashboard" && classicData && (
         <ClassicManagementDashboard
           data={classicData}
-          legacy={kpis}
           onOpenService={(serviceId) => navigate(`/recurring-services/${serviceId}`)}
           canManageJsm={role === "admin" || role === "pmo"}
           onConfigureJsm={() => navigate("/admin/jsm-spaces")}
+          controls={classicControls}
+          onControlsChange={setClassicControls}
         />
       )}
 

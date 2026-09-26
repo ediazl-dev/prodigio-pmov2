@@ -27,6 +27,7 @@ export interface RecurringDashboardV2Filters {
   health?: DashboardHealthFilter;
   currency?: string;
   search?: string;
+  onlyExceptions?: boolean;
 }
 
 export interface DashboardV2JsmSnapshot {
@@ -96,6 +97,7 @@ export interface RecurringDashboardV2Source
 
 export interface RecurringDashboardV2Options {
   cutOffDate: string;
+  fromDate?: string;
   filters?: RecurringDashboardV2Filters;
   staleAfterHours?: number;
 }
@@ -222,31 +224,34 @@ function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: stri
   });
 }
 
-function financeTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
+function financeTrend(source: RecurringDashboardV2Source, cutOffDate: string, fromDate?: string) {
   const buckets = new Map<string, { month: string; currency: string; scheduled: number; future: number; invoiced: number; pending: number; overdue: number; expectedItems: number; invoiceItems: number }>();
   for (const row of source.billingMonths) {
     const expectedDueDate = row.expectedDueDate ?? row.dueDate;
     const month = monthKey(expectedDueDate);
-    if (!month) continue;
     const service = source.services.find(item => item.id === row.serviceId);
     const expectedCurrency = normalizedCurrency(row.expectedCurrency ?? row.currency ?? service?.currency);
-    const expectedKey = `${month}:${expectedCurrency}`;
-    const expectedBucket = buckets.get(expectedKey) ?? { month, currency: expectedCurrency, scheduled: 0, future: 0, invoiced: 0, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 0 };
     const expectedValue = numeric(row.expectedAmount ?? row.amount);
-    expectedBucket.expectedItems += 1;
-    if (expectedDueDate && expectedDueDate > cutOffDate) {
-      expectedBucket.future += expectedValue;
-    } else {
-      expectedBucket.scheduled += expectedValue;
-      if (row.invoiceSource !== "corporate_financial") {
-        expectedBucket.pending += expectedValue;
-        if (expectedDueDate && expectedDueDate < cutOffDate) expectedBucket.overdue += expectedValue;
+    if (month && (!fromDate || !expectedDueDate || expectedDueDate >= fromDate)) {
+      const expectedKey = `${month}:${expectedCurrency}`;
+      const expectedBucket = buckets.get(expectedKey) ?? { month, currency: expectedCurrency, scheduled: 0, future: 0, invoiced: 0, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 0 };
+      expectedBucket.expectedItems += 1;
+      if (expectedDueDate && expectedDueDate > cutOffDate) {
+        expectedBucket.future += expectedValue;
+      } else {
+        expectedBucket.scheduled += expectedValue;
+        if (row.invoiceSource !== "corporate_financial") {
+          expectedBucket.pending += expectedValue;
+          if (expectedDueDate && expectedDueDate < cutOffDate) expectedBucket.overdue += expectedValue;
+        }
       }
+      buckets.set(expectedKey, expectedBucket);
     }
-    buckets.set(expectedKey, expectedBucket);
 
     if (row.invoiceSource === "corporate_financial") {
-      const invoiceMonth = monthKey(row.invoiceDate ?? expectedDueDate) ?? month;
+      const invoiceDate = row.invoiceDate ?? expectedDueDate;
+      const invoiceMonth = monthKey(invoiceDate);
+      if (!invoiceMonth || (fromDate && invoiceDate && invoiceDate < fromDate)) continue;
       const invoiceCurrency = normalizedCurrency(row.invoiceCurrency ?? expectedCurrency);
       const invoiceKey = `${invoiceMonth}:${invoiceCurrency}`;
       const invoiceBucket = buckets.get(invoiceKey) ?? { month: invoiceMonth, currency: invoiceCurrency, scheduled: 0, future: 0, invoiced: 0, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 0 };
@@ -547,11 +552,11 @@ function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month));
 }
 
-function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
+function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string, fromDate?: string) {
   const buckets = new Map<string, { capturedAt: string; total: number; open: number; criticalOpen: number; servicesMeasured: number }>();
   for (const snapshot of source.jsmSnapshots.filter(item => item.status === "success" || item.status === "partial")) {
     const capturedAt = isoDate(snapshot.capturedAt).slice(0, 10);
-    if (capturedAt > cutOffDate) continue;
+    if (capturedAt > cutOffDate || (fromDate && capturedAt < fromDate)) continue;
     const bucket = buckets.get(capturedAt) ?? { capturedAt, total: 0, open: 0, criticalOpen: 0, servicesMeasured: 0 };
     bucket.total += snapshot.incidentCount ?? 0;
     bucket.open += snapshot.openIncidentCount ?? 0;
@@ -562,7 +567,7 @@ function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   return Array.from(buckets.values()).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
 }
 
-function operationsAnalytics(source: RecurringDashboardV2Source, services: ServiceMetricsV2[], cutOffDate: string) {
+function operationsAnalytics(source: RecurringDashboardV2Source, services: ServiceMetricsV2[], cutOffDate: string, fromDate?: string) {
   const measuredServices = services.filter(service => service.incidents.availability === "available");
   const total = measuredServices.reduce((sum, service) => sum + (service.incidents.total ?? 0), 0);
   const open = measuredServices.reduce((sum, service) => sum + (service.incidents.open ?? 0), 0);
@@ -574,22 +579,24 @@ function operationsAnalytics(source: RecurringDashboardV2Source, services: Servi
   for (const snapshot of source.jsmSnapshots) {
     if (!visibleServiceIds.has(snapshot.serviceId) || !["success", "partial"].includes(snapshot.status)) continue;
     const capturedAt = isoDate(snapshot.capturedAt);
-    if (capturedAt.slice(0, 10) > cutOffDate) continue;
+    if (capturedAt.slice(0, 10) > cutOffDate || (fromDate && capturedAt.slice(0, 10) < fromDate)) continue;
     const key = `${snapshot.serviceId}:${capturedAt.slice(0, 7)}`;
     const existing = latestSnapshotByServiceMonth.get(key);
     if (!existing || capturedAt > isoDate(existing.capturedAt)) latestSnapshotByServiceMonth.set(key, snapshot);
   }
 
-  const monthlyBuckets = new Map<string, { month: string; total: number; resolved: number; open: number; criticalOpen: number; overdueOpen: number; servicesMeasured: number }>();
+  const monthlyBuckets = new Map<string, { month: string; total: number; nonOpen: number; open: number; criticalOpen: number; highOpen: number; unresolvedOver30Days: number; overdueOpen: number; servicesMeasured: number }>();
   for (const snapshot of Array.from(latestSnapshotByServiceMonth.values())) {
     const month = isoDate(snapshot.capturedAt).slice(0, 7);
-    const bucket = monthlyBuckets.get(month) ?? { month, total: 0, resolved: 0, open: 0, criticalOpen: 0, overdueOpen: 0, servicesMeasured: 0 };
+    const bucket = monthlyBuckets.get(month) ?? { month, total: 0, nonOpen: 0, open: 0, criticalOpen: 0, highOpen: 0, unresolvedOver30Days: 0, overdueOpen: 0, servicesMeasured: 0 };
     const snapshotTotal = snapshot.incidentCount ?? 0;
     const snapshotOpen = snapshot.openIncidentCount ?? 0;
     bucket.total += snapshotTotal;
     bucket.open += snapshotOpen;
-    bucket.resolved += Math.max(0, snapshotTotal - snapshotOpen);
+    bucket.nonOpen += Math.max(0, snapshotTotal - snapshotOpen);
     bucket.criticalOpen += snapshot.criticalOpenCount ?? 0;
+    bucket.highOpen += priorityCount(snapshot.priorityBreakdown, "high") ?? 0;
+    bucket.unresolvedOver30Days += snapshot.unresolvedOver30DaysCount ?? 0;
     bucket.overdueOpen += snapshot.overdueIncidentCount ?? 0;
     bucket.servicesMeasured += 1;
     monthlyBuckets.set(month, bucket);
@@ -672,8 +679,23 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
   const healthIds = filters.health
     ? new Set(initialMetrics.services.filter(service => service.health === filters.health).map(service => service.id))
     : initialIds;
-  const filteredSource = restrictSource(initialSource, healthIds);
-  const metrics = filters.health ? calculateForSource(filteredSource, options.cutOffDate, staleAfterHours) : initialMetrics;
+  let filteredSource = restrictSource(initialSource, healthIds);
+  let metrics = filters.health ? calculateForSource(filteredSource, options.cutOffDate, staleAfterHours) : initialMetrics;
+  if (filters.onlyExceptions) {
+    const preliminaryDeliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
+    const preliminaryDocuments = documentAnalytics(filteredSource, options.cutOffDate);
+    const preliminaryManagement = buildRecurringManagementAnalytics({
+      source: filteredSource,
+      services: metrics.services,
+      cutOffDate: options.cutOffDate,
+      fromDate: options.fromDate,
+      deliverables: preliminaryDeliverables,
+      documents: preliminaryDocuments,
+    });
+    const exceptionIds = new Set(preliminaryManagement.services.filter(service => service.exceptions.length > 0).map(service => service.serviceId));
+    filteredSource = restrictSource(filteredSource, exceptionIds);
+    metrics = calculateForSource(filteredSource, options.cutOffDate, staleAfterHours);
+  }
   const quality = qualityForSource(filteredSource);
   const qualityByService = new Map(quality.services.map(item => [item.serviceId, item]));
 
@@ -704,13 +726,14 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     .sort()
     .at(-1) ?? null;
   const financeAnalytics = financialAnalytics(filteredSource, metrics.services, options.cutOffDate);
-  const operations = operationsAnalytics(filteredSource, metrics.services, options.cutOffDate);
+  const operations = operationsAnalytics(filteredSource, metrics.services, options.cutOffDate, options.fromDate);
   const deliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
   const documents = documentAnalytics(filteredSource, options.cutOffDate);
   const management = buildRecurringManagementAnalytics({
     source: filteredSource,
     services: metrics.services,
     cutOffDate: options.cutOffDate,
+    fromDate: options.fromDate,
     deliverables,
     documents,
   });
@@ -719,6 +742,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     metadata: {
       contractVersion: metrics.contractVersion,
       cutOffDate: metrics.cutOffDate,
+      fromDate: options.fromDate ?? null,
       generatedAt: metrics.generatedAt,
       staleAfterHours,
       totalBeforeFilters: reconciledSource.services.length,
@@ -735,9 +759,9 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     },
     kpis: metrics.portfolio,
     trends: {
-      finance: financeTrend(filteredSource, options.cutOffDate),
+      finance: financeTrend(filteredSource, options.cutOffDate, options.fromDate),
       reports: reportTrend(filteredSource, options.cutOffDate),
-      incidents: incidentTrend(filteredSource, options.cutOffDate),
+      incidents: incidentTrend(filteredSource, options.cutOffDate, options.fromDate),
     },
     financeAnalytics,
     operations,

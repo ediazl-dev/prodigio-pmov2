@@ -1,13 +1,19 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart3,
-  CheckCircle2,
+  CalendarRange,
+  ChevronDown,
+  ChevronUp,
+  CircleDollarSign,
   Clock3,
   FileCheck2,
+  FileWarning,
   Landmark,
+  Link2Off,
+  ReceiptText,
   ShieldCheck,
-  TicketCheck,
   Tickets,
 } from "lucide-react";
 import type { RouterOutputs } from "@/lib/trpc";
@@ -19,41 +25,13 @@ import {
 } from "./recurringDashboardV3ViewModel";
 import {
   buildClassicManagementModel,
+  DEFAULT_CLASSIC_CONTROLS,
   formatSlaMinutes,
-  type ClassicCurrencyRow,
+  type ClassicDashboardControls,
 } from "./classicManagementViewModel";
 import { RECURRING_SERVICE_TYPE_LABELS, RECURRING_SERVICE_TYPE_OPTIONS } from "@shared/recurringServiceTypes";
 import { EvidenceTabs } from "./components/EvidenceTabs";
-import { DeliverablesPanel, FinancePanel, FormalityPanel, OperationsPanel } from "./components/EvidencePanels";
-
-const C = {
-  navy: "#0A1628",
-  blue: "#175CD3",
-  teal: "#0D7A6B",
-  gold: "#B8860B",
-  red: "#B42318",
-  green: "#067647",
-  g50: "#F8FAFC",
-  g100: "#F4F7FB",
-  g150: "#EBF0F7",
-  g200: "#D8E2EF",
-  g400: "#64748B",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  activo: "Activo",
-  pausado: "Pausado",
-  completado: "Completado",
-  cancelado: "Cancelado",
-};
-
-const STAGE_LABELS: Record<string, string> = {
-  inicializacion: "Inicialización",
-  plan_trabajo: "Plan de trabajo",
-  jira_setup: "JSM Setup",
-  ejecucion: "Ejecución",
-  cierre: "Cierre",
-};
+import { DeliverablesPanel, FormalityPanel, OperationsPanel } from "./components/EvidencePanels";
 
 const PRIORITY_LABELS: Record<string, string> = {
   critical: "Crítica",
@@ -62,12 +40,22 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: "Baja",
 };
 
+const RECONCILIATION_LABELS: Record<string, { label: string; className: string }> = {
+  matched: { label: "Conciliado", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  currency_mismatch: { label: "Moneda distinta", className: "border-red-200 bg-red-50 text-red-800" },
+  amount_mismatch: { label: "Monto distinto", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  ambiguous: { label: "Conciliación ambigua", className: "border-red-200 bg-red-50 text-red-800" },
+  missing_invoice: { label: "Sin factura verificada", className: "border-amber-200 bg-amber-50 text-amber-900" },
+  no_schedule: { label: "Sin programación", className: "border-slate-200 bg-slate-50 text-slate-700" },
+};
+
 function formatMoney(value: number, currency: string) {
   return `${currency} ${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(value)}`;
 }
 
-function formatPercent(value: number | null) {
-  return value === null ? "N/D" : `${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 1 }).format(value)}%`;
+function formatDate(value: string | null | undefined) {
+  if (!value) return "N/D";
+  return new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
 function formatMonth(value: string) {
@@ -76,124 +64,82 @@ function formatMonth(value: string) {
   return `${labels[Number(month) - 1] ?? month} ${year.slice(2)}`;
 }
 
-function CurrencyValues({ rows, field }: { rows: ClassicCurrencyRow[]; field: keyof ClassicCurrencyRow }) {
-  if (rows.length === 0) return <span className="text-slate-500">N/D</span>;
-  return (
-    <div className="space-y-1">
-      {rows.map(row => (
-        <div key={row.currency} className="font-mono text-[15px] font-black leading-tight text-slate-950">
-          {field === "contracted" && row.contracted === 0 && row.scheduled > 0
-            ? `${row.currency} N/D`
-            : formatMoney(Number(row[field] ?? 0), row.currency)}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function MetricCard({
   label,
-  children,
+  value,
   note,
   icon: Icon,
   tone = "blue",
 }: {
   label: string;
-  children: React.ReactNode;
+  value: React.ReactNode;
   note: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   tone?: "blue" | "green" | "amber" | "red";
 }) {
-  const styles = {
+  const tones = {
     blue: "border-blue-200 bg-blue-50 text-blue-700",
     green: "border-emerald-200 bg-emerald-50 text-emerald-700",
     amber: "border-amber-200 bg-amber-50 text-amber-700",
     red: "border-red-200 bg-red-50 text-red-700",
-  }[tone];
+  };
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-        <span className={`grid h-8 w-8 place-items-center rounded-lg border ${styles}`}><Icon size={15} /></span>
+        <span className={`grid h-8 w-8 place-items-center rounded-lg border ${tones[tone]}`}><Icon size={15} /></span>
       </div>
-      <div className="mt-3 min-h-8">{children}</div>
-      <p className="mt-2 text-[10.5px] leading-4 text-slate-500">{note}</p>
+      <div className="mt-3 font-mono text-2xl font-black text-slate-950">{value}</div>
+      <p className="mt-2 text-[10.5px] leading-4 text-slate-600">{note}</p>
     </article>
   );
 }
 
-function Progress({ value, tone = C.teal }: { value: number | null; tone?: string }) {
-  const safe = value === null ? 0 : Math.max(0, Math.min(100, value));
+function SourceCut({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
-      <div className="h-full rounded-full transition-[width]" style={{ width: `${safe}%`, background: tone }} />
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-1 text-[10px] font-bold text-slate-800">{formatDate(value)}</p>
     </div>
   );
 }
 
-function BillingEvolution({ rows }: { rows: ReturnType<typeof buildClassicManagementModel>["financeMonthly"] }) {
-  const currencies = Array.from(new Set(rows.map(row => row.currency))).sort();
-  if (rows.length === 0) {
-    return <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">No hay programación financiera mensual para la ventana disponible.</p>;
+function BillingEvolution({
+  rows,
+  currency,
+  comparison,
+}: {
+  rows: ReturnType<typeof buildClassicManagementModel>["financeMonthly"];
+  currency: string;
+  comparison: "monthly" | "cumulative";
+}) {
+  const visible = rows.filter(row => row.currency === currency);
+  if (visible.length === 0) {
+    return <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">No hay programación ni facturas {currency} en la ventana seleccionada.</p>;
   }
+  const max = Math.max(...visible.flatMap(row => [row.expected, row.invoiced, row.future]), 1);
   return (
-    <div className="space-y-4">
-      {currencies.map(currency => {
-        const currencyRows = rows.filter(row => row.currency === currency);
-        const max = Math.max(...currencyRows.map(row => row.scheduled), 1);
-        return (
-          <section key={currency} aria-label={`Evolución financiera ${currency}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <strong className="text-xs text-slate-900">Moneda {currency}</strong>
-              <span className="text-[10px] font-bold text-slate-500">Programado vs. facturado</span>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {currencyRows.map(row => {
-                const invoicedPct = row.scheduled > 0 ? (row.invoiced / row.scheduled) * 100 : 0;
-                return (
-                  <div key={`${row.month}:${row.currency}`} className="rounded-lg border border-slate-200 bg-white p-3">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <b className="text-slate-900">{formatMonth(row.month)}</b>
-                      <span className="font-mono font-bold text-slate-600">{formatPercent(invoicedPct)}</span>
-                    </div>
-                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, invoicedPct)}%`, maxWidth: `${Math.max(3, (row.scheduled / max) * 100)}%` }} />
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-                      <span className="text-slate-500">Facturado <b className="block text-slate-900">{formatMoney(row.invoiced, currency)}</b></span>
-                      <span className="text-slate-500">Pendiente <b className="block text-[#B42318]">{formatMoney(row.pending, currency)}</b></span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function IncidentEvolution({ rows }: { rows: ReturnType<typeof buildClassicManagementModel>["incidentMonthly"] }) {
-  if (rows.length === 0) {
-    return <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">Sin snapshots JSM suficientes para construir una evolución mensual.</p>;
-  }
-  const max = Math.max(...rows.map(row => row.total), 1);
-  return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map(row => (
-        <article key={row.month} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label={`Esperado versus facturado real en ${currency}`}>
+      {visible.map(row => (
+        <article key={`${row.month}:${row.currency}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-2">
             <b className="text-xs text-slate-900">{formatMonth(row.month)}</b>
-            <span className="text-[10px] font-bold text-slate-500">{row.servicesMeasured} medido(s)</span>
+            <span className="text-[9px] font-bold uppercase text-slate-500">{comparison === "monthly" ? "Mes" : "Acumulado"}</span>
           </div>
-          <div className="mt-3 flex h-20 items-end gap-2" aria-label={`${row.resolved} resueltos y ${row.open} pendientes`}>
-            <div className="flex-1 rounded-t-md bg-emerald-400" style={{ height: `${Math.max(4, (row.resolved / max) * 100)}%` }} title={`${row.resolved} resueltos`} />
-            <div className="flex-1 rounded-t-md bg-red-400" style={{ height: `${Math.max(row.open > 0 ? 4 : 0, (row.open / max) * 100)}%` }} title={`${row.open} pendientes`} />
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-            <span className="text-slate-500">Resueltos <b className="block font-mono text-emerald-700">{row.resolved}</b></span>
-            <span className="text-slate-500">Pendientes <b className="block font-mono text-red-700">{row.open}</b></span>
+          <div className="mt-3 space-y-2 text-[10px]">
+            {[
+              ["Esperado al corte", row.expected, "bg-slate-500"],
+              ["Facturado real", row.invoiced, "bg-blue-600"],
+              ["Cuotas futuras", row.future, "border border-dashed border-amber-500 bg-amber-100"],
+            ].map(([label, value, style]) => (
+              <div key={String(label)} className="grid grid-cols-[92px_1fr_auto] items-center gap-2">
+                <span className="text-slate-600">{label}</span>
+                <span className="h-2 overflow-hidden rounded-full bg-white">
+                  <i className={`block h-full rounded-full ${style}`} style={{ width: `${Math.max(Number(value) > 0 ? 3 : 0, (Number(value) / max) * 100)}%` }} />
+                </span>
+                <b className="font-mono text-slate-900">{formatMoney(Number(value), currency)}</b>
+              </div>
+            ))}
           </div>
         </article>
       ))}
@@ -201,278 +147,229 @@ function IncidentEvolution({ rows }: { rows: ReturnType<typeof buildClassicManag
   );
 }
 
-function FinanceCell({ rows }: { rows: ClassicCurrencyRow[] }) {
-  if (rows.length === 0) return <span className="text-slate-500">N/D</span>;
+function TicketStockEvolution({ rows }: { rows: RouterOutputs["recurringServices"]["dashboardV2"]["operations"]["monthly"] }) {
+  if (rows.length === 0) {
+    return <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">Sin snapshots JSM suficientes en la ventana seleccionada.</p>;
+  }
+  const max = Math.max(...rows.flatMap(row => [row.open, row.highOpen, row.unresolvedOver30Days]), 1);
   return (
-    <div className="space-y-2">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {rows.map(row => (
-        <div key={row.currency} className="min-w-[150px]">
-          <div className="flex items-center justify-between gap-3 text-[10px]">
-            <b>{formatMoney(row.invoiced, row.currency)}</b>
-            <span>{formatPercent(row.invoicingProgress)}</span>
+        <article key={row.month} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <b className="text-xs text-slate-900">{formatMonth(row.month)}</b>
+            <span className="text-[9px] font-bold text-slate-500">{row.servicesMeasured} servicio(s) observado(s)</span>
           </div>
-          <Progress value={row.invoicingProgress} />
-          <p className="mt-1 text-[9px] text-slate-500">de {formatMoney(row.scheduled, row.currency)} programado</p>
-        </div>
+          <div className="mt-3 flex h-20 items-end gap-2" aria-label={`${row.open} abiertos, ${row.highOpen} altos y ${row.unresolvedOver30Days} con más de 30 días`}>
+            <div className="flex-1 rounded-t-md bg-blue-500" style={{ height: `${Math.max(row.open > 0 ? 4 : 0, (row.open / max) * 100)}%` }} title={`${row.open} abiertos`} />
+            <div className="flex-1 rounded-t-md bg-amber-500" style={{ height: `${Math.max(row.highOpen > 0 ? 4 : 0, (row.highOpen / max) * 100)}%` }} title={`${row.highOpen} altos`} />
+            <div className="flex-1 rounded-t-md bg-red-500" style={{ height: `${Math.max(row.unresolvedOver30Days > 0 ? 4 : 0, (row.unresolvedOver30Days / max) * 100)}%` }} title={`${row.unresolvedOver30Days} con más de 30 días`} />
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[9px]">
+            <span className="text-blue-700">Abiertos <b className="block font-mono text-sm">{row.open}</b></span>
+            <span className="text-amber-700">Altos <b className="block font-mono text-sm">{row.highOpen}</b></span>
+            <span className="text-red-700">+30 días <b className="block font-mono text-sm">{row.unresolvedOver30Days}</b></span>
+          </div>
+        </article>
       ))}
+    </div>
+  );
+}
+
+function FinanceEvidencePanel({ data }: { data: RouterOutputs["recurringServices"]["dashboardV2"] }) {
+  return (
+    <div className="p-5 sm:p-6">
+      <div className="flex items-center gap-2"><ReceiptText size={16} className="text-[#175CD3]" /><h4 className="text-sm font-black text-slate-950">Programación contractual y factura corporativa</h4></div>
+      <p className="mt-1 text-[11px] text-slate-600">La factura real se acredita sólo desde la fuente financiera; los estados locales quedan como señal de conciliación.</p>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {data.management.services.map(service => {
+          const status = RECONCILIATION_LABELS[service.reconciliationStatus] ?? RECONCILIATION_LABELS.no_schedule;
+          const expected = service.expectedCurrencies.map(item => formatMoney((service.expectedToDate[item] ?? 0) + (service.expectedFuture[item] ?? 0), item));
+          const invoiced = service.invoiceCurrencies.map(item => formatMoney(service.invoicedReal[item] ?? 0, item));
+          return (
+            <article key={service.serviceId} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><b className="text-xs text-slate-950">{service.serviceName}</b><p className="mt-1 text-[10px] text-slate-600">{service.clientName} · Deal {service.dealId ?? "N/D"}</p></div><span className={`w-fit rounded-full border px-2 py-1 text-[9px] font-black ${status.className}`}>{status.label}</span></div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-[10px]"><div><p className="font-bold uppercase text-slate-500">Plan esperado</p><p className="mt-1 font-mono font-black text-slate-950">{expected.join(" · ") || "N/D"}</p></div><div><p className="font-bold uppercase text-slate-500">Factura real</p><p className="mt-1 font-mono font-black text-emerald-700">{invoiced.join(" · ") || "Sin factura verificada"}</p></div></div>
+              {service.reconciliationStatus === "currency_mismatch" && <p className="mt-3 rounded-lg bg-red-50 p-2 text-[10px] font-bold text-red-800">Monedas no comparables; porcentaje bloqueado.</p>}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export function ClassicManagementDashboard({
   data,
-  legacy,
   onOpenService,
   canManageJsm = false,
   onConfigureJsm = () => undefined,
+  controls,
+  onControlsChange,
 }: {
   data: RouterOutputs["recurringServices"]["dashboardV2"];
-  legacy: RouterOutputs["recurringServices"]["dashboardKpis"];
+  legacy?: RouterOutputs["recurringServices"]["dashboardKpis"];
   onOpenService: (serviceId: number) => void;
   canManageJsm?: boolean;
   onConfigureJsm?: () => void;
+  controls?: ClassicDashboardControls;
+  onControlsChange?: (next: ClassicDashboardControls) => void;
 }) {
-  const model = buildClassicManagementModel(data, legacy);
-  const { operations } = model;
-  const incidentMeasured = operations.summary.measuredServices > 0;
-  const evidenceQueue = buildActionQueue(data.matrix, { stageLabels: STAGE_LABELS });
+  const [localControls, setLocalControls] = useState(DEFAULT_CLASSIC_CONTROLS);
+  const effectiveControls = controls ?? localControls;
+  const updateControls = (patch: Partial<ClassicDashboardControls>) => {
+    const next = { ...effectiveControls, ...patch };
+    if (onControlsChange) onControlsChange(next);
+    else setLocalControls(next);
+  };
+  const model = useMemo(
+    () => buildClassicManagementModel(data, { comparison: effectiveControls.comparison, onlyExceptions: effectiveControls.onlyExceptions }),
+    [data, effectiveControls.comparison, effectiveControls.onlyExceptions],
+  );
+  const [selectedCurrency, setSelectedCurrency] = useState(() => model.finance.some(row => row.currency === "USD") ? "USD" : model.finance[0]?.currency ?? "USD");
+  const activeCurrency = model.finance.find(row => row.currency === selectedCurrency) ?? model.finance[0];
+  const [expandedServiceId, setExpandedServiceId] = useState<number | null>(null);
+  const evidenceQueue = buildActionQueue(data.matrix, { stageLabels: {} });
   const evidenceTabs = buildEvidenceTabs(data, evidenceQueue);
   const [activeEvidenceTab, setActiveEvidenceTab] = useState<SignalDomain>(() => defaultEvidenceTab(evidenceTabs));
-  const tabByKey = Object.fromEntries(evidenceTabs.map(tab => [tab.key, tab])) as Record<
-    SignalDomain,
-    (typeof evidenceTabs)[number]
-  >;
+  const tabByKey = Object.fromEntries(evidenceTabs.map(tab => [tab.key, tab])) as Record<SignalDomain, (typeof evidenceTabs)[number]>;
+  const usd = model.finance.find(row => row.currency === "USD");
+  const usdContracts = model.allServices.filter(service => service.expectedCurrencies.includes("USD"));
+  const complianceMeasured = model.summary.slaMeasured > 0;
 
   return (
     <div className="mb-8 space-y-5" data-testid="classic-management-dashboard">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.13em] text-[#175CD3]"><BarChart3 size={15} /> Resumen gerencial consolidado</div>
-            <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950">Cartera recurrente: contrato, facturación y operación</h2>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">La lectura termina en Facturado. Los montos se mantienen separados por moneda y los incidentes provienen del último snapshot JSM vigente.</p>
+            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.13em] text-[#175CD3]"><BarChart3 size={15} /> Dashboard gerencial consolidado</div>
+            <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950">Estado verificable de los servicios recurrentes</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">Separa programación contractual, facturas corporativas, operación JSM y evidencia de gobierno. El ciclo financiero termina en <b>Facturado</b>.</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-right text-[10.5px] text-slate-600">
-            <b className="block text-slate-900">Corte {model.metadata.cutOffDate}</b>
-            <span>JSM: {model.metadata.latestJsmSnapshotAt ? new Date(model.metadata.latestJsmSnapshotAt).toLocaleString("es-CL") : "N/D"}</span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:w-[520px]">
+            <SourceCut label="Fuente financiera" value={model.sourceCuts.financialAt} />
+            <SourceCut label="Snapshot JSM" value={model.sourceCuts.jsmAt} />
+            <SourceCut label="Validación documental" value={model.sourceCuts.documentsAt} />
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2 text-[10.5px] font-bold">
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{model.statusCounts.activo} activos</span>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{model.statusCounts.completado} completados</span>
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{model.statusCounts.pausado} pausados</span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{model.statusCounts.total} servicios totales</span>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7" aria-label="Filtros del dashboard gerencial">
+          <label className="text-[10px] font-bold text-slate-600">Corte
+            <input aria-label="Fecha de corte" type="date" value={effectiveControls.cutOffDate} onChange={event => updateControls({ cutOffDate: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900" />
+          </label>
+          <label className="text-[10px] font-bold text-slate-600">Ventana
+            <select aria-label="Ventana temporal" value={effectiveControls.window} onChange={event => updateControls({ window: event.target.value as ClassicDashboardControls["window"] })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900">
+              <option value="current_month">Mes actual</option><option value="last_3_months">Últimos 3 meses</option><option value="ytd">Año a la fecha</option><option value="contract">Contrato completo</option><option value="custom">Rango personalizado</option>
+            </select>
+          </label>
+          {effectiveControls.window === "custom" && <label className="text-[10px] font-bold text-slate-600">Desde
+            <input aria-label="Fecha inicial" type="date" max={effectiveControls.cutOffDate} value={effectiveControls.customFromDate} onChange={event => updateControls({ customFromDate: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900" />
+          </label>}
+          <label className="text-[10px] font-bold text-slate-600">Comparación
+            <select aria-label="Tipo de comparación" value={effectiveControls.comparison} onChange={event => updateControls({ comparison: event.target.value as ClassicDashboardControls["comparison"] })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900"><option value="monthly">Mensual</option><option value="cumulative">Acumulada</option></select>
+          </label>
+          <label className="text-[10px] font-bold text-slate-600">Cliente
+            <select aria-label="Filtrar por cliente" value={effectiveControls.clientName} onChange={event => updateControls({ clientName: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900"><option value="all">Todos</option>{data.filterOptions.clients.map(client => <option key={client} value={client}>{client}</option>)}</select>
+          </label>
+          <label className="text-[10px] font-bold text-slate-600">Tipo
+            <select aria-label="Filtrar por tipo" value={effectiveControls.serviceType} onChange={event => updateControls({ serviceType: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900"><option value="all">Todos</option>{RECURRING_SERVICE_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+          </label>
+          <label className="text-[10px] font-bold text-slate-600">Estado
+            <select aria-label="Filtrar por estado" value={effectiveControls.status} onChange={event => updateControls({ status: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900"><option value="all">Todos</option>{data.filterOptions.statuses.map(status => <option key={status} value={status}>{status}</option>)}</select>
+          </label>
+          <label className="flex h-9 items-center gap-2 self-end rounded-lg border border-slate-300 bg-slate-50 px-3 text-[10px] font-black text-slate-700">
+            <input aria-label="Mostrar sólo excepciones" type="checkbox" checked={effectiveControls.onlyExceptions} onChange={event => updateControls({ onlyExceptions: event.target.checked })} /> Sólo excepciones
+          </label>
         </div>
       </section>
 
-      <section aria-label="Indicadores gerenciales" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Monto comprometido" note="Valor contractual vigente; no suma monedas distintas." icon={Landmark}>
-          <CurrencyValues rows={model.finance} field="contracted" />
-        </MetricCard>
-        <MetricCard label="Facturado total" note="Facturas corporativas conciliadas y cuotas facturadas." icon={FileCheck2} tone="green">
-          <CurrencyValues rows={model.finance} field="invoiced" />
-        </MetricCard>
-        <MetricCard label="Incidentes resueltos" note={`${operations.summary.measuredServices} servicio(s) con snapshot JSM vigente.`} icon={TicketCheck} tone="green">
-          <div className="font-mono text-2xl font-black text-emerald-700">{incidentMeasured ? operations.summary.resolved : "N/D"}</div>
-        </MetricCard>
-        <MetricCard label="Incidentes pendientes" note={`${operations.summary.overdueOpen} vencido(s); ${operations.summary.unresolvedOver30Days} con más de 30 días.`} icon={Tickets} tone={operations.summary.open > 0 ? "red" : "green"}>
-          <div className="font-mono text-2xl font-black text-slate-950">{incidentMeasured ? operations.summary.open : "N/D"}</div>
-        </MetricCard>
-        <MetricCard label="Pendiente de facturar" note="Programado aún no respaldado por factura emitida." icon={Clock3} tone="amber">
-          <CurrencyValues rows={model.finance} field="pending" />
-        </MetricCard>
-        <MetricCard label="Reportes mensuales" note={`${model.reports.completedDue} entregados de ${model.reports.due} exigibles; ${model.reports.overdue} vencidos.`} icon={FileCheck2} tone={model.reports.overdue > 0 ? "amber" : "green"}>
-          <div className="font-mono text-2xl font-black text-slate-950">{formatPercent(model.reports.deliveryRate)}</div>
-        </MetricCard>
-        <MetricCard label="Resolución dentro de SLA" note={`${data.kpis.sla.availableServices} servicio(s) con ciclos SLA medidos.`} icon={ShieldCheck} tone={(data.kpis.sla.resolutionCompliance ?? 100) < 80 ? "amber" : "green"}>
-          <div className="font-mono text-2xl font-black text-slate-950">{formatPercent(data.kpis.sla.resolutionCompliance)}</div>
-        </MetricCard>
-        <MetricCard label="Formalidad completa" note={`${model.formalization.partial} parciales y ${model.formalization.missing} sin respaldo mínimo.`} icon={CheckCircle2} tone={model.formalization.missing > 0 ? "amber" : "green"}>
-          <div className="font-mono text-2xl font-black text-slate-950">{model.formalization.complete}/{data.kpis.totalServices}</div>
-        </MetricCard>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-sm font-black text-slate-950">Facturación mensual por moneda</h3>
-            <p className="mt-1 text-[11px] text-slate-600">Últimos seis períodos con programación; cada moneda se analiza por separado.</p>
-          </div>
-          <BillingEvolution rows={model.financeMonthly} />
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-sm font-black text-slate-950">Incidentes por mes</h3>
-            <p className="mt-1 text-[11px] text-slate-600">Último snapshot disponible de cada servicio en cada mes; no representa tickets creados durante el mes.</p>
-          </div>
-          <IncidentEvolution rows={model.incidentMonthly} />
-        </article>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <section data-testid="usd-real-answer" className={`rounded-2xl border p-5 shadow-sm ${usd?.invoicedReal ? "border-emerald-200 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-sm font-black text-slate-950">Pendientes operativos y SLA configurado</h3>
-            <p className="mt-1 text-[11px] text-slate-600">Los SLA se muestran por prioridad configurada; cuando la prioridad del ticket no está disponible, no se asigna una regla específica.</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.13em] text-amber-800">Respuesta financiera inmediata</p>
+            <h3 className="mt-1 text-lg font-black text-slate-950">Facturación real USD: {formatMoney(usd?.invoicedReal ?? 0, "USD")}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-700">{usd?.invoicedReal ? "Existen facturas corporativas USD verificadas en la ventana." : "Ningún servicio tiene una factura corporativa USD verificada en la ventana seleccionada."}</p>
           </div>
-          <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-black text-red-700">{operations.summary.open} pendientes</span>
+          <div className="flex flex-wrap gap-2">
+            {usdContracts.map(service => <span key={service.serviceId} className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-bold text-slate-800">{service.clientName} · Deal {service.dealId ?? "N/D"} programado en USD</span>)}
+          </div>
         </div>
-        {operations.pendingServices.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">No hay incidentes abiertos en los snapshots vigentes.</div>
-        ) : (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {operations.pendingServices.map(service => (
-              <article key={service.serviceId} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{service.clientName}</p>
-                    <button type="button" onClick={() => onOpenService(service.serviceId)} className="mt-1 text-left text-sm font-black text-[#175CD3] hover:underline">{service.serviceName}</button>
-                  </div>
-                  <span className="rounded-lg bg-red-100 px-2.5 py-1 font-mono text-sm font-black text-red-700">{service.open} abiertos</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold">
-                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-700">Críticos {service.criticalOpen}</span>
-                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">Altos {service.highOpen}</span>
-                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-700">Vencidos {service.overdueOpen}</span>
-                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-700">+30 días {service.unresolvedOver30Days}</span>
-                </div>
-                <div className="mt-3 border-t border-slate-200 pt-3">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">SLA configurado por prioridad</p>
-                  {service.slaRules.length === 0 ? (
-                    <p className="mt-2 text-[11px] font-bold text-amber-700">Sin reglas SLA configuradas.</p>
-                  ) : (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {service.slaRules.map(rule => (
-                        <div key={rule.priority} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px]">
-                          <b className="text-slate-900">{PRIORITY_LABELS[rule.priority] ?? rule.priority}</b>
-                          <p className="mt-1 text-slate-600">Respuesta {formatSlaMinutes(rule.firstResponseMinutes)} · Resolución {formatSlaMinutes(rule.resolutionMinutes)}</p>
-                          <p className="text-slate-500">Cobertura {rule.coverageType ?? "N/D"}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
       </section>
 
-      <section aria-label="Indicadores complementarios" className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2"><ShieldCheck size={17} className="text-[#175CD3]" /><h3 className="text-sm font-black text-slate-950">SLA medido</h3></div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-bold uppercase text-slate-500">Primera respuesta</p><p className="mt-2 font-mono text-2xl font-black">{formatPercent(data.kpis.sla.firstResponseCompliance)}</p><Progress value={data.kpis.sla.firstResponseCompliance} /></div>
-            <div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-bold uppercase text-slate-500">Resolución</p><p className="mt-2 font-mono text-2xl font-black">{formatPercent(data.kpis.sla.resolutionCompliance)}</p><Progress value={data.kpis.sla.resolutionCompliance} /></div>
-          </div>
-          <p className="mt-3 text-[10.5px] text-slate-600">{data.kpis.sla.configuredServices} servicio(s) con reglas; {data.kpis.sla.availableServices} con medición real.</p>
-        </article>
+      <section aria-label="Respuestas gerenciales inmediatas" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <MetricCard label="Servicios" value={model.summary.services} note="Universo después de filtros." icon={Landmark} />
+        <MetricCard label="Factura verificada" value={`${model.summary.withVerifiedInvoices}/${model.summary.services}`} note="Con al menos una factura corporativa." icon={ReceiptText} tone="green" />
+        <MetricCard label="Excepciones financieras" value={model.summary.financeExceptions} note="Moneda, monto, ambigüedad o factura ausente." icon={AlertTriangle} tone={model.summary.financeExceptions > 0 ? "red" : "green"} />
+        <MetricCard label="Cobertura JSM" value={`${model.summary.jsmLinked}/${model.summary.services}`} note="Service Desk confirmado." icon={Tickets} tone="amber" />
+        <MetricCard label="SLA medible" value={`${model.summary.slaMeasured}/${model.summary.services}`} note="Exige denominador de tickets medidos." icon={ShieldCheck} tone={model.summary.slaMeasured > 0 ? "green" : "amber"} />
+        <MetricCard label="Multas" value={model.summary.penalties} note="Registros persistidos al corte." icon={CircleDollarSign} tone={model.summary.penalties > 0 ? "red" : "green"} />
+      </section>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#175CD3]">Finanzas por moneda</p><h3 className="mt-1 text-base font-black text-slate-950">Quién programa y quién factura</h3><p className="mt-1 text-[11px] text-slate-600">Nunca se suman ni convierten UF y USD. Las diferencias de moneda bloquean comparaciones engañosas.</p></div>
+          <div role="tablist" aria-label="Moneda financiera" className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            {model.finance.map(row => <button key={row.currency} type="button" role="tab" aria-selected={activeCurrency?.currency === row.currency} onClick={() => setSelectedCurrency(row.currency)} className={`rounded-lg px-4 py-2 text-xs font-black ${activeCurrency?.currency === row.currency ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-white"}`}>{row.currency}</button>)}
+          </div>
+        </div>
+        {activeCurrency ? <>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="Programado al corte" value={formatMoney(activeCurrency.expectedToDate, activeCurrency.currency)} note={`${activeCurrency.expectedContributors.length} servicio(s) contribuyen.`} icon={CalendarRange} />
+            <MetricCard label="Facturado real" value={formatMoney(activeCurrency.invoicedReal, activeCurrency.currency)} note={`${activeCurrency.invoiceContributors.reduce((sum, item) => sum + item.invoices, 0)} factura(s) corporativa(s).`} icon={ReceiptText} tone="green" />
+            <MetricCard label="Brecha comparable" value={activeCurrency.comparableGap === null ? "N/D" : formatMoney(activeCurrency.comparableGap, activeCurrency.currency)} note={activeCurrency.blockedServices.length > 0 ? `Excluye ${activeCurrency.blockedServices.length} servicio(s) con moneda no comparable.` : "Sólo programación y factura en la misma moneda."} icon={Clock3} tone={activeCurrency.comparableGap && activeCurrency.comparableGap > 0 ? "amber" : "blue"} />
+            <MetricCard label="Cuotas futuras" value={formatMoney(activeCurrency.expectedFuture, activeCurrency.currency)} note="Separadas del esperado al corte." icon={CalendarRange} tone="amber" />
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="text-xs font-black text-slate-900">Programación atribuida</h4><div className="mt-3 space-y-2">{activeCurrency.expectedContributors.length === 0 ? <p className="text-xs text-slate-600">Sin programación {activeCurrency.currency} al corte.</p> : activeCurrency.expectedContributors.map(item => <div key={item.serviceId} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-[11px]"><span><b className="block text-slate-900">{item.clientName}</b><span className="text-slate-500">{item.serviceName}</span></span><b className="font-mono text-slate-950">{formatMoney(item.amount, activeCurrency.currency)}</b></div>)}</div></article>
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="text-xs font-black text-slate-900">Facturas reales atribuidas</h4><div className="mt-3 space-y-2">{activeCurrency.invoiceContributors.length === 0 ? <p className="text-xs font-bold text-amber-800">No hay facturas corporativas {activeCurrency.currency} verificadas.</p> : activeCurrency.invoiceContributors.map(item => <div key={item.serviceId} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-[11px]"><span><b className="block text-slate-900">{item.clientName}</b><span className="text-slate-500">{item.invoices} factura(s) · {item.serviceName}</span></span><b className="font-mono text-emerald-700">{formatMoney(item.amount, activeCurrency.currency)}</b></div>)}</div></article>
+          </div>
+          {activeCurrency.blockedServices.length > 0 && <div data-testid="currency-mismatch-warning" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-900"><b>Diferencia de moneda:</b> {activeCurrency.blockedServices.map(item => `${item.clientName} · ${item.serviceName}`).join(", ")}. No se calcula porcentaje ni brecha cruzando monedas.</div>}
+          <div className="mt-5 border-t border-slate-200 pt-5"><div className="mb-3"><h4 className="text-sm font-black text-slate-950">Esperado vs. facturado real</h4><p className="mt-1 text-[11px] text-slate-600">Lectura {effectiveControls.comparison === "monthly" ? "mensual" : "acumulada"}; las cuotas futuras usan una señal visual separada.</p></div><BillingEvolution rows={model.financeMonthly} currency={activeCurrency.currency} comparison={effectiveControls.comparison} /></div>
+        </> : <p className="mt-4 text-sm text-slate-600">Sin programación financiera disponible.</p>}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2"><AlertTriangle size={17} className="text-[#B42318]" /><h3 className="text-sm font-black text-slate-950">Multas</h3></div>
-          <p className="mt-4 font-mono text-3xl font-black text-slate-950">{model.penalties.total}</p>
-          <p className="mt-1 text-[10.5px] text-slate-600">Registros cursados; no se suman montos de monedas distintas.</p>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">
+          <h3 className="text-sm font-black text-slate-950">Embudo de cobertura SLA</h3>
+          <p className="mt-1 text-[11px] text-slate-600">Configuración no equivale a medición ni cumplimiento.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {[
-              ["Identificadas", model.penalties.byStatus.identificada ?? 0],
-              ["Aplicadas", model.penalties.byStatus.aplicada ?? 0],
-              ["Disputadas", model.penalties.byStatus.disputada ?? 0],
-              ["Resueltas", model.penalties.byStatus.resuelta ?? 0],
-            ].map(([label, value]) => <div key={String(label)} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2"><span className="text-slate-600">{label}</span><b>{value}</b></div>)}
+              ["1. Reglas configuradas", `${model.summary.slaConfigured}/${model.summary.services}`],
+              ["2. JSM vinculado", `${model.summary.jsmLinked}/${model.summary.services}`],
+              ["3. Muestra medida", `${model.summary.slaMeasured}/${model.summary.services}`],
+              ["4. Cumplimiento", complianceMeasured ? "Ver detalle" : "N/D"],
+            ].map(([label, value], index) => <div key={String(label)} className={`rounded-xl border p-3 ${index < 2 ? "border-blue-200 bg-blue-50" : "border-amber-200 bg-amber-50"}`}><p className="text-[9px] font-black uppercase text-slate-600">{label}</p><p className="mt-1 font-mono text-xl font-black text-slate-950">{value}</p></div>)}
           </div>
+          <div className="mt-4 space-y-3">{model.allServices.map(service => <article key={service.serviceId} className="rounded-xl border border-slate-200 p-3"><div className="flex items-start justify-between gap-3"><div><b className="text-xs text-slate-950">{service.clientName} · {service.serviceName}</b><p className="mt-1 text-[10px] text-slate-600">{service.sla.jsmLinked ? `${service.incidents.open ?? 0} abiertos · ${service.incidents.highOpen ?? 0} altos · ${service.incidents.unresolvedOver30Days ?? 0} con +30 días` : "JSM no vinculado; cumplimiento no medible"}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-700">{service.sla.firstResponseMeasured + service.sla.resolutionMeasured} mediciones</span></div><div className="mt-2 flex flex-wrap gap-2">{service.sla.rules.map(rule => <span key={`${service.serviceId}:${rule.priority}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] text-slate-700">{PRIORITY_LABELS[rule.priority] ?? rule.priority}: resp. {formatSlaMinutes(rule.firstResponseMinutes)} · resol. {formatSlaMinutes(rule.resolutionMinutes)} · {rule.coverageType ?? "N/D"}</span>)}</div></article>)}</div>
         </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-black text-slate-950">Evolución del stock de tickets</h3><p className="mt-1 text-[11px] text-slate-600">Snapshots agregados: abiertos, altos y con más de 30 días. No representa flujo mensual de cierre.</p><div className="mt-4"><TicketStockEvolution rows={model.operations.monthly} /></div><p className="mt-3 rounded-lg bg-slate-50 p-3 text-[10px] leading-4 text-slate-600">Un valor cero de tickets con reloj vencido detectado no demuestra cumplimiento SLA si el denominador medido es cero.</p></article>
+      </section>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-black text-slate-950">Distribución por tipo</h3>
-          <div className="mt-4 space-y-3">
-            {RECURRING_SERVICE_TYPE_OPTIONS.map(option => {
-              const count = model.typeCounts[option.value] ?? 0;
-              const pct = model.statusCounts.total > 0 ? Math.round((count / model.statusCounts.total) * 100) : 0;
-              return (
-                <div key={option.value}>
-                  <div className="flex justify-between text-[10.5px]"><span className="font-bold text-slate-600">{option.label}</span><b>{count}</b></div>
-                  <Progress value={pct} tone={option.color} />
-                </div>
-              );
-            })}
-          </div>
-        </article>
+      <section className="grid gap-4 lg:grid-cols-3" aria-label="Gobierno operacional">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><FileWarning size={17} className="text-amber-600" /><h3 className="text-sm font-black text-slate-950">Entregables</h3></div><p className="mt-4 font-mono text-3xl font-black text-slate-950">{model.governance.deliverables.planned}</p><p className="text-[10px] text-slate-600">planificados</p><div className="mt-3 rounded-xl bg-amber-50 p-3"><b className="font-mono text-xl text-amber-800">{model.governance.deliverables.withoutDate}</b><p className="text-[10px] text-amber-900">sin fecha exigible; cumplimiento N/D hasta calendarizar.</p></div></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><FileCheck2 size={17} className="text-blue-600" /><h3 className="text-sm font-black text-slate-950">Formalidad</h3></div><div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-blue-50 p-3"><p className="text-[9px] font-bold uppercase text-slate-500">Presencia</p><b className="font-mono text-2xl text-slate-950">{model.governance.documents.presentServices}/{model.summary.services}</b></div><div className="rounded-xl bg-amber-50 p-3"><p className="text-[9px] font-bold uppercase text-slate-500">Validación</p><b className="font-mono text-2xl text-slate-950">{model.governance.documents.validServices}/{model.summary.services}</b></div></div><p className="mt-3 text-[10px] text-slate-600">{model.governance.documents.present}/{model.governance.documents.required} documentos presentes · {model.governance.documents.valid}/{model.governance.documents.required} validados.</p></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><CircleDollarSign size={17} className="text-red-600" /><h3 className="text-sm font-black text-slate-950">Multas</h3></div><p className="mt-4 font-mono text-3xl font-black text-slate-950">{model.governance.penalties.count}</p><p className="text-[10px] text-slate-600">registros · {model.governance.penalties.withEvidence} con evidencia.</p><div className="mt-3 space-y-2">{model.governance.penalties.byCurrency.length === 0 ? <p className="rounded-xl bg-emerald-50 p-3 text-[10px] font-bold text-emerald-800">Sin multas persistidas al corte.</p> : model.governance.penalties.byCurrency.map(row => <div key={row.currency} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs"><span>{row.count} en {row.currency}</span><b className="font-mono">{formatMoney(row.amount, row.currency)}</b></div>)}</div></article>
+      </section>
+
+      <section className="rounded-2xl border border-red-200 bg-white p-5 shadow-sm" aria-labelledby="exceptions-title">
+        <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-red-700">Calidad de datos y acción</p><h3 id="exceptions-title" className="mt-1 text-base font-black text-slate-950">Excepciones que impiden una lectura completa</h3></div><span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-800">{model.exceptions.length}</span></div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">{model.exceptions.map((exception, index) => <article key={`${exception.serviceId}:${exception.code}:${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-start gap-3"><span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ${exception.severity === "critical" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{exception.code === "JSM_NOT_LINKED" ? <Link2Off size={14} /> : <AlertTriangle size={14} />}</span><div><p className="text-[10px] font-black uppercase text-slate-500">{exception.clientName} · {exception.serviceName}</p><h4 className="mt-1 text-xs font-black text-slate-950">{exception.label}</h4><p className="mt-1 text-[10px] text-slate-600"><b>Impacto:</b> {exception.impact}</p><p className="mt-1 text-[10px] text-blue-800"><b>Acción:</b> {exception.action}</p></div></div></article>)}</div>
       </section>
 
       <section aria-labelledby="classic-consolidated-evidence-title" className="space-y-3">
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#175CD3]">Información consolidada de la cartera</p>
-          <h3 id="classic-consolidated-evidence-title" className="mt-1 text-base font-black text-slate-950">
-            Facturación, entregables, formalidad y operación JSM
-          </h3>
-          <p className="mt-1 text-[11px] leading-5 text-slate-600">
-            Este es el único cuerpo consolidado de estas cuatro dimensiones. La Torre V2 conserva foco en alertas, prioridades y servicios individuales.
-          </p>
-        </div>
-        <EvidenceTabs
-          tabs={evidenceTabs}
-          active={activeEvidenceTab}
-          onChange={setActiveEvidenceTab}
-          panels={{
-            finanzas: <FinancePanel data={data} tab={tabByKey.finanzas} />,
-            entregables: <DeliverablesPanel data={data} tab={tabByKey.entregables} />,
-            formalidad: <FormalityPanel data={data} tab={tabByKey.formalidad} />,
-            operacion: (
-              <OperationsPanel
-                data={data}
-                tab={tabByKey.operacion}
-                canManageJsm={canManageJsm}
-                onConfigureJsm={onConfigureJsm}
-              />
-            ),
-          }}
-        />
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#175CD3]">Evidencia consolidada de la cartera</p><h3 id="classic-consolidated-evidence-title" className="mt-1 text-base font-black text-slate-950">Finanzas, entregables, formalidad y operación JSM</h3><p className="mt-1 text-[11px] leading-5 text-slate-600">Este cuerpo se mantiene exclusivamente en Clásico; Torre V2 conserva alertas y cartera por servicio.</p></div>
+        <EvidenceTabs tabs={evidenceTabs} active={activeEvidenceTab} onChange={setActiveEvidenceTab} panels={{ finanzas: <FinanceEvidencePanel data={data} />, entregables: <DeliverablesPanel data={data} tab={tabByKey.entregables} />, formalidad: <FormalityPanel data={data} tab={tabByKey.formalidad} />, operacion: <OperationsPanel data={data} tab={tabByKey.operacion} canManageJsm={canManageJsm} onConfigureJsm={onConfigureJsm} /> }} />
       </section>
 
       <section id="cartera" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h3 className="text-sm font-black text-slate-950">Resumen por servicio</h3>
-          <p className="mt-1 text-[11px] text-slate-600">Detalle final de contrato, facturación, incidentes, SLA, reportes y multas.</p>
-        </div>
-        <div className="hidden overflow-x-auto lg:block">
-          <table className="w-full min-w-[1180px] border-collapse text-xs">
-            <thead><tr className="border-b-2 border-slate-200 text-left text-[9px] font-black uppercase tracking-wider text-slate-500">
-              {['Servicio', 'Estado', 'Facturación', 'Incidentes', 'SLA', 'Reportes', 'Multas', 'Acción'].map(label => <th key={label} className="px-3 py-3">{label}</th>)}
-            </tr></thead>
-            <tbody>
-              {model.services.map(service => {
-                const source = data.matrix.find(item => item.serviceId === service.serviceId)!;
-                return (
-                  <tr key={service.serviceId} className="border-b border-slate-100 align-top hover:bg-slate-50">
-                    <td className="px-3 py-4"><b className="block max-w-[240px] text-slate-950">{service.serviceName}</b><span className="text-[10px] text-slate-500">{service.clientName} · {RECURRING_SERVICE_TYPE_LABELS[service.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? service.serviceType}</span></td>
-                    <td className="px-3 py-4"><b>{STATUS_LABELS[service.status] ?? service.status}</b><span className="block text-[10px] text-slate-500">{STAGE_LABELS[service.currentStage] ?? service.currentStage}</span></td>
-                    <td className="px-3 py-4"><FinanceCell rows={service.finance} /></td>
-                    <td className="px-3 py-4">{service.incidents.open === null ? <span className="text-slate-500">N/D</span> : <><b className="font-mono text-slate-950">{service.incidents.resolved} resueltos</b><span className="block text-[10px] text-red-700">{service.incidents.open} pendientes · {service.incidents.overdueOpen} vencidos</span></>}</td>
-                    <td className="px-3 py-4"><b>{formatPercent(service.sla.resolutionCompliance)}</b><span className="block text-[10px] text-slate-500">{service.sla.configuredRules} regla(s)</span></td>
-                    <td className="px-3 py-4"><b>{formatPercent(source.reports.deliveryRate)}</b><span className="block text-[10px] text-slate-500">{source.reports.overdue} vencido(s)</span></td>
-                    <td className="px-3 py-4"><b>{service.penalties.count}</b>{service.penalties.count > 0 && <span className="block text-[10px] text-slate-500">{formatMoney(service.penalties.amount, service.penalties.currency)}</span>}</td>
-                    <td className="px-3 py-4"><button type="button" onClick={() => onOpenService(service.serviceId)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-700 hover:bg-blue-100">Ver servicio</button></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="grid gap-3 lg:hidden">
-          {model.services.map(service => (
-            <article key={service.serviceId} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{service.clientName}</p>
-              <h4 className="mt-1 text-sm font-black text-slate-950">{service.serviceName}</h4>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-[10.5px]">
-                <div><span className="text-slate-500">Facturación</span><FinanceCell rows={service.finance} /></div>
-                <div><span className="text-slate-500">Incidentes</span><b className="block">{service.incidents.open === null ? "N/D" : `${service.incidents.resolved} resueltos / ${service.incidents.open} pendientes`}</b></div>
-                <div><span className="text-slate-500">SLA resolución</span><b className="block">{formatPercent(service.sla.resolutionCompliance)}</b></div>
-                <div><span className="text-slate-500">Multas</span><b className="block">{service.penalties.count}</b></div>
-              </div>
-              <button type="button" onClick={() => onOpenService(service.serviceId)} className="mt-4 w-full rounded-lg bg-slate-950 px-3 py-2.5 text-xs font-black text-white">Ver servicio</button>
-            </article>
-          ))}
-        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="text-sm font-black text-slate-950">Resumen final por servicio</h3><p className="mt-1 text-[11px] text-slate-600">Cada KPI conserva servicio, Deal, moneda, fuente y acción recomendada.</p></div><span className="text-[10px] font-bold text-slate-500">{model.services.length} de {model.allServices.length} servicio(s)</span></div>
+        <div className="mt-4 space-y-3">{model.services.map(service => {
+          const status = RECONCILIATION_LABELS[service.reconciliationStatus] ?? RECONCILIATION_LABELS.no_schedule;
+          const expanded = expandedServiceId === service.serviceId;
+          const expectedText = service.expectedCurrencies.map(item => formatMoney(service.expectedToDate[item] ?? 0, item)).join(" · ") || "N/D";
+          const invoiceText = service.invoiceCurrencies.map(item => formatMoney(service.invoicedReal[item] ?? 0, item)).join(" · ") || "Sin factura verificada";
+          return <article key={service.serviceId} className="overflow-hidden rounded-xl border border-slate-200"><div className="grid gap-3 bg-white p-4 lg:grid-cols-[1.5fr_0.8fr_1fr_1fr_1fr_auto] lg:items-center"><div><p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{service.clientName} · Deal {service.dealId ?? "N/D"}</p><h4 className="mt-1 text-sm font-black text-slate-950">{service.serviceName}</h4><p className="mt-1 text-[10px] text-slate-500">{RECURRING_SERVICE_TYPE_LABELS[service.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? service.serviceType}</p></div><div><p className="text-[9px] font-bold uppercase text-slate-500">Conciliación</p><span className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[9px] font-black ${status.className}`}>{status.label}</span></div><div><p className="text-[9px] font-bold uppercase text-slate-500">Esperado al corte</p><b className="mt-1 block font-mono text-xs text-slate-950">{expectedText}</b><p className="text-[9px] text-slate-500">Contrato {service.contractCurrency}</p></div><div><p className="text-[9px] font-bold uppercase text-slate-500">Facturado real</p><b className="mt-1 block font-mono text-xs text-emerald-700">{invoiceText}</b><p className="text-[9px] text-slate-500">{service.verifiedInvoiceCount} factura(s)</p></div><div><p className="text-[9px] font-bold uppercase text-slate-500">Operación</p><b className="mt-1 block text-xs text-slate-950">{service.sla.jsmLinked ? `${service.incidents.open ?? 0} abiertos` : "JSM N/D"}</b><p className="text-[9px] text-slate-500">SLA {service.sla.firstResponseMeasured + service.sla.resolutionMeasured > 0 ? "medido" : "N/D"} · {service.penalties.count} multa(s)</p></div><button type="button" aria-expanded={expanded} aria-controls={`service-${service.serviceId}-detail`} onClick={() => setExpandedServiceId(expanded ? null : service.serviceId)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-[10px] font-black text-slate-800 hover:bg-slate-50">{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Detalle</button></div>{expanded && <div id={`service-${service.serviceId}-detail`} className="border-t border-slate-200 bg-slate-50 p-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div><p className="text-[9px] font-black uppercase text-slate-500">Incidentes</p><p className="mt-1 text-xs text-slate-800">{service.sla.jsmLinked ? `${service.incidents.open ?? 0} abiertos · ${service.incidents.highOpen ?? 0} altos · ${service.incidents.unresolvedOver30Days ?? 0} +30 días` : "Sin fuente JSM vinculada"}</p></div><div><p className="text-[9px] font-black uppercase text-slate-500">Entregables</p><p className="mt-1 text-xs text-slate-800">{service.deliverables.delivered}/{service.deliverables.due} entregados · {service.deliverables.withoutDate} sin fecha</p></div><div><p className="text-[9px] font-black uppercase text-slate-500">Documentos</p><p className="mt-1 text-xs text-slate-800">{service.documents.present}/{service.documents.required} presentes · {service.documents.valid}/{service.documents.required} validados</p></div><div><p className="text-[9px] font-black uppercase text-slate-500">Acción prioritaria</p><p className="mt-1 text-xs text-slate-800">{service.exceptions[0]?.action ?? "Mantener monitoreo y evidencia al corte."}</p></div></div><button type="button" onClick={() => onOpenService(service.serviceId)} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-[10px] font-black text-white">Ver servicio <ArrowRight size={13} /></button></div>}</article>;
+        })}{model.services.length === 0 && <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600">No hay servicios que cumplan los filtros actuales.</div>}</div>
       </section>
     </div>
   );

@@ -265,6 +265,7 @@ export const recurringServicesRouter = router({
       z
         .object({
           cutOffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
           serviceId: z.number().int().positive().optional(),
           clientName: z.string().min(1).optional(),
           status: z.string().min(1).optional(),
@@ -272,14 +273,19 @@ export const recurringServicesRouter = router({
           health: z.enum(["critical", "attention", "stable", "no_data"]).optional(),
           currency: z.string().min(1).max(10).optional(),
           search: z.string().max(200).optional(),
+          onlyExceptions: z.boolean().optional(),
         })
         .optional(),
     )
     .query(async ({ input }) => {
       const source = await getRecurringDashboardV2Data();
       const cutOffDate = input?.cutOffDate ?? new Date().toISOString().slice(0, 10);
+      if (input?.fromDate && input.fromDate > cutOffDate) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La fecha inicial no puede ser posterior a la fecha de corte." });
+      }
       return buildRecurringServicesDashboardV2(source as any, {
         cutOffDate,
+        fromDate: input?.fromDate,
         filters: {
           serviceId: input?.serviceId,
           clientName: input?.clientName,
@@ -288,6 +294,7 @@ export const recurringServicesRouter = router({
           health: input?.health,
           currency: input?.currency,
           search: input?.search,
+          onlyExceptions: input?.onlyExceptions,
         },
       });
     }),

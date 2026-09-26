@@ -157,8 +157,8 @@ describe("buildRecurringServicesDashboardV2", () => {
       slaRules: [{ priority: "high", firstResponseMinutes: 30, resolutionMinutes: 240, coverageType: "24x7" }],
     });
     expect(result.operations.monthly).toEqual([
-      { month: "2026-02", total: 10, resolved: 8, open: 2, criticalOpen: 0, overdueOpen: 1, servicesMeasured: 1 },
-      { month: "2026-03", total: 12, resolved: 11, open: 1, criticalOpen: 0, overdueOpen: 0, servicesMeasured: 1 },
+      { month: "2026-02", total: 10, nonOpen: 8, open: 2, criticalOpen: 0, highOpen: 1, unresolvedOver30Days: 0, overdueOpen: 1, servicesMeasured: 1 },
+      { month: "2026-03", total: 12, nonOpen: 11, open: 1, criticalOpen: 0, highOpen: 0, unresolvedOver30Days: 0, overdueOpen: 0, servicesMeasured: 1 },
     ]);
   });
 

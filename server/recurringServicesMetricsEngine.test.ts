@@ -26,8 +26,8 @@ function baseInput(): RecurringServicesMetricsInput {
     ],
     billingMonths: [
       { id: 1, serviceId: 1, dueDate: "2026-08-31", amount: "100", currency: "USD", status: "pendiente" },
-      { id: 2, serviceId: 1, dueDate: "2026-09-16", amount: "100", currency: "USD", status: "facturado" },
-      { id: 3, serviceId: 1, dueDate: "2026-10-31", amount: "100", currency: "USD", status: "pagado" },
+      { id: 2, serviceId: 1, dueDate: "2026-09-16", amount: "100", currency: "USD", status: "facturado", invoiceAmount: 100, invoiceCurrency: "USD", invoiceSource: "corporate_financial" },
+      { id: 3, serviceId: 1, dueDate: "2026-10-31", amount: "100", currency: "USD", status: "pagado", invoiceAmount: 100, invoiceCurrency: "USD", invoiceSource: "corporate_financial" },
     ],
     workPlanItems: [
       { id: 1, serviceId: 1, itemType: "informe_mensual", dueDate: "2026-08-31", status: "completado" },
@@ -138,6 +138,9 @@ describe("calculateRecurringServicesMetrics", () => {
   it("declara salud estable solo cuando hay evidencia y ninguna señal crítica o de atención", () => {
     const input = baseInput();
     input.billingMonths[0].status = "pagado";
+    input.billingMonths[0].invoiceAmount = 100;
+    input.billingMonths[0].invoiceCurrency = "USD";
+    input.billingMonths[0].invoiceSource = "corporate_financial";
     input.workPlanItems[1].status = "completado";
     input.services[0].jsmServiceDeskId = "7";
     input.operationalEvidence = [

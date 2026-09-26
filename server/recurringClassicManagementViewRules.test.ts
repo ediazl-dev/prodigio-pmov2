@@ -6,39 +6,44 @@ const dashboard = readFileSync(new URL("../client/src/pages/recurring/ClassicMan
 const tower = readFileSync(new URL("../client/src/pages/recurring/RecurringServicesDashboardV2.tsx", import.meta.url), "utf8");
 
 describe("vista clásica gerencial de servicios recurrentes", () => {
-  it("sustituye el dashboard heredado y elimina la distribución por etapa", () => {
+  it("sustituye el dashboard heredado y conserva la vista Clásico en una consulta estable", () => {
     expect(listPage).toContain("ClassicManagementDashboard");
+    expect(listPage).toContain("deriveClassicFromDate");
+    expect(listPage).toContain("useMemo");
     expect(listPage).not.toContain("Distribución por Etapa");
-    expect(listPage).not.toContain("Stage Distribution");
   });
 
-  it("conserva las tres tarjetas complementarias y deja la tabla al final", () => {
-    const sla = dashboard.indexOf("SLA medido");
-    const penalties = dashboard.indexOf("Multas");
-    const type = dashboard.indexOf("Distribución por tipo");
-    const table = dashboard.indexOf("Resumen por servicio");
-    expect(sla).toBeGreaterThan(0);
-    expect(penalties).toBeGreaterThan(sla);
-    expect(type).toBeGreaterThan(penalties);
-    expect(table).toBeGreaterThan(type);
+  it("ordena finanzas, SLA, gobierno, excepciones y resumen final por servicio", () => {
+    const finance = dashboard.indexOf("Finanzas por moneda");
+    const sla = dashboard.indexOf("Embudo de cobertura SLA");
+    const governance = dashboard.indexOf("Gobierno operacional");
+    const exceptions = dashboard.indexOf("Excepciones que impiden una lectura completa");
+    const finalSummary = dashboard.indexOf("Resumen final por servicio");
+    expect(finance).toBeGreaterThan(0);
+    expect(sla).toBeGreaterThan(finance);
+    expect(governance).toBeGreaterThan(sla);
+    expect(exceptions).toBeGreaterThan(governance);
+    expect(finalSummary).toBeGreaterThan(exceptions);
   });
 
   it("ubica el consolidado de cuatro dimensiones sólo en Clásico y antes del resumen final", () => {
     const consolidated = dashboard.indexOf("<EvidenceTabs");
-    const table = dashboard.indexOf("Resumen por servicio");
+    const finalSummary = dashboard.indexOf("Resumen final por servicio");
     expect(consolidated).toBeGreaterThan(0);
-    expect(table).toBeGreaterThan(consolidated);
-    expect(dashboard).toContain("Facturación, entregables, formalidad y operación JSM");
+    expect(finalSummary).toBeGreaterThan(consolidated);
+    expect(dashboard).toContain("Finanzas, entregables, formalidad y operación JSM");
     expect(tower).not.toContain("<EvidenceTabs");
     expect(tower).not.toContain("FinancePanel");
   });
 
-  it("expone contrato, facturación, incidentes mensuales y SLA aplicable sin cobros", () => {
-    expect(dashboard).toContain("Monto comprometido");
-    expect(dashboard).toContain("Facturado total");
-    expect(dashboard).toContain("Incidentes por mes");
-    expect(dashboard).toContain("Pendientes operativos y SLA configurado");
-    expect(dashboard).toContain("SLA configurado por prioridad");
-    expect(dashboard).not.toMatch(/Cobrado|CxC|Avance de cobro/);
+  it("expone respuestas financieras, stock de tickets y SLA sin cobros ni falsos flujos", () => {
+    expect(dashboard).toContain("Facturación real USD");
+    expect(dashboard).toContain("Programado al corte");
+    expect(dashboard).toContain("Facturado real");
+    expect(dashboard).toContain("Evolución del stock de tickets");
+    expect(dashboard).toContain("Embudo de cobertura SLA");
+    expect(dashboard).toContain("sin fecha exigible");
+    expect(dashboard).toContain("No se calcula porcentaje ni brecha cruzando monedas");
+    expect(dashboard).not.toMatch(/Incidentes resueltos|resueltos del mes|Cobrado|CxC|Avance de cobro/);
   });
 });
