@@ -74,3 +74,9 @@ La carga queda habilitada para Admin, PMO y PM asignado; la validación para Adm
 El dry-run identificó 47 candidatos: 35 de proyectos y 12 de servicios. La importación creó 47 artefactos, 47 decisiones `pending` y 17 snapshots de plan con hitos. Cero artefactos fueron marcados `valid` y cero excepciones fueron creadas. Las versiones anteriores quedaron `superseded` cuando correspondía; no se borró ninguna fila legacy.
 
 Los tres servicios reales tienen referencias para contrato, SoW, propuesta y P&L, todas pendientes de revisión. En proyectos se importaron SoW y planes disponibles; contrato, propuesta y P&L permanecen como brechas cuando no existe un archivo dedicado. Un segundo dry-run arrojó `pending: 0`, demostrando idempotencia. El estado posterior quedó respaldado con checksum junto al backup de R1.
+
+### R4 — read model canónico completado
+
+El portafolio canónico calcula por requisito presencia, validación, vigencia, aplicabilidad, versión activa, decisión y acción. Contrato, SoW, propuesta, P&L y plan permanecen separados. Los controles operacionales existentes —actas, minutas, recuperación, cierre y reportes periódicos— se conservan como requisitos complementarios sin contaminar el denominador base.
+
+Validación real al 26-sep-2026: 15 entidades, 72 requisitos base, 0 validados, 46 faltantes y 26 pendientes de validación. Los tres servicios tienen 4/4 archivos presentes y 0/4 validados. Ningún nombre de archivo o referencia Jira se cuenta como cumplimiento. El endpoint soporta filtros por ciclo de vida, entidad, estado, requisito, cliente, responsable, búsqueda, corte y paginación.

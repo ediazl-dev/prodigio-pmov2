@@ -5,6 +5,7 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { createAuditLog, getProjectById } from "./db";
 import { assessDocumentArtifactAccess, validateDocumentArtifactUpload, validateDocumentDecision } from "./documentArtifactPolicy";
 import { listDocumentGovernanceContext, listDocumentRequirementCatalog } from "./documentGovernanceDb";
+import { loadDocumentGovernancePortfolio } from "./documentGovernanceSource";
 import {
   appendDocumentValidationDecision,
   archiveDocumentArtifact,
@@ -66,6 +67,21 @@ function asBadRequest(error: unknown): never {
 }
 
 export const documentGovernanceRouter = router({
+  portfolio: protectedProcedure
+    .input(z.object({
+      lifecycle: z.enum(["all", "open", "historical", "unconfirmed"]).default("open"),
+      entityType: z.enum(["all", ...DOCUMENT_ENTITY_TYPES]).default("all"),
+      coverageStatus: z.enum(["all", "gaps", "compliant", "missing", "pending_validation", "expired", "rejected", "not_applicable", "unconfirmed"]).default("gaps"),
+      requirementCode: z.enum(["all", ...DOCUMENT_REQUIREMENT_CODES]).default("all"),
+      client: z.string().trim().max(255).optional(),
+      owner: z.string().trim().max(255).optional(),
+      search: z.string().trim().max(120).optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(10).max(100).default(20),
+      cutoffAt: z.string().date().optional(),
+    }))
+    .query(({ input }) => loadDocumentGovernancePortfolio(input)),
+
   catalog: protectedProcedure
     .input(z.object({ entityType: entityTypeSchema }))
     .query(({ input }) => listDocumentRequirementCatalog(input.entityType)),
