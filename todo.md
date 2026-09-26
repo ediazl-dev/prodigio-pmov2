@@ -818,3 +818,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Q6: Incorporar los cinco requisitos y plan con hitos a proyectos nativos y vinculados.
 - [x] Q7: Rediseñar carga, revisión, detalle y reporte consolidado con acciones contextuales.
 - [x] Q8: Ejecutar rollout controlado, pruebas completas, responsive, auditoría, secretos, refs y checkpoint final.
+
+## Simplificación financiera de Clásico — 2026-09-26
+- [x] U0: Confirmar base `e71206d`, árbol limpio, alcance visual y ausencia de cambios de datos.
+- [x] U1: Eliminar “Respuesta financiera inmediata” y toda preferencia fija por USD.
+- [x] U2: Seleccionar moneda inicial por evidencia sin comparar ni convertir monedas.
+- [x] U3: Actualizar pruebas, guardrails y documentación de la vista Clásico.
+- [x] U4: Certificar focales, suite determinista, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.

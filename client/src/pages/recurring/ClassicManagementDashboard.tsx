@@ -27,6 +27,7 @@ import {
   buildClassicManagementModel,
   DEFAULT_CLASSIC_CONTROLS,
   formatSlaMinutes,
+  selectClassicPreferredCurrency,
   type ClassicDashboardControls,
 } from "./classicManagementViewModel";
 import { RECURRING_SERVICE_TYPE_LABELS, RECURRING_SERVICE_TYPE_OPTIONS } from "@shared/recurringServiceTypes";
@@ -226,15 +227,13 @@ export function ClassicManagementDashboard({
     () => buildClassicManagementModel(data, { comparison: effectiveControls.comparison, onlyExceptions: effectiveControls.onlyExceptions }),
     [data, effectiveControls.comparison, effectiveControls.onlyExceptions],
   );
-  const [selectedCurrency, setSelectedCurrency] = useState(() => model.finance.some(row => row.currency === "USD") ? "USD" : model.finance[0]?.currency ?? "USD");
+  const [selectedCurrency, setSelectedCurrency] = useState(() => selectClassicPreferredCurrency(model.finance));
   const activeCurrency = model.finance.find(row => row.currency === selectedCurrency) ?? model.finance[0];
   const [expandedServiceId, setExpandedServiceId] = useState<number | null>(null);
   const evidenceQueue = buildActionQueue(data.matrix, { stageLabels: {} });
   const evidenceTabs = buildEvidenceTabs(data, evidenceQueue);
   const [activeEvidenceTab, setActiveEvidenceTab] = useState<SignalDomain>(() => defaultEvidenceTab(evidenceTabs));
   const tabByKey = Object.fromEntries(evidenceTabs.map(tab => [tab.key, tab])) as Record<SignalDomain, (typeof evidenceTabs)[number]>;
-  const usd = model.finance.find(row => row.currency === "USD");
-  const usdContracts = model.allServices.filter(service => service.expectedCurrencies.includes("USD"));
   const complianceMeasured = model.summary.slaMeasured > 0;
 
   return (
@@ -280,19 +279,6 @@ export function ClassicManagementDashboard({
           <label className="flex h-9 items-center gap-2 self-end rounded-lg border border-slate-300 bg-slate-50 px-3 text-[10px] font-black text-slate-700">
             <input aria-label="Mostrar sólo excepciones" type="checkbox" checked={effectiveControls.onlyExceptions} onChange={event => updateControls({ onlyExceptions: event.target.checked })} /> Sólo excepciones
           </label>
-        </div>
-      </section>
-
-      <section data-testid="usd-real-answer" className={`rounded-2xl border p-5 shadow-sm ${usd?.invoicedReal ? "border-emerald-200 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.13em] text-amber-800">Respuesta financiera inmediata</p>
-            <h3 className="mt-1 text-lg font-black text-slate-950">Facturación registrada USD: {formatMoney(usd?.invoicedReal ?? 0, "USD")}</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-700">{usd?.invoicedReal ? "Existen registros USD marcados Facturado en la fuente corporativa." : "Ningún servicio tiene facturación USD registrada en la fuente corporativa para la ventana seleccionada."}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {usdContracts.map(service => <span key={service.serviceId} className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-bold text-slate-800">{service.clientName} · Deal {service.dealId ?? "N/D"} programado en USD</span>)}
-          </div>
         </div>
       </section>
 

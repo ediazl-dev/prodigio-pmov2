@@ -37,7 +37,8 @@ describe("vista clásica gerencial de servicios recurrentes", () => {
   });
 
   it("expone respuestas financieras, stock de tickets y SLA sin cobros ni falsos flujos", () => {
-    expect(dashboard).toContain("Facturación registrada USD");
+    expect(dashboard).not.toContain("Respuesta financiera inmediata");
+    expect(dashboard).not.toContain("usd-real-answer");
     expect(dashboard).toContain("Programado al corte");
     expect(dashboard).toContain("Facturación registrada");
     expect(dashboard).toContain("esto no sustituye una factura SII");

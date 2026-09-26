@@ -78,8 +78,7 @@ El consolidado de Finanzas, Entregables, Formalidad y Operación JSM permanece e
 |---|---|
 | Servicios activos | 3 |
 | Servicios con registro corporativo facturado | 1/3 |
-| Facturación USD registrada | **USD 0** |
-| Programación contractual USD | **USD 0** |
+| Moneda activa en la cartera actual | **UF**; las monedas sin participación no se destacan como alerta |
 | Facturación UF registrada | **UF 282**; Camanchaca Deal 2383, tres registros de UF 94 marcados Facturado |
 | Programación UF al corte | **UF 1.152** |
 | Programación UF futura | **UF 1.062** |
@@ -97,6 +96,7 @@ El consolidado de Finanzas, Entregables, Formalidad y Operación JSM permanece e
 
 - No se suman UF y USD.
 - No se convierte moneda sin una política aprobada y fechada.
+- Las monedas sin programación ni facturación en la cartera filtrada no generan banners ni alertas globales.
 - Una diferencia de moneda bloquea porcentajes hasta corregir la fuente o aprobar una conversión explícita.
 - La UI usa “facturación registrada en la fuente corporativa”; `financial_billing_items` no se presenta como factura SII.
 - El ciclo recurrente termina en Facturado; no muestra Cobrado, Pagado ni CxC.
@@ -117,7 +117,7 @@ El consolidado de Finanzas, Entregables, Formalidad y Operación JSM permanece e
 - Build productivo: exitoso.
 - TypeScript: sin regresiones nuevas; permanecen cinco errores heredados en `jiraMilestoneSync.ts` y `routers.ts`.
 - Navegador autenticado:
-  - USD 0 registrado y USD 0 programado contractualmente;
+  - UF seleccionada por evidencia real, sin banner especial para USD;
   - UF 282 registrado y atribuido a Camanchaca;
   - cambio mensual/acumulado;
   - filtro por Camanchaca aplicado a toda la vista;

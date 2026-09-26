@@ -6,6 +6,7 @@ import {
   buildClassicManagementModel,
   deriveClassicFromDate,
   formatSlaMinutes,
+  selectClassicPreferredCurrency,
   type ClassicDashboardControls,
 } from "./classicManagementViewModel";
 
@@ -158,16 +159,24 @@ describe("classicManagementViewModel", () => {
     expect(formatSlaMinutes(30)).toBe("30 min");
     expect(formatSlaMinutes(240)).toBe("4 h");
   });
+
+  it("elige la moneda inicial por evidencia sin comparar montos entre monedas", () => {
+    const finance = buildClassicManagementModel(data).finance;
+    expect(selectClassicPreferredCurrency(finance)).toBe("UF");
+    expect(selectClassicPreferredCurrency(finance.map(row => ({ ...row, invoicedReal: 0 })))).toBe("USD");
+    expect(selectClassicPreferredCurrency([])).toBe("");
+  });
 });
 
 describe("ClassicManagementDashboard", () => {
-  it("responde quién factura en USD, muestra Camanchaca como excepción y evita afirmar flujo de cierre", () => {
+  it("prioriza la moneda con evidencia, conserva excepciones y evita el banner USD y falsos flujos", () => {
     const onOpenService = vi.fn();
     render(<ClassicManagementDashboard data={data} controls={controls} onControlsChange={() => undefined} onOpenService={onOpenService} />);
 
-    expect(screen.getByText("Facturación registrada USD: USD 0")).toBeTruthy();
-    expect(screen.getByText("Ningún servicio tiene facturación USD registrada en la fuente corporativa para la ventana seleccionada.")).toBeTruthy();
-    expect(screen.getByText(/Camanchaca · Deal Deal2383 programado en USD/)).toBeTruthy();
+    expect(screen.queryByText("Respuesta financiera inmediata")).toBeNull();
+    expect(screen.queryByTestId("usd-real-answer")).toBeNull();
+    expect(screen.getByRole("tab", { name: "UF" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getAllByText("UF 282").length).toBeGreaterThan(0);
     expect(screen.getByText("3/3", { selector: "p" })).toBeTruthy();
     expect(screen.getAllByText("1/3", { selector: "p" }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("0/3", { selector: "p" }).length).toBeGreaterThan(0);
@@ -177,8 +186,8 @@ describe("ClassicManagementDashboard", () => {
     expect(screen.getByText("15", { selector: "p" })).toBeTruthy();
     expect(screen.getByText("0/3", { selector: "b" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "UF" }));
-    expect(screen.getAllByText("UF 282").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("tab", { name: "USD" }));
+    expect(screen.getByRole("tab", { name: "USD" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("currency-mismatch-warning")).toBeTruthy();
     expect(screen.getByText(/No se calcula porcentaje ni brecha cruzando monedas/)).toBeTruthy();
 

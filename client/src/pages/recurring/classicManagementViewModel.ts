@@ -53,6 +53,13 @@ export type ClassicCurrencyRow = {
   invoiceContributors: DashboardV2Data["management"]["currencies"][number]["invoiceContributors"];
 };
 
+export function selectClassicPreferredCurrency(finance: ClassicCurrencyRow[]): string {
+  return finance.find(row => row.invoicedReal > 0)?.currency
+    ?? finance.find(row => row.expectedToDate > 0 || row.expectedFuture > 0)?.currency
+    ?? finance[0]?.currency
+    ?? "";
+}
+
 export function buildClassicManagementModel(
   data: DashboardV2Data,
   options: { comparison?: ClassicComparison; onlyExceptions?: boolean } = {},
