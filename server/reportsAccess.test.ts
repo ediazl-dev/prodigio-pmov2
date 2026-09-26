@@ -56,6 +56,17 @@ describe("Reportes transversales por rol", () => {
     const caller = appRouter.createCaller(makeContext(role));
     await expect(caller.compliance.metrics()).resolves.toMatchObject({ details: expect.any(Array) });
     await expect(caller.executiveEvidenceAdmin.summary()).resolves.toMatchObject({ total: expect.any(Number) });
+    await expect(caller.executiveEvidenceAdmin.coverage({
+      lifecycle: "open",
+      entityType: "all",
+      coverageStatus: "gaps",
+      page: 1,
+      pageSize: 20,
+      cutoffAt: "2026-09-25",
+    })).resolves.toMatchObject({
+      summary: expect.objectContaining({ open: expect.any(Number) }),
+      items: expect.any(Array),
+    });
     await expect(caller.portfolioConsole.getFinancialPortfolioV2({ from: "2026-01-01", to: "2026-09-25", page: 1, pageSize: 10 })).resolves.toMatchObject({
       lifecycle: expect.any(Object),
       items: expect.any(Array),
@@ -75,6 +86,7 @@ describe("Reportes transversales por rol", () => {
   });
 
   it("mantiene las mutaciones de Evidencia documental bajo adminOnly", () => {
+    expect(routerSource).toMatch(/coverage:\s*protectedProcedure\.input/);
     expect(routerSource).toMatch(/discard:\s*adminOnly\.input/);
     expect(routerSource).toMatch(/restore:\s*adminOnly\.input/);
     expect(evidencePage).toContain('const canManage = (user as any)?.role === "admin"');

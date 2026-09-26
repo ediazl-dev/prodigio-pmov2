@@ -8,8 +8,8 @@ const section = source.slice(
 );
 
 describe("executiveEvidenceAdminRouter guardrails", () => {
-  it("abre listado, resumen y proyectos a usuarios autenticados y reserva mutaciones a Admin", () => {
-    expect(section.match(/protectedProcedure/g)?.length).toBe(3);
+  it("abre cobertura, listado, resumen y proyectos a usuarios autenticados y reserva mutaciones a Admin", () => {
+    expect(section.match(/protectedProcedure/g)?.length).toBe(4);
     expect(section.match(/adminOnly/g)?.length).toBe(2);
     expect(section).toContain("discard: adminOnly");
     expect(section).toContain("restore: adminOnly");

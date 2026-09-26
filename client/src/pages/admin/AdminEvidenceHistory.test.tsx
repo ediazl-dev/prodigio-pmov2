@@ -14,14 +14,40 @@ describe("AdminEvidenceHistory", () => {
     expect(layout).toContain('label: "Evidencia documental", path: "/reports/evidence"');
   });
 
-  it("ofrece filtros, paginación y gestión segura de pendientes", () => {
+  it("presenta cobertura documental como vista principal", () => {
+    expect(page).toContain("Cobertura y cumplimiento documental");
+    expect(page).toContain('value="coverage"');
+    expect(page).toContain("Entidades evaluadas");
+    expect(page).toContain("Cobertura medible");
+    expect(page).toContain("Con brechas activas");
+    expect(page).toContain("Expedientes históricos");
+    expect(page).toContain("Pendientes de validar");
+  });
+
+  it("diferencia abiertos, históricos, proyectos y servicios recurrentes", () => {
+    expect(page).toContain('<SelectItem value="open">Abiertos</SelectItem>');
+    expect(page).toContain('<SelectItem value="historical">Históricos</SelectItem>');
+    expect(page).toContain('<SelectItem value="project">Sólo proyectos</SelectItem>');
+    expect(page).toContain('<SelectItem value="recurring_service">Sólo servicios recurrentes</SelectItem>');
+    expect(page).toContain("Acciones activas");
+    expect(page).toContain("Antecedentes del expediente");
+  });
+
+  it("conserva el historial técnico como pestaña secundaria con gestión segura", () => {
+    expect(page).toContain('value="history"');
+    expect(page).toContain("Historial de cargas");
     expect(page).toContain("Pendientes vigentes");
     expect(page).toContain("Pendientes expirados");
     expect(page).toContain("Todos los proyectos");
-    expect(page).toContain("Página anterior");
-    expect(page).toContain("Página siguiente");
+    expect(page).toContain('aria-label="Página anterior"');
+    expect(page).toContain('aria-label="Página siguiente"');
     expect(page).toContain("Descartar documento");
     expect(page).toContain("Restaurar");
+  });
+
+  it("no presenta un historial vacío como cumplimiento del expediente", () => {
+    expect(page).toContain("Esto no significa que el expediente esté completo");
+    expect(page).toContain("Este resultado corresponde sólo al alcance seleccionado");
   });
 
   it("no expone token, URL, fileKey ni hash en la interfaz", () => {
