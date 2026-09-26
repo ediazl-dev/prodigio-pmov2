@@ -761,5 +761,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] C4: Agregar cuerpo de multas al detalle con carga segura, listado, descarga y control de roles.
 - [x] C5: Mantener el flujo de cierre compatible y reutilizar la misma captura de multa, sin duplicar fuentes.
 - [x] C6: Actualizar dashboard, listado, detalle, ejecución, prompts IA y pruebas a ciclo Programado → Facturado.
-- [ ] C7: Validar Camanchaca y demás servicios con fuente financiera; cero montos de cobro inventados.
-- [ ] C8: Certificar suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.
+- [x] C7: Validar Camanchaca y demás servicios con fuente financiera; cero montos de cobro inventados.
+- [x] C8: Certificar suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.
