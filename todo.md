@@ -738,3 +738,16 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] U2: Mover Financiero, Plazos por Etapa y Evidencia documental al cuerpo `Reportes` con rutas canónicas.
 - [x] U3: Permitir lectura a todos los roles autenticados y mantener edición, descarte y restauración sólo para Admin.
 - [x] U4: Certificar roles admin/pmo/pm/consulta, navegación, pruebas, build, TypeScript, secretos y checkpoint final.
+
+## Cobertura y cumplimiento documental — 2026-09-25
+
+- [x] D0: Inventariar fuentes, estados, duplicados y huérfanos desde `bec4f06a` con lectura segura.
+- [ ] D1: Implementar clasificación determinista Abierto / Histórico / Por confirmar para proyectos y servicios.
+- [ ] D2: Implementar motor puro de requisitos, evidencia, cobertura, brechas y acciones.
+- [ ] D3: Crear cargador consolidado por lotes, filtros y paginación tRPC sin N+1.
+- [ ] D4: Rediseñar el reporte con KPIs, corte y filtros Abiertos / Históricos / Todos.
+- [ ] D5: Agregar resumen, brechas y detalle expandible con acciones contextuales.
+- [ ] D6: Conservar el historial técnico de cargas como pestaña secundaria y sin vacío engañoso.
+- [ ] D7: Mantener lectura para Admin/PMO/PM/Consulta y mutaciones sólo para Admin.
+- [ ] D8: Validar CCLA, Tanner, Staffing, Caja Los Andes, Ruta Pass, MaxAgro y Camanchaca.
+- [ ] D9: Certificar pruebas, build, TypeScript heredado, responsive, secretos, refs y checkpoint final.
