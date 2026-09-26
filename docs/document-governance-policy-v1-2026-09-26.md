@@ -68,3 +68,9 @@ Antes de aplicarla se guardó un respaldo con checksum en `/home/ubuntu/backups/
 La API `documentGovernance` permite consultar catálogo y expediente, cargar versiones con hash SHA-256, detectar duplicados, validar, rechazar, revocar, archivar lógicamente, autorizar excepciones y descargar mediante URL firmada. La carga verifica tamaño máximo de 25 MB, extensión, MIME y firma binaria. Cada nueva versión deja la anterior como `superseded` y crea una decisión `pending`; ninguna operación elimina físicamente artefactos o decisiones.
 
 La carga queda habilitada para Admin, PMO y PM asignado; la validación para Admin/PMO; `not_applicable` sólo para Admin con evidencia. El P&L sólo puede validarse con los seis controles financieros explícitos. La auditoría no registra base64, `fileKey` ni secretos.
+
+### R3 — backfill legacy completado
+
+El dry-run identificó 47 candidatos: 35 de proyectos y 12 de servicios. La importación creó 47 artefactos, 47 decisiones `pending` y 17 snapshots de plan con hitos. Cero artefactos fueron marcados `valid` y cero excepciones fueron creadas. Las versiones anteriores quedaron `superseded` cuando correspondía; no se borró ninguna fila legacy.
+
+Los tres servicios reales tienen referencias para contrato, SoW, propuesta y P&L, todas pendientes de revisión. En proyectos se importaron SoW y planes disponibles; contrato, propuesta y P&L permanecen como brechas cuando no existe un archivo dedicado. Un segundo dry-run arrojó `pending: 0`, demostrando idempotencia. El estado posterior quedó respaldado con checksum junto al backup de R1.

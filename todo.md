@@ -812,7 +812,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Q0: Congelar catálogo v1, defaults, roles, vigencia, P&L, plan con hitos y baseline `e661224`.
 - [x] Q1: Crear esquema aditivo para artefactos, decisiones, asociaciones, excepciones y snapshots.
 - [x] Q2: Implementar carga segura, hash, versionado, descarga protegida, validación, rechazo, revocación y archive.
-- [ ] Q3: Importar referencias legacy como pendientes/no confirmadas, sin validar ni borrar automáticamente.
+- [x] Q3: Importar referencias legacy como pendientes/no confirmadas, sin validar ni borrar automáticamente.
 - [ ] Q4: Unificar policy, read model, corte, estados y denominadores del reporte.
 - [ ] Q5: Aplicar readiness y gate transaccional a Inicialización de servicios recurrentes.
 - [ ] Q6: Incorporar los cinco requisitos y plan con hitos a proyectos nativos y vinculados.
