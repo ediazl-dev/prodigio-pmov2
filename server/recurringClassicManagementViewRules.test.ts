@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const listPage = readFileSync(new URL("../client/src/pages/RecurringServicesList.tsx", import.meta.url), "utf8");
 const dashboard = readFileSync(new URL("../client/src/pages/recurring/ClassicManagementDashboard.tsx", import.meta.url), "utf8");
+const tower = readFileSync(new URL("../client/src/pages/recurring/RecurringServicesDashboardV2.tsx", import.meta.url), "utf8");
 
 describe("vista clásica gerencial de servicios recurrentes", () => {
   it("sustituye el dashboard heredado y elimina la distribución por etapa", () => {
@@ -20,6 +21,16 @@ describe("vista clásica gerencial de servicios recurrentes", () => {
     expect(penalties).toBeGreaterThan(sla);
     expect(type).toBeGreaterThan(penalties);
     expect(table).toBeGreaterThan(type);
+  });
+
+  it("ubica el consolidado de cuatro dimensiones sólo en Clásico y antes del resumen final", () => {
+    const consolidated = dashboard.indexOf("<EvidenceTabs");
+    const table = dashboard.indexOf("Resumen por servicio");
+    expect(consolidated).toBeGreaterThan(0);
+    expect(table).toBeGreaterThan(consolidated);
+    expect(dashboard).toContain("Facturación, entregables, formalidad y operación JSM");
+    expect(tower).not.toContain("<EvidenceTabs");
+    expect(tower).not.toContain("FinancePanel");
   });
 
   it("expone contrato, facturación, incidentes mensuales y SLA aplicable sin cobros", () => {

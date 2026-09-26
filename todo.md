@@ -781,3 +781,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] G3: Incorporar KPIs gerenciales, tendencias, pendientes con SLA y resumen final por servicio.
 - [x] G4: Validar 3 servicios reales, monedas separadas, N/D, escritorio, móvil y pruebas focales.
 - [x] G5: Certificar suite completa, build, TypeScript heredado, secretos, refs y checkpoint final.
+
+## Consolidado recurrente sólo en vista Clásico — 2026-09-26
+
+- [x] T0: Confirmar `f6f274b0`, refs alineadas y bloque exacto en la captura.
+- [x] T1: Retirar Financiero, Entregables, Formalidad y Operación JSM del final de Torre V2.
+- [x] T2: Incorporar esas cuatro dimensiones completas en Clásico antes del resumen final por servicio.
+- [x] T3: Preservar telemetría en Torre V2, roles, N/D, multimoneda y navegación JSM.
+- [x] T4: Actualizar pruebas, validar escritorio/móvil, suite, build, TypeScript y checkpoint final.

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -12,11 +12,19 @@ import {
 } from "lucide-react";
 import type { RouterOutputs } from "@/lib/trpc";
 import {
+  buildActionQueue,
+  buildEvidenceTabs,
+  defaultEvidenceTab,
+  type SignalDomain,
+} from "./recurringDashboardV3ViewModel";
+import {
   buildClassicManagementModel,
   formatSlaMinutes,
   type ClassicCurrencyRow,
 } from "./classicManagementViewModel";
 import { RECURRING_SERVICE_TYPE_LABELS, RECURRING_SERVICE_TYPE_OPTIONS } from "@shared/recurringServiceTypes";
+import { EvidenceTabs } from "./components/EvidenceTabs";
+import { DeliverablesPanel, FinancePanel, FormalityPanel, OperationsPanel } from "./components/EvidencePanels";
 
 const C = {
   navy: "#0A1628",
@@ -215,14 +223,25 @@ export function ClassicManagementDashboard({
   data,
   legacy,
   onOpenService,
+  canManageJsm = false,
+  onConfigureJsm = () => undefined,
 }: {
   data: RouterOutputs["recurringServices"]["dashboardV2"];
   legacy: RouterOutputs["recurringServices"]["dashboardKpis"];
   onOpenService: (serviceId: number) => void;
+  canManageJsm?: boolean;
+  onConfigureJsm?: () => void;
 }) {
   const model = buildClassicManagementModel(data, legacy);
   const { operations } = model;
   const incidentMeasured = operations.summary.measuredServices > 0;
+  const evidenceQueue = buildActionQueue(data.matrix, { stageLabels: STAGE_LABELS });
+  const evidenceTabs = buildEvidenceTabs(data, evidenceQueue);
+  const [activeEvidenceTab, setActiveEvidenceTab] = useState<SignalDomain>(() => defaultEvidenceTab(evidenceTabs));
+  const tabByKey = Object.fromEntries(evidenceTabs.map(tab => [tab.key, tab])) as Record<
+    SignalDomain,
+    (typeof evidenceTabs)[number]
+  >;
 
   return (
     <div className="mb-8 space-y-5" data-testid="classic-management-dashboard">
@@ -380,7 +399,37 @@ export function ClassicManagementDashboard({
         </article>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section aria-labelledby="classic-consolidated-evidence-title" className="space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#175CD3]">Información consolidada de la cartera</p>
+          <h3 id="classic-consolidated-evidence-title" className="mt-1 text-base font-black text-slate-950">
+            Facturación, entregables, formalidad y operación JSM
+          </h3>
+          <p className="mt-1 text-[11px] leading-5 text-slate-600">
+            Este es el único cuerpo consolidado de estas cuatro dimensiones. La Torre V2 conserva foco en alertas, prioridades y servicios individuales.
+          </p>
+        </div>
+        <EvidenceTabs
+          tabs={evidenceTabs}
+          active={activeEvidenceTab}
+          onChange={setActiveEvidenceTab}
+          panels={{
+            finanzas: <FinancePanel data={data} tab={tabByKey.finanzas} />,
+            entregables: <DeliverablesPanel data={data} tab={tabByKey.entregables} />,
+            formalidad: <FormalityPanel data={data} tab={tabByKey.formalidad} />,
+            operacion: (
+              <OperationsPanel
+                data={data}
+                tab={tabByKey.operacion}
+                canManageJsm={canManageJsm}
+                onConfigureJsm={onConfigureJsm}
+              />
+            ),
+          }}
+        />
+      </section>
+
+      <section id="cartera" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4">
           <h3 className="text-sm font-black text-slate-950">Resumen por servicio</h3>
           <p className="mt-1 text-[11px] text-slate-600">Detalle final de contrato, facturación, incidentes, SLA, reportes y multas.</p>

@@ -8,8 +8,10 @@
  *   1. DecisionHeader   — contexto, cifras de primer orden, confianza
  *   2. ActionQueue      — un hallazgo por fila, lo que hay que hacer hoy
  *   3. PortfolioTable   — la cartera (antes "Matriz priorizada", antes al pie)
- *   4. EvidenceTabs     — Financiero / Entregables / Formalidad / Operación JSM
- *   5. SystemHealthStrip— telemetría del ETL, colapsada
+ *   4. SystemHealthStrip— telemetría del ETL, colapsada
+ *
+ * El consolidado Financiero / Entregables / Formalidad / Operación JSM vive
+ * exclusivamente en la vista Clásico, que es la superficie gerencial.
  *
  * Reglas que no se negocian:
  *   - N/D nunca se sustituye por 0 ni por un supuesto.
@@ -22,7 +24,6 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 import { countActiveFilters, type RecurringHealthKey } from "./recurringDashboardV2ViewModel";
@@ -30,16 +31,11 @@ import {
   buildActionQueue,
   buildConfidence,
   buildDecisionMetrics,
-  buildEvidenceTabs,
   buildPortfolioRows,
-  defaultEvidenceTab,
-  type SignalDomain,
 } from "./recurringDashboardV3ViewModel";
 
 import { ActionQueue } from "./components/ActionQueue";
 import { DecisionHeader } from "./components/DecisionHeader";
-import { EvidenceTabs } from "./components/EvidenceTabs";
-import { DeliverablesPanel, FinancePanel, FormalityPanel, OperationsPanel } from "./components/EvidencePanels";
 import { PortfolioTable } from "./components/PortfolioTable";
 import { SystemHealthStrip } from "./components/SystemHealthStrip";
 
@@ -56,7 +52,6 @@ function todayIso() {
 }
 
 export default function RecurringServicesDashboardV2() {
-  const [, navigate] = useLocation();
   const { user } = useAuth();
 
   const [cutOffDate, setCutOffDate] = useState(todayIso);
@@ -68,9 +63,6 @@ export default function RecurringServicesDashboardV2() {
   const [search, setSearch] = useState("");
 
   const [onlyCritical, setOnlyCritical] = useState(false);
-  /** null = todavía no la tocó el usuario; se usa la pestaña con hallazgos. */
-  const [tabOverride, setTabOverride] = useState<SignalDomain | null>(null);
-
   const filters = useMemo(
     () => ({ cutOffDate, clientName, status, serviceType, health, currency, search }),
     [cutOffDate, clientName, status, serviceType, health, currency, search],
@@ -165,17 +157,9 @@ export default function RecurringServicesDashboardV2() {
   const decisionMetrics = buildDecisionMetrics(data);
   const confidence = buildConfidence(data);
   const portfolioRows = buildPortfolioRows(matrix);
-  const evidenceTabs = buildEvidenceTabs(data, queueAll);
-  const activeTab = tabOverride ?? defaultEvidenceTab(evidenceTabs);
-
   const requiresAttention = kpis.healthCounts.critical + kpis.healthCounts.attention;
   const activeFilterCount = countActiveFilters(filters);
   const visibleLabel = `${metadata.totalAfterFilters} de ${metadata.totalBeforeFilters} servicios visibles`;
-
-  const tabByKey = Object.fromEntries(evidenceTabs.map(tab => [tab.key, tab])) as Record<
-    SignalDomain,
-    (typeof evidenceTabs)[number]
-  >;
 
   return (
     <div className="space-y-4 pb-8">
@@ -221,25 +205,6 @@ export default function RecurringServicesDashboardV2() {
         filterOptions={filterOptions}
         onClearFilters={clearFilters}
         activeFilterCount={activeFilterCount}
-      />
-
-      <EvidenceTabs
-        tabs={evidenceTabs}
-        active={activeTab}
-        onChange={setTabOverride}
-        panels={{
-          finanzas: <FinancePanel data={data} tab={tabByKey.finanzas} />,
-          entregables: <DeliverablesPanel data={data} tab={tabByKey.entregables} />,
-          formalidad: <FormalityPanel data={data} tab={tabByKey.formalidad} />,
-          operacion: (
-            <OperationsPanel
-              data={data}
-              tab={tabByKey.operacion}
-              canManageJsm={canRefreshJsm}
-              onConfigureJsm={() => navigate("/admin/jsm-spaces")}
-            />
-          ),
-        }}
       />
 
       <SystemHealthStrip

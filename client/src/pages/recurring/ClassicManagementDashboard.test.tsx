@@ -11,6 +11,8 @@ const data = {
   },
   kpis: {
     totalServices: 1,
+    activeServices: 1,
+    incidents: { availableServices: 1 },
     financeByCurrency: {
       UF: { currency: "UF", contracted: 120, scheduled: 120, invoiced: 60, pending: 60, overdue: 30, overdueItems: 1 },
     },
@@ -23,6 +25,25 @@ const data = {
       { month: "2026-08", currency: "UF", scheduled: 60, invoiced: 60, pending: 0, overdue: 0 },
       { month: "2026-09", currency: "UF", scheduled: 60, invoiced: 0, pending: 60, overdue: 30 },
     ],
+  },
+  financeAnalytics: {
+    summary: { reconciledServices: 1, verifiedInvoiceEvidence: 1 },
+    services: [
+      {
+        serviceId: 1,
+        clientName: "Cliente A",
+        serviceName: "Soporte Plataforma",
+        dealId: "1000",
+        reconciliationStatus: "missing_reference",
+        localCurrencies: [{ currency: "UF", scheduled: 120, invoiced: 60, overdue: 30 }],
+        corporateReference: null,
+      },
+    ],
+  },
+  deliverables: { periods: [] },
+  documents: {
+    summary: { present: 0, missing: 2, expiredOrRejected: 0, pendingValidation: 0 },
+    services: [],
   },
   operations: {
     summary: {
@@ -72,6 +93,7 @@ const data = {
       incidents: { availability: "available", total: 12, open: 1, criticalOpen: 0, highOpen: 1, overdueOpen: 1, unresolvedOver30Days: 0 },
       sla: { configuredRules: 1, firstResponseCompliance: 95, resolutionCompliance: 80 },
       reports: { due: 3, completedDue: 2, overdue: 1, deliveryRate: 66.7 },
+      healthSignals: [],
     },
   ],
 } as any;
@@ -116,7 +138,15 @@ describe("ClassicManagementDashboard", () => {
     expect(screen.getByText("Incidentes resueltos")).toBeTruthy();
     expect(screen.getByText("Pendientes operativos y SLA configurado")).toBeTruthy();
     expect(screen.getByText("Respuesta 30 min · Resolución 4 h")).toBeTruthy();
+    expect(screen.getByText("Información consolidada de la cartera")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Financiero/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Entregables/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Formalidad/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Operación JSM/ })).toBeTruthy();
     expect(screen.getByText("Resumen por servicio")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Operación JSM/ }));
+    expect(screen.getByText("Incidentes, antigüedad y cumplimiento SLA")).toBeTruthy();
     expect(screen.queryByText("Distribución por Etapa")).toBeNull();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Ver servicio" })[0]);

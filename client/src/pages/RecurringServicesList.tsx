@@ -209,6 +209,8 @@ export default function RecurringServicesList() {
           data={classicData}
           legacy={kpis}
           onOpenService={(serviceId) => navigate(`/recurring-services/${serviceId}`)}
+          canManageJsm={role === "admin" || role === "pmo"}
+          onConfigureJsm={() => navigate("/admin/jsm-spaces")}
         />
       )}
 

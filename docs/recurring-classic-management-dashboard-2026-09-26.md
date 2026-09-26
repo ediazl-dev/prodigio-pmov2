@@ -17,7 +17,8 @@ La vista Clásico priorizaba distribuciones administrativas y separaba poco las 
 5. **Pendientes operativos** por servicio con reglas SLA configuradas por prioridad; no se asigna una regla a un ticket cuando su prioridad no está disponible.
 6. Se conservan las tres cajas complementarias: **SLA medido, Multas y Distribución por tipo**.
 7. Se elimina **Distribución por Etapa**.
-8. La **tabla resumen por servicio queda al final**, con alternativa móvil en tarjetas.
+8. El detalle consolidado **Financiero, Entregables, Formalidad y Operación JSM** vive únicamente en Clásico; Torre V2 conserva alertas y priorización sin duplicar ese cuerpo.
+9. La **tabla resumen por servicio queda al final**, después del consolidado, con alternativa móvil en tarjetas.
 
 ## Fuentes deterministas
 

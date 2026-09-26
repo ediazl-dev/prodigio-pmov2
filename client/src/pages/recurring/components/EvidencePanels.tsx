@@ -1,10 +1,9 @@
 /**
  * Los cuatro paneles de evidencia.
  *
- * IMPORTANTE PARA QUIEN IMPLEMENTA: el contenido de estos paneles es, en su
- * mayoría, el MISMO markup que ya existe en RecurringServicesDashboardV2.tsx.
- * No se está rediseñando lo de adentro; se está moviendo de una pila de
- * secciones a pestañas, y se le está aplicando la regla de colapso en N/D.
+ * Estos paneles viven en la vista Clásico como detalle consolidado de cartera.
+ * Torre V2 conserva alertas y priorización, pero no vuelve a renderizar este
+ * bloque para evitar duplicidad de información.
  *
  * Lo único que cambia de fondo:
  * - OperationsPanel ya no pinta seis casillas en N/D; delega en EmptyDimension.
@@ -12,6 +11,7 @@
  *   hoy son dos secciones separadas mostrando la misma plata dos veces.
  */
 
+import React from "react";
 import { CalendarDays, FileWarning, CheckCircle2, DatabaseZap, Link2, ReceiptText, ShieldCheck, TrendingUp, WalletCards, HelpCircle } from "lucide-react";
 import { useLocation } from "wouter";
 import {

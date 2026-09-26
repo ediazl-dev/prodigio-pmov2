@@ -1,13 +1,12 @@
 /**
- * Zona 3 — Evidencia. Las cuatro secciones apiladas de hoy (Operación JSM,
- * Compromiso financiero, Analítica financiera, Entrega y aceptación) pasan a
- * ser cuatro pestañas.
+ * Consolidado gerencial de la vista Clásico. Agrupa Financiero, Entregables,
+ * Formalidad y Operación JSM en cuatro pestañas sin duplicarlas en Torre V2.
  *
  * La pestaña por defecto es la primera CON hallazgos, no siempre la primera de
  * la lista: la página se abre donde hay trabajo.
  */
 
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import type { EvidenceTab, SignalDomain } from "../recurringDashboardV3ViewModel";
 
 const BADGE_TONE: Record<EvidenceTab["tone"], string> = {
