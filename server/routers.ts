@@ -54,6 +54,7 @@ import {
 } from "./jiraPortfolioReportModel";
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
+import { documentGovernanceRouter } from "./documentGovernanceRouter";
 import { buildFinancialSyncHealth } from "./financialSyncHealth";
 import { getDriveCredentialStatus } from "./googleDriveServiceAccount";
 import { FINANCIAL_SYNC_TASK_UID_SETTING } from "./financialSyncSchedule";
@@ -7421,6 +7422,7 @@ export const appRouter = router({
   audit: auditRouter,
   financial: financialRouter,
   recurringServices: recurringServicesRouter,
+  documentGovernance: documentGovernanceRouter,
   portfolioConsole: portfolioConsoleRouter,
 });
 

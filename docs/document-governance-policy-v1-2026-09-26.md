@@ -62,3 +62,9 @@ El catálogo y los defaults quedaron congelados en código y pruebas sobre el ch
 Se creó la migración `0052_simple_thaddeus_ross.sql` con siete tablas nuevas: catálogo, artefactos, decisiones append-only, resoluciones de aplicabilidad, asociaciones, snapshots de plan y snapshots de gates. La migración no contiene `DROP`, `TRUNCATE`, `DELETE` ni `ALTER TABLE`.
 
 Antes de aplicarla se guardó un respaldo con checksum en `/home/ubuntu/backups/prodigio-pmo/2026-09-26-document-governance-r1/`. La base conservaba 12 proyectos, 3 servicios recurrentes, 12 documentos recurrentes y cero controles recurrentes. Después de la migración se verificaron las siete tablas y nueve entradas de catálogo. En R1 no se importaron documentos ni se activaron gates.
+
+### R2 — API transversal implementada
+
+La API `documentGovernance` permite consultar catálogo y expediente, cargar versiones con hash SHA-256, detectar duplicados, validar, rechazar, revocar, archivar lógicamente, autorizar excepciones y descargar mediante URL firmada. La carga verifica tamaño máximo de 25 MB, extensión, MIME y firma binaria. Cada nueva versión deja la anterior como `superseded` y crea una decisión `pending`; ninguna operación elimina físicamente artefactos o decisiones.
+
+La carga queda habilitada para Admin, PMO y PM asignado; la validación para Admin/PMO; `not_applicable` sólo para Admin con evidencia. El P&L sólo puede validarse con los seis controles financieros explícitos. La auditoría no registra base64, `fileKey` ni secretos.
