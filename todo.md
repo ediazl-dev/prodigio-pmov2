@@ -772,3 +772,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] V3: Hacer señales y acción principal claramente propias de cada servicio, sin perder filtros ni navegación.
 - [x] V4: Agregar pruebas de estructura, accesibilidad, jerarquía y ausencia de regresiones de datos.
 - [x] V5: Validar escritorio/móvil, suite, build, TypeScript heredado, secretos, refs y checkpoint final.
+
+## Vista clásica gerencial de servicios recurrentes — 2026-09-26
+
+- [x] G0: Confirmar `f68fd07f`, refs alineadas y limitaciones de la vista clásica en la captura.
+- [x] G1: Eliminar la caja de distribución por etapa y preservar SLA, Multas y Distribución por tipo.
+- [x] G2: Reutilizar el read model V2 para montos, facturación, incidentes, SLA y series mensuales.
+- [x] G3: Incorporar KPIs gerenciales, tendencias, pendientes con SLA y resumen final por servicio.
+- [x] G4: Validar 3 servicios reales, monedas separadas, N/D, escritorio, móvil y pruebas focales.
+- [ ] G5: Certificar suite completa, build, TypeScript heredado, secretos, refs y checkpoint final.

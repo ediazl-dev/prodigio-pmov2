@@ -74,6 +74,12 @@ export interface RecurringDashboardV2Source
     source?: "manual" | "jsm" | "import";
   }>;
   financialEvidence: Array<{ serviceId: number; evidenceType: string; status: string; amount: string | number; currency: string; occurredAt: Date | string }>;
+  slaConfigs: Array<RecurringServicesMetricsInput["slaConfigs"][number] & {
+    firstResponseMinutes?: number;
+    resolutionMinutes?: number;
+    coverageType?: string;
+    customCoverageDescription?: string | null;
+  }>;
   corporateBillingItems?: CorporateBillingItem[];
 }
 
@@ -528,6 +534,84 @@ function incidentTrend(source: RecurringDashboardV2Source) {
   return Array.from(buckets.values()).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
 }
 
+function operationsAnalytics(source: RecurringDashboardV2Source, services: ServiceMetricsV2[]) {
+  const measuredServices = services.filter(service => service.incidents.availability === "available");
+  const total = measuredServices.reduce((sum, service) => sum + (service.incidents.total ?? 0), 0);
+  const open = measuredServices.reduce((sum, service) => sum + (service.incidents.open ?? 0), 0);
+  const resolved = Math.max(0, total - open);
+  const priorityOrder = ["critical", "high", "medium", "low"];
+  const visibleServiceIds = new Set(services.map(service => service.id));
+  const latestSnapshotByServiceMonth = new Map<string, RecurringDashboardV2Source["jsmSnapshots"][number]>();
+
+  for (const snapshot of source.jsmSnapshots) {
+    if (!visibleServiceIds.has(snapshot.serviceId) || !["success", "partial"].includes(snapshot.status)) continue;
+    const capturedAt = isoDate(snapshot.capturedAt);
+    const key = `${snapshot.serviceId}:${capturedAt.slice(0, 7)}`;
+    const existing = latestSnapshotByServiceMonth.get(key);
+    if (!existing || capturedAt > isoDate(existing.capturedAt)) latestSnapshotByServiceMonth.set(key, snapshot);
+  }
+
+  const monthlyBuckets = new Map<string, { month: string; total: number; resolved: number; open: number; criticalOpen: number; overdueOpen: number; servicesMeasured: number }>();
+  for (const snapshot of Array.from(latestSnapshotByServiceMonth.values())) {
+    const month = isoDate(snapshot.capturedAt).slice(0, 7);
+    const bucket = monthlyBuckets.get(month) ?? { month, total: 0, resolved: 0, open: 0, criticalOpen: 0, overdueOpen: 0, servicesMeasured: 0 };
+    const snapshotTotal = snapshot.incidentCount ?? 0;
+    const snapshotOpen = snapshot.openIncidentCount ?? 0;
+    bucket.total += snapshotTotal;
+    bucket.open += snapshotOpen;
+    bucket.resolved += Math.max(0, snapshotTotal - snapshotOpen);
+    bucket.criticalOpen += snapshot.criticalOpenCount ?? 0;
+    bucket.overdueOpen += snapshot.overdueIncidentCount ?? 0;
+    bucket.servicesMeasured += 1;
+    monthlyBuckets.set(month, bucket);
+  }
+
+  const pendingServices = measuredServices
+    .filter(service => (service.incidents.open ?? 0) > 0)
+    .map(service => {
+      const slaRules = source.slaConfigs
+        .filter(rule => rule.serviceId === service.id)
+        .map(rule => ({
+          priority: rule.priority,
+          firstResponseMinutes: rule.firstResponseMinutes ?? null,
+          resolutionMinutes: rule.resolutionMinutes ?? null,
+          coverageType: rule.coverageType ?? null,
+          customCoverageDescription: rule.customCoverageDescription ?? null,
+        }))
+        .sort((a, b) => priorityOrder.indexOf(a.priority) - priorityOrder.indexOf(b.priority));
+      return {
+        serviceId: service.id,
+        clientName: service.clientName,
+        serviceName: service.serviceName,
+        observedAt: service.incidents.observedAt,
+        open: service.incidents.open ?? 0,
+        criticalOpen: service.incidents.criticalOpen ?? 0,
+        highOpen: service.incidents.highOpen ?? 0,
+        overdueOpen: service.incidents.overdueOpen ?? 0,
+        unresolvedOver30Days: service.incidents.unresolvedOver30Days ?? 0,
+        slaRules,
+      };
+    })
+    .sort((a, b) => b.criticalOpen - a.criticalOpen || b.overdueOpen - a.overdueOpen || b.open - a.open || a.clientName.localeCompare(b.clientName, "es"));
+
+  return {
+    summary: {
+      measuredServices: measuredServices.length,
+      unmeasuredServices: Math.max(0, services.length - measuredServices.length),
+      total,
+      resolved,
+      open,
+      resolutionRate: total > 0 ? Math.round((resolved / total) * 1000) / 10 : null,
+      criticalOpen: measuredServices.reduce((sum, service) => sum + (service.incidents.criticalOpen ?? 0), 0),
+      highOpen: measuredServices.reduce((sum, service) => sum + (service.incidents.highOpen ?? 0), 0),
+      overdueOpen: measuredServices.reduce((sum, service) => sum + (service.incidents.overdueOpen ?? 0), 0),
+      unresolvedOver30Days: measuredServices.reduce((sum, service) => sum + (service.incidents.unresolvedOver30Days ?? 0), 0),
+    },
+    monthly: Array.from(monthlyBuckets.values()).sort((a, b) => a.month.localeCompare(b.month)),
+    pendingServices,
+  };
+}
+
 function distinctSorted(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value?.trim())).map(value => value.trim()))).sort((a, b) => a.localeCompare(b, "es"));
 }
@@ -590,6 +674,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     .sort()
     .at(-1) ?? null;
   const financeAnalytics = financialAnalytics(filteredSource, metrics.services, options.cutOffDate);
+  const operations = operationsAnalytics(filteredSource, metrics.services);
   const deliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
   const documents = documentAnalytics(filteredSource, options.cutOffDate);
 
@@ -618,6 +703,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       incidents: incidentTrend(filteredSource),
     },
     financeAnalytics,
+    operations,
     deliverables,
     documents,
     matrix,

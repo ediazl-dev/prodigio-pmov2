@@ -58,7 +58,15 @@ const source: RecurringDashboardV2Source = {
     { id: 3, serviceId: 2, docType: "contrato" },
     { id: 4, serviceId: 2, docType: "sow" },
   ],
-  slaConfigs: [{ id: 1, serviceId: 1, priority: "high" }],
+  slaConfigs: [{
+    id: 1,
+    serviceId: 1,
+    priority: "high",
+    firstResponseMinutes: 30,
+    resolutionMinutes: 240,
+    coverageType: "24x7",
+    customCoverageDescription: null,
+  }],
   jsmSnapshots: [
     {
       serviceId: 1,
@@ -142,6 +150,16 @@ describe("buildRecurringServicesDashboardV2", () => {
     expect(result.kpis.incidents.overdueOpen).toBe(0);
     expect(result.kpis.incidents.unresolvedOver30Days).toBe(0);
     expect(result.metadata.latestJsmSnapshotAt).toBe("2026-03-15T10:00:00.000Z");
+    expect(result.operations.summary).toMatchObject({ total: 12, resolved: 11, open: 1, resolutionRate: 91.7 });
+    expect(result.operations.pendingServices[0]).toMatchObject({
+      serviceId: 1,
+      open: 1,
+      slaRules: [{ priority: "high", firstResponseMinutes: 30, resolutionMinutes: 240, coverageType: "24x7" }],
+    });
+    expect(result.operations.monthly).toEqual([
+      { month: "2026-02", total: 10, resolved: 8, open: 2, criticalOpen: 0, overdueOpen: 1, servicesMeasured: 1 },
+      { month: "2026-03", total: 12, resolved: 11, open: 1, criticalOpen: 0, overdueOpen: 0, servicesMeasured: 1 },
+    ]);
   });
 
   it("expresa snapshots antiguos como evidencia obsoleta y no como cumplimiento", () => {

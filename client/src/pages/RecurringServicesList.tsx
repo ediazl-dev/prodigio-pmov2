@@ -18,12 +18,13 @@ import {
   RECURRING_SERVICE_TYPE_OPTIONS,
 } from "@shared/recurringServiceTypes";
 import RecurringServicesDashboardV2 from "./recurring/RecurringServicesDashboardV2";
+import { ClassicManagementDashboard } from "./recurring/ClassicManagementDashboard";
 
 const C = {
   navy: "#0A1628", navy2: "#112240", navy3: "#1A3358",
   blue: "#1B4F8A", blue2: "#2563AB", accent: "#e91e8c",
   teal: "#0D7A6B", teal2: "#12A08D",
-  gold: "#B8860B", gold2: "#D4A017",
+  gold2: "#D4A017",
   red: "#B83232", green: "#1A7A4A",
   g100: "#F4F7FB", g150: "#EBF0F7", g200: "#D8E2EF", g300: "#B0BDD0", g400: "#7A8FA8",
 };
@@ -46,84 +47,7 @@ const STAGE_LABELS: Record<string, { label: string; color: string }> = {
 function fmtCurrency(val: number, currency = "USD") {
   if (val >= 1_000_000) return `${currency} ${(val / 1_000_000).toFixed(1)}M`;
   if (val >= 1_000) return `${currency} ${(val / 1_000).toFixed(1)}K`;
-  return `${currency} ${val.toLocaleString()}`;
-}
-
-function fmtMonth(m: string) {
-  const [y, mo] = m.split("-");
-  const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  return `${months[parseInt(mo) - 1]} ${y.slice(2)}`;
-}
-
-// Simple bar chart component
-function BillingChart({ data }: { data: { month: string; facturado: number; pendiente: number }[] }) {
-  const maxVal = Math.max(...data.map(d => d.facturado + d.pendiente), 1);
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 120, padding: "0 4px" }}>
-      {data.map((d) => {
-        const total = d.facturado + d.pendiente;
-        const h = (total / maxVal) * 100;
-        const invoicedH = total > 0 ? (d.facturado / total) * h : 0;
-        const pendingH = total > 0 ? (d.pendiente / total) * h : 0;
-        return (
-          <div key={d.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: 100 }}>
-              {pendingH > 0 && <div style={{ height: `${pendingH}%`, background: "#FCA5A5", borderRadius: "3px 3px 0 0", minHeight: 2 }} title={`Pendiente: ${d.pendiente.toLocaleString()}`} />}
-              {invoicedH > 0 && <div style={{ height: `${invoicedH}%`, background: C.gold2, minHeight: 2 }} title={`Facturado: ${d.facturado.toLocaleString()}`} />}
-              {total === 0 && <div style={{ height: 2, background: C.g200, borderRadius: 2 }} />}
-            </div>
-            <span style={{ fontSize: 9, color: C.g400, fontWeight: 600 }}>{fmtMonth(d.month)}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Donut chart component
-function DonutChart({ segments, size = 80 }: { segments: { value: number; color: string; label: string }[]; size?: number }) {
-  const total = segments.reduce((s, seg) => s + seg.value, 0);
-  if (total === 0) return <div style={{ width: size, height: size, borderRadius: "50%", background: C.g200 }} />;
-  const r = size / 2;
-  const strokeWidth = 12;
-  const innerR = r - strokeWidth;
-  let cumAngle = -90;
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {segments.filter(s => s.value > 0).map((seg, i) => {
-        const angle = (seg.value / total) * 360;
-        const startAngle = cumAngle;
-        cumAngle += angle;
-        const endAngle = cumAngle;
-        const startRad = (startAngle * Math.PI) / 180;
-        const endRad = (endAngle * Math.PI) / 180;
-        const x1 = r + innerR * Math.cos(startRad);
-        const y1 = r + innerR * Math.sin(startRad);
-        const x2 = r + innerR * Math.cos(endRad);
-        const y2 = r + innerR * Math.sin(endRad);
-        const outerX1 = r + r * Math.cos(startRad);
-        const outerY1 = r + r * Math.sin(startRad);
-        const outerX2 = r + r * Math.cos(endRad);
-        const outerY2 = r + r * Math.sin(endRad);
-        const largeArc = angle > 180 ? 1 : 0;
-        const d = `M ${outerX1} ${outerY1} A ${r} ${r} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${x2} ${y2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x1} ${y1} Z`;
-        return <path key={i} d={d} fill={seg.color} />;
-      })}
-      <circle cx={r} cy={r} r={innerR - 1} fill="white" />
-      <text x={r} y={r - 4} textAnchor="middle" style={{ fontSize: 14, fontWeight: 800, fill: C.navy }}>{total}</text>
-      <text x={r} y={r + 10} textAnchor="middle" style={{ fontSize: 8, fontWeight: 600, fill: C.g400 }}>TOTAL</text>
-    </svg>
-  );
-}
-
-// Progress bar component
-function ProgressBar({ value, color, height = 6 }: { value: number; color: string; height?: number }) {
-  return (
-    <div style={{ background: C.g200, borderRadius: height / 2, height, width: "100%", overflow: "hidden" }}>
-      <div style={{ background: color, height: "100%", width: `${Math.min(value, 100)}%`, borderRadius: height / 2, transition: "width .3s" }} />
-    </div>
-  );
+  return `${currency} ${val.toLocaleString("es-CL")}`;
 }
 
 export default function RecurringServicesList() {
@@ -138,7 +62,19 @@ export default function RecurringServicesList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
-  const [view, setView] = useState<"tower" | "dashboard" | "list">("tower");
+  const [view, setView] = useState<"tower" | "dashboard" | "list">(() => {
+    if (typeof window === "undefined") return "tower";
+    const requested = new URLSearchParams(window.location.search).get("view");
+    if (requested === "classic") return "dashboard";
+    if (requested === "list") return "list";
+    return "tower";
+  });
+  const classicInput = useMemo(() => ({ cutOffDate: new Date().toISOString().slice(0, 10) }), []);
+  const {
+    data: classicData,
+    isLoading: loadingClassic,
+    error: classicError,
+  } = trpc.recurringServices.dashboardV2.useQuery(classicInput, { enabled: view === "dashboard", staleTime: 30_000 });
 
   const filtered = useMemo(() => {
     if (!services) return [];
@@ -150,7 +86,7 @@ export default function RecurringServicesList() {
     });
   }, [services, search, statusFilter, typeFilter]);
 
-  const isLoading = loadingList || loadingKpis;
+  const isLoading = loadingList || loadingKpis || (view === "dashboard" && loadingClassic);
 
   return (
     <div style={{ background: C.g100, fontFamily: "'Inter', sans-serif", color: C.navy, minHeight: "100vh" }}>
@@ -225,7 +161,7 @@ export default function RecurringServicesList() {
         </div>
 
         {/* Top KPI strip */}
-        {view !== "tower" && kpis && (
+        {view === "list" && kpis && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginTop: 20 }}>
             {[
               { label: "Total Servicios", value: kpis.statusCounts.total, color: "#fff", icon: RefreshCw },
@@ -268,282 +204,20 @@ export default function RecurringServicesList() {
       {view === "tower" && <RecurringServicesDashboardV2 />}
 
       {/* Dashboard View */}
-      {!isLoading && view === "dashboard" && kpis && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-          {/* Billing Chart - spans 2 cols */}
-          <div style={{
-            gridColumn: "1 / 3", background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-            padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>Facturación Mensual</h3>
-                <p style={{ fontSize: 11, color: C.g400, marginTop: 2 }}>Últimos 6 meses</p>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                {[
-                  { label: "Facturado", color: C.gold2 },
-                  { label: "Pendiente de facturar", color: "#FCA5A5" },
-                ].map(l => (
-                  <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
-                    <span style={{ fontSize: 10, color: C.g400, fontWeight: 600 }}>{l.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <BillingChart data={kpis.billing.monthly} />
-            {/* Billing summary row */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.g200}` }}>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Contratado</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.navy }}>{fmtCurrency(kpis.totalContractValue, kpis.totalContractCurrency)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Programado</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{fmtCurrency(kpis.billing.overall.total, kpis.totalContractCurrency)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Facturado</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.teal }}>{fmtCurrency(kpis.billing.overall.invoiced, kpis.totalContractCurrency)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Pendiente de facturar</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.red }}>{fmtCurrency(kpis.billing.overall.pending, kpis.totalContractCurrency)}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Status Distribution */}
-          <div style={{
-            background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-            padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 16 }}>Distribución por Estado</h3>
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              <DonutChart segments={[
-                { value: kpis.statusCounts.activo, color: "#4ADE80", label: "Activos" },
-                { value: kpis.statusCounts.pausado, color: "#FBBF24", label: "Pausados" },
-                { value: kpis.statusCounts.completado, color: "#60A5FA", label: "Completados" },
-                { value: kpis.statusCounts.cancelado, color: "#F87171", label: "Cancelados" },
-              ]} size={90} />
-            </div>
-            <div style={{ display: "grid", gap: 6 }}>
-              {[
-                { label: "Activos", value: kpis.statusCounts.activo, color: "#4ADE80" },
-                { label: "Pausados", value: kpis.statusCounts.pausado, color: "#FBBF24" },
-                { label: "Completados", value: kpis.statusCounts.completado, color: "#60A5FA" },
-                { label: "Cancelados", value: kpis.statusCounts.cancelado, color: "#F87171" },
-              ].map(item => (
-                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: item.color }} />
-                    <span style={{ fontSize: 11, color: C.g400, fontWeight: 600 }}>{item.label}</span>
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: C.navy }}>{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* SLA Compliance Card */}
-          <div style={{
-            background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-            padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <Shield size={16} color={C.accent} />
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>SLA Compliance</h3>
-            </div>
-            <div style={{ textAlign: "center", marginBottom: 12 }}>
-              <div style={{
-                fontSize: 36, fontWeight: 800, letterSpacing: "-1px",
-                color: kpis.sla.complianceRate >= 80 ? C.green : kpis.sla.complianceRate >= 50 ? C.gold : C.red,
-              }}>
-                {kpis.sla.complianceRate}%
-              </div>
-              <div style={{ fontSize: 10, color: C.g400, fontWeight: 600 }}>
-                {kpis.sla.activeWithSla} de {kpis.sla.activeTotal} servicios activos con SLA configurado
-              </div>
-            </div>
-            <ProgressBar
-              value={kpis.sla.complianceRate}
-              color={kpis.sla.complianceRate >= 80 ? C.green : kpis.sla.complianceRate >= 50 ? C.gold : C.red}
-              height={8}
-            />
-            <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.g200}` }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.g400, marginBottom: 8 }}>Reglas SLA por Prioridad</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                {[
-                  { key: "critical", label: "Crítica", color: C.red },
-                  { key: "high", label: "Alta", color: "#F97316" },
-                  { key: "medium", label: "Media", color: C.gold2 },
-                  { key: "low", label: "Baja", color: C.teal2 },
-                ].map(p => (
-                  <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 10, color: p.color, fontWeight: 700 }}>{p.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: C.navy }}>{kpis.sla.byPriority[p.key] || 0}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Stage Distribution */}
-          <div style={{
-            background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-            padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 16 }}>Distribución por Etapa</h3>
-            <div style={{ display: "grid", gap: 8 }}>
-              {(["inicializacion", "plan_trabajo", "jira_setup", "ejecucion", "cierre"] as const).map(stage => {
-                const info = STAGE_LABELS[stage];
-                const count = kpis.stageCounts[stage] || 0;
-                const pct = kpis.statusCounts.total > 0 ? Math.round((count / kpis.statusCounts.total) * 100) : 0;
-                return (
-                  <div key={stage}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: C.g400 }}>{info.label}</span>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: C.navy }}>{count} <span style={{ fontSize: 9, color: C.g400 }}>({pct}%)</span></span>
-                    </div>
-                    <ProgressBar value={pct} color={info.color} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Penalties Card */}
-          <div style={{
-            background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-            padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <AlertTriangle size={16} color={kpis.penalties.total > 0 ? C.red : C.g400} />
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>Multas</h3>
-            </div>
-            {kpis.penalties.total === 0 ? (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <CheckCircle2 size={32} color={C.green} style={{ margin: "0 auto 8px" }} />
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.green }}>Sin multas registradas</div>
-              </div>
-            ) : (
-              <>
-                <div style={{ textAlign: "center", marginBottom: 12 }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: C.red }}>{kpis.penalties.total}</div>
-                  <div style={{ fontSize: 10, color: C.g400 }}>multas por {fmtCurrency(kpis.penalties.amount, kpis.totalContractCurrency)}</div>
-                </div>
-                <div style={{ display: "grid", gap: 4 }}>
-                  {[
-                    { key: "identificada", label: "Identificadas", color: "#FBBF24" },
-                    { key: "aplicada", label: "Aplicadas", color: C.red },
-                    { key: "disputada", label: "Disputadas", color: "#F97316" },
-                    { key: "resuelta", label: "Resueltas", color: C.green },
-                  ].map(ps => (
-                    <div key={ps.key} style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 10, color: ps.color, fontWeight: 700 }}>{ps.label}</span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: C.navy }}>{kpis.penalties.byStatus[ps.key] || 0}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Type Distribution */}
-          <div style={{
-            background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-            padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)",
-          }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 16 }}>Distribución por Tipo</h3>
-            <div style={{ display: "grid", gap: 8 }}>
-              {RECURRING_SERVICE_TYPE_OPTIONS.map(t => {
-                const count = kpis.typeCounts[t.value] || 0;
-                const pct = kpis.statusCounts.total > 0 ? Math.round((count / kpis.statusCounts.total) * 100) : 0;
-                return (
-                  <div key={t.value}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: C.g400 }}>{t.label}</span>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: C.navy }}>{count}</span>
-                    </div>
-                    <ProgressBar value={pct} color={t.color} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {!isLoading && view === "dashboard" && classicData && kpis && (
+        <ClassicManagementDashboard
+          data={classicData}
+          legacy={kpis}
+          onOpenService={(serviceId) => navigate(`/recurring-services/${serviceId}`)}
+        />
       )}
 
-      {/* Services Table (Dashboard view - per-service summary) */}
-      {!isLoading && view === "dashboard" && kpis && kpis.servicesSummary.length > 0 && (
-        <div style={{
-          background: "#fff", borderRadius: 12, border: `1px solid ${C.g200}`,
-          padding: "20px 24px", boxShadow: "0 1px 4px rgba(10,22,40,.04)", marginBottom: 24,
-        }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 16 }}>Resumen por Servicio</h3>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: `2px solid ${C.g200}` }}>
-                  {["Servicio", "Cliente", "Estado", "Etapa", "Programado", "Facturado", "Avance facturación", "SLA", "Multas"].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.g400, textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {kpis.servicesSummary.map((svc: any) => {
-                  const st = STATUS_CONFIG[svc.status] ?? STATUS_CONFIG.activo;
-                  const StIcon = st.icon;
-                  const stageInfo = STAGE_LABELS[svc.currentStage] ?? { label: svc.currentStage, color: C.g400 };
-                  return (
-                    <tr
-                      key={svc.id}
-                      onClick={() => navigate(`/recurring-services/${svc.id}`)}
-                      style={{ borderBottom: `1px solid ${C.g150}`, cursor: "pointer", transition: "background .15s" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = C.g100)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <td style={{ padding: "10px 10px", fontWeight: 700, color: C.navy }}>{svc.serviceName}</td>
-                      <td style={{ padding: "10px 10px", color: C.g400 }}>{svc.clientName}</td>
-                      <td style={{ padding: "10px 10px" }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: st.bg, color: st.fg, display: "inline-flex", alignItems: "center", gap: 3 }}>
-                          <StIcon size={9} /> {st.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "10px 10px" }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: `${stageInfo.color}15`, color: stageInfo.color }}>
-                          {stageInfo.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "10px 10px", fontWeight: 700, color: C.navy }}>{fmtCurrency(svc.billingTotal, svc.currency)}</td>
-                      <td style={{ padding: "10px 10px", fontWeight: 700, color: C.teal }}>{fmtCurrency(svc.billingInvoiced, svc.currency)}</td>
-                      <td style={{ padding: "10px 10px", width: 120 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <ProgressBar value={svc.billingProgress} color={svc.billingProgress >= 80 ? C.green : svc.billingProgress >= 50 ? C.gold2 : C.red} />
-                          <span style={{ fontSize: 10, fontWeight: 700, color: C.navy, minWidth: 28 }}>{svc.billingProgress}%</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "10px 10px" }}>
-                        {svc.hasSla ? (
-                          <Shield size={14} color={C.green} />
-                        ) : (
-                          <span style={{ fontSize: 9, color: C.g400 }}>Sin SLA</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 10px" }}>
-                        {svc.penaltiesCount > 0 ? (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: C.red }}>{svc.penaltiesCount} ({fmtCurrency(svc.penaltiesAmount, svc.currency)})</span>
-                        ) : (
-                          <span style={{ fontSize: 10, color: C.g400 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {!isLoading && view === "dashboard" && classicError && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+          <div className="flex items-center gap-2 font-black">
+            <XCircle size={18} /> No fue posible construir la vista gerencial clásica
           </div>
+          <p className="mt-2 text-sm">{classicError.message}</p>
         </div>
       )}
 
