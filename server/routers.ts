@@ -102,6 +102,7 @@ import {
   listExecutiveEvidenceProjects,
   restoreExecutiveEvidenceReceipt,
 } from "./executiveEvidenceAdmin";
+import { loadDocumentCoveragePortfolio } from "./documentCoverageSource";
 import { buildPortfolioConsoleFallback } from "./portfolioConsoleModel";
 import { GOVERNANCE_TRIGGER_CATALOG, isGovernanceTriggerCode } from "../shared/governanceTriggers";
 import {
@@ -6517,6 +6518,18 @@ const complianceRouter = router({
 
 // ==================== EXECUTIVE EVIDENCE ADMIN ROUTER ====================
 const executiveEvidenceAdminRouter = router({
+  coverage: protectedProcedure.input(z.object({
+    lifecycle: z.enum(["all", "open", "historical", "unconfirmed"]).default("open"),
+    entityType: z.enum(["all", "project", "recurring_service"]).default("all"),
+    coverageStatus: z.enum(["all", "gaps", "compliant", "pending_validation", "missing", "overdue", "not_applicable", "unconfirmed", "historical_gap"]).default("gaps"),
+    client: z.string().trim().max(255).optional(),
+    owner: z.string().trim().max(255).optional(),
+    search: z.string().trim().max(120).optional(),
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(10).max(100).default(20),
+    cutoffAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  })).query(({ input }) => loadDocumentCoveragePortfolio(input)),
+
   list: protectedProcedure.input(z.object({
     page: z.number().int().min(1).default(1),
     pageSize: z.number().int().min(10).max(100).default(20),

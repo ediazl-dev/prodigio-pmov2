@@ -96,6 +96,16 @@ describe("documentCoverageModel", () => {
     expect(result.activeActions).toHaveLength(3);
   });
 
+  it("no crea acciones para requisitos opcionales o por confirmar", () => {
+    const result = buildProjectDocumentCoverage({
+      ...projectBase,
+      recoveryPlanRequired: null,
+      recoveryPlans: [{ id: 40, recoveryStatus: "draft", dueDate: "2026-10-01", fileName: "plan.docx", createdAt: "2026-09-20" }],
+    });
+    expect(result.requirements.find(item => item.kind === "recovery_plan")).toMatchObject({ applicability: "unconfirmed", status: "pending_validation" });
+    expect(result.activeActions.some(action => action.requirementId.endsWith(":recovery"))).toBe(false);
+  });
+
   it("separa reportes aceptados, entregados y vencidos", () => {
     const result = buildServiceDocumentCoverage({
       entityType: "recurring_service",

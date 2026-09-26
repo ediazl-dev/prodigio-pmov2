@@ -180,7 +180,7 @@ function summarize(base: Omit<DocumentCoverageEntity, "coverage" | "requirements
     unconfirmed: requirements.filter(item => item.status === "unconfirmed").length,
     percentage: counted.length ? Math.round((compliant / counted.length) * 100) : null,
   };
-  const actionable = requirements.filter(item => ["missing", "overdue", "pending_validation"].includes(item.status));
+  const actionable = requirements.filter(item => item.applicability === "required" && ["missing", "overdue", "pending_validation"].includes(item.status));
   const activeActions: EvidenceAction[] = base.lifecycle === "open" ? actionable.map(item => ({
     id: `action:${item.id}`,
     requirementId: item.id,
