@@ -763,3 +763,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] C6: Actualizar dashboard, listado, detalle, ejecución, prompts IA y pruebas a ciclo Programado → Facturado.
 - [x] C7: Validar Camanchaca y demás servicios con fuente financiera; cero montos de cobro inventados.
 - [x] C8: Certificar suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.
+
+## Rediseño radical de Cartera de servicios — 2026-09-26
+
+- [x] V0: Confirmar `22d30666`, refs alineadas, árbol limpio y causa visual en la captura.
+- [x] V1: Convertir cada servicio en una tarjeta independiente con acento de salud, numeración e identidad inequívoca.
+- [x] V2: Reorganizar métricas en subpaneles de Facturación, Reportes, Formalidad y Operación, preservando N/D.
+- [x] V3: Hacer señales y acción principal claramente propias de cada servicio, sin perder filtros ni navegación.
+- [x] V4: Agregar pruebas de estructura, accesibilidad, jerarquía y ausencia de regresiones de datos.
+- [x] V5: Validar escritorio/móvil, suite, build, TypeScript heredado, secretos, refs y checkpoint final.
