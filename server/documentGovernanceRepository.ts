@@ -1,6 +1,7 @@
 import { and, desc, eq, max } from "drizzle-orm";
 import {
   documentArtifacts,
+  documentGateSnapshots,
   documentRequirementResolutions,
   documentValidationDecisions,
   documentWorkPlanSnapshots,
@@ -190,4 +191,34 @@ export async function saveDocumentWorkPlanSnapshot(input: {
   }
   const [result] = await db.insert(documentWorkPlanSnapshots).values({ ...input, milestones: input.milestones as any });
   return Number(result.insertId);
+}
+
+export async function saveDocumentGateSnapshot(input: {
+  entityType: DocumentGovernanceEntityType;
+  entityId: number;
+  gateCode: string;
+  policyVersion: string;
+  cutoffDate: string;
+  result: "pass" | "block" | "observation";
+  requirementSnapshot: unknown;
+  createdBy: number;
+  createdByName: string;
+}) {
+  const db = await requireDb();
+  const [existing] = await db
+    .select()
+    .from(documentGateSnapshots)
+    .where(and(
+      eq(documentGateSnapshots.entityType, input.entityType),
+      eq(documentGateSnapshots.entityId, input.entityId),
+      eq(documentGateSnapshots.gateCode, input.gateCode),
+    ))
+    .orderBy(desc(documentGateSnapshots.createdAt), desc(documentGateSnapshots.id))
+    .limit(1);
+  if (existing) return { id: existing.id, created: false };
+  const [result] = await db.insert(documentGateSnapshots).values({
+    ...input,
+    requirementSnapshot: input.requirementSnapshot as any,
+  });
+  return { id: Number(result.insertId), created: true };
 }

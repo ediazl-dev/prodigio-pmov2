@@ -12,7 +12,7 @@ import {
   deleteUser, getUserByEmail,
   createInvitation, getInvitationByToken, acceptInvitation, getPendingInvitations,
   getAllProjects, getProjectsByPm, getProjectById, getProjectByName, createProject, updateProject,
-  getProjectStages, updateProjectStage, unlockNextStage,
+  getProjectStages, updateProjectStage, unlockNextStage, completeProjectPlanningWithDocumentGate,
   getSowByProject, upsertSow,
   getRisksByProject, bulkInsertRisks, getConfirmedRisksByProject, bulkUpdateRiskConfirmed,
   getWbsByProject, bulkInsertWbs, updateWbsItemJiraKey,
@@ -55,6 +55,7 @@ import {
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
 import { documentGovernanceRouter } from "./documentGovernanceRouter";
+import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { buildFinancialSyncHealth } from "./financialSyncHealth";
 import { getDriveCredentialStatus } from "./googleDriveServiceAccount";
 import { FINANCIAL_SYNC_TASK_UID_SETTING } from "./financialSyncSchedule";
@@ -129,6 +130,51 @@ const adminOrPmoOrPm = protectedProcedure.use(({ ctx, next }) => {
 /** Helper to create audit log with user context */
 function audit(ctx: { user: { id: number; name: string | null; role: string } }, action: string, entity: string, entityId?: string | number | null, entityName?: string | null, details?: Record<string, any> | null) {
   return createAuditLog({ action, entity, entityId, entityName, userId: ctx.user.id, userName: ctx.user.name ?? "Unknown", userRole: ctx.user.role, details });
+}
+
+async function closeProjectPlanningWithGate(
+  ctx: { user: { id: number; name: string | null; role: string } },
+  projectId: number,
+) {
+  const readiness = await getDocumentGateReadiness({
+    entityType: "project",
+    entityId: projectId,
+    gateCode: "project_planning",
+  });
+  if (!readiness.canProceed) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `No se puede cerrar Planificación: ${readiness.blockers.map(item => `${item.label} (${item.status})`).join(", ")}.`,
+      cause: readiness,
+    });
+  }
+  const completion = await completeProjectPlanningWithDocumentGate({
+    projectId,
+    userId: ctx.user.id,
+    userName: ctx.user.name ?? "Unknown",
+    gate: {
+      gateCode: readiness.gateCode,
+      policyVersion: readiness.policyVersion,
+      cutoffAt: readiness.cutoffAt,
+      result: readiness.result,
+      requirementSnapshot: {
+        mode: readiness.mode,
+        ready: readiness.ready,
+        coverage: readiness.coverage,
+        blockers: readiness.blockers,
+        requirements: readiness.requirementSnapshot,
+      },
+    },
+  });
+  await audit(ctx, "document_gate_evaluated", "project", projectId, null, {
+    gateCode: readiness.gateCode,
+    mode: readiness.mode,
+    result: readiness.result,
+    ready: readiness.ready,
+    blockerCount: readiness.blockers.length,
+    snapshotId: completion.snapshotId,
+  });
+  return { readiness, completion };
 }
 
 async function requireJiraBaselineOperator(ctx: { user: { id: number; role: string } }, projectId: number) {
@@ -533,7 +579,8 @@ const stagesRouter = router({
     .query(async ({ input }) => getProjectStages(input.projectId)),
   complete: protectedProcedure.input(z.object({ projectId: z.number(), stageId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      await unlockNextStage(input.projectId, input.stageId);
+      if (input.stageId === "planning") await closeProjectPlanningWithGate(ctx, input.projectId);
+      else await unlockNextStage(input.projectId, input.stageId);
       await audit(ctx, "complete_stage", "stage", input.stageId, null, { projectId: input.projectId });
       return { success: true };
     }),
@@ -570,6 +617,17 @@ const stagesRouter = router({
         code: "BAD_REQUEST",
         message: "Debe confirmar que la información corresponde a lo acordado con el cliente.",
       });
+    }
+
+    if (input.stageId === "planning") {
+      const readiness = await getDocumentGateReadiness({ entityType: "project", entityId: input.projectId, gateCode: "project_planning" });
+      if (!readiness.canProceed) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `No se puede cerrar Planificación: ${readiness.blockers.map(item => `${item.label} (${item.status})`).join(", ")}.`,
+          cause: readiness,
+        });
+      }
     }
 
     // For SoW stage, verify that the SoW has been generated (no approval document required here)
@@ -736,7 +794,8 @@ const stagesRouter = router({
       await updateProject(input.projectId, { status: "completado" });
       await audit(ctx, "complete_project", "closure", input.projectId, null, { notes: input.notes });
     } else {
-      await unlockNextStage(input.projectId, input.stageId);
+      if (input.stageId === "planning") await closeProjectPlanningWithGate(ctx, input.projectId);
+      else await unlockNextStage(input.projectId, input.stageId);
       await audit(ctx, "formal_close_stage", input.stageId, input.projectId, null, { notes: input.notes });
     }
 
@@ -2932,7 +2991,7 @@ Cada epic: {"code": "E01", "title": "...", "phase": "construccion", "stories": [
       const section2HasJira = milestones.some((m: any) => m.jiraIssueKey);
       if (section2HasJira) {
         console.log(`[closeSection1] Both sections closed for project ${input.projectId}. Auto-completing planning stage.`);
-        await unlockNextStage(input.projectId, "planning");
+        await closeProjectPlanningWithGate(ctxClose1, input.projectId);
       }
     } catch (e: any) {
       console.warn(`[closeSection1] Could not auto-complete planning stage: ${e.message}`);
@@ -3371,7 +3430,7 @@ Solo JSON, sin texto adicional.`;
       const section1HasJira = wbsItems.some((w: any) => w.jiraIssueKey && w.issueLevel);
       if (section1HasJira) {
         console.log(`[closeSection2] Both sections closed for project ${input.projectId}. Auto-completing planning stage.`);
-        await unlockNextStage(input.projectId, "planning");
+        await closeProjectPlanningWithGate(ctxClose2, input.projectId);
       }
     } catch (e: any) {
       console.warn(`[closeSection2] Could not auto-complete planning stage: ${e.message}`);
@@ -3492,9 +3551,9 @@ Solo JSON, sin texto adicional.`;
 
   complete: protectedProcedure.input(z.object({ projectId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await unlockNextStage(input.projectId, "planning");
+      const gate = await closeProjectPlanningWithGate(ctx, input.projectId);
       await audit(ctx, "complete_stage", "planning", input.projectId);
-      return { success: true };
+      return { success: true, documentGate: gate.readiness, snapshotId: gate.completion.snapshotId };
     }),
 });
 

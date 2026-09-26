@@ -80,3 +80,11 @@ Los tres servicios reales tienen referencias para contrato, SoW, propuesta y P&L
 El portafolio canónico calcula por requisito presencia, validación, vigencia, aplicabilidad, versión activa, decisión y acción. Contrato, SoW, propuesta, P&L y plan permanecen separados. Los controles operacionales existentes —actas, minutas, recuperación, cierre y reportes periódicos— se conservan como requisitos complementarios sin contaminar el denominador base.
 
 Validación real al 26-sep-2026: 15 entidades, 72 requisitos base, 0 validados, 46 faltantes y 26 pendientes de validación. Los tres servicios tienen 4/4 archivos presentes y 0/4 validados. Ningún nombre de archivo o referencia Jira se cuenta como cumplimiento. El endpoint soporta filtros por ciclo de vida, entidad, estado, requisito, cliente, responsable, búsqueda, corte y paginación.
+
+### R5–R6 — readiness y gates implementados
+
+Los cierres de Inicialización recurrente y Planificación de proyectos consultan el mismo readiness canónico. El modo predeterminado es `observe`: informa bloqueadores y guarda snapshot, pero conserva la operación previa. `enforce` requiere una cohorte explícita por ID —o `*`— para impedir activaciones masivas accidentales. `off` permite rollback lógico sin borrar datos.
+
+El cierre de etapa, el desbloqueo de la siguiente y el snapshot de gate se escriben dentro de una misma transacción. Los reintentos son idempotentes. En recurrentes, Pipedrive continúa como bloqueador separado. En proyectos, los caminos genérico, formal, automático y manual de Planificación pasan por el mismo gate.
+
+El adaptador `snapshotProjectWorkPlan` genera una versión del plan desde hitos ejecutivos o WBS local sincronizado con Jira, calcula hash y la deja `pending`; nunca transforma Jira en contrato, propuesta o P&L ni valida automáticamente el plan.

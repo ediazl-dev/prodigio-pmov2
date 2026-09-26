@@ -3,7 +3,7 @@
  * Follows same patterns as server/db.ts — returns raw Drizzle rows.
  */
 import { eq, and, desc, asc } from "drizzle-orm";
-import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData } from "../drizzle/schema";
+import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData, documentGateSnapshots } from "../drizzle/schema";
 import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
@@ -624,6 +624,66 @@ export async function completeRecurringStage(serviceId: number, stageId: string,
   }
 }
 
+export async function completeRecurringStageWithDocumentGate(input: {
+  serviceId: number;
+  stageId: string;
+  userId: number;
+  userName: string;
+  gate: {
+    gateCode: string;
+    policyVersion: string;
+    cutoffAt: string;
+    result: "pass" | "block" | "observation";
+    requirementSnapshot: unknown;
+  };
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async tx => {
+    const [stage] = await tx.select().from(recurringServiceStages).where(and(
+      eq(recurringServiceStages.serviceId, input.serviceId),
+      eq(recurringServiceStages.stageId, input.stageId as any),
+    )).limit(1);
+    if (!stage) throw new Error("Etapa recurrente no encontrada.");
+    if (stage.status === "completed") {
+      const [existingSnapshot] = await tx.select({ id: documentGateSnapshots.id }).from(documentGateSnapshots).where(and(
+        eq(documentGateSnapshots.entityType, "recurring_service"),
+        eq(documentGateSnapshots.entityId, input.serviceId),
+        eq(documentGateSnapshots.gateCode, input.gate.gateCode),
+      )).orderBy(desc(documentGateSnapshots.createdAt), desc(documentGateSnapshots.id)).limit(1);
+      return { completed: false, snapshotId: existingSnapshot?.id ?? null, idempotent: true };
+    }
+    if (stage.status !== "in_progress") throw new Error("La etapa recurrente no está en progreso.");
+
+    const [snapshotResult] = await tx.insert(documentGateSnapshots).values({
+      entityType: "recurring_service",
+      entityId: input.serviceId,
+      gateCode: input.gate.gateCode,
+      policyVersion: input.gate.policyVersion,
+      cutoffDate: input.gate.cutoffAt,
+      result: input.gate.result,
+      requirementSnapshot: input.gate.requirementSnapshot as any,
+      createdBy: input.userId,
+      createdByName: input.userName,
+    });
+    await tx.update(recurringServiceStages).set({
+      status: "completed" as any,
+      completedAt: new Date(),
+      completedBy: input.userId,
+    }).where(and(eq(recurringServiceStages.serviceId, input.serviceId), eq(recurringServiceStages.stageId, input.stageId as any)));
+
+    const index = STAGE_ORDER.indexOf(input.stageId as any);
+    if (index >= 0 && index < STAGE_ORDER.length - 1) {
+      const nextStage = STAGE_ORDER[index + 1];
+      await tx.update(recurringServiceStages).set({ status: "in_progress" as any }).where(and(
+        eq(recurringServiceStages.serviceId, input.serviceId),
+        eq(recurringServiceStages.stageId, nextStage),
+      ));
+      await tx.update(recurringServices).set({ currentStage: nextStage as any }).where(eq(recurringServices.id, input.serviceId));
+    }
+    return { completed: true, snapshotId: Number(snapshotResult.insertId), idempotent: false };
+  });
+}
 // ─── Billing Months ──────────────────────────────────────────────────────────
 
 export async function getBillingMonths(serviceId: number) {

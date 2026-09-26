@@ -9,13 +9,14 @@ import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { createAuditLog } from "./db";
 import { buildJsmProjectUrls, createJiraSpace, createJiraIssue, CreateIssueInput, listJsmServiceDesks, searchJiraIssues } from "./jiraClient";
-import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, RecurringServiceJsmDbError } from "./recurringServicesDb";
+import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, completeRecurringStageWithDocumentGate, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, RecurringServiceJsmDbError } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSpace, listExistingJsmSpaces, preflightExistingJsmSpace, revalidateExistingJsmSpace, unlinkExistingJsmSpace } from "./jsmExistingSpaceLinkRunner";
 import { associateExistingJiraIssue, calculateJsmSetupReadiness, configureJsmIssueTypeMappings, confirmJsmSync, dryRunJsmSync, getJsmSyncConfiguration, JsmRecurringSyncError } from "./jsmRecurringSyncRunner";
 import { buildRecurringServicesDashboardV2 } from "./recurringServicesDashboardV2";
 import { reconcileRecurringBillingMonths } from "./recurringBillingReconciliation";
+import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
 import {
   getRecurringServiceForJsmRefresh,
@@ -761,9 +762,21 @@ Responde en español con formato JSON:
         code: "BAD_REQUEST",
         message: "Debe confirmar el Paso 1 (datos generales y plan de cobro) antes de cerrar",
       });
-    // Validate documents: at least one document uploaded
+    const readiness = await getDocumentGateReadiness({
+      entityType: "recurring_service",
+      entityId: input.serviceId,
+      gateCode: "recurring_initialization",
+    });
+    if (!readiness.canProceed) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `No se puede cerrar Inicialización: ${readiness.blockers.map(item => `${item.label} (${item.status})`).join(", ")}.`,
+        cause: readiness,
+      });
+    }
+    // Durante rollout observe/off se conserva el gate legacy; enforce lo reemplaza por los 4 requisitos canónicos.
     const docs = await getServiceDocuments(input.serviceId);
-    if (docs.length === 0)
+    if (readiness.mode !== "enforce" && docs.length === 0)
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Debe subir al menos un documento (propuesta, P&L, SoW o contrato)",
@@ -774,8 +787,30 @@ Responde en español con formato JSON:
         code: "BAD_REQUEST",
         message: "Debe sincronizar la información de Pipedrive antes de cerrar",
       });
-    await completeRecurringStage(input.serviceId, "inicializacion", ctx.user.id);
-    await audit(ctx, "stage_close", "recurring_service", input.serviceId, svc.serviceName, { stage: "inicializacion" });
+    const completion = await completeRecurringStageWithDocumentGate({
+      serviceId: input.serviceId,
+      stageId: "inicializacion",
+      userId: ctx.user.id,
+      userName: ctx.user.name ?? "Unknown",
+      gate: {
+        gateCode: readiness.gateCode,
+        policyVersion: readiness.policyVersion,
+        cutoffAt: readiness.cutoffAt,
+        result: readiness.result,
+        requirementSnapshot: {
+          mode: readiness.mode,
+          ready: readiness.ready,
+          coverage: readiness.coverage,
+          blockers: readiness.blockers,
+          requirements: readiness.requirementSnapshot,
+        },
+      },
+    });
+    await audit(ctx, "stage_close", "recurring_service", input.serviceId, svc.serviceName, {
+      stage: "inicializacion",
+      documentGate: { mode: readiness.mode, result: readiness.result, ready: readiness.ready, blockerCount: readiness.blockers.length, snapshotId: completion.snapshotId },
+    });
+    return { success: true, documentGate: readiness, snapshotId: completion.snapshotId };
   }),
 
   // ═══════════════════════════════════════════════════════════════════════════

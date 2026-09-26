@@ -1,11 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { DOCUMENT_ENTITY_TYPES, DOCUMENT_GOVERNANCE_POLICY_VERSION, DOCUMENT_REQUIREMENT_CODES } from "../shared/documentGovernance";
 import { protectedProcedure, router } from "./_core/trpc";
-import { createAuditLog, getProjectById } from "./db";
+import { createAuditLog, getExecutiveContractMilestones, getProjectById, getWbsByProject } from "./db";
 import { assessDocumentArtifactAccess, validateDocumentArtifactUpload, validateDocumentDecision } from "./documentArtifactPolicy";
 import { listDocumentGovernanceContext, listDocumentRequirementCatalog } from "./documentGovernanceDb";
 import { loadDocumentGovernancePortfolio } from "./documentGovernanceSource";
+import { getDocumentGateReadiness } from "./documentGateReadiness";
 import {
   appendDocumentValidationDecision,
   archiveDocumentArtifact,
@@ -67,8 +69,18 @@ function asBadRequest(error: unknown): never {
 }
 
 export const documentGovernanceRouter = router({
+  readiness: protectedProcedure
+    .input(z.object({
+      entityType: entityTypeSchema,
+      entityId: z.number().int().positive(),
+      gateCode: z.enum(["recurring_initialization", "project_planning"]),
+      cutoffAt: z.string().date().optional(),
+    }))
+    .query(({ input }) => getDocumentGateReadiness(input)),
+
   portfolio: protectedProcedure
     .input(z.object({
+      entityId: z.number().int().positive().optional(),
       lifecycle: z.enum(["all", "open", "historical", "unconfirmed"]).default("open"),
       entityType: z.enum(["all", ...DOCUMENT_ENTITY_TYPES]).default("all"),
       coverageStatus: z.enum(["all", "gaps", "compliant", "missing", "pending_validation", "expired", "rejected", "not_applicable", "unconfirmed"]).default("gaps"),
@@ -289,6 +301,81 @@ export const documentGovernanceRouter = router({
       } catch (error) {
         asBadRequest(error);
       }
+    }),
+
+  snapshotProjectWorkPlan: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const entity = await loadEntity("project", input.projectId);
+      assertAccess({ action: "upload", user: ctx.user, assignedPmId: entity.assignedPmId });
+      const project = await getProjectById(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado." });
+      const [executiveMilestones, wbs] = await Promise.all([
+        getExecutiveContractMilestones(input.projectId),
+        getWbsByProject(input.projectId),
+      ]);
+      const milestones = executiveMilestones.length
+        ? executiveMilestones.map(item => ({
+            key: item.milestoneCode,
+            title: item.title,
+            baselineDate: item.baselineDate ?? null,
+            plannedDate: item.jiraDueDate ?? null,
+            source: `executive_contract_milestones:${item.id}`,
+          }))
+        : wbs.filter(item => item.issueLevel === "milestone").map(item => ({
+            key: item.jiraIssueKey ?? item.taskCode ?? String(item.id),
+            title: item.taskName,
+            baselineDate: null,
+            plannedDate: null,
+            source: `wbs_tasks:${item.id}`,
+          }));
+      if (!milestones.length) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No existen hitos identificables para generar el snapshot del plan." });
+      }
+      const normalized = [...milestones].sort((left, right) => left.key.localeCompare(right.key));
+      const sha256 = createHash("sha256").update(JSON.stringify({ projectId: input.projectId, milestones: normalized })).digest("hex");
+      const duplicate = await findDocumentArtifactBySha({ entityType: "project", entityId: input.projectId, requirementCode: "work_plan_milestones", sha256 });
+      if (duplicate) return { artifactId: duplicate.id, snapshotId: null, duplicate: true, milestoneCount: normalized.length };
+      const sourceReference = JSON.stringify({
+        source: executiveMilestones.length ? "executive_contract_milestones" : "wbs_tasks",
+        jiraProjectKey: project.jiraProjectKey ?? null,
+        note: "Snapshot generado desde datos locales Jira/WBS; requiere validación humana para acreditar cumplimiento.",
+      });
+      const created = await createDocumentArtifact({
+        entityType: "project",
+        entityId: input.projectId,
+        requirementCode: "work_plan_milestones",
+        sourceKind: "jira_snapshot",
+        sourceReference,
+        fileName: `Plan de trabajo · snapshot ${project.jiraProjectKey ?? `PMO-${input.projectId}`}`,
+        fileUrl: null,
+        fileKey: null,
+        mimeType: "application/json",
+        sizeBytes: Buffer.byteLength(JSON.stringify(normalized)),
+        sha256,
+        observedAt: new Date(),
+        uploadedBy: ctx.user.id,
+        uploadedByName: ctx.user.name ?? "Unknown",
+      });
+      const snapshotId = await saveDocumentWorkPlanSnapshot({
+        artifactId: created.artifactId,
+        entityType: "project",
+        entityId: input.projectId,
+        sourceType: executiveMilestones.length ? "combined" : "jira",
+        sourceReference,
+        milestoneCount: normalized.length,
+        milestones: normalized,
+        createdBy: ctx.user.id,
+        createdByName: ctx.user.name ?? "Unknown",
+      });
+      await audit(ctx.user, "document_work_plan_snapshot", "project", input.projectId, entity.name, {
+        artifactId: created.artifactId,
+        snapshotId,
+        milestoneCount: normalized.length,
+        source: executiveMilestones.length ? "executive_contract_milestones" : "wbs_tasks",
+        validation: "pending",
+      });
+      return { artifactId: created.artifactId, snapshotId, duplicate: false, milestoneCount: normalized.length };
     }),
 
   download: protectedProcedure

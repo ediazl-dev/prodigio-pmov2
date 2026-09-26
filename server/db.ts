@@ -10,7 +10,7 @@ import {
   executiveProjectSources, executiveContractMilestones, executiveMilestoneAcceptances, executiveMeetingMinutes,
   executiveCommitments, executiveRequirements, executiveRecoveryPlans, executiveGovernanceAssignments,
   executiveFinancialSnapshots, executiveDashboardSnapshots, executiveVerdictReviews,
-  jiraProjectOnboardings, jiraEntityMappings, jiraSyncLogs, jiraImportExceptions,
+  jiraProjectOnboardings, jiraEntityMappings, jiraSyncLogs, jiraImportExceptions, documentGateSnapshots,
   InsertUser, InsertProject, InsertSowDocument, InsertRisk, InsertWbsTask, InsertSowVersion,
   InsertStageDeadline, InsertStageOpening, InsertHoliday,
   InsertStageDeadlineExtension, InsertDeadlineNotification, InsertStageApproval, InsertStageClosure, InsertJiraSpace, InsertRiskVersion, InsertAuditLog,
@@ -307,6 +307,59 @@ export async function unlockNextStage(projectId: number, completedStageId: strin
   await updateProjectStage(projectId, completedStageId, { status: "completed", progress: 100, completedAt: new Date() });
   await updateProjectStage(projectId, nextStage, { status: "in_progress" });
   await updateProject(projectId, { currentStage: nextStage as any });
+}
+
+export async function completeProjectPlanningWithDocumentGate(input: {
+  projectId: number;
+  userId: number;
+  userName: string;
+  gate: {
+    gateCode: string;
+    policyVersion: string;
+    cutoffAt: string;
+    result: "pass" | "block" | "observation";
+    requirementSnapshot: unknown;
+  };
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async tx => {
+    const [stage] = await tx.select().from(projectStages).where(and(
+      eq(projectStages.projectId, input.projectId),
+      eq(projectStages.stageId, "planning"),
+    )).limit(1);
+    if (!stage) throw new Error("Etapa de Planificación no encontrada.");
+    if (stage.status === "completed") {
+      const [existingSnapshot] = await tx.select({ id: documentGateSnapshots.id }).from(documentGateSnapshots).where(and(
+        eq(documentGateSnapshots.entityType, "project"),
+        eq(documentGateSnapshots.entityId, input.projectId),
+        eq(documentGateSnapshots.gateCode, input.gate.gateCode),
+      )).orderBy(desc(documentGateSnapshots.createdAt), desc(documentGateSnapshots.id)).limit(1);
+      return { completed: false, snapshotId: existingSnapshot?.id ?? null, idempotent: true };
+    }
+    if (stage.status !== "in_progress") throw new Error("La etapa de Planificación no está en progreso.");
+    const [snapshotResult] = await tx.insert(documentGateSnapshots).values({
+      entityType: "project",
+      entityId: input.projectId,
+      gateCode: input.gate.gateCode,
+      policyVersion: input.gate.policyVersion,
+      cutoffDate: input.gate.cutoffAt,
+      result: input.gate.result,
+      requirementSnapshot: input.gate.requirementSnapshot as any,
+      createdBy: input.userId,
+      createdByName: input.userName,
+    });
+    await tx.update(projectStages).set({ status: "completed", progress: 100, completedAt: new Date(), updatedAt: new Date() }).where(and(
+      eq(projectStages.projectId, input.projectId),
+      eq(projectStages.stageId, "planning"),
+    ));
+    await tx.update(projectStages).set({ status: "in_progress", updatedAt: new Date() }).where(and(
+      eq(projectStages.projectId, input.projectId),
+      eq(projectStages.stageId, "design"),
+    ));
+    await tx.update(projects).set({ currentStage: "design", updatedAt: new Date() }).where(eq(projects.id, input.projectId));
+    return { completed: true, snapshotId: Number(snapshotResult.insertId), idempotent: false };
+  });
 }
 
 // ==================== SOW ====================

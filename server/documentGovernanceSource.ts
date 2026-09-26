@@ -18,6 +18,7 @@ import {
 } from "./documentGovernanceModel";
 
 export type DocumentGovernancePortfolioQuery = {
+  entityId?: number;
   lifecycle?: "all" | "open" | "historical" | "unconfirmed";
   entityType?: "all" | "project" | "recurring_service";
   coverageStatus?: "all" | "gaps" | "compliant" | CanonicalDocumentStatus;
@@ -65,6 +66,7 @@ export function filterDocumentGovernanceEntities(entities: CanonicalDocumentEnti
   const requirementCode = query.requirementCode ?? "all";
   const search = String(query.search ?? "").trim().toLocaleLowerCase("es-CL");
   return entities
+    .filter(entity => !query.entityId || entity.entityId === query.entityId)
     .filter(entity => lifecycle === "all" || entity.lifecycle === lifecycle)
     .filter(entity => entityType === "all" || entity.entityType === entityType)
     .filter(entity => !query.client || entity.clientName === query.client)
