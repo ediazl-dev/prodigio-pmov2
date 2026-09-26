@@ -755,11 +755,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Servicios recurrentes: ciclo hasta Facturado y evidencia de multas — 2026-09-25
 
 - [x] C0: Confirmar `6655652d`, refs alineadas, alcance completo, datos reales y respaldo recuperable.
-- [ ] C1: Retirar `Cobrado`, `Pagado`, `CxC` y `Avance de cobro` de contratos, modelos y pantallas recurrentes.
-- [ ] C2: Tratar estados históricos `pagado` sólo como compatibilidad equivalente a `facturado`, sin exponer cobro.
-- [ ] C3: Incorporar archivo probatorio, fecha, descripción, monto, moneda y estado a las multas.
-- [ ] C4: Agregar cuerpo de multas al detalle con carga segura, listado, descarga y control de roles.
-- [ ] C5: Mantener el flujo de cierre compatible y reutilizar la misma captura de multa, sin duplicar fuentes.
-- [ ] C6: Actualizar dashboard, listado, detalle, ejecución, prompts IA y pruebas a ciclo Programado → Facturado.
+- [x] C1: Retirar `Cobrado`, `Pagado`, `CxC` y `Avance de cobro` de contratos, modelos y pantallas recurrentes.
+- [x] C2: Tratar estados históricos `pagado` sólo como compatibilidad equivalente a `facturado`, sin exponer cobro.
+- [x] C3: Incorporar archivo probatorio, fecha, descripción, monto, moneda y estado a las multas.
+- [x] C4: Agregar cuerpo de multas al detalle con carga segura, listado, descarga y control de roles.
+- [x] C5: Mantener el flujo de cierre compatible y reutilizar la misma captura de multa, sin duplicar fuentes.
+- [x] C6: Actualizar dashboard, listado, detalle, ejecución, prompts IA y pruebas a ciclo Programado → Facturado.
 - [ ] C7: Validar Camanchaca y demás servicios con fuente financiera; cero montos de cobro inventados.
 - [ ] C8: Certificar suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.

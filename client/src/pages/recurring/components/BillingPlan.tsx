@@ -1,5 +1,5 @@
 /**
- * Plan de cobro con la plata a la vista.
+ * Plan de facturación con montos y vencimientos visibles.
  *
  * Hoy este bloque muestra seis cuadraditos de 28×28 con el número del mes y el
  * total del contrato. No dice cuánto está vencido, desde cuándo, ni qué hacer,
@@ -27,10 +27,6 @@ const STATE_SKIN: Record<BillingRowState, { badge: string; cta: string }> = {
     badge: "border-[#B2DDFF] bg-[#EFF6FF] text-[#175CD3]",
     cta: "border-[#B2DDFF] bg-[#EFF6FF] text-[#175CD3]",
   },
-  cobrada: {
-    badge: "border-[#ABEFC6] bg-[#ECFDF3] text-[#067647]",
-    cta: "border-slate-300 bg-white text-slate-700",
-  },
   programada: {
     badge: "border-slate-300 bg-slate-100 text-slate-600",
     cta: "border-slate-300 bg-white text-slate-700",
@@ -46,7 +42,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
   if (!plan.hasRows) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-[15px] font-black text-slate-950">Plan de cobro</h2>
+        <h2 className="text-[15px] font-black text-slate-950">Plan de facturación</h2>
         <p className="mt-2 text-[12.5px] text-slate-700">
           No configurado. Sin cuotas no hay vencimientos que medir y el servicio no aporta señal financiera.
         </p>
@@ -61,7 +57,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
       <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 px-5 py-3.5">
         <div>
-          <h2 className="text-[15px] font-black text-slate-950">Plan de cobro</h2>
+          <h2 className="text-[15px] font-black text-slate-950">Plan de facturación</h2>
           <p className="mt-0.5 text-[11px] text-slate-600">
             {plan.rows.length} cuota{plan.rows.length === 1 ? "" : "s"}
             {overdueItems > 0 && ` · ${overdueItems} vencida${overdueItems === 1 ? "" : "s"}`}
@@ -72,7 +68,6 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
           <div key={total.currency} className="flex flex-wrap items-center gap-5">
             <Figure label="Contratado" value={total.contractedLabel} />
             <Figure label="Facturado" value={total.invoicedLabel} className="text-[#175CD3]" />
-            <Figure label="Cobrado" value={total.collectedLabel} className="text-[#067647]" />
             <div className="border-l border-slate-200 pl-5 text-right">
               <p className="text-[9px] font-bold uppercase tracking-wider text-[#B42318]">Vencido</p>
               <p className="font-mono text-[19px] font-black text-[#B42318]">{total.overdueLabel}</p>

@@ -1,10 +1,9 @@
 /**
  * View model del detalle de un servicio recurrente.
  *
- * Reglas heredadas del contrato de métricas 2.0, replicadas aquí porque el
- * plan de cobro se pinta desde `getById` y no desde el motor:
- *   - "Facturado" = cuotas en estado facturado O pagado.
- *   - "Cobrado"   = solo cuotas pagadas.
+ * Reglas del contrato de métricas 2.1:
+ *   - El ciclo financiero termina en "Facturado".
+ *   - El estado histórico `pagado` se normaliza a facturado sin afirmar cobro.
  *   - "Vencido"   = cuota pendiente cuya fecha de vencimiento ya pasó el corte.
  *   - Nunca se suman monedas distintas.
  *   - Una cuota sin fecha de vencimiento NO puede estar vencida: se marca
@@ -20,11 +19,10 @@ export type ServiceStage = ServiceByIdOutput["stages"][number];
 export type ServiceDocument = ServiceByIdOutput["documents"][number];
 
 /* ────────────────────────────────────────────────────────────────────────── */
-/* Plan de cobro, con la plata que hoy no se ve                               */
+/* Plan de facturación, con la evidencia que hoy no se ve                     */
 /* ────────────────────────────────────────────────────────────────────────── */
 
 export type BillingRowState =
-  | "cobrada"
   | "facturada"
   | "vencida"
   | "por_vencer"
@@ -52,12 +50,10 @@ export interface BillingCurrencyTotals {
   currency: string;
   contracted: number;
   invoiced: number;
-  collected: number;
   overdue: number;
   overdueItems: number;
   contractedLabel: string;
   invoicedLabel: string;
-  collectedLabel: string;
   overdueLabel: string;
 }
 
@@ -72,7 +68,6 @@ export interface BillingPlan {
 }
 
 const STATE_LABEL: Record<BillingRowState, string> = {
-  cobrada: "Cobrada",
   facturada: "Facturada",
   vencida: "Vencida",
   por_vencer: "Por vencer",
@@ -96,8 +91,7 @@ export function buildBillingPlan(
       const days = month.dueDate ? daysBetween(month.dueDate, cutOffDate) : null;
 
       let state: BillingRowState;
-      if (month.status === "pagado") state = "cobrada";
-      else if (month.status === "facturado") state = "facturada";
+      if (month.status === "facturado" || String(month.status) === "pagado") state = "facturada";
       else if (!month.dueDate) state = "sin_fecha";
       else if (days !== null && days > 0) state = "vencida";
       else if (days !== null && days > -15) state = "por_vencer";
@@ -130,18 +124,15 @@ export function buildBillingPlan(
         currency: row.currency,
         contracted: 0,
         invoiced: 0,
-        collected: 0,
         overdue: 0,
         overdueItems: 0,
         contractedLabel: "",
         invoicedLabel: "",
-        collectedLabel: "",
         overdueLabel: "",
       };
 
     entry.contracted += row.amount;
-    if (row.state === "facturada" || row.state === "cobrada") entry.invoiced += row.amount;
-    if (row.state === "cobrada") entry.collected += row.amount;
+    if (row.state === "facturada") entry.invoiced += row.amount;
     if (row.state === "vencida") {
       entry.overdue += row.amount;
       entry.overdueItems += 1;
@@ -154,7 +145,6 @@ export function buildBillingPlan(
       ...entry,
       contractedLabel: formatMoney(entry.contracted, entry.currency),
       invoicedLabel: formatMoney(entry.invoiced, entry.currency),
-      collectedLabel: formatMoney(entry.collected, entry.currency),
       overdueLabel: formatMoney(entry.overdue, entry.currency),
     }))
     .sort((a, b) => a.currency.localeCompare(b.currency, "es"));
@@ -195,10 +185,7 @@ function noteFor(state: BillingRowState, days: number | null, missingDueDate: bo
       note = "Sin fecha de vencimiento: nunca se contará como vencida";
       break;
     case "facturada":
-      note = "Facturada, pendiente de cobro";
-      break;
-    case "cobrada":
-      note = "Cobrada";
+      note = "Facturada según la evidencia financiera disponible";
       break;
     default:
       note = "Sin acción requerida todavía";
@@ -207,7 +194,7 @@ function noteFor(state: BillingRowState, days: number | null, missingDueDate: bo
 }
 
 function actionFor(state: BillingRowState): string | null {
-  if (["vencida", "por_vencer", "facturada", "sin_fecha"].includes(state)) return "Revisar cuota";
+  if (["vencida", "por_vencer", "sin_fecha"].includes(state)) return "Revisar cuota";
   return null;
 }
 

@@ -40,8 +40,6 @@ function currency(code: string, overdue: number, contracted: number, items: numb
     contracted,
     scheduled: contracted,
     invoiced: 0,
-    collected: 0,
-    accountsReceivable: 0,
     pending: overdue,
     overdue,
     overdueItems: items,
@@ -98,9 +96,9 @@ describe("overdueBreakdown", () => {
     expect(result.percentOfContracted).toBeNull();
   });
 
-  it("devuelve 'Sin vencidos' cuando no hay saldo vencido", () => {
+  it("devuelve 'Sin pendientes vencidos' cuando no hay facturación vencida", () => {
     const result = overdueBreakdown({ USD: currency("USD", 0, 500, 0) });
-    expect(result.label).toBe("Sin vencidos");
+    expect(result.label).toBe("Sin pendientes vencidos");
     expect(result.sortKey).toBe(0);
   });
 });
@@ -143,7 +141,7 @@ describe("buildActionQueue", () => {
   });
 
   it("asigna una acción a cada código conocido y un fallback al resto", () => {
-    expect(specForSignal("OVERDUE_BILLING").action).toBe("Gestionar cobro");
+    expect(specForSignal("OVERDUE_BILLING").action).toBe("Gestionar facturación");
     expect(specForSignal("CODIGO_NUEVO_QUE_NO_EXISTE").action).toBe("Abrir servicio");
     expect(specForSignal("CODIGO_NUEVO_QUE_NO_EXISTE").domain).toBe("operacion");
   });

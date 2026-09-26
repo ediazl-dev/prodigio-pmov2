@@ -103,7 +103,7 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
       <div className="border-b border-slate-200 p-5 sm:p-6 xl:border-b-0 xl:border-r">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-            <TrendingUp size={16} className="text-[#175CD3]" /> Programado vs. facturado y cobrado
+            <TrendingUp size={16} className="text-[#175CD3]" /> Programado vs. facturado
           </div>
           <span className="text-[10px] font-semibold text-slate-600">Hasta {formatCutOffDate(metadata.cutOffDate)}</span>
         </div>
@@ -119,7 +119,7 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
                   </span>
                 )}
               </div>
-              <div className="mt-2.5 grid grid-cols-3 gap-2">
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
                 <div>
                   <p className="text-[9px] font-bold uppercase text-slate-500">Contratado</p>
                   <p className="mt-0.5 font-mono text-[13px] font-black text-slate-950">
@@ -132,15 +132,9 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
                     {formatRecurringMoney(row.invoiced, row.currency)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold uppercase text-slate-500">Cobrado</p>
-                  <p className="mt-0.5 font-mono text-[13px] font-black text-[#067647]">
-                    {formatRecurringMoney(row.collected, row.currency)}
-                  </p>
-                </div>
               </div>
               <div className="mt-2.5 flex justify-between text-[10px] font-semibold text-slate-600">
-                <span>CxC {formatRecurringMoney(row.accountsReceivable, row.currency)}</span>
+                <span>Pendiente de facturar {formatRecurringMoney(row.pending, row.currency)}</span>
                 <span className={row.overdue > 0 ? "text-[#B42318]" : ""}>
                   Vencido {formatRecurringMoney(row.overdue, row.currency)}
                 </span>
@@ -156,7 +150,7 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
         ) : (
           <div className="mt-4 max-h-[280px] space-y-2.5 overflow-y-auto pr-1">
             {trends.finance.map(item => {
-              const maxValue = Math.max(item.scheduled, item.invoiced, item.collected, 1);
+              const maxValue = Math.max(item.scheduled, item.invoiced, 1);
               return (
                 <div key={`${item.month}-${item.currency}`} className="rounded-xl border border-slate-200 p-3">
                   <div className="flex items-center justify-between">
@@ -172,7 +166,6 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
                       [
                         ["Programado", item.scheduled, "#64748B"],
                         ["Facturado", item.invoiced, "#175CD3"],
-                        ["Cobrado", item.collected, "#12A08D"],
                       ] as const
                     ).map(([label, value, color]) => (
                       <div key={label} className="grid grid-cols-[68px_1fr_auto] items-center gap-2">
@@ -199,10 +192,9 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
           <div className="flex items-center gap-2 text-sm font-black text-slate-900">
             <Link2 size={16} className="text-[#E91E8C]" /> Reconciliación con la fuente corporativa
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Stat label="Conciliados" value={`${financeAnalytics.summary.reconciledServices}/${data.kpis.totalServices}`} />
             <Stat label="Fact. verif." value={String(financeAnalytics.summary.verifiedInvoiceEvidence)} />
-            <Stat label="Pagos verif." value={String(financeAnalytics.summary.verifiedPaymentEvidence)} />
           </div>
         </div>
 
@@ -238,9 +230,7 @@ export function FinancePanel({ data, tab }: { data: DashboardV2Data; tab: Eviden
                         <b className="text-right font-mono text-slate-900">{formatRecurringMoney(row.scheduled, row.currency)}</b>
                         <span className="text-slate-600">Facturado</span>
                         <b className="text-right font-mono text-[#175CD3]">{formatRecurringMoney(row.invoiced, row.currency)}</b>
-                        <span className="text-slate-600">Cobrado</span>
-                        <b className="text-right font-mono text-[#067647]">{formatRecurringMoney(row.collected, row.currency)}</b>
-                        <span className="text-slate-600">Vencido</span>
+                        <span className="text-slate-600">Vencido sin facturar</span>
                         <b className={`text-right font-mono ${row.overdue > 0 ? "text-[#B42318]" : "text-slate-900"}`}>
                           {formatRecurringMoney(row.overdue, row.currency)}
                         </b>

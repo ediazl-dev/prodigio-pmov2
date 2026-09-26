@@ -351,9 +351,9 @@ export default function RSInitStage() {
                           <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>{m.currency || svc.currency} {parseFloat(m.amount).toLocaleString()}</td>
                           <td style={tdStyle}>
                             <span style={badgeStyle(
-                              m.status === "pagado" ? "#DCFCE7" : m.status === "facturado" ? "#DBEAFE" : "#FEF3C7",
-                              m.status === "pagado" ? "#166534" : m.status === "facturado" ? "#1E40AF" : "#92400E",
-                            )}>{m.status.toUpperCase()}</span>
+                              m.status === "facturado" ? "#DBEAFE" : "#FEF3C7",
+                              m.status === "facturado" ? "#1E40AF" : "#92400E",
+                            )}>{m.status === "facturado" ? "FACTURADO" : "PENDIENTE"}</span>
                           </td>
                         </tr>
                       ))}

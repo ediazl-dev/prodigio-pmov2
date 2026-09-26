@@ -56,14 +56,13 @@ function fmtMonth(m: string) {
 }
 
 // Simple bar chart component
-function BillingChart({ data }: { data: { month: string; pagado: number; facturado: number; pendiente: number }[] }) {
-  const maxVal = Math.max(...data.map(d => d.pagado + d.facturado + d.pendiente), 1);
+function BillingChart({ data }: { data: { month: string; facturado: number; pendiente: number }[] }) {
+  const maxVal = Math.max(...data.map(d => d.facturado + d.pendiente), 1);
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 120, padding: "0 4px" }}>
       {data.map((d) => {
-        const total = d.pagado + d.facturado + d.pendiente;
+        const total = d.facturado + d.pendiente;
         const h = (total / maxVal) * 100;
-        const paidH = total > 0 ? (d.pagado / total) * h : 0;
         const invoicedH = total > 0 ? (d.facturado / total) * h : 0;
         const pendingH = total > 0 ? (d.pendiente / total) * h : 0;
         return (
@@ -71,7 +70,6 @@ function BillingChart({ data }: { data: { month: string; pagado: number; factura
             <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: 100 }}>
               {pendingH > 0 && <div style={{ height: `${pendingH}%`, background: "#FCA5A5", borderRadius: "3px 3px 0 0", minHeight: 2 }} title={`Pendiente: ${d.pendiente.toLocaleString()}`} />}
               {invoicedH > 0 && <div style={{ height: `${invoicedH}%`, background: C.gold2, minHeight: 2 }} title={`Facturado: ${d.facturado.toLocaleString()}`} />}
-              {paidH > 0 && <div style={{ height: `${paidH}%`, background: C.teal2, borderRadius: "0 0 3px 3px", minHeight: 2 }} title={`Pagado: ${d.pagado.toLocaleString()}`} />}
               {total === 0 && <div style={{ height: 2, background: C.g200, borderRadius: 2 }} />}
             </div>
             <span style={{ fontSize: 9, color: C.g400, fontWeight: 600 }}>{fmtMonth(d.month)}</span>
@@ -232,8 +230,8 @@ export default function RecurringServicesList() {
             {[
               { label: "Total Servicios", value: kpis.statusCounts.total, color: "#fff", icon: RefreshCw },
               { label: "Activos", value: kpis.statusCounts.activo, color: "#4ADE80", icon: Activity },
-              { label: "Facturación Mes", value: fmtCurrency(kpis.billing.currentMonth.total, kpis.totalContractCurrency), color: C.gold2, icon: DollarSign },
-              { label: "Cobrado Mes", value: fmtCurrency(kpis.billing.currentMonth.paid, kpis.totalContractCurrency), color: C.teal2, icon: TrendingUp },
+              { label: "Programado Mes", value: fmtCurrency(kpis.billing.currentMonth.total, kpis.totalContractCurrency), color: C.gold2, icon: DollarSign },
+              { label: "Facturado Mes", value: fmtCurrency(kpis.billing.currentMonth.invoiced, kpis.totalContractCurrency), color: C.teal2, icon: TrendingUp },
               { label: "SLA Compliance", value: `${kpis.sla.complianceRate}%`, color: kpis.sla.complianceRate >= 80 ? "#4ADE80" : kpis.sla.complianceRate >= 50 ? "#FBBF24" : "#F87171", icon: Shield },
               { label: "Multas Activas", value: kpis.penalties.total, color: kpis.penalties.total > 0 ? "#F87171" : "#4ADE80", icon: AlertTriangle },
             ].map((kpi) => {
@@ -284,9 +282,8 @@ export default function RecurringServicesList() {
               </div>
               <div style={{ display: "flex", gap: 12 }}>
                 {[
-                  { label: "Pagado", color: C.teal2 },
                   { label: "Facturado", color: C.gold2 },
-                  { label: "Pendiente", color: "#FCA5A5" },
+                  { label: "Pendiente de facturar", color: "#FCA5A5" },
                 ].map(l => (
                   <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
@@ -297,17 +294,21 @@ export default function RecurringServicesList() {
             </div>
             <BillingChart data={kpis.billing.monthly} />
             {/* Billing summary row */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.g200}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.g200}` }}>
               <div>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Contratado</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: C.navy }}>{fmtCurrency(kpis.totalContractValue, kpis.totalContractCurrency)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Cobrado</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.teal }}>{fmtCurrency(kpis.billing.overall.paid, kpis.totalContractCurrency)}</div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Programado</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{fmtCurrency(kpis.billing.overall.total, kpis.totalContractCurrency)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Pendiente Cobro</div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Total Facturado</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.teal }}>{fmtCurrency(kpis.billing.overall.invoiced, kpis.totalContractCurrency)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.g400, letterSpacing: ".08em" }}>Pendiente de facturar</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: C.red }}>{fmtCurrency(kpis.billing.overall.pending, kpis.totalContractCurrency)}</div>
               </div>
             </div>
@@ -485,7 +486,7 @@ export default function RecurringServicesList() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${C.g200}` }}>
-                  {["Servicio", "Cliente", "Estado", "Etapa", "Facturado", "Cobrado", "Avance Cobro", "SLA", "Multas"].map(h => (
+                  {["Servicio", "Cliente", "Estado", "Etapa", "Programado", "Facturado", "Avance facturación", "SLA", "Multas"].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.g400, textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                   ))}
                 </tr>
@@ -516,7 +517,7 @@ export default function RecurringServicesList() {
                         </span>
                       </td>
                       <td style={{ padding: "10px 10px", fontWeight: 700, color: C.navy }}>{fmtCurrency(svc.billingTotal, svc.currency)}</td>
-                      <td style={{ padding: "10px 10px", fontWeight: 700, color: C.teal }}>{fmtCurrency(svc.billingPaid, svc.currency)}</td>
+                      <td style={{ padding: "10px 10px", fontWeight: 700, color: C.teal }}>{fmtCurrency(svc.billingInvoiced, svc.currency)}</td>
                       <td style={{ padding: "10px 10px", width: 120 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <ProgressBar value={svc.billingProgress} color={svc.billingProgress >= 80 ? C.green : svc.billingProgress >= 50 ? C.gold2 : C.red} />

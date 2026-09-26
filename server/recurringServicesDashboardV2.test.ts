@@ -43,10 +43,10 @@ const source: RecurringDashboardV2Source = {
     },
   ],
   billingMonths: [
-    { id: 1, serviceId: 1, dueDate: "2026-01-31", amount: "60", currency: "UF", status: "pagado" },
-    { id: 2, serviceId: 1, dueDate: "2026-02-28", amount: "60", currency: "UF", status: "pendiente" },
-    { id: 3, serviceId: 2, dueDate: "2026-02-28", amount: "1200", currency: "USD", status: "facturado" },
-    { id: 4, serviceId: 2, dueDate: "2026-03-31", amount: "1200", currency: "USD", status: "pendiente" },
+    { id: 1, serviceId: 1, monthNumber: 1, dueDate: "2026-01-31", amount: "60", currency: "UF", status: "pagado" },
+    { id: 2, serviceId: 1, monthNumber: 2, dueDate: "2026-02-28", amount: "60", currency: "UF", status: "pendiente" },
+    { id: 3, serviceId: 2, monthNumber: 1, dueDate: "2026-02-28", amount: "1200", currency: "USD", status: "facturado" },
+    { id: 4, serviceId: 2, monthNumber: 2, dueDate: "2026-03-31", amount: "1200", currency: "USD", status: "pendiente" },
   ],
   workPlanItems: [
     { id: 1, serviceId: 1, itemType: "informe_mensual", dueDate: "2026-01-31", status: "completado" },
@@ -100,7 +100,6 @@ const source: RecurringDashboardV2Source = {
   ],
   financialEvidence: [
     { serviceId: 1, evidenceType: "invoice", status: "confirmed", amount: "60", currency: "UF", occurredAt: "2026-01-31T12:00:00.000Z" },
-    { serviceId: 1, evidenceType: "payment", status: "confirmed", amount: "60", currency: "UF", occurredAt: "2026-02-05T12:00:00.000Z" },
     { serviceId: 2, evidenceType: "invoice", status: "pending_validation", amount: "1200", currency: "USD", occurredAt: "2026-02-28T12:00:00.000Z" },
   ],
   financialReferences: [{ id: 10, dealId: "Deal100", clientName: "Cliente A", projectName: "Soporte", valorVentaUF: "120", presupuestoUF: "80", utilizadoUF: "40", planificadoUF: "45", proyectadoUF: "82", lineaNegocio: "Servicios", syncedAt: "2026-03-15T08:00:00.000Z" }],
@@ -177,7 +176,6 @@ describe("buildRecurringServicesDashboardV2", () => {
       currency: "UF",
       scheduled: 60,
       invoiced: 0,
-      collected: 0,
       pending: 60,
       overdue: 60,
     });
@@ -186,10 +184,38 @@ describe("buildRecurringServicesDashboardV2", () => {
       currency: "USD",
       scheduled: 1200,
       invoiced: 1200,
-      collected: 0,
       pending: 0,
       overdue: 0,
     });
+  });
+
+  it("marca como facturada una cuota cuando la fuente corporativa coincide por Deal", () => {
+    const result = buildRecurringServicesDashboardV2(
+      {
+        ...source,
+        corporateBillingItems: [
+          {
+            id: 88,
+            sourceKey: "Deal100:mes-2",
+            dealId: "Deal100",
+            milestoneName: "Mes 2",
+            plannedDate: "2026-02-28",
+            invoicedAt: "2026-02-20",
+            amount: "60",
+            currency: "UF",
+            billingStatus: "Facturado",
+            sourceActive: true,
+          },
+        ],
+      },
+      { cutOffDate: "2026-03-15" },
+    );
+
+    const service = result.matrix.find(item => item.serviceId === 1)!;
+    expect(service.financeByCurrency.UF.invoiced).toBe(120);
+    expect(service.financeByCurrency.UF.pending).toBe(0);
+    expect(service.financeByCurrency.UF).not.toHaveProperty("collected");
+    expect(result.financeAnalytics.summary.verifiedInvoiceEvidence).toBe(1);
   });
 
   it("reconcilia por Deal y mantiene separada la evidencia financiera confirmada", () => {
@@ -200,11 +226,11 @@ describe("buildRecurringServicesDashboardV2", () => {
     expect(reconciled?.reconciliationStatus).toBe("comparable");
     expect(reconciled?.corporateReference?.valorVentaUF).toBe(120);
     expect(reconciled?.verifiedEvidenceByCurrency).toEqual([
-      { currency: "UF", invoiced: 60, collected: 60, creditNotes: 0, items: 2 },
+      { currency: "UF", invoiced: 60, creditNotes: 0, items: 1 },
     ]);
     expect(missing?.reconciliationStatus).toBe("missing_reference");
     expect(result.financeAnalytics.summary.verifiedInvoiceEvidence).toBe(1);
-    expect(result.financeAnalytics.summary.verifiedPaymentEvidence).toBe(1);
+    expect(result.financeAnalytics.summary).not.toHaveProperty("verifiedPaymentEvidence");
     expect(result.financeAnalytics.summary.latestCorporateSyncAt).toBe("2026-03-15T08:00:00.000Z");
   });
 

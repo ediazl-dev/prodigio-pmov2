@@ -232,14 +232,12 @@ export function ServiceEvidenceTabs({
                 {Object.values(service.financeByCurrency).map(row => (
                   <article key={row.currency} className="rounded-xl border border-slate-200 p-4">
                     <p className="font-mono text-xs font-black text-slate-950">{row.currency}</p>
-                    <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                       <Stat label="Contratado" value={formatRecurringMoney(row.contracted, row.currency)} />
                       <Stat label="Programado" value={formatRecurringMoney(row.scheduled, row.currency)} />
                       <Stat label="Facturado" value={formatRecurringMoney(row.invoiced, row.currency)} />
-                      <Stat label="Cobrado" value={formatRecurringMoney(row.collected, row.currency)} />
-                      <Stat label="CxC" value={formatRecurringMoney(row.accountsReceivable, row.currency)} />
-                      <Stat label="Pendiente" value={formatRecurringMoney(row.pending, row.currency)} />
-                      <Stat label="Vencido" value={formatRecurringMoney(row.overdue, row.currency)} tone={row.overdue > 0 ? "text-[#B42318]" : "text-slate-950"} />
+                      <Stat label="Pendiente de facturar" value={formatRecurringMoney(row.pending, row.currency)} />
+                      <Stat label="Vencido sin facturar" value={formatRecurringMoney(row.overdue, row.currency)} tone={row.overdue > 0 ? "text-[#B42318]" : "text-slate-950"} />
                     </div>
                   </article>
                 ))}

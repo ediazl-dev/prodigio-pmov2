@@ -3,14 +3,15 @@
  *
  * Reglas principales:
  * - Nunca suma monedas distintas.
- * - "Facturado" incluye únicamente cuotas con estado facturado o pagado.
- * - "Cobrado" incluye únicamente cuotas con estado pagado.
+ * - "Facturado" incluye cuotas con estado facturado y trata el estado histórico
+ *   pagado únicamente como compatibilidad de una cuota ya facturada.
+ * - El ciclo financiero recurrente termina en Facturado: no calcula cobros ni CxC.
  * - Una configuración SLA no equivale a cumplimiento SLA.
  * - Ausencia de evidencia se expresa con null y disponibilidad explícita.
  * - Todos los vencimientos se evalúan contra una fecha de corte ISO (YYYY-MM-DD).
  */
 
-export const RECURRING_DASHBOARD_METRICS_VERSION = "2.0" as const;
+export const RECURRING_DASHBOARD_METRICS_VERSION = "2.1" as const;
 
 export type RecurringHealthLevel = "critical" | "attention" | "stable" | "no_data";
 export type EvidenceStatus = "available" | "not_configured" | "stale" | "error";
@@ -92,8 +93,6 @@ export interface CurrencyMetrics {
   contracted: number;
   scheduled: number;
   invoiced: number;
-  collected: number;
-  accountsReceivable: number;
   pending: number;
   overdue: number;
   overdueItems: number;
@@ -229,8 +228,6 @@ function createCurrencyMetrics(currency: string): CurrencyMetrics {
     contracted: 0,
     scheduled: 0,
     invoiced: 0,
-    collected: 0,
-    accountsReceivable: 0,
     pending: 0,
     overdue: 0,
     overdueItems: 0,
@@ -242,8 +239,6 @@ function addCurrencyMetrics(target: Record<string, CurrencyMetrics>, source: Cur
   current.contracted += source.contracted;
   current.scheduled += source.scheduled;
   current.invoiced += source.invoiced;
-  current.collected += source.collected;
-  current.accountsReceivable += source.accountsReceivable;
   current.pending += source.pending;
   current.overdue += source.overdue;
   current.overdueItems += source.overdueItems;
@@ -283,10 +278,7 @@ export function calculateRecurringServicesMetrics(
       const bucket = financeByCurrency[currency] ?? createCurrencyMetrics(currency);
       const rowAmount = amount(row.amount);
       bucket.scheduled += rowAmount;
-      if (row.status === "pagado") {
-        bucket.invoiced += rowAmount;
-        bucket.collected += rowAmount;
-      } else if (row.status === "facturado") {
+      if (row.status === "facturado" || row.status === "pagado") {
         bucket.invoiced += rowAmount;
       } else {
         bucket.pending += rowAmount;
@@ -295,7 +287,6 @@ export function calculateRecurringServicesMetrics(
           bucket.overdueItems += 1;
         }
       }
-      bucket.accountsReceivable = bucket.invoiced - bucket.collected;
       financeByCurrency[currency] = bucket;
     }
 
@@ -320,7 +311,7 @@ export function calculateRecurringServicesMetrics(
       signals.push({
         code: "OVERDUE_BILLING",
         level: "critical",
-        message: `${overdueRows} cuota(s) permanecen pendientes después de su fecha de vencimiento.`,
+        message: `${overdueRows} cuota(s) permanecen pendientes de facturar después de su fecha de vencimiento.`,
       });
     }
 

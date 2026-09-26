@@ -67,7 +67,7 @@ interface SignalSpec {
  * Un código no listado cae en DEFAULT_SIGNAL_SPEC y sigue funcionando.
  */
 export const SIGNAL_CATALOG: Record<string, SignalSpec> = {
-  OVERDUE_BILLING: { domain: "finanzas", action: "Gestionar cobro", evidenceTab: "finanzas" },
+  OVERDUE_BILLING: { domain: "finanzas", action: "Gestionar facturación", evidenceTab: "finanzas" },
   CONTRACT_BILLING_PLAN_MISMATCH: { domain: "finanzas", action: "Revisar plan", evidenceTab: "finanzas" },
   OVERDUE_REPORTS: { domain: "entregables", action: "Revisar entregables", evidenceTab: "entregables" },
   CONTRACT_DOCUMENT_MISSING: { domain: "formalidad", action: "Cargar contrato", evidenceTab: "formalidad" },
@@ -90,7 +90,7 @@ export function specForSignal(code: string): SignalSpec {
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
-/* Dinero vencido, sin mezclar monedas                                        */
+/* Facturación vencida, sin mezclar monedas                                   */
 /* ────────────────────────────────────────────────────────────────────────── */
 
 export interface OverdueBreakdown {
@@ -120,7 +120,7 @@ export function overdueBreakdown(financeByCurrency: Record<string, CurrencyMetri
   const items = rows.reduce((sum, row) => sum + row.overdueItems, 0);
   const label = byCurrency.length
     ? byCurrency.map(row => formatRecurringMoney(row.overdue, row.currency)).join(" + ")
-    : "Sin vencidos";
+    : "Sin pendientes vencidos";
   const sortKey = byCurrency.length ? byCurrency[0].overdue : 0;
 
   const single = monetaryRows.length === 1 && byCurrency.length === 1 ? byCurrency[0] : null;
@@ -312,13 +312,13 @@ export function buildDecisionMetrics(data: DashboardV2Data): DecisionMetric[] {
   return [
     {
       key: "vencido",
-      eyebrow: "Dinero vencido",
+      eyebrow: "Por facturar vencido",
       value: overdueByCurrency.length
         ? overdueByCurrency.map(row => formatRecurringMoney(row.overdue, row.currency)).join(" + ")
-        : "Sin vencidos",
+        : "Sin pendientes vencidos",
       detail: overdueByCurrency.length
         ? `${overdueItems} cuota${overdueItems === 1 ? "" : "s"} en ${servicesWithOverdue} servicio${servicesWithOverdue === 1 ? "" : "s"}`
-        : "Ninguna cuota pasada de su vencimiento",
+        : "Ninguna cuota pendiente de facturar después de su vencimiento",
       tone: overdueByCurrency.length ? "alert" : "calm",
     },
     {

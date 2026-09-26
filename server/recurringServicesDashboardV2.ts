@@ -11,6 +11,10 @@ import {
   type RecurringServicesQualityInput,
   type ServiceDataQuality,
 } from "./recurringServicesQualityEngine";
+import {
+  reconcileRecurringBillingMonths,
+  type CorporateBillingItem,
+} from "./recurringBillingReconciliation";
 
 export type DashboardHealthFilter = "critical" | "attention" | "stable" | "no_data";
 
@@ -44,7 +48,7 @@ export interface RecurringDashboardV2Source
   extends Omit<RecurringServicesMetricsInput, "cutOffDate" | "operationalEvidence">,
     RecurringServicesQualityInput {
   services: Array<RecurringServicesMetricsInput["services"][number] & RecurringServicesQualityInput["services"][number]>;
-  billingMonths: Array<RecurringServicesMetricsInput["billingMonths"][number] & RecurringServicesQualityInput["billingMonths"][number]>;
+  billingMonths: Array<RecurringServicesMetricsInput["billingMonths"][number] & RecurringServicesQualityInput["billingMonths"][number] & { monthNumber: number }>;
   documents: Array<RecurringServicesMetricsInput["documents"][number] & RecurringServicesQualityInput["documents"][number]>;
   jsmSnapshots: DashboardV2JsmSnapshot[];
   documentControls: Array<{
@@ -70,6 +74,7 @@ export interface RecurringDashboardV2Source
     source?: "manual" | "jsm" | "import";
   }>;
   financialEvidence: Array<{ serviceId: number; evidenceType: string; status: string; amount: string | number; currency: string; occurredAt: Date | string }>;
+  corporateBillingItems?: CorporateBillingItem[];
 }
 
 export interface RecurringDashboardV2Options {
@@ -199,20 +204,17 @@ function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: stri
 }
 
 function financeTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
-  const buckets = new Map<string, { month: string; currency: string; scheduled: number; invoiced: number; collected: number; pending: number; overdue: number }>();
+  const buckets = new Map<string, { month: string; currency: string; scheduled: number; invoiced: number; pending: number; overdue: number }>();
   for (const row of source.billingMonths) {
     const month = monthKey(row.dueDate);
     if (!month) continue;
     const service = source.services.find(item => item.id === row.serviceId);
     const currency = normalizedCurrency(row.currency ?? service?.currency);
     const key = `${month}:${currency}`;
-    const bucket = buckets.get(key) ?? { month, currency, scheduled: 0, invoiced: 0, collected: 0, pending: 0, overdue: 0 };
+    const bucket = buckets.get(key) ?? { month, currency, scheduled: 0, invoiced: 0, pending: 0, overdue: 0 };
     const value = numeric(row.amount);
     bucket.scheduled += value;
-    if (row.status === "pagado") {
-      bucket.invoiced += value;
-      bucket.collected += value;
-    } else if (row.status === "facturado") {
+    if (row.status === "facturado" || row.status === "pagado") {
       bucket.invoiced += value;
     } else {
       bucket.pending += value;
@@ -242,15 +244,25 @@ function financialAnalytics(
     const reference = matches.length === 1 ? matches[0] : null;
     const localCurrencies = Object.values(service.finance.byCurrency).sort((a, b) => a.currency.localeCompare(b.currency));
     const comparableToCorporateUf = localCurrencies.length === 1 && localCurrencies[0].currency === "UF" && reference !== null;
-    const evidence = confirmedEvidence.filter(row => row.serviceId === service.id);
-    const evidenceByCurrency: Record<string, { currency: string; invoiced: number; collected: number; creditNotes: number; items: number }> = {};
+    const evidence = confirmedEvidence.filter(row => row.serviceId === service.id && row.evidenceType !== "payment");
+    const corporateInvoices = normalizedDealId
+      ? (source.corporateBillingItems ?? []).filter(item => item.sourceActive && item.invoicedAt && item.invoicedAt <= cutOffDate && normalizeRecurringDealId(item.dealId) === normalizedDealId)
+      : [];
+    const evidenceByCurrency: Record<string, { currency: string; invoiced: number; creditNotes: number; items: number }> = {};
 
-    for (const item of evidence) {
+    for (const item of corporateInvoices) {
       const currency = normalizedCurrency(item.currency);
-      const bucket = evidenceByCurrency[currency] ?? { currency, invoiced: 0, collected: 0, creditNotes: 0, items: 0 };
+      const bucket = evidenceByCurrency[currency] ?? { currency, invoiced: 0, creditNotes: 0, items: 0 };
+      bucket.invoiced += numeric(item.amount);
+      bucket.items += 1;
+      evidenceByCurrency[currency] = bucket;
+    }
+
+    for (const item of evidence.filter(item => item.evidenceType === "credit_note" || corporateInvoices.length === 0)) {
+      const currency = normalizedCurrency(item.currency);
+      const bucket = evidenceByCurrency[currency] ?? { currency, invoiced: 0, creditNotes: 0, items: 0 };
       const value = numeric(item.amount);
       if (item.evidenceType === "invoice") bucket.invoiced += value;
-      if (item.evidenceType === "payment") bucket.collected += value;
       if (item.evidenceType === "credit_note") bucket.creditNotes += value;
       bucket.items += 1;
       evidenceByCurrency[currency] = bucket;
@@ -300,8 +312,7 @@ function financialAnalytics(
       comparableUfServices: rows.filter(row => row.reconciliationStatus === "comparable").length,
       missingReferenceServices: rows.filter(row => row.reconciliationStatus === "missing_reference").length,
       ambiguousServices: rows.filter(row => row.reconciliationStatus === "ambiguous").length,
-      verifiedInvoiceEvidence: confirmedEvidence.filter(row => row.evidenceType === "invoice").length,
-      verifiedPaymentEvidence: confirmedEvidence.filter(row => row.evidenceType === "payment").length,
+      verifiedInvoiceEvidence: rows.reduce((sum, row) => sum + row.verifiedEvidenceByCurrency.reduce((count, item) => count + item.items, 0), 0),
       latestCorporateSyncAt,
     },
     services: rows,
@@ -533,8 +544,17 @@ function qualityForSource(source: RecurringDashboardV2Source) {
 export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2Source, options: RecurringDashboardV2Options) {
   const filters = options.filters ?? {};
   const staleAfterHours = options.staleAfterHours ?? 36;
-  const initialIds = baseServiceIds(source, filters);
-  const initialSource = restrictSource(source, initialIds);
+  const reconciledSource: RecurringDashboardV2Source = {
+    ...source,
+    billingMonths: reconcileRecurringBillingMonths({
+      services: source.services,
+      billingMonths: source.billingMonths,
+      corporateBillingItems: source.corporateBillingItems ?? [],
+      cutOffDate: options.cutOffDate,
+    }),
+  };
+  const initialIds = baseServiceIds(reconciledSource, filters);
+  const initialSource = restrictSource(reconciledSource, initialIds);
   const initialMetrics = calculateForSource(initialSource, options.cutOffDate, staleAfterHours);
   const healthIds = filters.health
     ? new Set(initialMetrics.services.filter(service => service.health === filters.health).map(service => service.id))
@@ -579,16 +599,16 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       cutOffDate: metrics.cutOffDate,
       generatedAt: metrics.generatedAt,
       staleAfterHours,
-      totalBeforeFilters: source.services.length,
+      totalBeforeFilters: reconciledSource.services.length,
       totalAfterFilters: metrics.services.length,
       appliedFilters: filters,
       latestJsmSnapshotAt: latestSnapshotAt,
     },
     filterOptions: {
-      clients: distinctSorted(source.services.map(item => item.clientName)),
-      statuses: distinctSorted(source.services.map(item => item.status)),
-      serviceTypes: distinctSorted(source.services.map(item => item.serviceType)),
-      currencies: distinctSorted(source.services.map(item => normalizedCurrency(item.currency))),
+      clients: distinctSorted(reconciledSource.services.map(item => item.clientName)),
+      statuses: distinctSorted(reconciledSource.services.map(item => item.status)),
+      serviceTypes: distinctSorted(reconciledSource.services.map(item => item.serviceType)),
+      currencies: distinctSorted(reconciledSource.services.map(item => normalizedCurrency(item.currency))),
       health: ["critical", "attention", "stable", "no_data"] as const,
     },
     kpis: metrics.portfolio,

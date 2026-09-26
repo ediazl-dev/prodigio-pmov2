@@ -9,12 +9,14 @@ import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { createAuditLog } from "./db";
 import { buildJsmProjectUrls, createJiraSpace, createJiraIssue, CreateIssueInput, listJsmServiceDesks, searchJiraIssues } from "./jiraClient";
-import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, insertPenalty, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, RecurringServiceJsmDbError } from "./recurringServicesDb";
+import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, RecurringServiceJsmDbError } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSpace, listExistingJsmSpaces, preflightExistingJsmSpace, revalidateExistingJsmSpace, unlinkExistingJsmSpace } from "./jsmExistingSpaceLinkRunner";
 import { associateExistingJiraIssue, calculateJsmSetupReadiness, configureJsmIssueTypeMappings, confirmJsmSync, dryRunJsmSync, getJsmSyncConfiguration, JsmRecurringSyncError } from "./jsmRecurringSyncRunner";
 import { buildRecurringServicesDashboardV2 } from "./recurringServicesDashboardV2";
+import { reconcileRecurringBillingMonths } from "./recurringBillingReconciliation";
+import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
 import {
   getRecurringServiceForJsmRefresh,
   listRecurringServicesJsmRefreshHistory,
@@ -90,7 +92,13 @@ export const recurringServicesRouter = router({
     }),
 
   dashboardKpis: protectedProcedure.query(async () => {
-    const { services, billingMonths, slaConfigs, penalties } = await getDashboardKpisData();
+    const { services, billingMonths: localBillingMonths, slaConfigs, penalties, corporateBillingItems } = await getDashboardKpisData();
+    const billingMonths = reconcileRecurringBillingMonths({
+      services,
+      billingMonths: localBillingMonths,
+      corporateBillingItems,
+      cutOffDate: new Date().toISOString().slice(0, 10),
+    });
 
     // ── Status counts ──
     const statusCounts = {
@@ -126,7 +134,6 @@ export const recurringServicesRouter = router({
     const monthlyBilling: {
       month: string;
       facturado: number;
-      pagado: number;
       pendiente: number;
     }[] = [];
     for (let i = 5; i >= 0; i--) {
@@ -134,40 +141,36 @@ export const recurringServicesRouter = router({
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const monthBills = billingMonths.filter((b: any) => b.dueDate && b.dueDate.startsWith(key));
       let facturado = 0,
-        pagado = 0,
         pendiente = 0;
       for (const b of monthBills) {
         const amt = parseFloat(String(b.amount)) || 0;
-        if (b.status === "pagado") pagado += amt;
-        else if (b.status === "facturado") facturado += amt;
+        if (b.status === "facturado") facturado += amt;
         else pendiente += amt;
       }
-      monthlyBilling.push({ month: key, facturado, pagado, pendiente });
+      monthlyBilling.push({ month: key, facturado, pendiente });
     }
 
     // Current month totals
     const currentMonthBills = billingMonths.filter((b: any) => b.dueDate && b.dueDate.startsWith(currentMonth));
     let currentMonthTotal = 0,
-      currentMonthPaid = 0,
+      currentMonthInvoiced = 0,
       currentMonthPending = 0;
     for (const b of currentMonthBills) {
       const amt = parseFloat(String(b.amount)) || 0;
       currentMonthTotal += amt;
-      if (b.status === "pagado") currentMonthPaid += amt;
+      if (b.status === "facturado") currentMonthInvoiced += amt;
       else currentMonthPending += amt;
     }
 
     // Overall billing totals
-    let totalBilled = 0,
-      totalPaid = 0,
+    let totalScheduled = 0,
+      totalInvoiced = 0,
       totalPending = 0;
     for (const b of billingMonths) {
       const amt = parseFloat(String(b.amount)) || 0;
-      totalBilled += amt;
-      if (b.status === "pagado") totalPaid += amt;
-      else if (b.status === "facturado") {
-        /* facturado but not paid */
-      } else totalPending += amt;
+      totalScheduled += amt;
+      if (b.status === "facturado") totalInvoiced += amt;
+      else totalPending += amt;
     }
 
     // ── SLA compliance ──
@@ -202,9 +205,9 @@ export const recurringServicesRouter = router({
     // ── Per-service summary ──
     const servicesSummary = services.map((s: any) => {
       const svcBilling = billingMonths.filter((b: any) => b.serviceId === s.id);
-      const svcPaid = svcBilling.filter((b: any) => b.status === "pagado").reduce((sum: number, b: any) => sum + (parseFloat(String(b.amount)) || 0), 0);
+      const svcInvoiced = svcBilling.filter((b: any) => b.status === "facturado").reduce((sum: number, b: any) => sum + (parseFloat(String(b.amount)) || 0), 0);
       const svcTotal = svcBilling.reduce((sum: number, b: any) => sum + (parseFloat(String(b.amount)) || 0), 0);
-      const svcPending = svcTotal - svcPaid;
+      const svcPending = svcTotal - svcInvoiced;
       const hasSla = servicesWithSla.has(s.id);
       const svcPenalties = penalties.filter((p: any) => p.serviceId === s.id);
       return {
@@ -217,9 +220,9 @@ export const recurringServicesRouter = router({
         durationMonths: s.durationMonths,
         currency: s.currency || "USD",
         billingTotal: svcTotal,
-        billingPaid: svcPaid,
+        billingInvoiced: svcInvoiced,
         billingPending: svcPending,
-        billingProgress: svcTotal > 0 ? Math.round((svcPaid / svcTotal) * 100) : 0,
+        billingProgress: svcTotal > 0 ? Math.round((svcInvoiced / svcTotal) * 100) : 0,
         hasSla,
         penaltiesCount: svcPenalties.length,
         penaltiesAmount: svcPenalties.reduce((sum: number, p: any) => sum + (parseFloat(String(p.amount)) || 0), 0),
@@ -235,10 +238,10 @@ export const recurringServicesRouter = router({
       billing: {
         currentMonth: {
           total: currentMonthTotal,
-          paid: currentMonthPaid,
+          invoiced: currentMonthInvoiced,
           pending: currentMonthPending,
         },
-        overall: { total: totalBilled, paid: totalPaid, pending: totalPending },
+        overall: { total: totalScheduled, invoiced: totalInvoiced, pending: totalPending },
         monthly: monthlyBilling,
       },
       sla: {
@@ -327,10 +330,20 @@ export const recurringServicesRouter = router({
         code: "NOT_FOUND",
         message: "Servicio no encontrado",
       });
-    const stages = await getRecurringServiceStages(input.id);
-    const billingMonths = await getBillingMonths(input.id);
-    const documents = await getServiceDocuments(input.id);
-    return { service, stages, billingMonths, documents };
+    const [stages, localBillingMonths, documents, penalties, corporateBillingItems] = await Promise.all([
+      getRecurringServiceStages(input.id),
+      getBillingMonths(input.id),
+      getServiceDocuments(input.id),
+      getPenalties(input.id),
+      getActiveCorporateBillingItems(),
+    ]);
+    const billingMonths = reconcileRecurringBillingMonths({
+      services: [service],
+      billingMonths: localBillingMonths,
+      corporateBillingItems,
+      cutOffDate: new Date().toISOString().slice(0, 10),
+    });
+    return { service, stages, billingMonths, documents, penalties };
   }),
 
   create: adminOrPmo
@@ -1500,11 +1513,16 @@ Responde en JSON con este formato:
   getExecutionDashboard: protectedProcedure.input(z.object({ serviceId: z.number() })).query(async ({ input }) => {
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
-    const [billing, workItems, sla, penalties, latestAnalysis, analysisHistory] = await Promise.all([getBillingMonths(input.serviceId), getWorkPlanItems(input.serviceId), getSlaConfig(input.serviceId), getPenalties(input.serviceId), getLatestAiAnalysis(input.serviceId), getAiAnalysisHistory(input.serviceId, 5)]);
+    const [localBilling, corporateBillingItems, workItems, sla, penalties, latestAnalysis, analysisHistory] = await Promise.all([getBillingMonths(input.serviceId), getActiveCorporateBillingItems(), getWorkPlanItems(input.serviceId), getSlaConfig(input.serviceId), getPenalties(input.serviceId), getLatestAiAnalysis(input.serviceId), getAiAnalysisHistory(input.serviceId, 5)]);
+    const billing = reconcileRecurringBillingMonths({
+      services: [svc],
+      billingMonths: localBilling,
+      corporateBillingItems,
+      cutOffDate: new Date().toISOString().slice(0, 10),
+    });
 
-    // Calculate metrics
-    const totalBilled = billing.filter(b => b.status === "facturado" || b.status === "pagado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
-    const totalPaid = billing.filter(b => b.status === "pagado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
+    // Calculate metrics. El ciclo recurrente termina en Facturado.
+    const totalBilled = billing.filter(b => b.status === "facturado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
     const totalPending = billing.filter(b => b.status === "pendiente").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
     const totalPenalties = penalties.reduce((s, p) => s + parseFloat(String(p.amount ?? 0)), 0);
     const completedItems = workItems.filter(i => i.status === "completado").length;
@@ -1635,7 +1653,6 @@ Responde en JSON con este formato:
       penalties,
       metrics: {
         totalBilled,
-        totalPaid,
         totalPending,
         totalPenalties,
         completedItems,
@@ -1868,13 +1885,21 @@ Responde en JSON con este formato:
       }
 
       // Gather all data for analysis
-      const billing = await getBillingMonths(input.serviceId);
-      const workItems = await getWorkPlanItems(input.serviceId);
-      const penalties = await getPenalties(input.serviceId);
-      const slaConfig = await getSlaConfig(input.serviceId);
+      const [localBilling, corporateBillingItems, workItems, penalties, slaConfig] = await Promise.all([
+        getBillingMonths(input.serviceId),
+        getActiveCorporateBillingItems(),
+        getWorkPlanItems(input.serviceId),
+        getPenalties(input.serviceId),
+        getSlaConfig(input.serviceId),
+      ]);
+      const billing = reconcileRecurringBillingMonths({
+        services: [svc],
+        billingMonths: localBilling,
+        corporateBillingItems,
+        cutOffDate: new Date().toISOString().slice(0, 10),
+      });
 
-      const totalBilled = billing.filter(b => b.status === "facturado" || b.status === "pagado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
-      const totalPaid = billing.filter(b => b.status === "pagado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
+      const totalBilled = billing.filter(b => b.status === "facturado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
       const totalPending = billing.filter(b => b.status === "pendiente").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
       const completedItems = workItems.filter(i => i.status === "completado").length;
       const overdueItems = workItems.filter(i => {
@@ -1927,11 +1952,9 @@ DATOS DEL SERVICIO:
 
 FACTURACION:
 - Total facturado: ${totalBilled} ${svc.currency}
-- Total pagado: ${totalPaid} ${svc.currency}
-- Total pendiente: ${totalPending} ${svc.currency}
+- Total pendiente de facturar: ${totalPending} ${svc.currency}
 - Cuotas pendientes: ${billing.filter(b => b.status === "pendiente").length} de ${billing.length}
-- Cuotas pagadas: ${billing.filter(b => b.status === "pagado").length}
-- Cuotas vencidas sin pagar: ${overdueMonths.length}
+- Cuotas vencidas sin facturar: ${overdueMonths.length}
 
 PLAN DE TRABAJO:
 - Items completados: ${completedItems} de ${workItems.length}
@@ -1953,7 +1976,7 @@ EVALÚA EL SEMÁFORO DE SALUD CONSIDERANDO 3 DIMENSIONES:
 2. CUMPLIMIENTO ENTREGABLES: ¿Cuántos items del plan de trabajo están completados vs pendientes? ¿Hay items vencidos?
    - Si no hay items → score 0 (no hay entregables definidos).
 
-3. FACTURACIÓN AL DÍA: ¿Hay cuotas vencidas sin pagar? ¿El flujo de facturación es saludable?
+3. FACTURACIÓN AL DÍA: ¿Hay cuotas vencidas sin facturar? ¿El flujo de facturación es saludable?
 
 Para cada dimensión asigna: VERDE (>80% cumplimiento), AMARILLO (50-80%), ROJO (<50%)
 El semáforo general es el peor de las 3 dimensiones.
@@ -2126,11 +2149,19 @@ Responde en JSON.`;
         description: z.string(),
         amount: z.number().optional(),
         currency: z.string().default("USD"),
+        evidence: z.object({
+          fileName: z.string().min(1).max(255),
+          fileBase64: z.string().min(1),
+          mimeType: z.string().min(1).max(150),
+        }).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
+      const validatedEvidence = input.evidence
+        ? validateRecurringPenaltyEvidence({ serviceId: input.serviceId, ...input.evidence })
+        : null;
       const id = await insertPenalty({
         serviceId: input.serviceId,
         penaltyDate: input.penaltyDate,
@@ -2139,8 +2170,63 @@ Responde en JSON.`;
         currency: input.currency,
         createdBy: ctx.user.id,
       });
-      await audit(ctx, "penalty_create", "recurring_service", input.serviceId, svc.serviceName, { penaltyId: id, description: input.description });
+      if (validatedEvidence) {
+        const fileKey = validatedEvidence.storageKey.replace("/new/", `/${id}/`);
+        const { url } = await storagePut(fileKey, validatedEvidence.buffer, validatedEvidence.mimeType);
+        await updatePenaltyEvidence(id, {
+          evidenceFileName: validatedEvidence.fileName,
+          evidenceFileUrl: url,
+          evidenceFileKey: fileKey,
+          evidenceMimeType: validatedEvidence.mimeType,
+          evidenceFileSize: validatedEvidence.fileSize,
+          evidenceSha256: validatedEvidence.sha256,
+          evidenceUploadedAt: new Date(),
+          evidenceUploadedBy: ctx.user.id,
+        });
+      }
+      await audit(ctx, "penalty_create", "recurring_service", input.serviceId, svc.serviceName, {
+        penaltyId: id,
+        description: input.description,
+        hasEvidence: Boolean(validatedEvidence),
+      });
       return { id };
+    }),
+
+  uploadPenaltyEvidence: adminOrPmo
+    .input(z.object({
+      id: z.number(),
+      serviceId: z.number(),
+      fileName: z.string().min(1).max(255),
+      fileBase64: z.string().min(1),
+      mimeType: z.string().min(1).max(150),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [svc, penalty] = await Promise.all([
+        getRecurringServiceById(input.serviceId),
+        getPenaltyById(input.id),
+      ]);
+      if (!svc || !penalty || penalty.serviceId !== input.serviceId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "La multa no pertenece a este servicio" });
+      }
+      const evidence = validateRecurringPenaltyEvidence(input);
+      const { url } = await storagePut(evidence.storageKey, evidence.buffer, evidence.mimeType);
+      await updatePenaltyEvidence(input.id, {
+        evidenceFileName: evidence.fileName,
+        evidenceFileUrl: url,
+        evidenceFileKey: evidence.storageKey,
+        evidenceMimeType: evidence.mimeType,
+        evidenceFileSize: evidence.fileSize,
+        evidenceSha256: evidence.sha256,
+        evidenceUploadedAt: new Date(),
+        evidenceUploadedBy: ctx.user.id,
+      });
+      await audit(ctx, "penalty_evidence_upload", "recurring_service", input.serviceId, svc.serviceName, {
+        penaltyId: input.id,
+        fileName: evidence.fileName,
+        fileSize: evidence.fileSize,
+        mimeType: evidence.mimeType,
+      });
+      return { id: input.id, fileName: evidence.fileName, fileUrl: url };
     }),
 
   updatePenaltyStatus: adminOrPmo
@@ -2152,6 +2238,10 @@ Responde en JSON.`;
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const penalty = await getPenaltyById(input.id);
+      if (!penalty || penalty.serviceId !== input.serviceId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "La multa no pertenece a este servicio" });
+      }
       await updatePenaltyStatus(input.id, input.status);
       await audit(ctx, "penalty_status_change", "recurring_service", input.serviceId, null, { penaltyId: input.id, status: input.status });
     }),
@@ -2162,12 +2252,21 @@ Responde en JSON.`;
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const billing = await getBillingMonths(input.serviceId);
-    const workItems = await getWorkPlanItems(input.serviceId);
-    const penalties = await getPenalties(input.serviceId);
-    const slaConfig = await getSlaConfig(input.serviceId);
+    const [localBilling, corporateBillingItems, workItems, penalties, slaConfig] = await Promise.all([
+      getBillingMonths(input.serviceId),
+      getActiveCorporateBillingItems(),
+      getWorkPlanItems(input.serviceId),
+      getPenalties(input.serviceId),
+      getSlaConfig(input.serviceId),
+    ]);
+    const billing = reconcileRecurringBillingMonths({
+      services: [svc],
+      billingMonths: localBilling,
+      corporateBillingItems,
+      cutOffDate: new Date().toISOString().slice(0, 10),
+    });
 
-    const totalBilled = billing.filter(b => b.status === "facturado" || b.status === "pagado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
+    const totalBilled = billing.filter(b => b.status === "facturado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
     const totalPending = billing.filter(b => b.status === "pendiente").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
     const completedItems = workItems.filter(i => i.status === "completado").length;
     const overdueItems = workItems.filter(i => {
@@ -2298,7 +2397,7 @@ Responde en JSON.`;
       z.object({
         id: z.number(),
         serviceId: z.number(),
-        status: z.enum(["pendiente", "facturado", "pagado"]),
+        status: z.enum(["pendiente", "facturado"]),
         invoiceNumber: z.string().optional(),
       })
     )

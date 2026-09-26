@@ -45,7 +45,7 @@ function baseInput(): RecurringServicesMetricsInput {
 }
 
 describe("calculateRecurringServicesMetrics", () => {
-  it("separa programado, facturado y cobrado sin tratar lo pendiente como facturado", () => {
+  it("separa programado, facturado y pendiente sin introducir cobros", () => {
     const result = calculateRecurringServicesMetrics(baseInput());
     const usd = result.services[0].finance.byCurrency.USD;
 
@@ -53,12 +53,12 @@ describe("calculateRecurringServicesMetrics", () => {
       contracted: 300,
       scheduled: 300,
       invoiced: 200,
-      collected: 100,
-      accountsReceivable: 100,
       pending: 100,
       overdue: 100,
       overdueItems: 1,
     });
+    expect(usd).not.toHaveProperty("collected");
+    expect(usd).not.toHaveProperty("accountsReceivable");
   });
 
   it("usa la fecha de corte: el vencimiento igual al corte es exigible pero no está atrasado", () => {

@@ -53,7 +53,7 @@ describe("buildBillingPlan", () => {
     expect(plan.rows[2].daysOverdue).toBe(43);
   });
 
-  it("cuenta facturado incluyendo pagado, y cobrado solo pagado", () => {
+  it("cuenta facturado incluyendo el estado pagado histórico sin afirmar cobro", () => {
     const plan = buildBillingPlan(
       [
         month({ id: 1, monthNumber: 1, status: "pagado" }),
@@ -64,7 +64,7 @@ describe("buildBillingPlan", () => {
       null,
     );
     expect(plan.totals[0].invoicedLabel).toBe("USD 188");
-    expect(plan.totals[0].collectedLabel).toBe("USD 94");
+    expect(plan.totals[0]).not.toHaveProperty("collectedLabel");
   });
 
   it("no cuenta como vencida una cuota sin fecha, y lo reporta aparte", () => {
@@ -74,7 +74,7 @@ describe("buildBillingPlan", () => {
     expect(plan.missingDueDates).toBe(1);
   });
 
-  it("conserva el estado financiero y reporta la fecha faltante de cuotas facturadas o pagadas", () => {
+  it("normaliza facturado y pagado histórico al mismo estado visible", () => {
     const plan = buildBillingPlan(
       [
         month({ id: 1, status: "facturado", dueDate: null }),
@@ -83,7 +83,7 @@ describe("buildBillingPlan", () => {
       CUT_OFF,
       null,
     );
-    expect(plan.rows.map(row => row.state)).toEqual(["facturada", "cobrada"]);
+    expect(plan.rows.map(row => row.state)).toEqual(["facturada", "facturada"]);
     expect(plan.rows.every(row => row.missingDueDate)).toBe(true);
     expect(plan.rows.every(row => row.note.includes("fecha de vencimiento pendiente"))).toBe(true);
     expect(plan.missingDueDates).toBe(2);

@@ -19,8 +19,6 @@ const service = {
       contracted: 600,
       scheduled: 564,
       invoiced: 188,
-      collected: 94,
-      accountsReceivable: 94,
       pending: 376,
       overdue: 282,
       overdueItems: 3,
@@ -99,7 +97,7 @@ describe("ServiceEvidenceTabs", () => {
     );
   });
 
-  it("expone métricas financieras completas y cambia de pestaña con teclado", () => {
+  it("expone métricas hasta Facturado y cambia de pestaña con teclado", () => {
     render(
       <ServiceEvidenceTabs
         data={data}
@@ -116,8 +114,8 @@ describe("ServiceEvidenceTabs", () => {
 
     expect(screen.getByRole("tab", { name: /Financiero/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Programado")).toBeTruthy();
-    expect(screen.getByText("CxC")).toBeTruthy();
-    expect(screen.getByText("Pendiente")).toBeTruthy();
+    expect(screen.getByText("Pendiente de facturar")).toBeTruthy();
+    expect(screen.queryByText("CxC")).toBeNull();
     expect(screen.getByText("USD 282")).toBeTruthy();
   });
 });
@@ -149,12 +147,10 @@ describe("BillingPlan", () => {
           currency: "USD",
           contracted: 94,
           invoiced: 0,
-          collected: 0,
           overdue: 94,
           overdueItems: 1,
           contractedLabel: "USD 94",
           invoicedLabel: "USD 0",
-          collectedLabel: "USD 0",
           overdueLabel: "USD 94",
         },
       ],

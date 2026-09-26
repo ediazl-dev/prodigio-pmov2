@@ -471,7 +471,6 @@ export default function RSExecutionStage() {
                   const colors: Record<string, { bg: string; fg: string }> = {
                     pendiente: { bg: "#FEF3C7", fg: "#92400E" },
                     facturado: { bg: "#DBEAFE", fg: "#1E40AF" },
-                    pagado: { bg: "#DCFCE7", fg: "#166534" },
                   };
                   const c = colors[m.status] ?? colors.pendiente;
                   return (
@@ -485,7 +484,7 @@ export default function RSExecutionStage() {
                 })}
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", border: "1px solid #FDE68A" }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#92400E" }}>Pendiente</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#78350F" }}>{svc.currency} {metrics?.totalPending?.toLocaleString() ?? "0"}</div>
@@ -493,10 +492,6 @@ export default function RSExecutionStage() {
               <div style={{ padding: "10px 14px", borderRadius: 8, background: "#DBEAFE", border: "1px solid #BFDBFE" }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#1E40AF" }}>Facturado</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#1E3A8A" }}>{svc.currency} {metrics?.totalBilled?.toLocaleString() ?? "0"}</div>
-              </div>
-              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#DCFCE7", border: "1px solid #BBF7D0" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#166534" }}>Pagado</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#14532D" }}>{svc.currency} {metrics?.totalPaid?.toLocaleString() ?? "0"}</div>
               </div>
             </div>
           </div>
@@ -797,13 +792,13 @@ export default function RSExecutionStage() {
                     </thead>
                     <tbody>
                       {(jiraData && !jiraData.jiraUnavailable ? jiraData.billingItems : db.billing)?.map((m: any) => {
+                        const visibleStatus = m.status === "pagado" ? "facturado" : m.status;
                         const billingColors: Record<string, { bg: string; fg: string }> = {
                           pendiente: { bg: "#FEF3C7", fg: "#92400E" },
                           facturado: { bg: "#DBEAFE", fg: "#1E40AF" },
-                          pagado: { bg: "#DCFCE7", fg: "#166534" },
                         };
-                        const bc = billingColors[m.status] ?? billingColors.pendiente;
-                        const isOverdue = m.status === "pendiente" && m.dueDate && new Date(m.dueDate) < new Date();
+                        const bc = billingColors[visibleStatus] ?? billingColors.pendiente;
+                        const isOverdue = visibleStatus === "pendiente" && m.dueDate && new Date(m.dueDate) < new Date();
                         return (
                           <tr key={m.id} style={{ borderBottom: `1px solid ${C.border}`, background: isOverdue ? "#FEF2F2" : "transparent" }}>
                             {svc.jsmProjectKey && (
@@ -828,7 +823,7 @@ export default function RSExecutionStage() {
                             </td>
                             <td style={{ padding: "8px 10px" }}>
                               <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: bc.bg, color: bc.fg }}>
-                                {m.status.toUpperCase()}
+                                {visibleStatus.toUpperCase()}
                               </span>
                             </td>
                             <td style={{ padding: "8px 10px", fontSize: 11, color: C.textSecondary }}>

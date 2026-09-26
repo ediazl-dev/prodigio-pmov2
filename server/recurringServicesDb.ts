@@ -3,7 +3,7 @@
  * Follows same patterns as server/db.ts — returns raw Drizzle rows.
  */
 import { eq, and, desc, asc } from "drizzle-orm";
-import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialData } from "../drizzle/schema";
+import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData } from "../drizzle/schema";
 import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
@@ -632,6 +632,16 @@ export async function getBillingMonths(serviceId: number) {
   return db.select().from(recurringServiceBillingMonths).where(eq(recurringServiceBillingMonths.serviceId, serviceId)).orderBy(asc(recurringServiceBillingMonths.monthNumber));
 }
 
+export async function getActiveCorporateBillingItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(financialBillingItems)
+    .where(eq(financialBillingItems.sourceActive, true))
+    .orderBy(asc(financialBillingItems.invoicedAt), asc(financialBillingItems.plannedDate));
+}
+
 export async function saveBillingMonths(serviceId: number, months: InsertRecurringServiceBillingMonth[]) {
   const db = await getDb();
   if (!db) return;
@@ -746,6 +756,13 @@ export async function getPenalties(serviceId: number) {
   return db.select().from(recurringServicePenalties).where(eq(recurringServicePenalties.serviceId, serviceId)).orderBy(desc(recurringServicePenalties.createdAt));
 }
 
+export async function getPenaltyById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(recurringServicePenalties).where(eq(recurringServicePenalties.id, id));
+  return row ?? null;
+}
+
 export async function insertPenalty(data: InsertRecurringServicePenalty) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -766,6 +783,24 @@ export async function updatePenaltyStatus(id: number, status: string) {
     .update(recurringServicePenalties)
     .set({ status: status as any })
     .where(eq(recurringServicePenalties.id, id));
+}
+
+export async function updatePenaltyEvidence(
+  id: number,
+  evidence: {
+    evidenceFileName: string;
+    evidenceFileUrl: string;
+    evidenceFileKey: string;
+    evidenceMimeType: string;
+    evidenceFileSize: number;
+    evidenceSha256: string;
+    evidenceUploadedAt: Date;
+    evidenceUploadedBy: number;
+  },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(recurringServicePenalties).set(evidence).where(eq(recurringServicePenalties.id, id));
 }
 
 // ─── Bulk delete helpers ─────────────────────────────────────────────────────
@@ -808,11 +843,11 @@ export async function getAiAnalysisHistory(serviceId: number, limit = 10) {
 
 export async function getDashboardKpisData() {
   const db = await getDb();
-  if (!db) return { services: [], billingMonths: [], slaConfigs: [], penalties: [] };
+  if (!db) return { services: [], billingMonths: [], slaConfigs: [], penalties: [], corporateBillingItems: [] };
 
-  const [services, billingMonths, slaConfigs, penalties] = await Promise.all([db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)), db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)), db.select().from(recurringServiceSlaConfig), db.select().from(recurringServicePenalties)]);
+  const [services, billingMonths, slaConfigs, penalties, corporateBillingItems] = await Promise.all([db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)), db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)), db.select().from(recurringServiceSlaConfig), db.select().from(recurringServicePenalties), db.select().from(financialBillingItems).where(eq(financialBillingItems.sourceActive, true))]);
 
-  return { services, billingMonths, slaConfigs, penalties };
+  return { services, billingMonths, slaConfigs, penalties, corporateBillingItems };
 }
 
 export async function getRecurringDashboardV2Data() {
@@ -829,10 +864,11 @@ export async function getRecurringDashboardV2Data() {
       slaConfigs: [],
       jsmSnapshots: [],
       financialReferences: [],
+      corporateBillingItems: [],
     };
   }
 
-  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, jsmSnapshots, financialReferences] = await Promise.all([
+  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, jsmSnapshots, financialReferences, corporateBillingItems] = await Promise.all([
     db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)),
     db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)),
     db.select().from(recurringServiceWorkPlan).orderBy(asc(recurringServiceWorkPlan.dueDate)),
@@ -857,6 +893,7 @@ export async function getRecurringDashboardV2Data() {
         syncedAt: financialData.syncedAt,
       })
       .from(financialData),
+    db.select().from(financialBillingItems).where(eq(financialBillingItems.sourceActive, true)),
   ]);
 
   return {
@@ -870,6 +907,7 @@ export async function getRecurringDashboardV2Data() {
     slaConfigs,
     jsmSnapshots,
     financialReferences,
+    corporateBillingItems,
   };
 }
 

@@ -146,9 +146,10 @@ describe("recurringServices router", () => {
     expect(caller.recurringServices.generateAiExecutiveSummary).toBeDefined();
   });
 
-  it("has createPenalty procedure", () => {
+  it("has createPenalty and uploadPenaltyEvidence procedures", () => {
     const caller = appRouter.createCaller(makeCtx());
     expect(caller.recurringServices.createPenalty).toBeDefined();
+    expect(caller.recurringServices.uploadPenaltyEvidence).toBeDefined();
   });
 
   it("has closeService procedure", () => {
@@ -495,20 +496,22 @@ describe("recurringServices dashboardKpis", () => {
     expect(kpis.billing).toBeDefined();
     expect(kpis.billing.currentMonth).toBeDefined();
     expect(typeof kpis.billing.currentMonth.total).toBe("number");
-    expect(typeof kpis.billing.currentMonth.paid).toBe("number");
+    expect(typeof kpis.billing.currentMonth.invoiced).toBe("number");
+    expect(kpis.billing.currentMonth).not.toHaveProperty("paid");
     expect(typeof kpis.billing.currentMonth.pending).toBe("number");
     expect(kpis.billing.overall).toBeDefined();
     expect(typeof kpis.billing.overall.total).toBe("number");
-    expect(typeof kpis.billing.overall.paid).toBe("number");
+    expect(typeof kpis.billing.overall.invoiced).toBe("number");
+    expect(kpis.billing.overall).not.toHaveProperty("paid");
     expect(typeof kpis.billing.overall.pending).toBe("number");
     expect(kpis.billing.monthly).toBeDefined();
     expect(Array.isArray(kpis.billing.monthly)).toBe(true);
     expect(kpis.billing.monthly.length).toBe(6);
     for (const m of kpis.billing.monthly) {
       expect(m.month).toMatch(/^\d{4}-\d{2}$/);
-      expect(typeof m.pagado).toBe("number");
       expect(typeof m.facturado).toBe("number");
       expect(typeof m.pendiente).toBe("number");
+      expect(m).not.toHaveProperty("pagado");
     }
 
     // SLA
@@ -541,7 +544,8 @@ describe("recurringServices dashboardKpis", () => {
       expect(svc.status).toBeDefined();
       expect(svc.currentStage).toBeDefined();
       expect(typeof svc.billingTotal).toBe("number");
-      expect(typeof svc.billingPaid).toBe("number");
+      expect(typeof svc.billingInvoiced).toBe("number");
+      expect(svc).not.toHaveProperty("billingPaid");
       expect(typeof svc.billingPending).toBe("number");
       expect(typeof svc.billingProgress).toBe("number");
       expect(svc.billingProgress).toBeGreaterThanOrEqual(0);

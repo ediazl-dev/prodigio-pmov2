@@ -37,6 +37,7 @@ import {
 } from "./recurring/serviceDetailViewModel";
 
 import { BillingPlan } from "./recurring/components/BillingPlan";
+import { RecurringPenaltyPanel } from "./recurring/components/RecurringPenaltyPanel";
 import { ServiceEvidenceTabs } from "./recurring/components/ServiceEvidenceTabs";
 import { ServiceSignals } from "./recurring/components/ServiceSignals";
 import { StagePipeline } from "./recurring/components/StagePipeline";
@@ -245,10 +246,18 @@ export default function RecurringServiceDetail() {
         onOpenStage={stage => navigate(`/recurring-services/${id}/${stage.path}`)}
       />
 
-      {/* 4 · Plan de cobro */}
+      {/* 4 · Plan de facturación */}
       <BillingPlan plan={billingPlan} onRowAction={() => navigate(`/recurring-services/${id}/execution`)} />
 
-      {/* 5 · Evidencia */}
+      {/* 5 · Multas cursadas */}
+      <RecurringPenaltyPanel
+        serviceId={id}
+        currency={svc.currency || "USD"}
+        penalties={data.penalties}
+        canEdit={canManage}
+      />
+
+      {/* 6 · Evidencia */}
       {metrics.data && serviceMetrics && (
         <ServiceEvidenceTabs
           data={metrics.data}
