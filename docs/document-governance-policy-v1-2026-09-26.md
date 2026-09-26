@@ -50,3 +50,15 @@ La lectura separa presencia, validación, vigencia, aplicabilidad y cumplimiento
 ## Deuda técnica heredada
 
 La base mantiene cinco errores TypeScript previos y no relacionados: cuatro en `server/jiraMilestoneSync.ts` y uno en `server/routers.ts` sobre `estadoSII`. Ninguna fase documental debe agregar errores nuevos.
+
+## Estado de implementación
+
+### R0 — completado
+
+El catálogo y los defaults quedaron congelados en código y pruebas sobre el checkpoint `dac58181`.
+
+### R1 — modelo aditivo aplicado
+
+Se creó la migración `0052_simple_thaddeus_ross.sql` con siete tablas nuevas: catálogo, artefactos, decisiones append-only, resoluciones de aplicabilidad, asociaciones, snapshots de plan y snapshots de gates. La migración no contiene `DROP`, `TRUNCATE`, `DELETE` ni `ALTER TABLE`.
+
+Antes de aplicarla se guardó un respaldo con checksum en `/home/ubuntu/backups/prodigio-pmo/2026-09-26-document-governance-r1/`. La base conservaba 12 proyectos, 3 servicios recurrentes, 12 documentos recurrentes y cero controles recurrentes. Después de la migración se verificaron las siete tablas y nueve entradas de catálogo. En R1 no se importaron documentos ni se activaron gates.

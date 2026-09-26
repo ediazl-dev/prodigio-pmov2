@@ -810,7 +810,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 ## Gobierno documental unificado — 2026-09-26
 - [x] Q0: Congelar catálogo v1, defaults, roles, vigencia, P&L, plan con hitos y baseline `e661224`.
-- [ ] Q1: Crear esquema aditivo para artefactos, decisiones, asociaciones, excepciones y snapshots.
+- [x] Q1: Crear esquema aditivo para artefactos, decisiones, asociaciones, excepciones y snapshots.
 - [ ] Q2: Implementar carga segura, hash, versionado, descarga protegida, validación, rechazo, revocación y archive.
 - [ ] Q3: Importar referencias legacy como pendientes/no confirmadas, sin validar ni borrar automáticamente.
 - [ ] Q4: Unificar policy, read model, corte, estados y denominadores del reporte.

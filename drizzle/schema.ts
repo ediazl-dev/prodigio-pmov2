@@ -1,6 +1,7 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, decimal, date, index, uniqueIndex } from "drizzle-orm/mysql-core";
 import { RECURRING_SERVICE_TYPE_VALUES } from "../shared/recurringServiceTypes";
 import { JSM_ISSUE_MAPPING_CATEGORY_VALUES, JSM_ISSUE_MAPPING_SOURCE_VALUES, JSM_ISSUE_MAPPING_STATUS_VALUES, JSM_LINK_HEALTH_VALUES, JSM_LINK_RUN_SOURCE_VALUES, JSM_LINK_RUN_STATUS_VALUES, JSM_LINK_SOURCE_VALUES, JSM_SYNC_RUN_STATUS_VALUES } from "../shared/jsmExistingSpace";
+import { DOCUMENT_ENTITY_TYPES, DOCUMENT_REQUIREMENT_CODES } from "../shared/documentGovernance";
 
 // ==================== USERS ====================
 export const users = mysqlTable("users", {
@@ -1296,6 +1297,234 @@ export const recurringServiceDocumentControls = mysqlTable(
 );
 export type RecurringServiceDocumentControl = typeof recurringServiceDocumentControls.$inferSelect;
 export type InsertRecurringServiceDocumentControl = typeof recurringServiceDocumentControls.$inferInsert;
+
+// ==================== CANONICAL DOCUMENT GOVERNANCE ====================
+// Modelo aditivo: las tablas legacy siguen siendo la fuente durante la doble lectura y el backfill.
+export const documentRequirementCatalog = mysqlTable(
+  "document_requirement_catalog",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    policyVersion: varchar("policyVersion", { length: 50 }).notNull(),
+    entityType: varchar("entityType", { length: 40, enum: DOCUMENT_ENTITY_TYPES }).notNull(),
+    requirementCode: varchar("requirementCode", { length: 80, enum: DOCUMENT_REQUIREMENT_CODES }).notNull(),
+    label: varchar("label", { length: 200 }).notNull(),
+    description: text("description").notNull(),
+    validationProfile: mysqlEnum("validationProfile", ["contractual", "scope", "commercial", "financial", "work_plan"]).notNull(),
+    mandatory: boolean("mandatory").default(true).notNull(),
+    activeFrom: date("activeFrom", { mode: "string" }).notNull(),
+    activeUntil: date("activeUntil", { mode: "string" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    policyEntityRequirementUnique: uniqueIndex("document_requirement_catalog_policy_entity_code_uq").on(
+      table.policyVersion,
+      table.entityType,
+      table.requirementCode,
+    ),
+    activePolicyIdx: index("document_requirement_catalog_active_idx").on(table.entityType, table.activeFrom, table.activeUntil),
+  }),
+);
+
+export type DocumentRequirementCatalogRow = typeof documentRequirementCatalog.$inferSelect;
+export type InsertDocumentRequirementCatalogRow = typeof documentRequirementCatalog.$inferInsert;
+
+export const documentArtifacts = mysqlTable(
+  "document_artifacts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    entityType: varchar("entityType", { length: 40, enum: DOCUMENT_ENTITY_TYPES }).notNull(),
+    entityId: int("entityId").notNull(),
+    requirementCode: varchar("requirementCode", { length: 80, enum: DOCUMENT_REQUIREMENT_CODES }).notNull(),
+    sourceKind: mysqlEnum("sourceKind", ["platform_upload", "linked_upload", "generated", "jira_snapshot", "legacy_reference", "import"]).notNull(),
+    legacySourceTable: varchar("legacySourceTable", { length: 100 }),
+    legacySourceId: varchar("legacySourceId", { length: 100 }),
+    sourceReference: text("sourceReference"),
+    fileName: varchar("fileName", { length: 500 }).notNull(),
+    fileUrl: varchar("fileUrl", { length: 1000 }),
+    fileKey: varchar("fileKey", { length: 1000 }),
+    mimeType: varchar("mimeType", { length: 150 }),
+    sizeBytes: int("sizeBytes"),
+    sha256: varchar("sha256", { length: 64 }),
+    version: int("version").default(1).notNull(),
+    artifactStatus: mysqlEnum("artifactStatus", ["active", "superseded", "archived", "unavailable"]).default("active").notNull(),
+    supersedesArtifactId: int("supersedesArtifactId"),
+    observedAt: timestamp("observedAt").defaultNow().notNull(),
+    uploadedBy: int("uploadedBy"),
+    uploadedByName: varchar("uploadedByName", { length: 200 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    entityRequirementVersionUnique: uniqueIndex("document_artifacts_entity_requirement_version_uq").on(
+      table.entityType,
+      table.entityId,
+      table.requirementCode,
+      table.version,
+    ),
+    legacySourceUnique: uniqueIndex("document_artifacts_legacy_source_uq").on(table.legacySourceTable, table.legacySourceId),
+    entityRequirementStatusIdx: index("document_artifacts_entity_requirement_status_idx").on(
+      table.entityType,
+      table.entityId,
+      table.requirementCode,
+      table.artifactStatus,
+    ),
+    sha256Idx: index("document_artifacts_sha256_idx").on(table.sha256),
+  }),
+);
+
+export type DocumentArtifact = typeof documentArtifacts.$inferSelect;
+export type InsertDocumentArtifact = typeof documentArtifacts.$inferInsert;
+
+export const documentValidationDecisions = mysqlTable(
+  "document_validation_decisions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    artifactId: int("artifactId").notNull(),
+    entityType: varchar("entityType", { length: 40, enum: DOCUMENT_ENTITY_TYPES }).notNull(),
+    entityId: int("entityId").notNull(),
+    requirementCode: varchar("requirementCode", { length: 80, enum: DOCUMENT_REQUIREMENT_CODES }).notNull(),
+    policyVersion: varchar("policyVersion", { length: 50 }).notNull(),
+    decision: mysqlEnum("decision", ["pending", "valid", "rejected", "revoked"]).default("pending").notNull(),
+    validFrom: date("validFrom", { mode: "string" }),
+    validUntil: date("validUntil", { mode: "string" }),
+    openEndedValidity: boolean("openEndedValidity").default(false).notNull(),
+    costingStatus: mysqlEnum("costingStatus", ["not_applicable", "pending", "verified", "rejected"]).default("not_applicable").notNull(),
+    checklist: json("checklist"),
+    reason: text("reason"),
+    decidedBy: int("decidedBy"),
+    decidedByName: varchar("decidedByName", { length: 200 }),
+    decidedAt: timestamp("decidedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    artifactDecisionIdx: index("document_validation_decisions_artifact_idx").on(table.artifactId, table.decidedAt),
+    entityRequirementDecisionIdx: index("document_validation_decisions_entity_requirement_idx").on(
+      table.entityType,
+      table.entityId,
+      table.requirementCode,
+      table.decidedAt,
+    ),
+  }),
+);
+
+export type DocumentValidationDecision = typeof documentValidationDecisions.$inferSelect;
+export type InsertDocumentValidationDecision = typeof documentValidationDecisions.$inferInsert;
+
+export const documentRequirementResolutions = mysqlTable(
+  "document_requirement_resolutions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    entityType: varchar("entityType", { length: 40, enum: DOCUMENT_ENTITY_TYPES }).notNull(),
+    entityId: int("entityId").notNull(),
+    requirementCode: varchar("requirementCode", { length: 80, enum: DOCUMENT_REQUIREMENT_CODES }).notNull(),
+    policyVersion: varchar("policyVersion", { length: 50 }).notNull(),
+    applicability: mysqlEnum("applicability", ["required", "not_applicable", "unconfirmed"]).default("required").notNull(),
+    reason: text("reason"),
+    evidenceArtifactId: int("evidenceArtifactId"),
+    decidedBy: int("decidedBy"),
+    decidedByName: varchar("decidedByName", { length: 200 }),
+    decidedAt: timestamp("decidedAt").defaultNow().notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    entityRequirementResolutionIdx: index("document_requirement_resolutions_entity_requirement_idx").on(
+      table.entityType,
+      table.entityId,
+      table.requirementCode,
+      table.policyVersion,
+      table.active,
+    ),
+  }),
+);
+
+export type DocumentRequirementResolution = typeof documentRequirementResolutions.$inferSelect;
+export type InsertDocumentRequirementResolution = typeof documentRequirementResolutions.$inferInsert;
+
+export const documentAssociations = mysqlTable(
+  "document_associations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    artifactId: int("artifactId").notNull(),
+    associationType: mysqlEnum("associationType", [
+      "project_stage",
+      "recurring_stage",
+      "sow",
+      "gantt",
+      "wbs",
+      "milestone",
+      "jira_project",
+      "jira_issue",
+      "deal",
+      "financial_data",
+      "acceptance",
+      "closure",
+    ]).notNull(),
+    associationId: varchar("associationId", { length: 150 }).notNull(),
+    metadata: json("metadata"),
+    createdBy: int("createdBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    artifactAssociationUnique: uniqueIndex("document_associations_artifact_type_id_uq").on(
+      table.artifactId,
+      table.associationType,
+      table.associationId,
+    ),
+    associationLookupIdx: index("document_associations_lookup_idx").on(table.associationType, table.associationId),
+  }),
+);
+
+export type DocumentAssociation = typeof documentAssociations.$inferSelect;
+export type InsertDocumentAssociation = typeof documentAssociations.$inferInsert;
+
+export const documentWorkPlanSnapshots = mysqlTable(
+  "document_work_plan_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    artifactId: int("artifactId").notNull(),
+    entityType: varchar("entityType", { length: 40, enum: DOCUMENT_ENTITY_TYPES }).notNull(),
+    entityId: int("entityId").notNull(),
+    sourceType: mysqlEnum("sourceType", ["gantt", "wbs", "jira", "combined", "manual"]).notNull(),
+    sourceReference: text("sourceReference"),
+    milestoneCount: int("milestoneCount").notNull(),
+    milestones: json("milestones").notNull(),
+    capturedAt: timestamp("capturedAt").defaultNow().notNull(),
+    createdBy: int("createdBy"),
+    createdByName: varchar("createdByName", { length: 200 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    artifactUnique: uniqueIndex("document_work_plan_snapshots_artifact_uq").on(table.artifactId),
+    entityCapturedIdx: index("document_work_plan_snapshots_entity_captured_idx").on(table.entityType, table.entityId, table.capturedAt),
+  }),
+);
+
+export type DocumentWorkPlanSnapshot = typeof documentWorkPlanSnapshots.$inferSelect;
+export type InsertDocumentWorkPlanSnapshot = typeof documentWorkPlanSnapshots.$inferInsert;
+
+export const documentGateSnapshots = mysqlTable(
+  "document_gate_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    entityType: varchar("entityType", { length: 40, enum: DOCUMENT_ENTITY_TYPES }).notNull(),
+    entityId: int("entityId").notNull(),
+    gateCode: varchar("gateCode", { length: 80 }).notNull(),
+    policyVersion: varchar("policyVersion", { length: 50 }).notNull(),
+    cutoffDate: date("cutoffDate", { mode: "string" }).notNull(),
+    result: mysqlEnum("result", ["pass", "block", "observation"]).notNull(),
+    requirementSnapshot: json("requirementSnapshot").notNull(),
+    createdBy: int("createdBy"),
+    createdByName: varchar("createdByName", { length: 200 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    entityGateCreatedIdx: index("document_gate_snapshots_entity_gate_created_idx").on(table.entityType, table.entityId, table.gateCode, table.createdAt),
+  }),
+);
+
+export type DocumentGateSnapshot = typeof documentGateSnapshots.$inferSelect;
+export type InsertDocumentGateSnapshot = typeof documentGateSnapshots.$inferInsert;
 
 // ==================== RECURRING SERVICE REPORT EVIDENCE ====================
 export const recurringServiceReportEvidence = mysqlTable(
