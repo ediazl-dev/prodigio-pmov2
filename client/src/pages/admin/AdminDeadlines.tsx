@@ -6,7 +6,6 @@ import { trpc } from "@/lib/trpc";
 import { Calendar, Clock, Info, Loader2, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { C, headerGradient, cardStyle, headerKpiCard, headerKpiLabel, headerKpiValue, footerStyle, footerText } from "./adminStyles";
 
 const STAGE_ICONS: Record<string, string> = { sow: "📄", jira: "🔧", risks: "⚠️", planning: "📋", design: "🏗️", closure: "✅" };
@@ -15,8 +14,6 @@ const STAGE_BORDERS: Record<string, string> = { sow: C.accent, jira: C.blue, ris
 interface DeadlineForm { stageId: string; maxBusinessDays: number; label: string; description: string; }
 
 export default function AdminDeadlines() {
-  const { user } = useAuth();
-  const canEdit = (user as any)?.role === "admin";
   const { data: deadlines, isLoading, refetch } = trpc.deadlines.list.useQuery();
   const { data: holidays } = trpc.holidays.list.useQuery();
   const bulkUpdate = trpc.deadlines.bulkUpdate.useMutation();
@@ -52,15 +49,15 @@ export default function AdminDeadlines() {
       <div style={{ ...headerGradient, padding: "32px 36px 28px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
-            <span style={{ background: "rgba(59,142,232,.15)", border: "1px solid rgba(59,142,232,.35)", borderRadius: 20, padding: "3px 12px", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: ".1em", textTransform: "uppercase" }}>REPORTES</span>
+            <span style={{ background: "rgba(59,142,232,.15)", border: "1px solid rgba(59,142,232,.35)", borderRadius: 20, padding: "3px 12px", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: ".1em", textTransform: "uppercase" }}>ADMINISTRACIÓN</span>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
               <Clock className="h-6 w-6" style={{ color: C.accent }} /> Plazos Máximos por Etapa
             </h1>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>{canEdit ? "Consulta y configura los días hábiles máximos permitidos para completar cada etapa" : "Consulta los días hábiles máximos vigentes para completar cada etapa"}</p>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>Configura los días hábiles máximos permitidos para completar cada etapa</p>
           </div>
-          {canEdit && <Button onClick={handleSave} disabled={!hasChanges || bulkUpdate.isPending} style={{ background: hasChanges ? C.accent : C.g400, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, padding: "8px 18px", display: "flex", alignItems: "center", gap: 6, opacity: hasChanges ? 1 : .5 }}>
+          <Button onClick={handleSave} disabled={!hasChanges || bulkUpdate.isPending} style={{ background: hasChanges ? C.accent : C.g400, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, padding: "8px 18px", display: "flex", alignItems: "center", gap: 6, opacity: hasChanges ? 1 : .5 }}>
             {bulkUpdate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar Cambios
-          </Button>}
+          </Button>
         </div>
         <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
           {[
@@ -86,8 +83,6 @@ export default function AdminDeadlines() {
           </div>
         </div>
 
-        {!canEdit && <div style={{ ...cardStyle, padding: 14, fontSize: 12, color: C.g400 }}><strong style={{ color: C.navy }}>Modo de consulta.</strong> Los plazos sólo pueden ser modificados por un administrador.</div>}
-
         {/* Stage cards */}
         {forms.map((form, idx) => (
           <div key={form.stageId} style={{ ...cardStyle, borderLeft: `4px solid ${STAGE_BORDERS[form.stageId] ?? C.g300}`, padding: "18px 20px" }}>
@@ -101,15 +96,15 @@ export default function AdminDeadlines() {
               </div>
               <div>
                 <Label style={{ fontSize: 10, color: C.g400 }}>Días Hábiles</Label>
-                <Input disabled={!canEdit} type="number" min={1} max={365} value={form.maxBusinessDays} onChange={(e) => updateField(idx, "maxBusinessDays", parseInt(e.target.value) || 1)} className="mt-1 text-center font-bold text-lg" />
+                <Input type="number" min={1} max={365} value={form.maxBusinessDays} onChange={(e) => updateField(idx, "maxBusinessDays", parseInt(e.target.value) || 1)} className="mt-1 text-center font-bold text-lg" />
               </div>
               <div>
                 <Label style={{ fontSize: 10, color: C.g400 }}>Etiqueta</Label>
-                <Input disabled={!canEdit} value={form.label} onChange={(e) => updateField(idx, "label", e.target.value)} className="mt-1" />
+                <Input value={form.label} onChange={(e) => updateField(idx, "label", e.target.value)} className="mt-1" />
               </div>
               <div>
                 <Label style={{ fontSize: 10, color: C.g400 }}>Descripción</Label>
-                <Textarea disabled={!canEdit} value={form.description} onChange={(e) => updateField(idx, "description", e.target.value)} className="mt-1 resize-none" rows={1} placeholder="Descripción del plazo..." />
+                <Textarea value={form.description} onChange={(e) => updateField(idx, "description", e.target.value)} className="mt-1 resize-none" rows={1} placeholder="Descripción del plazo..." />
               </div>
             </div>
           </div>

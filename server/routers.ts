@@ -6166,7 +6166,7 @@ const jiraRouter = router({
 
 // ==================== DEADLINES ROUTER (Admin: plazos por etapa) ====================
 const deadlinesRouter = router({
-  list: protectedProcedure.query(async () => getAllStageDeadlines()),
+  list: adminOnly.query(async () => getAllStageDeadlines()),
 
   update: adminOnly.input(z.object({
     stageId: z.enum(["sow", "jira", "risks", "planning", "design", "closure"]),

@@ -91,7 +91,7 @@ function Router() {
             <Route path="/projects/:id/closure" component={ClosureStage} />
             {/* Reportes disponibles para todo usuario autenticado */}
             <Route path="/reports/finance" component={FinancialConsolidated} />
-            <Route path="/reports/deadlines" component={AdminDeadlines} />
+            <Route path="/reports/compliance" component={ComplianceReport} />
             <Route path="/reports/evidence" component={AdminEvidenceHistory} />
             <Route path="/reports/jira" component={JiraReport} />
             <Route path="/reports/jira/:projectKey" component={JiraProjectDashboard} />
@@ -99,8 +99,9 @@ function Router() {
             <Route path="/admin/users">{() => <AdminGuard><AdminUsers /></AdminGuard>}</Route>
             <Route path="/admin/finance">{() => <Redirect to="/reports/finance" />}</Route>
             <Route path="/admin/templates">{() => <AdminGuard><AdminTemplates /></AdminGuard>}</Route>
-            <Route path="/admin/deadlines">{() => <Redirect to="/reports/deadlines" />}</Route>
-            <Route path="/admin/compliance">{() => <AdminGuard><ComplianceReport /></AdminGuard>}</Route>
+            <Route path="/admin/deadlines">{() => <AdminGuard><AdminDeadlines /></AdminGuard>}</Route>
+            <Route path="/admin/compliance">{() => <Redirect to="/reports/compliance" />}</Route>
+            <Route path="/reports/deadlines">{() => <Redirect to="/admin/deadlines" />}</Route>
             <Route path="/admin/audit">{() => <AdminGuard><AdminAuditLog /></AdminGuard>}</Route>
             <Route path="/admin/jira-spaces">{() => <AdminGuard><JiraSpacesPage /></AdminGuard>}</Route>
             <Route path="/admin/jsm-spaces">{() => <JsmViewerGuard><JsmSpacesPage /></JsmViewerGuard>}</Route>

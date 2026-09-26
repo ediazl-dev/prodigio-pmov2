@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { AlertTriangle, Bell, CheckCircle2, Clock, Loader2, TrendingUp } from "lucide-react";
-import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { C, headerGradient, cardStyle, headerKpiCard, headerKpiLabel, headerKpiValue, thStyle, tdStyle, footerStyle, footerText } from "./adminStyles";
@@ -12,7 +11,6 @@ const STATUS_COLORS: Record<string, string> = { on_time: C.green, late: C.red, i
 const STATUS_LABELS: Record<string, string> = { on_time: "A tiempo", late: "Con retraso", in_progress: "En progreso", not_started: "No iniciada" };
 
 export default function ComplianceReport() {
-  const [, setLocation] = useLocation();
   const { user } = useAuth();
   const role = (user as any)?.role ?? "consulta";
   const isAdminOrPmo = ["admin", "pmo"].includes(role);
@@ -58,7 +56,7 @@ export default function ComplianceReport() {
       <div style={{ ...headerGradient, padding: "32px 36px 28px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
-            <span style={{ background: "rgba(59,142,232,.15)", border: "1px solid rgba(59,142,232,.35)", borderRadius: 20, padding: "3px 12px", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: ".1em", textTransform: "uppercase" }}>ADMINISTRACIÓN</span>
+            <span style={{ background: "rgba(59,142,232,.15)", border: "1px solid rgba(59,142,232,.35)", borderRadius: 20, padding: "3px 12px", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: ".1em", textTransform: "uppercase" }}>REPORTES</span>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-.5px", marginTop: 8 }}>Reporte de Cumplimiento de Plazos</h1>
             <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>Análisis de cumplimiento de plazos por etapa de proyecto</p>
           </div>
