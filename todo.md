@@ -780,4 +780,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] G2: Reutilizar el read model V2 para montos, facturación, incidentes, SLA y series mensuales.
 - [x] G3: Incorporar KPIs gerenciales, tendencias, pendientes con SLA y resumen final por servicio.
 - [x] G4: Validar 3 servicios reales, monedas separadas, N/D, escritorio, móvil y pruebas focales.
-- [ ] G5: Certificar suite completa, build, TypeScript heredado, secretos, refs y checkpoint final.
+- [x] G5: Certificar suite completa, build, TypeScript heredado, secretos, refs y checkpoint final.
