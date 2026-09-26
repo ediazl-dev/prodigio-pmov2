@@ -742,7 +742,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Cobertura y cumplimiento documental — 2026-09-25
 
 - [x] D0: Inventariar fuentes, estados, duplicados y huérfanos desde `bec4f06a` con lectura segura.
-- [ ] D1: Implementar clasificación determinista Abierto / Histórico / Por confirmar para proyectos y servicios.
+- [x] D1: Implementar clasificación determinista Abierto / Histórico / Por confirmar para proyectos y servicios.
 - [ ] D2: Implementar motor puro de requisitos, evidencia, cobertura, brechas y acciones.
 - [ ] D3: Crear cargador consolidado por lotes, filtros y paginación tRPC sin N+1.
 - [ ] D4: Rediseñar el reporte con KPIs, corte y filtros Abiertos / Históricos / Todos.
