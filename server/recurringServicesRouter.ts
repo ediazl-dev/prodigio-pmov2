@@ -16,6 +16,7 @@ import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSp
 import { associateExistingJiraIssue, calculateJsmSetupReadiness, configureJsmIssueTypeMappings, confirmJsmSync, dryRunJsmSync, getJsmSyncConfiguration, JsmRecurringSyncError } from "./jsmRecurringSyncRunner";
 import { buildRecurringServicesDashboardV2 } from "./recurringServicesDashboardV2";
 import { reconcileRecurringBillingMonths } from "./recurringBillingReconciliation";
+import { loadRecurringServiceJiraBillingEvidence } from "./jiraBillingEvidence";
 import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
 import {
@@ -91,6 +92,10 @@ export const recurringServicesRouter = router({
     .query(async ({ input }) => {
       return listRecurringServices(input ?? undefined);
     }),
+
+  jiraBillingEvidence: protectedProcedure
+    .input(z.object({ serviceId: z.number().int().positive() }))
+    .query(async ({ input }) => loadRecurringServiceJiraBillingEvidence(input.serviceId)),
 
   dashboardKpis: protectedProcedure.query(async () => {
     const { services, billingMonths: localBillingMonths, slaConfigs, penalties, corporateBillingItems } = await getDashboardKpisData();

@@ -54,6 +54,7 @@ import {
 } from "./jiraPortfolioReportModel";
 import { createJiraSpaceRecord, getJiraSpaceByProject, getAllJiraSpaces, updateJiraSpaceStatus, insertGanttUpload, getLatestGanttUpload, updateBillingMilestoneJiraKey, createLinkedProject, getManagedJiraProjectKeys, getProjectByJiraProjectKey, bindJiraOnboardingToProject, createHomologatedStageClosure, reconcileHistoricalStageClosure, unlinkProject, deleteProjectAdmin, bulkUpsertFinancialData, getFinancialDataSyncInfo, getFinancialSyncLogPage, getLatestFinancialSync, getLatestSuccessfulFinancialSync, getAllFinancialData as getAllFinancialDataFromDb, saveExecutiveVerdict, getLatestVerdict, getVerdictHistory, getVerdictById, getLinkedProjectDocuments, deleteLinkedProjectDocument, getLinkedProjectDocumentById, getLatestPMAnalysis, getLatestPMAnalysisWithReview, getPMAnalysisHistory, getMyProfileData, getExecutiveProjectSource, getExecutiveProjectSourceProposal, getExecutiveContractMilestones, updateExecutiveContractMilestoneJiraObservation, getExecutiveMilestoneAcceptances, getExecutiveMeetingMinutes, getExecutiveCommitments, getExecutiveRequirements, getLatestExecutiveRecoveryPlan, getExecutiveRecoveryPlans, getExecutiveRecoveryPlanById, approveExecutiveRecoveryPlan, getExecutiveGovernanceAssignments, getLatestExecutiveFinancialSnapshot, getLatestExecutiveProductionDashboardSnapshot, createExecutiveRequirement, getExecutiveRequirementById, closeExecutiveRequirement, waiveExecutiveRequirement, createExecutiveVerdictReview, reviewExecutiveVerdict, updateDraftExecutiveMilestoneBaseline, approveJiraBaselineProposal } from "./db";
 import { recurringServicesRouter } from "./recurringServicesRouter";
+import { loadProjectJiraBillingEvidence } from "./jiraBillingEvidence";
 import { documentGovernanceRouter } from "./documentGovernanceRouter";
 import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { buildFinancialSyncHealth } from "./financialSyncHealth";
@@ -5140,6 +5141,11 @@ Sé específico y constructivo. SOLO JSON.` },
 const jiraRouter = router({
   // Health check
   health: protectedProcedure.query(async () => jiraHealthCheck()),
+
+  // Operational billing status by project milestone. Read-only from Jira.
+  billingEvidence: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ input }) => loadProjectJiraBillingEvidence(input.projectId)),
 
   // Token health check - detailed status for admin monitoring
   tokenHealth: protectedProcedure.query(async () => {
