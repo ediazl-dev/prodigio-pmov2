@@ -5,7 +5,7 @@
  *   1. Una sola cabecera (antes eran dos oscuras seguidas, casi una pantalla)
  *   2. Qué hacer con este servicio — las señales, accionables
  *   3. Pipeline de etapas — el único control que avanza el servicio
- *   4. Plan de cobro — ahora con la plata vencida a la vista
+ *   4. Programación contractual y estado de facturación Jira
  *   5. Evidencia en pestañas — cobertura, calidad, financiero, entregables, SLA
  *
  * Lo que se va: la segunda cabecera oscura de «Vista 360°», sus cuatro KPIs
@@ -17,6 +17,7 @@
  */
 
 import AppBreadcrumb from "@/components/AppBreadcrumb";
+import { JiraBillingEvidencePanel } from "@/components/JiraBillingEvidencePanel";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -29,6 +30,7 @@ import { RECURRING_HEALTH_UI, formatCutOffDate, type RecurringHealthKey } from "
 import { buildActionQueue } from "./recurring/recurringDashboardV3ViewModel";
 import {
   SERVICE_STAGES,
+  applyJiraBillingToPlan,
   buildBillingPlan,
   buildDocumentRows,
   buildStagePipeline,
@@ -63,6 +65,7 @@ export default function RecurringServiceDetail() {
   const [cutOffDate] = useState(todayIso);
 
   const serviceQuery = trpc.recurringServices.getById.useQuery({ id }, { enabled: !!id });
+  const jiraBilling = trpc.recurringServices.jiraBillingEvidence.useQuery({ serviceId: id }, { enabled: !!id, staleTime: 60_000, retry: false });
   const { data, isLoading } = serviceQuery;
   const metrics = trpc.recurringServices.dashboardV2.useQuery(
     { serviceId: id, cutOffDate },
@@ -75,14 +78,18 @@ export default function RecurringServiceDetail() {
   const documents = useMemo(() => buildDocumentRows(data?.documents ?? []), [data?.documents]);
   const billingPlan = useMemo(
     () =>
-      buildBillingPlan(
-        data?.billingMonths ?? [],
+      applyJiraBillingToPlan(
+        buildBillingPlan(
+          data?.billingMonths ?? [],
+          cutOffDate,
+          svc?.totalContractAmount && svc?.currency
+            ? { amount: Number(svc.totalContractAmount), currency: svc.currency }
+            : null,
+        ),
+        jiraBilling.data,
         cutOffDate,
-        svc?.totalContractAmount && svc?.currency
-          ? { amount: Number(svc.totalContractAmount), currency: svc.currency }
-          : null,
       ),
-    [data?.billingMonths, cutOffDate, svc?.totalContractAmount, svc?.currency],
+    [data?.billingMonths, cutOffDate, jiraBilling.data, svc?.totalContractAmount, svc?.currency],
   );
 
   const serviceMetrics = metrics.data?.matrix[0] ?? null;
@@ -248,6 +255,8 @@ export default function RecurringServiceDetail() {
 
       {/* 4 · Plan de facturación */}
       <BillingPlan plan={billingPlan} onRowAction={() => navigate(`/recurring-services/${id}/execution`)} />
+
+      <JiraBillingEvidencePanel evidence={jiraBilling.data} loading={jiraBilling.isLoading} title="Facturación operacional por cuota" />
 
       {/* 5 · Multas cursadas */}
       <RecurringPenaltyPanel

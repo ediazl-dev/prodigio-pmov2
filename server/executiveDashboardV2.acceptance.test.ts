@@ -47,9 +47,10 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
       "Eje primario — cumplimiento cardinal de hitos",
       "Línea de tiempo contractual — baseline vs. real",
       "Hitos vencidos sin aceptación y evidencia por hito",
-      "Finanzas del proyecto — costos, margen y ciclo de caja",
-      "Embudo de facturación real",
-      "Facturado (SII)",
+      "Análisis financiero histórico — planilla consolidada",
+      "Facturación operacional Jira",
+      "Ciclo financiero histórico",
+      "Facturado histórico",
       "Costo consumido",
       "Impacto de la desviación sobre costo y margen",
       "Exigencias, pauta de remediación y descargos",
@@ -164,7 +165,7 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
   it("mantiene tres vistas derivadas con métricas y restricciones diferenciadas", () => {
     [
       "Exposición de margen y caja con base cardinal.",
-      "Hitos aceptados y facturación SII se muestran por separado.",
+      "Hitos aceptados, estado Jira e histórico financiero se muestran por separado.",
       "La trazabilidad técnica se observa, pero no acredita entrega.",
       "CV ·",
       "Valor de hitos aceptados",

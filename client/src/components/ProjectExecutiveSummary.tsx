@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { JiraBillingEvidencePanel } from "@/components/JiraBillingEvidencePanel";
 import { trpc } from "@/lib/trpc";
 import {
   AlertTriangle,
@@ -251,6 +252,7 @@ export function ProjectExecutiveSummary({ projectId, onNavigate }: { projectId: 
   const linkedDashboard = trpc.advance.getLinkedDashboard.useQuery({ projectId }, { staleTime: 60_000, retry: 1 });
   const baseline = trpc.portfolioConsole.getBaseline.useQuery({ projectId }, { staleTime: 60_000, retry: 1 });
   const billing = trpc.wbs.getBilling.useQuery({ projectId }, { staleTime: 60_000, retry: 1 });
+  const jiraBilling = trpc.jira.billingEvidence.useQuery({ projectId }, { staleTime: 60_000, retry: 1 });
   const approvedBaseline = baseline.data?.source?.sourceStatus === "approved";
   const executiveDashboard = trpc.advance.getExecutiveDashboardV2.useQuery(
     { projectId },
@@ -298,7 +300,7 @@ export function ProjectExecutiveSummary({ projectId, onNavigate }: { projectId: 
       </div>
 
       <div style={{ padding: "14px 20px 4px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9, flexWrap: "wrap" }}><CircleDollarSign size={16} color={C.teal} /><h3 style={{ margin: 0, color: C.navy, fontSize: 13, fontWeight: 800 }}>Finanzas esenciales</h3><span style={{ color: C.muted, fontSize: 10 }}>Fuente: {financialSourceLabel(model.financialSource)}{financialCutoff ? ` · corte ${financialCutoff}` : ""}</span></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9, flexWrap: "wrap" }}><CircleDollarSign size={16} color={C.teal} /><h3 style={{ margin: 0, color: C.navy, fontSize: 13, fontWeight: 800 }}>Análisis financiero histórico</h3><span style={{ color: C.muted, fontSize: 10 }}>Fuente: {financialSourceLabel(model.financialSource)}{financialCutoff ? ` · corte ${financialCutoff}` : ""}</span></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
           <Metric label="Contratado" value={formatUf(model.financial.contractedUf)} note="Valor de venta" />
           <Metric label="Costo consumido" value={formatUf(model.financial.consumedUf)} note="A la fecha" />
@@ -308,11 +310,13 @@ export function ProjectExecutiveSummary({ projectId, onNavigate }: { projectId: 
           <Metric label="Capacity proyectada" value={formatUf(model.financial.capacityProjectedUf)} note="Plan + ejecutado" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8, marginTop: 8 }}>
-          <Metric label="Facturado SII" value={formatUf(model.financial.billedUf)} note="Sólo facturas verificadas" />
-          <Metric label="Cobrado" value={formatUf(model.financial.collectedUf)} note="Sólo pagos verificados" />
-          <Metric label="WIP" value={formatUf(model.financial.wipUf)} note="Devengado no facturado" />
-          <Metric label="Backlog" value={formatUf(model.financial.backlogUf)} note="Contratado no devengado" />
+          <Metric label="WIP" value={formatUf(model.financial.wipUf)} note="Histórico de planilla · devengado no facturado" />
+          <Metric label="Backlog" value={formatUf(model.financial.backlogUf)} note="Histórico de planilla · contratado no devengado" />
         </div>
+      </div>
+
+      <div style={{ padding: "14px 20px 4px" }}>
+        <JiraBillingEvidencePanel evidence={jiraBilling.data} loading={jiraBilling.isLoading} />
       </div>
 
       <div style={{ padding: "14px 20px 20px" }}>

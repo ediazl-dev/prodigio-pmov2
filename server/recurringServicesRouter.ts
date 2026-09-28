@@ -16,7 +16,7 @@ import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSp
 import { associateExistingJiraIssue, calculateJsmSetupReadiness, configureJsmIssueTypeMappings, confirmJsmSync, dryRunJsmSync, getJsmSyncConfiguration, JsmRecurringSyncError } from "./jsmRecurringSyncRunner";
 import { buildRecurringServicesDashboardV2 } from "./recurringServicesDashboardV2";
 import { reconcileRecurringBillingMonths } from "./recurringBillingReconciliation";
-import { loadRecurringServiceJiraBillingEvidence } from "./jiraBillingEvidence";
+import { loadRecurringServiceJiraBillingEvidence, loadRecurringServicesJiraBillingPortfolio } from "./jiraBillingEvidence";
 import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
 import {
@@ -284,14 +284,18 @@ export const recurringServicesRouter = router({
         .optional(),
     )
     .query(async ({ input }) => {
-      const source = await getRecurringDashboardV2Data();
       const cutOffDate = input?.cutOffDate ?? new Date().toISOString().slice(0, 10);
       if (input?.fromDate && input.fromDate > cutOffDate) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "La fecha inicial no puede ser posterior a la fecha de corte." });
       }
+      const [source, jiraBilling] = await Promise.all([
+        getRecurringDashboardV2Data(),
+        loadRecurringServicesJiraBillingPortfolio(input?.serviceId ? [input.serviceId] : undefined),
+      ]);
       return buildRecurringServicesDashboardV2(source as any, {
         cutOffDate,
         fromDate: input?.fromDate,
+        jiraBilling,
         filters: {
           serviceId: input?.serviceId,
           clientName: input?.clientName,

@@ -1,137 +1,116 @@
-# Dashboard gerencial Clásico de servicios recurrentes v2
+# Dashboard gerencial Clásico de servicios recurrentes v3
 
-**Fecha:** 26-sep-2026
-**Base segura de la corrección:** checkpoint `96834e39`
+**Fecha de actualización:** 28-sep-2026
+**Base anterior:** checkpoint `9fd2a8c9`
 **Rama:** `feat/recurring-management-dashboard-v2`
-**Alcance:** lectura gerencial consolidada y corrección auditada de la moneda contractual de tres servicios; no modifica montos, fechas, estados, Jira ni JSM.
+**Alcance:** lectura gerencial consolidada, estado operacional de facturación desde Jira y análisis financiero histórico desde la planilla corporativa.
 
 ## Objetivo
 
-Responder directamente, por servicio y con fuente trazable:
+Responder por servicio y con fuente trazable:
 
 - qué está programado contractualmente;
-- qué fue facturado realmente en la fuente corporativa;
-- en qué moneda ocurre cada hecho;
-- qué diferencias impiden una comparación válida;
-- qué cobertura existe para incidentes y SLA;
-- qué entregables, documentos y multas requieren acción.
+- qué hitos están marcados facturados o no facturados en Jira;
+- qué monto contractual se atribuye a cada hito;
+- qué estados son N/D o ambiguos;
+- cuál es la evolución esperada versus facturada por mes contractual;
+- qué cobertura existe para incidentes, SLA, entregables, documentos y multas.
 
-## Cambios implementados
+## Frontera de fuentes
 
-### 1. Modelo financiero no destructivo
-
-La reconciliación conserva dos identidades separadas:
-
-| Identidad | Campos principales | Fuente |
+| Pregunta | Fuente | Regla |
 |---|---|---|
-| Programación | `expectedAmount`, `expectedCurrency`, `expectedDueDate` | Plan recurrente local |
-| Registro corporativo facturado | `invoiceAmount`, `invoiceCurrency`, `invoiceDate`, `invoiceSource` | `financial_billing_items` |
+| ¿Este hito o cuota está facturado? | Jira `Estado de Facturación` | Prevalece cuando el campo está informado. |
+| ¿Un ticket mensual recurrente está facturado? | Estado del ticket Jira identificado inequívocamente como facturación | `done` permite `Facturado según Jira`; no se aplica a issues genéricos. |
+| ¿Cuál es el monto del hito o cuota? | Hito contractual, calendario recurrente o venta × peso | Jira aporta estado, no altera monto ni moneda contractual. |
+| ¿Cuál es el histórico financiero consolidado? | Planilla financiera sincronizada | Mantiene ventas, costos, margen, devengo, facturas, caja y series históricas. |
+| ¿Existe factura tributaria o pago? | No acreditado por Jira | La UI no llama factura SII ni cobro al estado Jira. |
 
-Un registro corporativo ya no reemplaza el monto ni la moneda del plan. Los estados visibles incluyen coincidencia, diferencia de moneda, diferencia de monto, ambigüedad y ausencia de un registro marcado Facturado. Un estado local histórico `pagado` se conserva sólo como compatibilidad y nunca se presenta como cobro.
+La planilla y `financial_billing_items` no se eliminan ni se reescriben. Se conservan como fuente histórica y de análisis financiero. Jira gobierna la lectura operacional por hito.
 
-### 2. Read model gerencial
+## Reglas de conciliación Jira
 
-`server/recurringManagementDashboard.ts` agrega:
+1. El campo Jira `Estado de Facturación` prevalece sobre el workflow general.
+2. En servicios recurrentes sin ese campo, sólo se permite fallback por estado cuando el issue está identificado inequívocamente como ticket de facturación.
+3. El cierre de un entregable genérico no implica facturación.
+4. La coincidencia explícita `jiraIssueKey` prevalece; luego Deal + mes/código; luego mes con fuente coherente.
+5. Los duplicados se agrupan y no se suman.
+6. Si falta estado Jira, la lectura queda `N/D`; no se interpreta como facturado ni no facturado.
+7. Monedas distintas no se suman ni convierten.
+8. La fecha `updated` de Jira es fecha de evidencia, no fecha de factura.
+9. Toda integración Jira es GET-only.
 
-- resumen de servicios, registros corporativos facturados y excepciones;
-- montos por moneda sin conversión implícita;
-- contribución por servicio al esperado y al facturado;
-- SLA configurado, JSM vinculado, muestra medida y cumplimiento;
-- entregables, documentos y multas por servicio;
-- excepciones con impacto y acción recomendada;
-- cortes separados de fuente financiera, JSM y documentación.
+## Integración implementada
 
-### 3. Período y filtros
+### Proyectos
 
-El procedimiento `recurringServices.dashboardV2` acepta:
+- `jira.projectBillingEvidence` entrega estado, monto, moneda, fuente de monto, issue y duplicados por hito.
+- El resumen ejecutivo compacto y el Dashboard Ejecutivo V2 muestran `Facturación operacional por hito`.
+- El bloque financiero existente se rotula `Análisis financiero histórico — planilla consolidada`.
 
-- `cutOffDate`;
-- `fromDate`;
-- cliente;
-- tipo de servicio;
-- estado;
-- `onlyExceptions`.
+### Servicios recurrentes
 
-La UI ofrece mes actual, últimos tres meses, año a la fecha, contrato completo y rango personalizado. La comparación mensual/acumulada se calcula sin mezclar monedas. El filtro “Sólo excepciones” restringe todo el universo desde el servidor.
+- `recurringServices.jiraBillingEvidence` entrega la lectura por cuota.
+- El detalle muestra `Programación contractual y estado Jira`; sus estados y total facturado se recalculan desde Jira sin alterar montos ni fechas locales.
+- Ejecución usa el mismo panel Jira y deja de presentar el estado local como evidencia operacional.
+- Clásico recibe un portafolio Jira único para las tres fichas y calcula:
+  - facturado según Jira;
+  - no facturado según Jira;
+  - estado Jira N/D;
+  - brecha sólo cuando el estado es comparable;
+  - tendencia por mes contractual;
+  - duplicados y excepciones.
 
-### 4. Nueva vista Clásico
+## Lectura real al 28-sep-2026
 
-Orden de lectura:
+| Caso | Resultado Jira | Monto atribuible |
+|---|---|---:|
+| Camanchaca Deal 2383 | 3/6 facturados; 3/6 no facturados | UF 282 facturado de UF 564 |
+| Consalud Deal 4727 | 2 hitos facturados observados | UF 390 facturado |
+| Consalud Deal 4687 | 0 facturados; 2 no facturados; 1 N/D | UF 320 no facturado; UF 160 N/D |
+| Cartera recurrente | 2/3 servicios con hitos facturados | UF 672 facturado según Jira |
+| Programación al corte | 3 servicios | UF 1.152 |
+| Programación futura | Separada del corte | UF 1.062 |
 
-1. cabecera con filtros y cortes de fuente;
-2. respuesta explícita sobre facturación USD;
-3. indicadores inmediatos de cartera;
-4. finanzas por moneda y servicio;
-5. esperado versus facturación registrada, mensual o acumulada;
-6. embudo SLA;
-7. evolución del stock de tickets;
-8. entregables, formalidad y multas;
-9. excepciones con impacto y acción;
-10. evidencia consolidada;
-11. resumen final expandible por servicio.
+### Hallazgo Camanchaca
 
-El consolidado de Finanzas, Entregables, Formalidad y Operación JSM permanece exclusivamente en Clásico. Torre V2 no vuelve a renderizarlo.
+CAMANSOP01 contiene tres familias de tickets para los mismos seis meses. El read model selecciona un candidato canónico por mes y muestra **seis grupos con duplicados**. Los candidatos adicionales permanecen visibles en la advertencia y nunca se suman. El resultado conservador es UF 282 facturado según Jira y UF 282 aún no facturado.
 
-## Lectura real al 26-sep-2026
+### Hallazgo de proyectos
 
-| Pregunta | Resultado verificable |
-|---|---|
-| Servicios activos | 3 |
-| Servicios con registro corporativo facturado | 1/3 |
-| Moneda activa en la cartera actual | **UF**; las monedas sin participación no se destacan como alerta |
-| Facturación UF registrada | **UF 282**; Camanchaca Deal 2383, tres registros de UF 94 marcados Facturado |
-| Programación UF al corte | **UF 1.152** |
-| Programación UF futura | **UF 1.062** |
-| Conciliación Camanchaca | UF 282 esperado al corte y UF 282 registrado como facturado; conciliado, sin diferencia de moneda |
-| Brecha comparable UF | **UF 870**, correspondiente a Consalud Deals 4687 y 4727 sin registro corporativo facturado vinculado |
-| SLA configurado | 3/3 servicios |
-| JSM vinculado | 1/3 servicios |
-| SLA medible | 0/3; cumplimiento N/D |
-| Camanchaca | 32 abiertos, 3 altos y 14 con más de 30 días |
-| Entregables | 15 planificados, 15 sin fecha exigible |
-| Documentos | presencia 3/3; validación 0/3; 6 documentos presentes y no validados |
-| Multas | 0 registros |
+Tanner PBTISD1 muestra 8 de 10 hitos facturados según el campo Jira, equivalentes a UF 6.970 de UF 8.200 usando monto contractual directo o venta × peso. Los dos hitos restantes suman UF 1.230 y aparecen no facturados según Jira.
 
-## Guardrails aplicados
+## Lectura gerencial complementaria
 
-- No se suman UF y USD.
-- No se convierte moneda sin una política aprobada y fechada.
-- Las monedas sin programación ni facturación en la cartera filtrada no generan banners ni alertas globales.
-- Una diferencia de moneda bloquea porcentajes hasta corregir la fuente o aprobar una conversión explícita.
-- La UI usa “facturación registrada en la fuente corporativa”; `financial_billing_items` no se presenta como factura SII.
-- El ciclo recurrente termina en Facturado; no muestra Cobrado, Pagado ni CxC.
-- Los snapshots JSM se presentan como stock; no se afirma flujo mensual de tickets resueltos.
-- Reglas SLA, vínculo JSM, muestra medida y cumplimiento son etapas distintas.
-- Un denominador cero produce N/D, no 0 %.
+- SLA configurado, JSM vinculado, muestra medida y cumplimiento permanecen separados.
+- Un denominador cero produce N/D.
+- Los snapshots JSM se presentan como stock, no como flujo mensual resuelto.
 - Presencia documental no equivale a validación.
-- Entregables sin fecha se presentan como brecha de planificación.
-- El render usa datos locales persistidos; no consulta ni modifica Jira/JSM durante la carga.
-
-## Validación ejecutada
-
-- Respaldo previo: 3 fichas, 15 cuotas, 6 registros corporativos y referencias financieras.
-- Corrección transaccional: 3 fichas y 15 cuotas cambiadas exclusivamente de USD a UF; montos, fechas y estados preservados.
-- Read model real: UF 1.152 al corte, UF 1.062 futura, UF 282 registrada como facturada y UF 870 sin registro corporativo facturado.
-- Pruebas focales backend/UI y guardrails de moneda: 36 aprobadas.
-- Suite determinista integral: 1.034 pruebas aprobadas y 19 omitidas; se excluyó únicamente `server/ufService.test.ts` porque valida un servicio externo cuyo token respondió código `-5`.
-- Build productivo: exitoso.
-- TypeScript: sin regresiones nuevas; permanecen cinco errores heredados en `jiraMilestoneSync.ts` y `routers.ts`.
-- Navegador autenticado:
-  - UF seleccionada por evidencia real, sin banner especial para USD;
-  - UF 282 registrado y atribuido a Camanchaca;
-  - cambio mensual/acumulado;
-  - filtro por Camanchaca aplicado a toda la vista;
-  - embudo SLA 3/3 → 1/3 → 0/3 → N/D;
-  - escritorio 1440 px y móvil 390 px sin desbordamiento horizontal detectado.
+- Entregables sin fecha permanecen como brecha de planificación.
+- El ciclo recurrente termina en Facturado; no expone Cobrado ni CxC.
 
 ## Archivos principales
 
-- `server/recurringBillingReconciliation.ts`
-- `server/recurringServicesMetricsEngine.ts`
-- `server/recurringServicesDashboardV2.ts`
+- `server/jiraBillingEvidence.ts`
+- `server/jiraBillingEvidence.test.ts`
 - `server/recurringManagementDashboard.ts`
-- `server/recurringServicesDb.ts`
+- `server/recurringServicesDashboardV2.ts`
 - `server/recurringServicesRouter.ts`
-- `client/src/pages/RecurringServicesList.tsx`
-- `client/src/pages/recurring/classicManagementViewModel.ts`
+- `server/routers.ts`
+- `client/src/components/JiraBillingEvidencePanel.tsx`
+- `client/src/components/ProjectExecutiveSummary.tsx`
+- `client/src/pages/stages/ExecutiveDashboardV2.tsx`
+- `client/src/pages/stages/ExecutiveFinancialAxis.tsx`
+- `client/src/pages/RecurringServiceDetail.tsx`
+- `client/src/pages/recurring/RSExecutionStage.tsx`
 - `client/src/pages/recurring/ClassicManagementDashboard.tsx`
+- `client/src/pages/recurring/serviceDetailViewModel.ts`
+
+## Certificación final
+
+- 61 pruebas focales aprobadas para read model Jira, dashboard recurrente, Clásico, resumen de proyecto y plan de cuotas.
+- 1.095 pruebas deterministas aprobadas y 19 omitidas; se excluyó únicamente `server/ufService.test.ts` porque depende del servicio externo de UF.
+- Build productivo exitoso.
+- Validación real GET-only de Camanchaca, Consalud y Tanner.
+- Validación visual autenticada de proyecto, servicio y Clásico en escritorio; móvil sin desbordamiento visible.
+- TypeScript conserva únicamente los cinco errores heredados en `jiraMilestoneSync.ts` y `routers.ts`.

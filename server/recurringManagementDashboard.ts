@@ -1,5 +1,6 @@
 import type { ServiceMetricsV2 } from "./recurringServicesMetricsEngine";
 import type { RecurringDashboardV2Source } from "./recurringServicesDashboardV2";
+import type { JiraBillingEvidence } from "./jiraBillingEvidence";
 
 function numeric(value: string | number | null | undefined): number {
   const parsed = typeof value === "number" ? value : Number.parseFloat(value ?? "0");
@@ -46,6 +47,7 @@ export function buildRecurringManagementAnalytics(input: {
       documents: Array<{ status: string }>;
     }>;
   };
+  jiraBilling?: Record<number, JiraBillingEvidence>;
 }) {
   const { source, services, cutOffDate, fromDate } = input;
   const deliverablesByService = new Map(input.deliverables.rows.map(row => [row.serviceId, row]));
@@ -60,6 +62,7 @@ export function buildRecurringManagementAnalytics(input: {
 
   const rows = services.map(service => {
     const sourceService = sourceServiceById.get(service.id);
+    const jiraBilling = input.jiraBilling?.[service.id];
     const billing = source.billingMonths.filter(row => row.serviceId === service.id);
     const expectedToDate: Record<string, number> = {};
     const expectedFuture: Record<string, number> = {};
@@ -70,6 +73,8 @@ export function buildRecurringManagementAnalytics(input: {
     let ambiguousCount = 0;
     let currencyMismatchCount = 0;
     let amountMismatchCount = 0;
+    let jiraUnknownCount = 0;
+    let jiraNotBilledDueCount = 0;
 
     for (const row of billing) {
       const expectedCurrency = currency(row.expectedCurrency ?? row.currency ?? sourceService?.currency);
@@ -98,11 +103,40 @@ export function buildRecurringManagementAnalytics(input: {
       if (row.reconciliationStatus === "ambiguous") ambiguousCount += 1;
     }
 
+    if (jiraBilling) {
+      for (const key of Object.keys(invoicedReal)) delete invoicedReal[key];
+      for (const key of Object.keys(comparableGap)) delete comparableGap[key];
+      verifiedInvoiceCount = jiraBilling.summary.billedItems;
+      localInvoiceOnlyCount = 0;
+      ambiguousCount = jiraBilling.summary.duplicateGroups;
+      currencyMismatchCount = 0;
+      amountMismatchCount = 0;
+      for (const item of jiraBilling.items) {
+        const itemDate = item.dueDate ?? item.jiraDueDate;
+        const inWindow = !fromDate || !itemDate || itemDate >= fromDate;
+        const dueAtCutoff = !itemDate || itemDate <= cutOffDate;
+        if (item.billingStatus === "billed" && item.amount != null && item.currency && inWindow) {
+          addAmount(invoicedReal, currency(item.currency), item.amount);
+        } else if (item.billingStatus === "not_billed" && item.amount != null && item.currency && inWindow && dueAtCutoff) {
+          addAmount(comparableGap, currency(item.currency), item.amount);
+          jiraNotBilledDueCount += 1;
+        } else if (item.billingStatus === "unknown" && inWindow && dueAtCutoff) {
+          jiraUnknownCount += 1;
+        }
+      }
+    }
+
     const expectedCurrencies = Object.keys(expectedToDate).filter(key => expectedToDate[key] > 0);
     const invoiceCurrencies = Object.keys(invoicedReal).filter(key => invoicedReal[key] > 0);
-    const currencyMismatch = currencyMismatchCount > 0;
-    const missingVerifiedInvoice = verifiedInvoiceCount === 0 && billing.some(row => !(row.expectedDueDate ?? row.dueDate) || (row.expectedDueDate ?? row.dueDate)! <= cutOffDate);
-    const reconciliationStatus = ambiguousCount > 0
+    const currencyMismatch = jiraBilling ? false : currencyMismatchCount > 0;
+    const missingVerifiedInvoice = jiraBilling
+      ? jiraNotBilledDueCount > 0 || jiraUnknownCount > 0
+      : verifiedInvoiceCount === 0 && billing.some(row => !(row.expectedDueDate ?? row.dueDate) || (row.expectedDueDate ?? row.dueDate)! <= cutOffDate);
+    const reconciliationStatus = jiraBilling && !jiraBilling.jiraAvailable
+      ? "jira_unavailable"
+      : jiraBilling && jiraUnknownCount > 0
+        ? "jira_unknown"
+        : ambiguousCount > 0
       ? "ambiguous"
       : currencyMismatch
         ? "currency_mismatch"
@@ -134,8 +168,11 @@ export function buildRecurringManagementAnalytics(input: {
     const exceptions: Omit<RecurringManagementException, "serviceId" | "clientName" | "serviceName">[] = [];
 
     if (currencyMismatch) exceptions.push({ code: "CURRENCY_MISMATCH", severity: "critical", label: "Moneda contractual y factura no coinciden", impact: "Bloquea el porcentaje financiero comparable.", action: "Corregir la moneda contractual o aprobar una política de conversión con fecha." });
-    if (missingVerifiedInvoice) exceptions.push({ code: "MISSING_VERIFIED_INVOICE", severity: "critical", label: "Programación sin registro corporativo facturado", impact: "No existe evidencia suficiente para afirmar facturación del servicio en la fuente corporativa.", action: "Vincular el Deal con la fuente financiera o confirmar que aún no existe un registro marcado Facturado." });
-    if (ambiguousCount > 0) exceptions.push({ code: "AMBIGUOUS_INVOICE", severity: "critical", label: "Más de una factura coincide con una cuota", impact: "La evidencia no puede atribuirse automáticamente.", action: "Resolver manualmente la asociación de factura y cuota." });
+    if (jiraBilling && !jiraBilling.jiraAvailable) exceptions.push({ code: "JIRA_BILLING_UNAVAILABLE", severity: "critical", label: "Facturación Jira no disponible", impact: "El estado operacional por hito permanece N/D.", action: "Restablecer acceso de sólo lectura a Jira y volver a consultar." });
+    else if (jiraBilling && jiraUnknownCount > 0) exceptions.push({ code: "JIRA_BILLING_UNKNOWN", severity: "critical", label: `${jiraUnknownCount} hito(s) exigible(s) sin estado de facturación Jira`, impact: "No existe evidencia suficiente para afirmar si fueron facturados.", action: "Completar Estado de Facturación o vincular el ticket correcto." });
+    else if (jiraBilling && jiraNotBilledDueCount > 0) exceptions.push({ code: "JIRA_NOT_BILLED_DUE", severity: "critical", label: `${jiraNotBilledDueCount} hito(s) exigible(s) no facturado(s)`, impact: "Jira los identifica explícitamente como no facturados.", action: "Gestionar el hito de facturación y actualizar Estado de Facturación en Jira." });
+    else if (!jiraBilling && missingVerifiedInvoice) exceptions.push({ code: "MISSING_VERIFIED_INVOICE", severity: "critical", label: "Programación sin registro corporativo facturado", impact: "No existe evidencia suficiente para afirmar facturación del servicio en la fuente corporativa.", action: "Vincular el Deal con la fuente financiera o confirmar que aún no existe un registro marcado Facturado." });
+    if (ambiguousCount > 0) exceptions.push({ code: jiraBilling ? "AMBIGUOUS_JIRA_BILLING" : "AMBIGUOUS_INVOICE", severity: "attention", label: jiraBilling ? "Más de un hito Jira coincide con una cuota" : "Más de una factura coincide con una cuota", impact: "Los candidatos adicionales no se suman automáticamente.", action: "Confirmar y persistir el vínculo Jira canónico por cuota." });
     if (!sourceService?.jsmServiceDeskId) exceptions.push({ code: "JSM_NOT_LINKED", severity: "attention", label: "JSM no vinculado", impact: "Incidentes y cumplimiento SLA no son medibles.", action: "Vincular el Service Desk correcto o declarar una fuente alternativa." });
     if (service.sla.configuredRules > 0 && firstResponseMeasured + resolutionMeasured === 0) exceptions.push({ code: "SLA_NOT_MEASURED", severity: "attention", label: "SLA configurado sin muestra medida", impact: "El cumplimiento debe permanecer N/D.", action: "Persistir contadores medidos y cumplidos de respuesta y resolución." });
     if (undatedDeliverables > 0) exceptions.push({ code: "DELIVERABLES_WITHOUT_DATE", severity: "attention", label: `${undatedDeliverables} entregable(s) sin fecha exigible`, impact: "No existe calendario para medir cumplimiento.", action: "Registrar periodicidad y fecha exigible." });
@@ -156,6 +193,9 @@ export function buildRecurringManagementAnalytics(input: {
       expectedCurrencies,
       invoiceCurrencies,
       verifiedInvoiceCount,
+      billedJiraCount: jiraBilling?.summary.billedItems ?? 0,
+      jiraBillingUnknownCount: jiraBilling?.summary.unknownItems ?? 0,
+      jiraBillingSourceProjects: jiraBilling?.sourceProjectKeys ?? [],
       localInvoiceOnlyCount,
       reconciliationStatus,
       exceptions,
@@ -204,7 +244,7 @@ export function buildRecurringManagementAnalytics(input: {
     expectedToDate: rows.reduce((sum, row) => sum + (row.expectedToDate[itemCurrency] ?? 0), 0),
     expectedFuture: rows.reduce((sum, row) => sum + (row.expectedFuture[itemCurrency] ?? 0), 0),
     invoicedReal: rows.reduce((sum, row) => sum + (row.invoicedReal[itemCurrency] ?? 0), 0),
-    comparableGap: rows.filter(row => row.reconciliationStatus !== "currency_mismatch").reduce((sum, row) => sum + (row.comparableGap[itemCurrency] ?? 0), 0),
+    comparableGap: rows.filter(row => !["currency_mismatch", "jira_unknown", "jira_unavailable", "ambiguous"].includes(row.reconciliationStatus)).reduce((sum, row) => sum + (row.comparableGap[itemCurrency] ?? 0), 0),
     expectedContributors: rows.filter(row => (row.expectedToDate[itemCurrency] ?? 0) > 0).map(row => ({ serviceId: row.serviceId, clientName: row.clientName, serviceName: row.serviceName, amount: row.expectedToDate[itemCurrency] })),
     invoiceContributors: rows.filter(row => (row.invoicedReal[itemCurrency] ?? 0) > 0).map(row => ({ serviceId: row.serviceId, clientName: row.clientName, serviceName: row.serviceName, amount: row.invoicedReal[itemCurrency], invoices: row.verifiedInvoiceCount })),
   }));
@@ -226,11 +266,17 @@ export function buildRecurringManagementAnalytics(input: {
         .filter((value): value is string => value !== null)
         .sort()
         .at(-1) ?? null,
+      jiraBillingAt: rows
+        .map(row => input.jiraBilling?.[row.serviceId]?.evidenceAt ?? null)
+        .filter((value): value is string => value !== null)
+        .sort()
+        .at(-1) ?? null,
     },
     summary: {
       services: rows.length,
       withVerifiedInvoices: rows.filter(row => row.verifiedInvoiceCount > 0).length,
-      financeExceptions: rows.filter(row => ["currency_mismatch", "amount_mismatch", "ambiguous", "missing_invoice"].includes(row.reconciliationStatus)).length,
+      withJiraBilling: rows.filter(row => row.billedJiraCount > 0).length,
+      financeExceptions: rows.filter(row => ["currency_mismatch", "amount_mismatch", "ambiguous", "missing_invoice", "jira_unknown", "jira_unavailable"].includes(row.reconciliationStatus)).length,
       slaConfigured: rows.filter(row => row.sla.configuredRules > 0).length,
       jsmLinked: rows.filter(row => row.sla.jsmLinked).length,
       slaMeasured: rows.filter(row => row.sla.firstResponseMeasured + row.sla.resolutionMeasured > 0).length,

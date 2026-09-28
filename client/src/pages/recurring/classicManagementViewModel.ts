@@ -66,13 +66,14 @@ export function buildClassicManagementModel(
 ) {
   const comparison = options.comparison ?? "monthly";
   const management = data.management;
+  const nonComparableStatuses = new Set(["currency_mismatch", "jira_unknown", "jira_unavailable", "ambiguous"]);
   const finance: ClassicCurrencyRow[] = management.currencies.map(row => {
     const blockedServices = management.services
-      .filter(service => service.reconciliationStatus === "currency_mismatch")
+      .filter(service => nonComparableStatuses.has(service.reconciliationStatus))
       .filter(service => service.expectedCurrencies.includes(row.currency) || service.invoiceCurrencies.includes(row.currency))
       .map(service => ({ serviceId: service.serviceId, clientName: service.clientName, serviceName: service.serviceName }));
     const comparableServices = management.services.filter(service =>
-      service.reconciliationStatus !== "currency_mismatch"
+      !nonComparableStatuses.has(service.reconciliationStatus)
       && (service.expectedToDate[row.currency] ?? 0) > 0,
     );
     return {
@@ -93,6 +94,7 @@ export function buildClassicManagementModel(
     invoiced: row.invoiced,
     pending: row.pending,
     overdue: row.overdue,
+    unknown: "unknown" in row ? Number(row.unknown) : 0,
     expectedItems: row.expectedItems,
     invoiceItems: row.invoiceItems,
   }));
@@ -103,6 +105,7 @@ export function buildClassicManagementModel(
         let invoiced = 0;
         let pending = 0;
         let overdue = 0;
+        let unknown = 0;
         return rawMonthly
           .filter(row => row.currency === itemCurrency)
           .sort((a, b) => a.month.localeCompare(b.month))
@@ -111,7 +114,8 @@ export function buildClassicManagementModel(
             invoiced += row.invoiced;
             pending += row.pending;
             overdue += row.overdue;
-            return { ...row, expected, invoiced, pending, overdue };
+            unknown += row.unknown;
+            return { ...row, expected, invoiced, pending, overdue, unknown };
           });
       });
 

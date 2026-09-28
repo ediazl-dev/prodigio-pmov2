@@ -40,12 +40,12 @@ describe("vista clásica gerencial de servicios recurrentes", () => {
     expect(dashboard).not.toContain("Respuesta financiera inmediata");
     expect(dashboard).not.toContain("usd-real-answer");
     expect(dashboard).toContain("Programado al corte");
-    expect(dashboard).toContain("Facturación registrada");
-    expect(dashboard).toContain("esto no sustituye una factura SII");
+    expect(dashboard).toContain("Facturado según Jira");
+    expect(dashboard).toContain("No sustituye una factura tributaria");
     expect(dashboard).toContain("Evolución del stock de tickets");
     expect(dashboard).toContain("Embudo de cobertura SLA");
     expect(dashboard).toContain("sin fecha exigible");
-    expect(dashboard).toContain("No se calcula porcentaje ni brecha cruzando monedas");
+    expect(dashboard).toContain("No se calcula una brecha cuando la moneda o el estado Jira no son comparables");
     expect(dashboard).not.toMatch(/Incidentes resueltos|resueltos del mes|Cobrado|CxC|Avance de cobro/);
   });
 });

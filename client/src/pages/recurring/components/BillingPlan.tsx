@@ -31,6 +31,10 @@ const STATE_SKIN: Record<BillingRowState, { badge: string; cta: string }> = {
     badge: "border-slate-300 bg-slate-100 text-slate-600",
     cta: "border-slate-300 bg-white text-slate-700",
   },
+  estado_nd: {
+    badge: "border-[#FDA29B] bg-[#FEF3F2] text-[#B42318]",
+    cta: "border-[#FDA29B] bg-[#FEF3F2] text-[#B42318]",
+  },
 };
 
 interface BillingPlanProps {
@@ -42,7 +46,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
   if (!plan.hasRows) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-[15px] font-black text-slate-950">Plan de facturación</h2>
+        <h2 className="text-[15px] font-black text-slate-950">Programación contractual y estado Jira</h2>
         <p className="mt-2 text-[12.5px] text-slate-700">
           No configurado. Sin cuotas no hay vencimientos que medir y el servicio no aporta señal financiera.
         </p>
@@ -57,7 +61,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
       <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 px-5 py-3.5">
         <div>
-          <h2 className="text-[15px] font-black text-slate-950">Plan de facturación</h2>
+          <h2 className="text-[15px] font-black text-slate-950">Programación contractual y estado Jira</h2>
           <p className="mt-0.5 text-[11px] text-slate-600">
             {plan.rows.length} cuota{plan.rows.length === 1 ? "" : "s"}
             {overdueItems > 0 && ` · ${overdueItems} vencida${overdueItems === 1 ? "" : "s"}`}
@@ -67,7 +71,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
         {plan.totals.map(total => (
           <div key={total.currency} className="flex flex-wrap items-center gap-5">
             <Figure label="Contratado" value={total.contractedLabel} />
-            <Figure label="Facturado" value={total.invoicedLabel} className="text-[#175CD3]" />
+            <Figure label="Facturado Jira" value={total.invoicedLabel} className="text-[#175CD3]" />
             <div className="border-l border-slate-200 pl-5 text-right">
               <p className="text-[9px] font-bold uppercase tracking-wider text-[#B42318]">Vencido</p>
               <p className="font-mono text-[19px] font-black text-[#B42318]">{total.overdueLabel}</p>

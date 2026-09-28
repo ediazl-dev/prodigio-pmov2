@@ -1,4 +1,5 @@
 import AppBreadcrumb from "@/components/AppBreadcrumb";
+import { JiraBillingEvidencePanel } from "@/components/JiraBillingEvidencePanel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { trpc } from "@/lib/trpc";
@@ -94,6 +95,10 @@ export default function RSExecutionStage() {
   const { data: jiraData, isLoading: jiraLoading, refetch: refetchJira } = trpc.recurringServices.getWorkPlanFromJira.useQuery(
     { serviceId: id },
     { enabled: !!svcData?.service?.jsmProjectKey }
+  );
+  const jiraBilling = trpc.recurringServices.jiraBillingEvidence.useQuery(
+    { serviceId: id },
+    { enabled: Number.isFinite(id), staleTime: 60_000, retry: false },
   );
 
   const stage = stagesData?.find((s: any) => s.stageId === "ejecucion");
@@ -770,74 +775,7 @@ export default function RSExecutionStage() {
             {/* ── TAB: Detalle Facturación ── */}
             {mainTab === "facturacion" && (
               <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                    <DollarSign size={16} />
-                    Detalle de Facturación
-                  </h3>
-                </div>
-
-                {/* Billing table */}
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                        {svc.jsmProjectKey && <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase" }}>Issue JIRA</th>}
-                        <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase" }}>Mes</th>
-                        <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase" }}>Monto</th>
-                        <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase" }}>Fecha Vencimiento</th>
-                        <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase" }}>Estado</th>
-                        <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase" }}>N° Factura</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(jiraData && !jiraData.jiraUnavailable ? jiraData.billingItems : db.billing)?.map((m: any) => {
-                        const visibleStatus = m.status === "pagado" ? "facturado" : m.status;
-                        const billingColors: Record<string, { bg: string; fg: string }> = {
-                          pendiente: { bg: "#FEF3C7", fg: "#92400E" },
-                          facturado: { bg: "#DBEAFE", fg: "#1E40AF" },
-                        };
-                        const bc = billingColors[visibleStatus] ?? billingColors.pendiente;
-                        const isOverdue = visibleStatus === "pendiente" && m.dueDate && new Date(m.dueDate) < new Date();
-                        return (
-                          <tr key={m.id} style={{ borderBottom: `1px solid ${C.border}`, background: isOverdue ? "#FEF2F2" : "transparent" }}>
-                            {svc.jsmProjectKey && (
-                              <td style={{ padding: "8px 10px" }}>
-                                {m.jiraIssueKey ? (
-                                  <a href={`${jiraBase}${m.jiraIssueKey}`} target="_blank" rel="noopener noreferrer"
-                                    style={{ fontSize: 11, fontWeight: 700, color: C.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-                                    {m.jiraIssueKey} <ExternalLink size={10} />
-                                  </a>
-                                ) : (
-                                  <span style={{ fontSize: 10, color: C.textMuted }}>—</span>
-                                )}
-                              </td>
-                            )}
-                            <td style={{ padding: "8px 10px", fontWeight: 600 }}>Mes {m.monthNumber}</td>
-                            <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700 }}>{m.currency ?? svc.currency} {parseFloat(m.amount).toLocaleString()}</td>
-                            <td style={{ padding: "8px 10px" }}>
-                              <span style={{ fontSize: 11, color: isOverdue ? "#DC2626" : C.textSecondary, fontWeight: isOverdue ? 700 : 400 }}>
-                                {m.dueDate ? new Date(m.dueDate).toLocaleDateString("es-CL") : "—"}
-                                {isOverdue && " ⚠ Vencida"}
-                              </span>
-                            </td>
-                            <td style={{ padding: "8px 10px" }}>
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: bc.bg, color: bc.fg }}>
-                                {visibleStatus.toUpperCase()}
-                              </span>
-                            </td>
-                            <td style={{ padding: "8px 10px", fontSize: 11, color: C.textSecondary }}>
-                              {m.invoiceNumber ?? "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {(!db.billing || db.billing.length === 0) && (
-                    <p style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: 20 }}>Sin hitos de facturación</p>
-                  )}
-                </div>
+                <JiraBillingEvidencePanel evidence={jiraBilling.data} loading={jiraBilling.isLoading} title="Facturación operacional por cuota" />
 
                 {/* Penalties section */}
                 {(db.penalties?.length ?? 0) > 0 && (

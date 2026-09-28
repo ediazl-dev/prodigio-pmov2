@@ -262,4 +262,62 @@ describe("dashboard gerencial recurrente", () => {
     expect(exceptionsOnly.management.services).toHaveLength(0);
     expect(exceptionsOnly.metadata.totalAfterFilters).toBe(0);
   });
+
+  it("usa Jira como estado facturado operacional y conserva la programación contractual", () => {
+    const correctedSource: RecurringDashboardV2Source = {
+      ...source,
+      services: source.services.map(item => ({ ...item, currency: "UF" })),
+      billingMonths: source.billingMonths.map(item => ({ ...item, currency: "UF" })),
+      corporateBillingItems: [],
+    };
+    const jiraBilling = {
+      1: {
+        entityType: "recurring_service",
+        entityId: 1,
+        dealId: "2383",
+        jiraAvailable: true,
+        loadedAt: "2026-09-28T12:00:00.000Z",
+        evidenceAt: "2026-09-25T12:00:00.000Z",
+        sourceProjectKeys: ["CAMANSOP01"],
+        field: { id: "customfield_11237", name: "Estado de Facturación" },
+        summary: { totalItems: 6, billedItems: 3, notBilledItems: 3, unknownItems: 0, duplicateGroups: 1, amountCoverage: { withAmount: 6, total: 6 }, billedByCurrency: [{ currency: "UF", amount: 282, items: 3 }], notBilledByCurrency: [{ currency: "UF", amount: 282, items: 3 }] },
+        items: Array.from({ length: 6 }, (_, index) => ({
+          key: `CAMANSOP01-${20 + index}`,
+          jiraUrl: `https://jira.example/browse/CAMANSOP01-${20 + index}`,
+          code: `M${String(index + 1).padStart(2, "0")}`,
+          title: `Cuota mes ${index + 1}`,
+          monthNumber: index + 1,
+          amount: 94,
+          currency: "UF",
+          amountSource: "billing_schedule",
+          dueDate: correctedSource.billingMonths[index].dueDate,
+          jiraDueDate: correctedSource.billingMonths[index].dueDate,
+          jiraUpdatedAt: "2026-09-25T12:00:00.000Z",
+          jiraStatusName: index < 3 ? "Completed" : "Waiting for support",
+          jiraStatusCategory: index < 3 ? "done" : "new",
+          billingStatus: index < 3 ? "billed" : "not_billed",
+          billingStatusLabel: index < 3 ? "Facturado según ticket Jira" : "Pendiente según ticket Jira",
+          billingStatusSource: "jira_billing_issue_status",
+          billingFieldValues: [],
+          matchedBy: "month",
+          duplicateCandidates: index === 0 ? ["CAMANSOP01-3"] : [],
+        })),
+        warnings: ["M01: candidato duplicado no sumado"],
+      },
+    } as any;
+
+    const result = buildRecurringServicesDashboardV2(correctedSource, { cutOffDate: "2026-09-26", jiraBilling });
+    const camanchaca = result.management.services.find(row => row.serviceId === 1)!;
+
+    expect(camanchaca).toMatchObject({
+      expectedToDate: { UF: 282 },
+      expectedFuture: { UF: 282 },
+      invoicedReal: { UF: 282 },
+      billedJiraCount: 3,
+      jiraBillingSourceProjects: ["CAMANSOP01"],
+    });
+    expect(camanchaca.exceptions.some(row => row.code === "AMBIGUOUS_JIRA_BILLING")).toBe(true);
+    expect(result.management.sourceCuts.jiraBillingAt).toBe("2026-09-25T12:00:00.000Z");
+    expect(result.trends.finance.filter(row => row.currency === "UF").reduce((sum, row) => sum + row.invoiced, 0)).toBe(282);
+  });
 });

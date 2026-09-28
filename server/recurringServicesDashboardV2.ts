@@ -16,6 +16,7 @@ import {
   type CorporateBillingItem,
 } from "./recurringBillingReconciliation";
 import { buildRecurringManagementAnalytics } from "./recurringManagementDashboard";
+import type { JiraBillingEvidence } from "./jiraBillingEvidence";
 
 export type DashboardHealthFilter = "critical" | "attention" | "stable" | "no_data";
 
@@ -100,6 +101,7 @@ export interface RecurringDashboardV2Options {
   fromDate?: string;
   filters?: RecurringDashboardV2Filters;
   staleAfterHours?: number;
+  jiraBilling?: Record<number, JiraBillingEvidence>;
 }
 
 const HEALTH_ORDER: Record<DashboardHealthFilter, number> = {
@@ -258,6 +260,41 @@ function financeTrend(source: RecurringDashboardV2Source, cutOffDate: string, fr
       invoiceBucket.invoiced += numeric(row.invoiceAmount ?? row.expectedAmount ?? row.amount);
       invoiceBucket.invoiceItems += 1;
       buckets.set(invoiceKey, invoiceBucket);
+    }
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month) || a.currency.localeCompare(b.currency));
+}
+
+function jiraFinanceTrend(
+  source: RecurringDashboardV2Source,
+  cutOffDate: string,
+  fromDate: string | undefined,
+  jiraBilling: Record<number, JiraBillingEvidence>,
+) {
+  const serviceIds = new Set(source.services.map(service => service.id));
+  const buckets = new Map<string, { month: string; currency: string; scheduled: number; future: number; invoiced: number; pending: number; overdue: number; unknown: number; expectedItems: number; invoiceItems: number }>();
+  for (const evidence of Object.values(jiraBilling)) {
+    if (!serviceIds.has(evidence.entityId)) continue;
+    for (const item of evidence.items) {
+      const dueDate = item.dueDate ?? item.jiraDueDate;
+      const month = monthKey(dueDate);
+      if (!month || !item.currency || item.amount == null || (fromDate && dueDate && dueDate < fromDate)) continue;
+      const itemCurrency = normalizedCurrency(item.currency);
+      const key = `${month}:${itemCurrency}`;
+      const bucket = buckets.get(key) ?? { month, currency: itemCurrency, scheduled: 0, future: 0, invoiced: 0, pending: 0, overdue: 0, unknown: 0, expectedItems: 0, invoiceItems: 0 };
+      bucket.expectedItems += 1;
+      if (dueDate && dueDate > cutOffDate) bucket.future += item.amount;
+      else bucket.scheduled += item.amount;
+      if (item.billingStatus === "billed") {
+        bucket.invoiced += item.amount;
+        bucket.invoiceItems += 1;
+      } else if ((!dueDate || dueDate <= cutOffDate) && item.billingStatus === "not_billed") {
+        bucket.pending += item.amount;
+        if (dueDate && dueDate < cutOffDate) bucket.overdue += item.amount;
+      } else if ((!dueDate || dueDate <= cutOffDate) && item.billingStatus === "unknown") {
+        bucket.unknown += item.amount;
+      }
+      buckets.set(key, bucket);
     }
   }
   return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month) || a.currency.localeCompare(b.currency));
@@ -691,6 +728,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       fromDate: options.fromDate,
       deliverables: preliminaryDeliverables,
       documents: preliminaryDocuments,
+      jiraBilling: options.jiraBilling,
     });
     const exceptionIds = new Set(preliminaryManagement.services.filter(service => service.exceptions.length > 0).map(service => service.serviceId));
     filteredSource = restrictSource(filteredSource, exceptionIds);
@@ -736,6 +774,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     fromDate: options.fromDate,
     deliverables,
     documents,
+    jiraBilling: options.jiraBilling,
   });
 
   return {
@@ -759,7 +798,9 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     },
     kpis: metrics.portfolio,
     trends: {
-      finance: financeTrend(filteredSource, options.cutOffDate, options.fromDate),
+      finance: options.jiraBilling
+        ? jiraFinanceTrend(filteredSource, options.cutOffDate, options.fromDate, options.jiraBilling)
+        : financeTrend(filteredSource, options.cutOffDate, options.fromDate),
       reports: reportTrend(filteredSource, options.cutOffDate),
       incidents: incidentTrend(filteredSource, options.cutOffDate, options.fromDate),
     },

@@ -22,7 +22,7 @@ describe("Dashboard Ejecutivo v2 — render de perspectivas derivadas", () => {
     const html = renderToStaticMarkup(createElement(ExecutiveDerivedPerspectivePanel, { view: "commercial", metrics }));
 
     expect(html).toContain('data-derived-view="commercial"');
-    ["Lectura comercial", "Hitos aceptados y facturación SII se muestran por separado.", "Valor de hitos aceptados", "Descalce", "UF retenidas", "no se declara una nueva fecha comercial como aceptada"].forEach((text) => expect(html).toContain(text));
+    ["Lectura comercial", "Hitos aceptados, estado Jira e histórico financiero se muestran por separado.", "Valor de hitos aceptados", "Descalce", "UF retenidas", "no se declara una nueva fecha comercial como aceptada"].forEach((text) => expect(html).toContain(text));
     expect(html).toContain("0,00 UF");
     expect(html).toContain("60.0 pp");
   });

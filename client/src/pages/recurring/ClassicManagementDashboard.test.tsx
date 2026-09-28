@@ -18,23 +18,26 @@ const managementServices = [
     dealId: "Deal2383",
     serviceType: "soporte_incidentes",
     status: "activo",
-    contractCurrency: "USD",
-    expectedToDate: { USD: 282 },
-    expectedFuture: { USD: 282 },
+    contractCurrency: "UF",
+    expectedToDate: { UF: 282 },
+    expectedFuture: { UF: 282 },
     invoicedReal: { UF: 282 },
     comparableGap: {},
-    expectedCurrencies: ["USD"],
+    expectedCurrencies: ["UF"],
     invoiceCurrencies: ["UF"],
     verifiedInvoiceCount: 3,
+    billedJiraCount: 3,
+    jiraBillingUnknownCount: 0,
+    jiraBillingSourceProjects: ["CAMANSOP01"],
     localInvoiceOnlyCount: 0,
-    reconciliationStatus: "currency_mismatch",
+    reconciliationStatus: "ambiguous",
     incidents: { availability: "available", observedAt: "2026-09-25T10:00:00.000Z", total: 66, open: 32, criticalOpen: 0, highOpen: 3, overdueOpen: 0, unresolvedOver30Days: 14, source: "jsm_snapshot" },
     sla: { configuredRules: 1, jsmLinked: true, rules: [{ priority: "high", firstResponseMinutes: 30, resolutionMinutes: 240, coverageType: "24x7", customCoverageDescription: null }], firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null },
     deliverables: { planned: 5, due: 0, delivered: 0, accepted: 0, overdue: 0, withoutDate: 5 },
     documents: { present: 2, valid: 0, required: 2 },
     penalties: { count: 0, byCurrency: [], withEvidence: 0 },
     exceptions: [
-      { code: "CURRENCY_MISMATCH", severity: "critical", label: "Moneda contractual y factura no coinciden", impact: "Bloquea el porcentaje financiero comparable.", action: "Corregir la moneda contractual o aprobar una política de conversión con fecha." },
+      { code: "AMBIGUOUS_JIRA_BILLING", severity: "attention", label: "Más de un hito Jira coincide con una cuota", impact: "Los candidatos adicionales no se suman automáticamente.", action: "Confirmar y persistir el vínculo Jira canónico por cuota." },
       { code: "SLA_NOT_MEASURED", severity: "attention", label: "SLA configurado sin muestra medida", impact: "El cumplimiento debe permanecer N/D.", action: "Persistir contadores medidos y cumplidos de respuesta y resolución." },
     ],
   },
@@ -48,35 +51,37 @@ const managementServices = [
     dealId: String(dealId),
     serviceType: "staffing",
     status: "activo",
-    contractCurrency: "USD",
-    expectedToDate: { USD: Number(expected) },
-    expectedFuture: { USD: dealId === "Deal4727" ? 780 : 0 },
-    invoicedReal: {},
-    comparableGap: { USD: Number(expected) },
-    expectedCurrencies: ["USD"],
-    invoiceCurrencies: [],
-    verifiedInvoiceCount: 0,
+    contractCurrency: "UF",
+    expectedToDate: { UF: Number(expected) },
+    expectedFuture: { UF: dealId === "Deal4727" ? 780 : 0 },
+    invoicedReal: dealId === "Deal4727" ? { UF: 390 } : {},
+    comparableGap: dealId === "Deal4687" ? { UF: 320 } : {},
+    expectedCurrencies: ["UF"],
+    invoiceCurrencies: dealId === "Deal4727" ? ["UF"] : [],
+    verifiedInvoiceCount: dealId === "Deal4727" ? 2 : 0,
+    billedJiraCount: dealId === "Deal4727" ? 2 : 0,
+    jiraBillingUnknownCount: dealId === "Deal4687" ? 1 : 0,
+    jiraBillingSourceProjects: ["PSCSC4S"],
     localInvoiceOnlyCount: 0,
-    reconciliationStatus: "missing_invoice",
+    reconciliationStatus: dealId === "Deal4687" ? "jira_unknown" : "matched",
     incidents: { availability: "not_configured", observedAt: null, total: null, open: null, criticalOpen: null, highOpen: null, overdueOpen: null, unresolvedOver30Days: null, source: "jsm_snapshot" },
     sla: { configuredRules: 1, jsmLinked: false, rules: [{ priority: "high", firstResponseMinutes: 60, resolutionMinutes: 480, coverageType: "8x5", customCoverageDescription: null }], firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null },
     deliverables: { planned: 5, due: 0, delivered: 0, accepted: 0, overdue: 0, withoutDate: 5 },
     documents: { present: 2, valid: 0, required: 2 },
     penalties: { count: 0, byCurrency: [], withEvidence: 0 },
-    exceptions: [{ code: "MISSING_VERIFIED_INVOICE", severity: "critical", label: "Programación sin registro corporativo facturado", impact: "No existe evidencia suficiente para afirmar facturación del servicio en la fuente corporativa.", action: "Vincular el Deal con la fuente financiera o confirmar que aún no existe un registro marcado Facturado." }],
+    exceptions: dealId === "Deal4687" ? [{ code: "JIRA_BILLING_UNKNOWN", severity: "critical", label: "1 hito exigible sin estado de facturación Jira", impact: "No existe evidencia suficiente para afirmar si fue facturado.", action: "Completar Estado de Facturación o vincular el ticket correcto." }] : [],
   })),
 ] as any[];
 
 const data = {
   metadata: { cutOffDate: "2026-09-26", fromDate: "2026-01-01", latestJsmSnapshotAt: "2026-09-25T10:00:00.000Z" },
-  filterOptions: { clients: ["Camanchaca", "Consalud"], statuses: ["activo"], serviceTypes: ["soporte_incidentes", "staffing"], currencies: ["USD"], health: ["critical", "attention", "stable", "no_data"] },
+  filterOptions: { clients: ["Camanchaca", "Consalud"], statuses: ["activo"], serviceTypes: ["soporte_incidentes", "staffing"], currencies: ["UF"], health: ["critical", "attention", "stable", "no_data"] },
   kpis: {
     totalServices: 3,
     activeServices: 3,
     incidents: { availableServices: 1 },
     financeByCurrency: {
-      UF: { currency: "UF", contracted: 0, scheduled: 0, invoiced: 282, pending: 0, overdue: 0, overdueItems: 0 },
-      USD: { currency: "USD", contracted: 2214, scheduled: 1152, invoiced: 0, pending: 870, overdue: 870, overdueItems: 7 },
+      UF: { currency: "UF", contracted: 2214, scheduled: 1152, invoiced: 672, pending: 320, overdue: 320, overdueItems: 2 },
     },
     reports: { due: 0, completedDue: 0, overdue: 0, deliveryRate: null, onTimeRate: null },
     formalization: { complete: 3, partial: 0, missing: 0 },
@@ -84,10 +89,9 @@ const data = {
   },
   trends: {
     finance: [
-      { month: "2026-01", currency: "USD", scheduled: 344, future: 0, invoiced: 0, pending: 250, overdue: 250, expectedItems: 3, invoiceItems: 0 },
-      { month: "2026-01", currency: "UF", scheduled: 0, future: 0, invoiced: 94, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 1 },
-      { month: "2026-02", currency: "USD", scheduled: 344, future: 0, invoiced: 0, pending: 250, overdue: 250, expectedItems: 3, invoiceItems: 0 },
-      { month: "2026-02", currency: "UF", scheduled: 0, future: 0, invoiced: 94, pending: 0, overdue: 0, expectedItems: 0, invoiceItems: 1 },
+      { month: "2026-07", currency: "UF", scheduled: 254, future: 0, invoiced: 94, pending: 160, overdue: 160, unknown: 0, expectedItems: 2, invoiceItems: 1 },
+      { month: "2026-08", currency: "UF", scheduled: 449, future: 0, invoiced: 289, pending: 160, overdue: 160, unknown: 0, expectedItems: 3, invoiceItems: 2 },
+      { month: "2026-09", currency: "UF", scheduled: 289, future: 0, invoiced: 289, pending: 0, overdue: 0, unknown: 0, expectedItems: 2, invoiceItems: 2 },
     ],
   },
   financeAnalytics: {
@@ -102,11 +106,10 @@ const data = {
     pendingServices: [],
   },
   management: {
-    sourceCuts: { financialAt: "2026-09-26T06:00:00.000Z", jsmAt: "2026-09-25T10:00:00.000Z", documentsAt: null },
-    summary: { services: 3, withVerifiedInvoices: 1, financeExceptions: 3, slaConfigured: 3, jsmLinked: 1, slaMeasured: 0, penalties: 0 },
+    sourceCuts: { financialAt: "2026-09-26T06:00:00.000Z", jiraBillingAt: "2026-09-28T18:16:40.695-0300", jsmAt: "2026-09-25T10:00:00.000Z", documentsAt: null },
+    summary: { services: 3, withVerifiedInvoices: 2, withJiraBilling: 2, financeExceptions: 2, slaConfigured: 3, jsmLinked: 1, slaMeasured: 0, penalties: 0 },
     currencies: [
-      { currency: "UF", expectedToDate: 0, expectedFuture: 0, invoicedReal: 282, comparableGap: 0, expectedContributors: [], invoiceContributors: [{ serviceId: 1, clientName: "Camanchaca", serviceName: "Soporte SAP", amount: 282, invoices: 3 }] },
-      { currency: "USD", expectedToDate: 1152, expectedFuture: 1062, invoicedReal: 0, comparableGap: 870, expectedContributors: managementServices.map(service => ({ serviceId: service.serviceId, clientName: service.clientName, serviceName: service.serviceName, amount: service.expectedToDate.USD })), invoiceContributors: [] },
+      { currency: "UF", expectedToDate: 1152, expectedFuture: 1062, invoicedReal: 672, comparableGap: 0, expectedContributors: managementServices.map(service => ({ serviceId: service.serviceId, clientName: service.clientName, serviceName: service.serviceName, amount: service.expectedToDate.UF })), invoiceContributors: [{ serviceId: 1, clientName: "Camanchaca", serviceName: "Soporte SAP", amount: 282, invoices: 3 }, { serviceId: 3, clientName: "Consalud", serviceName: "Staffing Evolutivo", amount: 390, invoices: 2 }] },
     ],
     services: managementServices,
     exceptions: managementServices.flatMap(service => service.exceptions.map((exception: any) => ({ serviceId: service.serviceId, clientName: service.clientName, serviceName: service.serviceName, ...exception }))),
@@ -120,7 +123,7 @@ const data = {
     currentStage: "ejecucion",
     serviceType: service.serviceType,
     health: "critical",
-    financeByCurrency: { USD: { currency: "USD", contracted: 0, scheduled: service.expectedToDate.USD, invoiced: 0, pending: service.expectedToDate.USD, overdue: service.expectedToDate.USD, overdueItems: 1 } },
+    financeByCurrency: { UF: { currency: "UF", contracted: 0, scheduled: service.expectedToDate.UF, invoiced: 0, pending: service.expectedToDate.UF, overdue: service.expectedToDate.UF, overdueItems: 1 } },
     incidents: service.incidents,
     sla: service.sla,
     reports: { planned: 5, due: 0, completedDue: 0, overdue: 0, deliveryRate: null, onTimeRate: null },
@@ -144,11 +147,13 @@ const controls: ClassicDashboardControls = {
 afterEach(cleanup);
 
 describe("classicManagementViewModel", () => {
-  it("separa facturación real y bloquea la brecha cuando no existe base comparable", () => {
+  it("usa estados Jira y bloquea la brecha cuando existe una ambigüedad o estado N/D", () => {
     const model = buildClassicManagementModel(data);
-    expect(model.finance.find(row => row.currency === "USD")).toMatchObject({ expectedToDate: 1152, invoicedReal: 0, comparableGap: 870, comparableServices: 2 });
-    expect(model.finance.find(row => row.currency === "UF")).toMatchObject({ expectedToDate: 0, invoicedReal: 282, comparableGap: null, comparableServices: 0 });
-    expect(model.finance.find(row => row.currency === "UF")?.blockedServices).toEqual([expect.objectContaining({ clientName: "Camanchaca" })]);
+    expect(model.finance.find(row => row.currency === "UF")).toMatchObject({ expectedToDate: 1152, invoicedReal: 672, comparableGap: 0, comparableServices: 1 });
+    expect(model.finance.find(row => row.currency === "UF")?.blockedServices).toEqual([
+      expect.objectContaining({ clientName: "Camanchaca" }),
+      expect.objectContaining({ serviceName: "Staffing Operación" }),
+    ]);
   });
 
   it("deriva ventanas deterministas y formatea tiempos SLA", () => {
@@ -163,20 +168,21 @@ describe("classicManagementViewModel", () => {
   it("elige la moneda inicial por evidencia sin comparar montos entre monedas", () => {
     const finance = buildClassicManagementModel(data).finance;
     expect(selectClassicPreferredCurrency(finance)).toBe("UF");
-    expect(selectClassicPreferredCurrency(finance.map(row => ({ ...row, invoicedReal: 0 })))).toBe("USD");
+    expect(selectClassicPreferredCurrency(finance.map(row => ({ ...row, invoicedReal: 0 })))).toBe("UF");
     expect(selectClassicPreferredCurrency([])).toBe("");
   });
 });
 
 describe("ClassicManagementDashboard", () => {
-  it("prioriza la moneda con evidencia, conserva excepciones y evita el banner USD y falsos flujos", () => {
+  it("muestra facturación Jira en UF, conserva excepciones y evita falsos flujos", () => {
     const onOpenService = vi.fn();
     render(<ClassicManagementDashboard data={data} controls={controls} onControlsChange={() => undefined} onOpenService={onOpenService} />);
 
     expect(screen.queryByText("Respuesta financiera inmediata")).toBeNull();
     expect(screen.queryByTestId("usd-real-answer")).toBeNull();
     expect(screen.getByRole("tab", { name: "UF" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getAllByText("UF 282").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("UF 672").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Facturado según Jira/).length).toBeGreaterThan(0);
     expect(screen.getByText("3/3", { selector: "p" })).toBeTruthy();
     expect(screen.getAllByText("1/3", { selector: "p" }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("0/3", { selector: "p" }).length).toBeGreaterThan(0);
@@ -186,10 +192,8 @@ describe("ClassicManagementDashboard", () => {
     expect(screen.getByText("15", { selector: "p" })).toBeTruthy();
     expect(screen.getByText("0/3", { selector: "b" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "USD" }));
-    expect(screen.getByRole("tab", { name: "USD" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("currency-mismatch-warning")).toBeTruthy();
-    expect(screen.getByText(/No se calcula porcentaje ni brecha cruzando monedas/)).toBeTruthy();
+    expect(screen.getByText(/moneda o el estado Jira no son comparables/)).toBeTruthy();
 
     fireEvent.click(screen.getAllByRole("button", { name: /Detalle/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: /Ver servicio/ }));

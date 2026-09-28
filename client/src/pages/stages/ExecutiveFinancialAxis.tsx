@@ -52,8 +52,8 @@ export function ExecutiveFinancialAxis({ projectFinance, financialEvidence, comm
     <header className="edv2-section-header">
       <span>02</span>
       <div>
-        <h2>Finanzas del proyecto — costos, margen y ciclo de caja</h2>
-        <p>Separa valor contratado, costos consumidos, devengo, facturación SII y cobro. Un hito aceptado no se presenta como factura emitida.</p>
+        <h2>Análisis financiero histórico — planilla consolidada</h2>
+        <p>Conserva valor contratado, costos, devengo y caja de la planilla histórica. El estado operacional actual de cada hito se muestra aparte desde Jira.</p>
       </div>
       <b>UF · corte trazable</b>
     </header>
@@ -68,11 +68,11 @@ export function ExecutiveFinancialAxis({ projectFinance, financialEvidence, comm
 
     <div className="edv2-two-col" style={{ marginTop: 16 }}>
       <article className="edv2-card">
-        <div className="edv2-card-head"><h3>Embudo de facturación real</h3><span>{billing.available ? `${billing.contractCount} contrato(s)` : "SIN CONTRATO ENLAZADO"}</span></div>
+        <div className="edv2-card-head"><h3>Ciclo financiero histórico</h3><span>{billing.available ? `${billing.contractCount} contrato(s)` : "SIN CONTRATO ENLAZADO"}</span></div>
         <div className="edv2-financials">
           <FinancialCell label="Devengado" value={formatUfOrNd(billing.accruedUf)} detail={`${billing.revenueEventCount ?? 0} evento(s) de devengo al corte`} />
-          <FinancialCell label="Facturado (SII)" value={formatUfOrNd(billing.billedUf)} detail={`${billing.invoiceCount ?? 0} factura(s) emitida(s) o aceptada(s)`} />
-          <FinancialCell label="Cobrado" value={formatUfOrNd(billing.collectedUf)} detail={`${billing.paymentCount ?? 0} pago(s) registrado(s)`} />
+          <FinancialCell label="Facturado histórico" value={formatUfOrNd(billing.billedUf)} detail={`${billing.invoiceCount ?? 0} registro(s) de factura en planilla`} />
+          <FinancialCell label="Cobrado histórico" value={formatUfOrNd(billing.collectedUf)} detail={`${billing.paymentCount ?? 0} pago(s) registrado(s) en planilla`} />
           <FinancialCell label="Cuentas por cobrar" value={formatUfOrNd(billing.accountsReceivableUf)} detail="Facturado menos cobrado" danger={Number(billing.accountsReceivableUf ?? 0) > 0} />
           <FinancialCell label="WIP" value={formatUfOrNd(billing.wipUf)} detail="Devengado aún no facturado" />
           <FinancialCell label="Backlog contractual" value={formatUfOrNd(billing.backlogUf)} detail="Contratado aún no devengado" />

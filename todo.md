@@ -830,8 +830,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J0: Auditar Camanchaca, campo Estado de Facturación, duplicados y cobertura por Deal sin escrituras Jira.
 - [x] J1: Implementar read model Jira con precedencia de fuentes, deduplicación y montos contractuales.
 - [x] J2: Exponer endpoints protegidos de sólo lectura para proyectos y servicios.
-- [ ] J3: Integrar panel por hito en detalle ejecutivo de proyectos.
-- [ ] J4: Integrar panel por cuota en detalle y ejecución de servicios recurrentes.
-- [ ] J5: Migrar el consolidado Clásico recurrente a estado Jira sin alterar el histórico financiero.
-- [ ] J6: Preservar la planilla como fuente del análisis consolidado/histórico y documentar la frontera.
-- [ ] J7: Certificar casos reales, suite, build, TypeScript heredado, responsive, secretos, refs y checkpoint final.
+- [x] J3: Integrar panel por hito en detalle ejecutivo de proyectos.
+- [x] J4: Integrar panel por cuota en detalle y ejecución de servicios recurrentes.
+- [x] J5: Migrar el consolidado Clásico recurrente a estado Jira sin alterar el histórico financiero.
+- [x] J6: Preservar la planilla como fuente del análisis consolidado/histórico y documentar la frontera.
+- [x] J7: Certificar casos reales, suite, build, TypeScript heredado, responsive, secretos, refs y checkpoint final.

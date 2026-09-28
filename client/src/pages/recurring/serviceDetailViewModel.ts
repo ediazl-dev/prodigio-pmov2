@@ -17,6 +17,7 @@ export type ServiceByIdOutput = RouterOutputs["recurringServices"]["getById"];
 export type BillingMonth = ServiceByIdOutput["billingMonths"][number];
 export type ServiceStage = ServiceByIdOutput["stages"][number];
 export type ServiceDocument = ServiceByIdOutput["documents"][number];
+export type JiraBillingEvidenceOutput = RouterOutputs["recurringServices"]["jiraBillingEvidence"];
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /* Plan de facturación, con la evidencia que hoy no se ve                     */
@@ -27,7 +28,8 @@ export type BillingRowState =
   | "vencida"
   | "por_vencer"
   | "programada"
-  | "sin_fecha";
+  | "sin_fecha"
+  | "estado_nd";
 
 export interface BillingRow {
   id: number;
@@ -73,6 +75,7 @@ const STATE_LABEL: Record<BillingRowState, string> = {
   por_vencer: "Por vencer",
   programada: "Programada",
   sin_fecha: "Sin fecha",
+  estado_nd: "Estado Jira N/D",
 };
 
 export function buildBillingPlan(
@@ -170,6 +173,49 @@ export function buildBillingPlan(
   };
 }
 
+export function applyJiraBillingToPlan(
+  plan: BillingPlan,
+  evidence: JiraBillingEvidenceOutput | null | undefined,
+  cutOffDate: string,
+): BillingPlan {
+  if (!evidence?.jiraAvailable) return plan;
+  const itemByMonth = new Map(evidence.items.filter(item => item.monthNumber !== null).map(item => [item.monthNumber as number, item]));
+  const rows = plan.rows.map(row => {
+    const item = itemByMonth.get(row.monthNumber);
+    if (!item) return { ...row, state: "estado_nd" as const, stateLabel: STATE_LABEL.estado_nd, note: "Sin hito Jira conciliado para esta cuota", actionLabel: "Revisar cuota" };
+    const days = row.dueDate ? daysBetween(row.dueDate, cutOffDate) : null;
+    let state: BillingRowState;
+    if (item.billingStatus === "billed") state = "facturada";
+    else if (item.billingStatus === "unknown") state = "estado_nd";
+    else if (!row.dueDate) state = "sin_fecha";
+    else if (days !== null && days > 0) state = "vencida";
+    else if (days !== null && days > -15) state = "por_vencer";
+    else state = "programada";
+    return {
+      ...row,
+      state,
+      stateLabel: STATE_LABEL[state],
+      daysOverdue: state === "vencida" ? days : null,
+      note: item.billingStatus === "billed"
+        ? "Facturada según el hito Jira seleccionado"
+        : item.billingStatus === "unknown"
+          ? "El hito Jira no tiene evidencia suficiente de facturación"
+          : `No facturada según Jira · ${noteFor(state, days, row.missingDueDate)}`,
+      actionLabel: state === "estado_nd" ? "Revisar cuota" : actionFor(state),
+      jiraIssueKey: item.key,
+    };
+  });
+  const totals = Array.from(new Set(rows.map(row => row.currency))).map(currency => {
+    const currencyRows = rows.filter(row => row.currency === currency);
+    const contracted = currencyRows.reduce((sum, row) => sum + row.amount, 0);
+    const invoiced = currencyRows.filter(row => row.state === "facturada").reduce((sum, row) => sum + row.amount, 0);
+    const overdueRows = currencyRows.filter(row => row.state === "vencida");
+    const overdue = overdueRows.reduce((sum, row) => sum + row.amount, 0);
+    return { currency, contracted, invoiced, overdue, overdueItems: overdueRows.length, contractedLabel: formatMoney(contracted, currency), invoicedLabel: formatMoney(invoiced, currency), overdueLabel: formatMoney(overdue, currency) };
+  }).sort((a, b) => a.currency.localeCompare(b.currency, "es"));
+  return { ...plan, rows, totals };
+}
+
 function noteFor(state: BillingRowState, days: number | null, missingDueDate: boolean): string {
   let note: string;
   switch (state) {
@@ -186,6 +232,9 @@ function noteFor(state: BillingRowState, days: number | null, missingDueDate: bo
       break;
     case "facturada":
       note = "Facturada según la evidencia financiera disponible";
+      break;
+    case "estado_nd":
+      note = "Estado de facturación Jira N/D";
       break;
     default:
       note = "Sin acción requerida todavía";

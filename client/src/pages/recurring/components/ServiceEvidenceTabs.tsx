@@ -226,8 +226,8 @@ export function ServiceEvidenceTabs({
         {tab === "financiero" &&
           (finance ? (
             <div className="p-5">
-              <h3 className="text-[13px] font-black text-slate-950">Montos locales por moneda</h3>
-              <p className="mt-1 text-[11px] text-slate-600">Cada moneda se presenta por separado; no se construye un total multimoneda.</p>
+              <h3 className="text-[13px] font-black text-slate-950">Análisis financiero histórico por moneda</h3>
+              <p className="mt-1 text-[11px] text-slate-600">Fuente: planilla corporativa consolidada. Cada moneda se presenta por separado; no se construye un total multimoneda.</p>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 {Object.values(service.financeByCurrency).map(row => (
                   <article key={row.currency} className="rounded-xl border border-slate-200 p-4">
@@ -235,14 +235,14 @@ export function ServiceEvidenceTabs({
                     <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                       <Stat label="Contratado" value={formatRecurringMoney(row.contracted, row.currency)} />
                       <Stat label="Programado" value={formatRecurringMoney(row.scheduled, row.currency)} />
-                      <Stat label="Facturado" value={formatRecurringMoney(row.invoiced, row.currency)} />
+                      <Stat label="Facturado histórico" value={formatRecurringMoney(row.invoiced, row.currency)} />
                       <Stat label="Pendiente de facturar" value={formatRecurringMoney(row.pending, row.currency)} />
                       <Stat label="Vencido sin facturar" value={formatRecurringMoney(row.overdue, row.currency)} tone={row.overdue > 0 ? "text-[#B42318]" : "text-slate-950"} />
                     </div>
                   </article>
                 ))}
               </div>
-              <h3 className="mt-5 text-[13px] font-black text-slate-950">Reconciliación con la fuente corporativa</h3>
+              <h3 className="mt-5 text-[13px] font-black text-slate-950">Referencia histórica de la fuente corporativa</h3>
               <p className="mt-1 text-[11px] text-slate-600">
                 La referencia UF se compara solo cuando la moneda contractual también es UF.
               </p>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyJiraBillingToPlan,
   buildBillingPlan,
   buildDocumentRows,
   buildStagePipeline,
@@ -114,6 +115,23 @@ describe("buildBillingPlan", () => {
     );
     expect(plan.totals.map(total => total.currency).sort()).toEqual(["CLP", "USD"]);
     expect(plan.totals.every(total => total.contracted === 100)).toBe(true);
+  });
+
+  it("reemplaza el estado local por Jira sin modificar monto ni vencimiento contractual", () => {
+    const local = buildBillingPlan(months.slice(0, 3), CUT_OFF, { amount: 282, currency: "USD" });
+    const plan = applyJiraBillingToPlan(local, {
+      jiraAvailable: true,
+      items: [
+        { monthNumber: 1, key: "CAMANSOP01-20", billingStatus: "billed" },
+        { monthNumber: 2, key: "CAMANSOP01-21", billingStatus: "not_billed" },
+        { monthNumber: 3, key: "CAMANSOP01-22", billingStatus: "unknown" },
+      ],
+    } as any, CUT_OFF);
+
+    expect(plan.rows.map(row => row.state)).toEqual(["facturada", "vencida", "estado_nd"]);
+    expect(plan.rows.map(row => row.amount)).toEqual([94, 94, 94]);
+    expect(plan.rows.map(row => row.jiraIssueKey)).toEqual(["CAMANSOP01-20", "CAMANSOP01-21", "CAMANSOP01-22"]);
+    expect(plan.totals[0]).toMatchObject({ invoiced: 94, overdue: 94, overdueItems: 1 });
   });
 });
 
