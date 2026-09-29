@@ -372,6 +372,13 @@
       "when": 1790452084302,
       "tag": "0052_simple_thaddeus_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1790669884364,
+      "tag": "0053_cynical_jack_power",
+      "breakpoints": true
     }
   ]
 }

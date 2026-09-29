@@ -4,7 +4,7 @@
  */
 import { eq, and, desc, asc } from "drizzle-orm";
 import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData, documentGateSnapshots } from "../drizzle/schema";
-import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
+import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncCategoryMode, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
 // ─── Service CRUD ────────────────────────────────────────────────────────────
@@ -153,6 +153,10 @@ export async function saveActiveJsmIssueTypeMappings(input: { serviceId: number;
     if (!service) {
       throw new RecurringServiceJsmDbError("SERVICE_NOT_FOUND", "Servicio recurrente no encontrado.");
     }
+    await tx
+      .update(recurringServiceJsmIssueTypeMappings)
+      .set({ status: "superseded" as const })
+      .where(and(eq(recurringServiceJsmIssueTypeMappings.serviceId, input.serviceId), eq(recurringServiceJsmIssueTypeMappings.status, "active")));
     for (const mapping of input.mappings) {
       const [existing] = await tx
         .select({ id: recurringServiceJsmIssueTypeMappings.id })
@@ -180,6 +184,54 @@ export async function saveActiveJsmIssueTypeMappings(input: { serviceId: number;
     }
   });
   return listActiveJsmIssueTypeMappings(input.serviceId);
+}
+
+export async function setRecurringServiceJsmSyncPolicy(input: {
+  serviceId: number;
+  workPlanMode: JsmSyncCategoryMode;
+  billingMode: JsmSyncCategoryMode;
+  reason: string;
+  updatedBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    const [service] = await tx
+      .select({ id: recurringServices.id })
+      .from(recurringServices)
+      .where(eq(recurringServices.id, input.serviceId))
+      .limit(1);
+    if (!service) {
+      throw new RecurringServiceJsmDbError("SERVICE_NOT_FOUND", "Servicio recurrente no encontrado.");
+    }
+    await tx
+      .update(recurringServices)
+      .set({
+        jsmWorkPlanSyncMode: input.workPlanMode,
+        jsmBillingSyncMode: input.billingMode,
+        jsmSyncPolicyReason: input.reason,
+        jsmSyncPolicyUpdatedAt: new Date(),
+        jsmSyncPolicyUpdatedBy: input.updatedBy,
+      })
+      .where(eq(recurringServices.id, input.serviceId));
+
+    for (const [category, mode] of [
+      ["work_plan", input.workPlanMode],
+      ["billing", input.billingMode],
+    ] as const) {
+      if (mode === "external_reference") {
+        await tx
+          .update(recurringServiceJsmIssueTypeMappings)
+          .set({ status: "superseded" as const })
+          .where(and(
+            eq(recurringServiceJsmIssueTypeMappings.serviceId, input.serviceId),
+            eq(recurringServiceJsmIssueTypeMappings.category, category),
+            eq(recurringServiceJsmIssueTypeMappings.status, "active"),
+          ));
+      }
+    }
+  });
+  return getRecurringServiceById(input.serviceId);
 }
 
 export async function getJsmSyncRunByRunId(runId: string) {
@@ -806,6 +858,21 @@ export async function saveSlaConfig(serviceId: number, items: InsertRecurringSer
   if (items.length > 0) {
     await db.insert(recurringServiceSlaConfig).values(items);
   }
+}
+
+export async function replaceRecurringWorkPlan(input: {
+  serviceId: number;
+  items: InsertRecurringServiceWorkPlanItem[];
+  sla: InsertRecurringServiceSlaConfigItem[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    await tx.delete(recurringServiceWorkPlan).where(eq(recurringServiceWorkPlan.serviceId, input.serviceId));
+    await tx.delete(recurringServiceSlaConfig).where(eq(recurringServiceSlaConfig.serviceId, input.serviceId));
+    if (input.items.length > 0) await tx.insert(recurringServiceWorkPlan).values(input.items);
+    if (input.sla.length > 0) await tx.insert(recurringServiceSlaConfig).values(input.sla);
+  });
 }
 
 // ─── Penalties ───────────────────────────────────────────────────────────────

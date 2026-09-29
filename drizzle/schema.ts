@@ -1,6 +1,6 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, decimal, date, index, uniqueIndex } from "drizzle-orm/mysql-core";
 import { RECURRING_SERVICE_TYPE_VALUES } from "../shared/recurringServiceTypes";
-import { JSM_ISSUE_MAPPING_CATEGORY_VALUES, JSM_ISSUE_MAPPING_SOURCE_VALUES, JSM_ISSUE_MAPPING_STATUS_VALUES, JSM_LINK_HEALTH_VALUES, JSM_LINK_RUN_SOURCE_VALUES, JSM_LINK_RUN_STATUS_VALUES, JSM_LINK_SOURCE_VALUES, JSM_SYNC_RUN_STATUS_VALUES } from "../shared/jsmExistingSpace";
+import { JSM_ISSUE_MAPPING_CATEGORY_VALUES, JSM_ISSUE_MAPPING_SOURCE_VALUES, JSM_ISSUE_MAPPING_STATUS_VALUES, JSM_LINK_HEALTH_VALUES, JSM_LINK_RUN_SOURCE_VALUES, JSM_LINK_RUN_STATUS_VALUES, JSM_LINK_SOURCE_VALUES, JSM_SYNC_CATEGORY_MODE_VALUES, JSM_SYNC_RUN_STATUS_VALUES } from "../shared/jsmExistingSpace";
 import { DOCUMENT_ENTITY_TYPES, DOCUMENT_REQUIREMENT_CODES } from "../shared/documentGovernance";
 
 // ==================== USERS ====================
@@ -1128,6 +1128,11 @@ export const recurringServices = mysqlTable(
     jsmLastVerifiedAt: timestamp("jsmLastVerifiedAt"),
     jsmLinkedAt: timestamp("jsmLinkedAt"),
     jsmLinkedBy: int("jsmLinkedBy"),
+    jsmWorkPlanSyncMode: mysqlEnum("jsmWorkPlanSyncMode", [...JSM_SYNC_CATEGORY_MODE_VALUES]).default("create_in_linked_space").notNull(),
+    jsmBillingSyncMode: mysqlEnum("jsmBillingSyncMode", [...JSM_SYNC_CATEGORY_MODE_VALUES]).default("create_in_linked_space").notNull(),
+    jsmSyncPolicyReason: text("jsmSyncPolicyReason"),
+    jsmSyncPolicyUpdatedAt: timestamp("jsmSyncPolicyUpdatedAt"),
+    jsmSyncPolicyUpdatedBy: int("jsmSyncPolicyUpdatedBy"),
     // Flujo de inicialización (2 pasos)
     initStep1Confirmed: boolean("initStep1Confirmed").default(false),
     pipedriveAiRecommendations: text("pipedriveAiRecommendations"),

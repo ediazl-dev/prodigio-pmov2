@@ -835,3 +835,13 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] J5: Migrar el consolidado Clásico recurrente a estado Jira sin alterar el histórico financiero.
 - [x] J6: Preservar la planilla como fuente del análisis consolidado/histórico y documentar la frontera.
 - [x] J7: Certificar casos reales, suite, build, TypeScript heredado, responsive, secretos, refs y checkpoint final.
+
+## Remediación Staffing Deal 4727 — 2026-09-29
+- [x] S0: Confirmar base `51b63c11`, Jira GET-only y respaldar 31 actividades, 4 SLA, 6 cuotas, mappings, etapas y auditoría.
+- [x] S1: Formalizar aplicabilidad contractual por tipo de servicio: Staffing sin SLA de incidentes, DR ni cobertura 24x7.
+- [x] S2: Permitir excluir explícitamente plan y facturación de la creación masiva en JSM, con persistencia y auditoría.
+- [x] S3: Sanear transaccionalmente el Deal 4727: plan contractual, SLA vacío, mappings retirados y categorías externas.
+- [x] S4: Corregir generador y dry-run para leer evidencia, deduplicar facturación y validar moneda/fechas.
+- [x] S5: Rediseñar JSM Setup y Plan de Trabajo para explicar aplicabilidad y creación masiva antes de confirmar.
+- [ ] S6: Verificar 4727, CONSALOP02 vacío, PSCSC4S como fuente de facturación y no ejecutar escrituras Jira.
+- [ ] S7: Certificar focales, suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.

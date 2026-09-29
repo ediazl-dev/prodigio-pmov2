@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import {
   AlertCircle,
@@ -77,6 +78,9 @@ export default function RSJsmSetupStage() {
   const [spaceKey, setSpaceKey] = useState("");
   const [workPlanIssueTypeId, setWorkPlanIssueTypeId] = useState("");
   const [billingIssueTypeId, setBillingIssueTypeId] = useState("");
+  const [workPlanSyncMode, setWorkPlanSyncMode] = useState<"create_in_linked_space" | "external_reference">("create_in_linked_space");
+  const [billingSyncMode, setBillingSyncMode] = useState<"create_in_linked_space" | "external_reference">("create_in_linked_space");
+  const [syncPolicyReason, setSyncPolicyReason] = useState("");
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
   const [spaceManagementOpen, setSpaceManagementOpen] = useState(false);
 
@@ -88,13 +92,29 @@ export default function RSJsmSetupStage() {
 
   useEffect(() => {
     if (!syncConfig?.mappings) return;
+    setWorkPlanSyncMode(syncConfig.syncPolicy.workPlan);
+    setBillingSyncMode(syncConfig.syncPolicy.billing);
+    setSyncPolicyReason(syncConfig.syncPolicyReason ?? syncConfig.contractPolicy.explanation);
     setWorkPlanIssueTypeId(
       syncConfig.mappings.find(mapping => mapping.category === "work_plan")?.issueTypeId ?? "",
     );
     setBillingIssueTypeId(
       syncConfig.mappings.find(mapping => mapping.category === "billing")?.issueTypeId ?? "",
     );
-  }, [syncConfig?.mappings]);
+  }, [syncConfig?.contractPolicy.explanation, syncConfig?.mappings, syncConfig?.syncPolicy.billing, syncConfig?.syncPolicy.workPlan, syncConfig?.syncPolicyReason]);
+
+  const saveSyncPolicyMutation = trpc.recurringServices.setJsmSyncPolicy.useMutation({
+    onSuccess: async () => {
+      toast.success("Aplicabilidad JSM guardada");
+      setDryRunResult(null);
+      await Promise.all([
+        utils.recurringServices.getById.invalidate({ id }),
+        utils.recurringServices.getJsmSyncConfiguration.invalidate({ serviceId: id, limit: 10 }),
+        utils.recurringServices.getJiraIssuesSummary.invalidate({ serviceId: id }),
+      ]);
+    },
+    onError: error => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (svc?.jsmPlatform === "prodigio" && (link?.health ?? svc.jsmLinkHealth) !== "healthy") {
@@ -200,6 +220,8 @@ export default function RSJsmSetupStage() {
         totalBilling: issuesSummary?.totalBilling ?? 0,
         totalSynced: issuesSummary?.totalSynced ?? 0,
         totalUnsynced: issuesSummary?.totalUnsynced ?? 0,
+        workPlanMode: issuesSummary?.syncPolicy.workPlan,
+        billingMode: issuesSummary?.syncPolicy.billing,
         readiness: issuesSummary?.readiness ?? null,
         hasDryRun: dryRunResult?.status === "ready" && dryRunResult.plan.canSync,
       }),
@@ -217,6 +239,7 @@ export default function RSJsmSetupStage() {
       svc?.jsmProjectKey,
       svc?.jsmServiceDeskId,
       syncConfig?.mappings,
+      issuesSummary?.syncPolicy,
     ],
   );
   const pendingGroups = useMemo(() => buildPendingGroups(issuesSummary), [issuesSummary]);
@@ -314,9 +337,43 @@ export default function RSJsmSetupStage() {
       );
     }
     if (!syncConfig) return <p className="text-xs text-slate-600">La configuración JSM aún no está disponible.</p>;
+    const mappingsToSave = [
+      ...(workPlanSyncMode === "create_in_linked_space" && workPlanIssueTypeId
+        ? [{ category: "work_plan" as const, issueTypeId: workPlanIssueTypeId }]
+        : []),
+      ...(billingSyncMode === "create_in_linked_space" && billingIssueTypeId
+        ? [{ category: "billing" as const, issueTypeId: billingIssueTypeId }]
+        : []),
+    ];
+    const requiredMappingCount = Number(workPlanSyncMode === "create_in_linked_space") + Number(billingSyncMode === "create_in_linked_space");
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+        <div>
+          <h3 className="text-sm font-black text-slate-950">Qué se creará en este Space</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
+            “Referencia externa” conserva el seguimiento en el Jira existente y evita duplicar actividades o hitos.
+          </p>
+        </div>
         <div className="grid gap-3 lg:grid-cols-2">
+          <SyncModeSelect label="Plan de trabajo" value={workPlanSyncMode} disabled={!isActive || !canManage} onChange={value => { setWorkPlanSyncMode(value); setDryRunResult(null); }} />
+          <SyncModeSelect label="Facturación" value={billingSyncMode} disabled={!isActive || !canManage} onChange={value => { setBillingSyncMode(value); setDryRunResult(null); }} />
+        </div>
+        <div>
+          <Label htmlFor="jsm-sync-policy-reason">Justificación</Label>
+          <Textarea id="jsm-sync-policy-reason" value={syncPolicyReason} onChange={event => setSyncPolicyReason(event.target.value)} disabled={!isActive || !canManage} className="mt-1 bg-white" />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="bg-white"
+          onClick={() => saveSyncPolicyMutation.mutate({ serviceId: id, workPlanMode: workPlanSyncMode, billingMode: billingSyncMode, reason: syncPolicyReason.trim() })}
+          disabled={!isActive || !canManage || saveSyncPolicyMutation.isPending || syncPolicyReason.trim().length < 10}
+        >
+          {saveSyncPolicyMutation.isPending && <Loader2 size={14} className="mr-2 animate-spin" />}
+          Guardar aplicabilidad
+        </Button>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {workPlanSyncMode === "create_in_linked_space" && (
           <IssueTypeSelect
             label="Tipo de issue para Plan de Trabajo"
             value={workPlanIssueTypeId}
@@ -327,6 +384,8 @@ export default function RSJsmSetupStage() {
               setDryRunResult(null);
             }}
           />
+          )}
+          {billingSyncMode === "create_in_linked_space" && (
           <IssueTypeSelect
             label="Tipo de issue para Facturación"
             value={billingIssueTypeId}
@@ -337,26 +396,23 @@ export default function RSJsmSetupStage() {
               setDryRunResult(null);
             }}
           />
+          )}
         </div>
-        <Button
+        {requiredMappingCount > 0 && <Button
           size="sm"
           variant="outline"
           className="mt-3 bg-white"
           onClick={() =>
             saveMappingsMutation.mutate({
               serviceId: id,
-              mappings: [
-                { category: "work_plan", issueTypeId: workPlanIssueTypeId },
-                { category: "billing", issueTypeId: billingIssueTypeId },
-              ],
+              mappings: mappingsToSave,
             })
           }
           disabled={
             !isActive ||
             !canManage ||
             saveMappingsMutation.isPending ||
-            !workPlanIssueTypeId ||
-            !billingIssueTypeId
+            mappingsToSave.length !== requiredMappingCount
           }
         >
           {saveMappingsMutation.isPending ? (
@@ -365,7 +421,7 @@ export default function RSJsmSetupStage() {
             <Settings size={14} className="mr-2" />
           )}
           Guardar mappings
-        </Button>
+        </Button>}
       </div>
     );
   };
@@ -438,7 +494,7 @@ export default function RSJsmSetupStage() {
         />
       );
     }
-    if (step.id === "mapping_work_plan" || step.id === "mapping_billing") return renderMappingsControl();
+    if (step.id === "mapping_work_plan" || step.id === "mapping_billing") return null;
     if (step.id === "sync") return renderSyncControl();
     return null;
   };
@@ -505,6 +561,13 @@ export default function RSJsmSetupStage() {
           </div>
         </div>
       </section>
+
+      {svc.jsmPlatform === "prodigio" && svc.jsmProjectKey && (
+        <section>
+          <h2 className="mb-2 text-sm font-black text-slate-950">Aplicabilidad y destino de los registros</h2>
+          {renderMappingsControl()}
+        </section>
+      )}
 
       {issuesQuery.isLoading ? (
         <InlineLoading text="Calculando la compuerta con la validación del servidor…" />
@@ -678,6 +741,33 @@ function IssueTypeSelect({
   );
 }
 
+function SyncModeSelect({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: "create_in_linked_space" | "external_reference";
+  disabled: boolean;
+  onChange: (value: "create_in_linked_space" | "external_reference") => void;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <select
+        value={value}
+        onChange={event => onChange(event.target.value as "create_in_linked_space" | "external_reference")}
+        disabled={disabled}
+        className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+      >
+        <option value="external_reference">Referencia externa · no crear issues</option>
+        <option value="create_in_linked_space">Crear en este Space · requiere mapping</option>
+      </select>
+    </div>
+  );
+}
+
 function DryRunSummary({ result }: { result: DryRunResult }) {
   return (
     <div
@@ -693,6 +783,9 @@ function DryRunSummary({ result }: { result: DryRunResult }) {
         <span>Por crear: <b>{result.plan.counts.toCreate}</b></span>
         <span>Ya vinculados: <b>{result.plan.counts.alreadyLinked}</b></span>
         <span>Bloqueados: <b>{result.plan.counts.blocked}</b></span>
+        {result.plan.counts.excludedDuplicateBilling > 0 && (
+          <span>Facturación duplicada excluida: <b>{result.plan.counts.excludedDuplicateBilling}</b></span>
+        )}
       </div>
       {result.plan.items
         .filter(item => item.action === "blocked")

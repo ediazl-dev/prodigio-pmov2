@@ -304,6 +304,7 @@ describe("J4 — mappings y sincronización segura JSM", () => {
       toCreate: 2,
       alreadyLinked: 0,
       blocked: 0,
+      excludedDuplicateBilling: 0,
     });
     expect(repeated.runId).toBe(first.runId);
     expect(repeated.reused).toBe(true);
@@ -316,6 +317,45 @@ describe("J4 — mappings y sincronización segura JSM", () => {
       "OPS",
       "pmo-rs-7-billing-21"
     );
+  });
+
+  it("no crea issues para Staffing cuando plan y facturación son referencias externas", async () => {
+    harness.repository.getService.mockResolvedValue({
+      id: 7,
+      serviceName: "Staffing arquitectura",
+      serviceType: "staffing",
+      jsmPlatform: "prodigio",
+      jsmProjectId: "900",
+      jsmProjectKey: "OPS",
+      jsmProjectName: "Operaciones",
+      jsmServiceDeskId: "45",
+      jsmClientPlatformUrl: null,
+      jsmWorkPlanSyncMode: "external_reference",
+      jsmBillingSyncMode: "external_reference",
+    });
+    harness.setMappings([]);
+    harness.setWorkItems([
+      { id: 11, itemType: "facturacion", title: "Facturación duplicada", jiraIssueKey: null },
+      { id: 12, itemType: "informe_mensual", title: "Reporte mensual", jiraIssueKey: null },
+    ]);
+
+    const result = await dryRunJsmSync(
+      { serviceId: 7, actor: { id: 1, name: "PMO" } },
+      harness.dependencies,
+    );
+
+    expect(result.plan.canSync).toBe(true);
+    expect(result.plan.items).toEqual([]);
+    expect(result.plan.counts).toEqual({
+      total: 0,
+      toCreate: 0,
+      alreadyLinked: 0,
+      blocked: 0,
+      excludedDuplicateBilling: 1,
+    });
+    expect(result.plan.syncPolicy).toEqual({ workPlan: "external_reference", billing: "external_reference" });
+    expect(harness.findByExternalId).not.toHaveBeenCalled();
+    expect(harness.createIssue).not.toHaveBeenCalled();
   });
 
   it("bloquea el dry-run si falta un mapping y no realiza escrituras Jira", async () => {

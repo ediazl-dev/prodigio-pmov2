@@ -7,6 +7,7 @@ export const JSM_LINK_RUN_STATUS_VALUES = ["running", "ready", "blocked", "linke
 export const JSM_ISSUE_MAPPING_CATEGORY_VALUES = ["work_plan", "billing"] as const;
 export const JSM_ISSUE_MAPPING_SOURCE_VALUES = ["selected", "detected_default"] as const;
 export const JSM_ISSUE_MAPPING_STATUS_VALUES = ["active", "superseded"] as const;
+export const JSM_SYNC_CATEGORY_MODE_VALUES = ["create_in_linked_space", "external_reference"] as const;
 export const JSM_SYNC_RUN_STATUS_VALUES = ["running", "ready", "blocked", "applying", "applied", "partial", "stale", "error"] as const;
 export const JSM_SYNC_ITEM_ACTION_VALUES = ["create", "already_linked", "blocked"] as const;
 export const JSM_SYNC_RESULT_STATUS_VALUES = ["created", "already_linked", "blocked", "error"] as const;
@@ -17,6 +18,7 @@ export const jsmLinkHealthSchema = z.enum(JSM_LINK_HEALTH_VALUES);
 export const jsmLinkRunSourceSchema = z.enum(JSM_LINK_RUN_SOURCE_VALUES);
 export const jsmLinkRunStatusSchema = z.enum(JSM_LINK_RUN_STATUS_VALUES);
 export const jsmIssueMappingCategorySchema = z.enum(JSM_ISSUE_MAPPING_CATEGORY_VALUES);
+export const jsmSyncCategoryModeSchema = z.enum(JSM_SYNC_CATEGORY_MODE_VALUES);
 export const jsmPreflightStatusSchema = z.enum(JSM_PREFLIGHT_STATUS_VALUES);
 export const jsmSyncRunStatusSchema = z.enum(JSM_SYNC_RUN_STATUS_VALUES);
 export const jsmSyncItemActionSchema = z.enum(JSM_SYNC_ITEM_ACTION_VALUES);
@@ -27,6 +29,7 @@ export type JsmLinkHealth = z.infer<typeof jsmLinkHealthSchema>;
 export type JsmLinkRunSource = z.infer<typeof jsmLinkRunSourceSchema>;
 export type JsmLinkRunStatus = z.infer<typeof jsmLinkRunStatusSchema>;
 export type JsmIssueMappingCategory = z.infer<typeof jsmIssueMappingCategorySchema>;
+export type JsmSyncCategoryMode = z.infer<typeof jsmSyncCategoryModeSchema>;
 export type JsmPreflightStatus = z.infer<typeof jsmPreflightStatusSchema>;
 export type JsmSyncRunStatus = z.infer<typeof jsmSyncRunStatusSchema>;
 export type JsmSyncItemAction = z.infer<typeof jsmSyncItemActionSchema>;
@@ -89,6 +92,16 @@ export interface JsmRecurringSyncPlan {
     toCreate: number;
     alreadyLinked: number;
     blocked: number;
+    excludedDuplicateBilling: number;
+  };
+  syncPolicy: {
+    workPlan: JsmSyncCategoryMode;
+    billing: JsmSyncCategoryMode;
+  };
+  contractPolicy: {
+    incidentSlaApplicable: boolean;
+    drApplicable: boolean;
+    coverage247Applicable: boolean;
   };
   mappings: Array<{
     category: JsmIssueMappingCategory;

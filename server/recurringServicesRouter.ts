@@ -7,9 +7,9 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
-import { createAuditLog } from "./db";
+import { calculateDeadlineDate, createAuditLog } from "./db";
 import { buildJsmProjectUrls, createJiraSpace, createJiraIssue, CreateIssueInput, listJsmServiceDesks, searchJiraIssues } from "./jiraClient";
-import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, completeRecurringStageWithDocumentGate, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, RecurringServiceJsmDbError } from "./recurringServicesDb";
+import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, completeRecurringStageWithDocumentGate, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, replaceRecurringWorkPlan, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, setRecurringServiceJsmSyncPolicy, RecurringServiceJsmDbError } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSpace, listExistingJsmSpaces, preflightExistingJsmSpace, revalidateExistingJsmSpace, unlinkExistingJsmSpace } from "./jsmExistingSpaceLinkRunner";
@@ -19,6 +19,8 @@ import { reconcileRecurringBillingMonths } from "./recurringBillingReconciliatio
 import { loadRecurringServiceJiraBillingEvidence, loadRecurringServicesJiraBillingPortfolio } from "./jiraBillingEvidence";
 import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
+import { buildStaffingContractPlan, getRecurringServiceContractPolicy, sanitizeGeneratedRecurringPlan } from "./recurringServiceContractPolicy";
+import { extractSowContent } from "./documentExtractor";
 import {
   getRecurringServiceForJsmRefresh,
   listRecurringServicesJsmRefreshHistory,
@@ -379,9 +381,15 @@ export const recurringServicesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const contractPolicy = getRecurringServiceContractPolicy(input.serviceType);
       const id = await createRecurringService({
         ...input,
         fixedMonthlyAmount: input.fixedMonthlyAmount ? String(input.fixedMonthlyAmount) : undefined,
+        jsmWorkPlanSyncMode: contractPolicy.jsmWorkPlanSyncDefault ? "create_in_linked_space" : "external_reference",
+        jsmBillingSyncMode: contractPolicy.jsmBillingSyncDefault ? "create_in_linked_space" : "external_reference",
+        jsmSyncPolicyReason: contractPolicy.explanation,
+        jsmSyncPolicyUpdatedAt: new Date(),
+        jsmSyncPolicyUpdatedBy: ctx.user.id,
         createdBy: ctx.user.id,
       });
       await audit(ctx, "create", "recurring_service", id, input.serviceName, {
@@ -391,6 +399,8 @@ export const recurringServicesRouter = router({
         billingType: input.billingType,
         currency: input.currency,
         fixedMonthlyAmount: input.fixedMonthlyAmount ?? null,
+        jsmWorkPlanSyncMode: contractPolicy.jsmWorkPlanSyncDefault ? "create_in_linked_space" : "external_reference",
+        jsmBillingSyncMode: contractPolicy.jsmBillingSyncDefault ? "create_in_linked_space" : "external_reference",
       });
       return { id };
     }),
@@ -429,6 +439,14 @@ export const recurringServicesRouter = router({
       const updateData: any = { ...input.data };
       if (input.data.fixedMonthlyAmount !== undefined) {
         updateData.fixedMonthlyAmount = String(input.data.fixedMonthlyAmount);
+      }
+      if (input.data.serviceType === "staffing" && svc.serviceType !== "staffing") {
+        const contractPolicy = getRecurringServiceContractPolicy("staffing");
+        updateData.jsmWorkPlanSyncMode = "external_reference";
+        updateData.jsmBillingSyncMode = "external_reference";
+        updateData.jsmSyncPolicyReason = contractPolicy.explanation;
+        updateData.jsmSyncPolicyUpdatedAt = new Date();
+        updateData.jsmSyncPolicyUpdatedBy = ctx.user.id;
       }
       await updateRecurringService(input.id, updateData);
       await audit(ctx, "update", "recurring_service", input.id, svc.serviceName, { fields: Object.keys(input.data) });
@@ -845,6 +863,75 @@ Responde en español con formato JSON:
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const docs = await getServiceDocuments(input.serviceId);
 
+    if (svc.serviceType === "staffing") {
+      if (!svc.formalStartDate) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Defina la fecha formal de inicio antes de generar el plan Staffing." });
+      }
+      const sow = docs.find(document => document.docType === "sow");
+      if (!sow) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Staffing requiere un SoW adjunto antes de generar el plan contractual." });
+      }
+      let evidence;
+      try {
+        evidence = await extractSowContent(sow.fileUrl, sow.fileName, svc.serviceName);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `No fue posible leer el SoW adjunto: ${error instanceof Error ? error.message : "error desconocido"}`,
+        });
+      }
+      const normalizedEvidence = evidence.toLocaleLowerCase("es-CL");
+      if (!normalizedEvidence.includes("reporte mensual") || !normalizedEvidence.includes("días hábiles")) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "El SoW no permite verificar el reporte mensual y su plazo en días hábiles. Revise el documento antes de generar.",
+        });
+      }
+
+      const reportDueDates: Array<string | null> = [];
+      const approvalDueDates: Array<string | null> = [];
+      for (let month = 1; month <= svc.durationMonths; month += 1) {
+        const periodEnd = new Date(`${svc.formalStartDate}T12:00:00Z`);
+        periodEnd.setUTCMonth(periodEnd.getUTCMonth() + month);
+        periodEnd.setUTCDate(periodEnd.getUTCDate() - 1);
+        const reportDue = await calculateDeadlineDate(periodEnd, 3);
+        const approvalDue = await calculateDeadlineDate(reportDue, 3);
+        reportDueDates.push(reportDue.toISOString().slice(0, 10));
+        approvalDueDates.push(approvalDue.toISOString().slice(0, 10));
+      }
+      const staffingPlan = buildStaffingContractPlan({
+        durationMonths: svc.durationMonths,
+        reportDueDates,
+        approvalDueDates,
+      }).map((item, index) => ({
+        serviceId: input.serviceId,
+        itemType: item.itemType as "informe_mensual" | "tarea_programada",
+        title: item.title,
+        description: item.description ?? undefined,
+        frequency: item.frequency ?? undefined,
+        monthNumber: item.monthNumber ?? undefined,
+        dueDate: item.dueDate ?? undefined,
+        sortOrder: index,
+      }));
+      await replaceRecurringWorkPlan({ serviceId: input.serviceId, items: staffingPlan, sla: [] });
+      await setRecurringServiceJsmSyncPolicy({
+        serviceId: input.serviceId,
+        workPlanMode: "external_reference",
+        billingMode: "external_reference",
+        reason: "Staffing: backlog y facturación se controlan en las fuentes Jira existentes; no crear duplicados en el Space JSM.",
+        updatedBy: ctx.user.id,
+      });
+      await audit(ctx, "contract_generate", "recurring_service", input.serviceId, svc.serviceName, {
+        type: "staffing_work_plan",
+        evidenceDocumentId: sow.id,
+        evidenceFileName: sow.fileName,
+        itemCount: staffingPlan.length,
+        slaCount: 0,
+        excludedControls: ["sla_incidentes", "dr", "24x7", "facturacion_duplicada"],
+      });
+      return { itemCount: staffingPlan.length, slaCount: 0, excludedCount: 0, source: "sow" as const };
+    }
+
     const prompt = `Eres un Gerente de Proyectos Senior especializado en servicios recurrentes de TI.
 Genera un plan de trabajo detallado para el siguiente servicio recurrente:
 
@@ -934,11 +1021,16 @@ Responde en JSON con este formato:
       });
     const parsed = JSON.parse(String(content));
 
-    // Clear existing and insert new
-    await deleteAllWorkPlanItems(input.serviceId);
     const validItemTypes = ["informe_mensual", "facturacion", "tarea_programada", "sla_definition", "coverage_definition"];
-    const items = (parsed.workPlanItems || [])
-      .filter((item: any) => validItemTypes.includes(item.itemType))
+    const validPriorities = ["critical", "high", "medium", "low"];
+    const validCoverage = ["24x7", "8x5", "personalizado"];
+    const sanitized = sanitizeGeneratedRecurringPlan({
+      serviceType: svc.serviceType,
+      hasSeparateBillingSchedule: true,
+      items: (parsed.workPlanItems || []).filter((item: any) => validItemTypes.includes(item.itemType)),
+      sla: (parsed.slaConfig || []).filter((item: any) => validPriorities.includes(item.priority)),
+    });
+    const items = sanitized.items
       .map((item: any, idx: number) => ({
         serviceId: input.serviceId,
         itemType: item.itemType as any,
@@ -948,13 +1040,7 @@ Responde en JSON con este formato:
         monthNumber: item.monthNumber,
         sortOrder: idx,
       }));
-    if (items.length > 0) await bulkInsertWorkPlanItems(items);
-
-    // Save SLA config
-    const validPriorities = ["critical", "high", "medium", "low"];
-    const validCoverage = ["24x7", "8x5", "personalizado"];
-    const slaItems = (parsed.slaConfig || [])
-      .filter((s: any) => validPriorities.includes(s.priority))
+    const slaItems = sanitized.sla
       .map((s: any) => ({
         serviceId: input.serviceId,
         priority: s.priority as any,
@@ -962,14 +1048,16 @@ Responde en JSON con este formato:
         resolutionMinutes: s.resolutionMinutes,
         coverageType: (validCoverage.includes(s.coverageType) ? s.coverageType : "8x5") as any,
       }));
-    if (slaItems.length > 0) await saveSlaConfig(input.serviceId, slaItems);
+    await replaceRecurringWorkPlan({ serviceId: input.serviceId, items, sla: slaItems });
 
     await audit(ctx, "ai_generate", "recurring_service", input.serviceId, svc.serviceName, {
       type: "work_plan",
       itemCount: items.length,
       slaCount: slaItems.length,
+      excludedCount: sanitized.excluded.length,
+      exclusions: sanitized.excluded,
     });
-    return { itemCount: items.length, slaCount: slaItems.length };
+    return { itemCount: items.length, slaCount: slaItems.length, excludedCount: sanitized.excluded.length, source: "llm" as const };
   }),
 
   getWorkPlan: protectedProcedure.input(z.object({ serviceId: z.number() })).query(async ({ input }) => {
@@ -993,6 +1081,14 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const service = await getRecurringServiceById(input.serviceId);
+      if (!service) throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
+      if (service.serviceType === "staffing" && ["facturacion", "sla_definition", "coverage_definition"].includes(input.item.itemType)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Staffing no permite SLA de incidentes, cobertura operativa ni facturación duplicada dentro del plan de trabajo.",
+        });
+      }
       if (input.item.id) {
         await updateWorkPlanItem(input.item.id, {
           itemType: input.item.itemType,
@@ -1035,6 +1131,14 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const service = await getRecurringServiceById(input.serviceId);
+      if (!service) throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
+      if (service.serviceType === "staffing" && input.items.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No aplica SLA contractual de incidentes para servicios Staffing.",
+        });
+      }
       await saveSlaConfig(
         input.serviceId,
         input.items.map(i => ({
@@ -1254,6 +1358,29 @@ Responde en JSON con este formato:
       }
     }),
 
+  setJsmSyncPolicy: adminOrPmo
+    .input(z.object({
+      serviceId: z.number().int().positive(),
+      workPlanMode: z.enum(["create_in_linked_space", "external_reference"]),
+      billingMode: z.enum(["create_in_linked_space", "external_reference"]),
+      reason: z.string().trim().min(10).max(1000),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const service = await getRecurringServiceById(input.serviceId);
+      if (!service) throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
+      const updated = await setRecurringServiceJsmSyncPolicy({
+        ...input,
+        updatedBy: ctx.user.id,
+      });
+      await audit(ctx, "jsm_sync_policy_update", "recurring_service", input.serviceId, service.serviceName, {
+        serviceType: service.serviceType,
+        workPlanMode: input.workPlanMode,
+        billingMode: input.billingMode,
+        reason: input.reason,
+      });
+      return updated;
+    }),
+
   saveJsmIssueTypeMappings: adminOrPmo
     .input(
       z.object({
@@ -1265,7 +1392,7 @@ Responde en JSON con este formato:
               issueTypeId: z.string().trim().min(1).max(50),
             })
           )
-          .length(2),
+          .max(2),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1467,8 +1594,16 @@ Responde en JSON con este formato:
     const workItems = await getWorkPlanItems(input.serviceId);
     const billing = await getBillingMonths(input.serviceId);
     const mappings = await listActiveJsmIssueTypeMappings(input.serviceId);
+    const contractPolicy = getRecurringServiceContractPolicy(svc.serviceType);
+    const workPlanApplicable = svc.jsmWorkPlanSyncMode === "create_in_linked_space";
+    const billingApplicable = svc.jsmBillingSyncMode === "create_in_linked_space";
+    const duplicateBillingWorkItems = workItems.filter(item => item.itemType === "facturacion");
+    const applicableWorkItems = workPlanApplicable
+      ? workItems.filter(item => item.itemType !== "facturacion")
+      : [];
+    const applicableBilling = billingApplicable ? billing : [];
 
-    const syncedWorkItems = workItems
+    const syncedWorkItems = applicableWorkItems
       .filter(w => w.jiraIssueKey)
       .map(w => ({
         id: w.id,
@@ -1479,7 +1614,7 @@ Responde en JSON con este formato:
         monthNumber: w.monthNumber,
         category: "actividad" as const,
       }));
-    const unsyncedWorkItems = workItems
+    const unsyncedWorkItems = applicableWorkItems
       .filter(w => !w.jiraIssueKey)
       .map(w => ({
         id: w.id,
@@ -1489,7 +1624,7 @@ Responde en JSON con este formato:
         monthNumber: w.monthNumber,
         category: "actividad" as const,
       }));
-    const syncedBilling = billing
+    const syncedBilling = applicableBilling
       .filter(b => b.jiraIssueKey)
       .map(b => ({
         id: b.id,
@@ -1500,7 +1635,7 @@ Responde en JSON con este formato:
         monthNumber: b.monthNumber,
         category: "facturacion" as const,
       }));
-    const unsyncedBilling = billing
+    const unsyncedBilling = applicableBilling
       .filter(b => !b.jiraIssueKey)
       .map(b => ({
         id: b.id,
@@ -1514,8 +1649,15 @@ Responde en JSON con este formato:
     return {
       totalSynced: syncedWorkItems.length + syncedBilling.length,
       totalUnsynced: unsyncedWorkItems.length + unsyncedBilling.length,
-      totalWorkItems: workItems.length,
-      totalBilling: billing.length,
+      totalWorkItems: applicableWorkItems.length,
+      totalBilling: applicableBilling.length,
+      excludedDuplicateBilling: duplicateBillingWorkItems.length,
+      syncPolicy: {
+        workPlan: svc.jsmWorkPlanSyncMode,
+        billing: svc.jsmBillingSyncMode,
+        reason: svc.jsmSyncPolicyReason,
+      },
+      contractPolicy,
       syncedWorkItems,
       syncedBilling,
       unsyncedWorkItems,
@@ -1529,6 +1671,8 @@ Responde en JSON con este formato:
         workItems,
         billing,
         mappings,
+        workPlanMode: svc.jsmWorkPlanSyncMode,
+        billingMode: svc.jsmBillingSyncMode,
       }),
     };
   }),
@@ -1569,6 +1713,8 @@ Responde en JSON con este formato:
       workItems,
       billing,
       mappings,
+      workPlanMode: svc.jsmWorkPlanSyncMode,
+      billingMode: svc.jsmBillingSyncMode,
     });
     if (!readiness.canClose) {
       throw new TRPCError({

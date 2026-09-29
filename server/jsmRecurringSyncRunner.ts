@@ -33,6 +33,7 @@ import {
   saveActiveJsmIssueTypeMappings,
   updateJsmSyncRun,
 } from "./recurringServicesDb";
+import { getRecurringServiceContractPolicy } from "./recurringServiceContractPolicy";
 
 export type JsmSyncActor = { id: number; name: string };
 
@@ -208,6 +209,22 @@ function normalizedMappings(mappings: MappingRow[]) {
     .sort((left, right) => left.category.localeCompare(right.category));
 }
 
+function syncModes(service: RecurringServiceForSync) {
+  return {
+    workPlan: service.jsmWorkPlanSyncMode ?? "create_in_linked_space",
+    billing: service.jsmBillingSyncMode ?? "create_in_linked_space",
+  } as const;
+}
+
+function enabledCategories(service: RecurringServiceForSync): JsmIssueMappingCategory[] {
+  const modes = syncModes(service);
+  return (["work_plan", "billing"] as const).filter(category =>
+    category === "work_plan"
+      ? modes.workPlan === "create_in_linked_space"
+      : modes.billing === "create_in_linked_space",
+  );
+}
+
 async function requireService(
   serviceId: number,
   dependencies: JsmRecurringSyncDependencies
@@ -267,15 +284,18 @@ export async function configureJsmIssueTypeMappings(
 ) {
   const service = await requireService(input.serviceId, dependencies);
   const categories = input.mappings.map(mapping => mapping.category);
+  const requiredCategories = enabledCategories(service);
   if (
-    input.mappings.length !== 2 ||
-    new Set(categories).size !== 2 ||
-    !categories.includes("work_plan") ||
-    !categories.includes("billing")
+    input.mappings.length !== requiredCategories.length ||
+    new Set(categories).size !== categories.length ||
+    requiredCategories.some(category => !categories.includes(category)) ||
+    categories.some(category => !requiredCategories.includes(category))
   ) {
     throw new JsmRecurringSyncError(
       "INVALID_MAPPING_SELECTION",
-      "Debe seleccionar explícitamente un tipo de issue para plan de trabajo y otro para facturación."
+      requiredCategories.length === 0
+        ? "No hay categorías configuradas para creación en el Space JSM."
+        : `Debe seleccionar explícitamente un tipo de issue para: ${requiredCategories.map(category => category === "work_plan" ? "plan de trabajo" : "facturación").join(" y ")}.`
     );
   }
   const issueTypes = await dependencies.getIssueTypes(service.jsmProjectId!);
@@ -323,6 +343,9 @@ async function buildSyncPlan(
       .map(type => String(type.id))
   );
   const blockers: string[] = [];
+  const modes = syncModes(context.service);
+  const categories = enabledCategories(context.service);
+  const contractPolicy = getRecurringServiceContractPolicy(context.service.serviceType);
   if (
     context.project.projectTypeKey !== "service_desk" ||
     context.project.archived === true
@@ -334,12 +357,12 @@ async function buildSyncPlan(
       "La cuenta técnica no tiene permiso para consultar el Space JSM."
     );
   }
-  if (context.permissions.CREATE_ISSUES?.havePermission !== true) {
+  if (categories.length > 0 && context.permissions.CREATE_ISSUES?.havePermission !== true) {
     blockers.push(
       "La cuenta técnica no tiene permiso para crear issues en el Space JSM."
     );
   }
-  for (const category of ["work_plan", "billing"] as const) {
+  for (const category of categories) {
     const mapping = mappingByCategory.get(category);
     if (!mapping)
       blockers.push(
@@ -351,23 +374,25 @@ async function buildSyncPlan(
       );
   }
 
+  const duplicateBillingWorkItems = context.workItems.filter(item => item.itemType === "facturacion");
+  const workItems = context.workItems.filter(item => item.itemType !== "facturacion");
   const localItems = [
-    ...context.workItems.map(item => ({
+    ...(modes.workPlan === "create_in_linked_space" ? workItems.map(item => ({
       category: "work_plan" as const,
       entityId: item.id,
       title: item.title,
       description: item.description ?? undefined,
       dueDate: dateOnly(item.dueDate),
       jiraIssueKey: item.jiraIssueKey ?? undefined,
-    })),
-    ...context.billing.map(month => ({
+    })) : []),
+    ...(modes.billing === "create_in_linked_space" ? context.billing.map(month => ({
       category: "billing" as const,
       entityId: month.id,
       title: `Facturación Mes ${month.monthNumber} - ${context.service.serviceName}`,
       description: `Cobro mensual #${month.monthNumber}: ${month.amount} ${month.currency}`,
       dueDate: dateOnly(month.dueDate),
       jiraIssueKey: month.jiraIssueKey ?? undefined,
-    })),
+    })) : []),
   ];
 
   const items: JsmRecurringSyncPlanItem[] = [];
@@ -452,6 +477,7 @@ async function buildSyncPlan(
     projectKey: context.service.jsmProjectKey,
     serviceDeskId: context.service.jsmServiceDeskId,
     mappings: normalizedMappings(context.mappings),
+    syncPolicy: modes,
     blockers,
     items: items.map(({ description, dueDate, ...item }) => ({
       ...item,
@@ -465,6 +491,7 @@ async function buildSyncPlan(
     alreadyLinked: items.filter(item => item.action === "already_linked")
       .length,
     blocked: items.filter(item => item.action === "blocked").length,
+    excludedDuplicateBilling: duplicateBillingWorkItems.length,
   };
   return {
     serviceId,
@@ -475,6 +502,12 @@ async function buildSyncPlan(
     generatedAt: dependencies.now().toISOString(),
     canSync: blockers.length === 0 && counts.blocked === 0,
     counts,
+    syncPolicy: modes,
+    contractPolicy: {
+      incidentSlaApplicable: contractPolicy.incidentSlaApplicable,
+      drApplicable: contractPolicy.drApplicable,
+      coverage247Applicable: contractPolicy.coverage247Applicable,
+    },
     mappings: normalizedMappings(context.mappings),
     items,
   };
@@ -691,6 +724,9 @@ export async function getJsmSyncConfiguration(
     },
     issueTypes: context.issueTypes.filter(type => !type.subtask),
     mappings,
+    syncPolicy: syncModes(context.service),
+    syncPolicyReason: context.service.jsmSyncPolicyReason,
+    contractPolicy: getRecurringServiceContractPolicy(context.service.serviceType),
     runs,
     readiness: calculateJsmSetupReadiness({
       platform: context.service.jsmPlatform,
@@ -699,6 +735,8 @@ export async function getJsmSyncConfiguration(
       workItems: context.workItems,
       billing: context.billing,
       mappings,
+      workPlanMode: context.service.jsmWorkPlanSyncMode,
+      billingMode: context.service.jsmBillingSyncMode,
     }),
   };
 }
@@ -710,6 +748,8 @@ export function calculateJsmSetupReadiness(input: {
   workItems: Array<{ jiraIssueKey?: string | null }>;
   billing: Array<{ jiraIssueKey?: string | null }>;
   mappings: Array<{ category: JsmIssueMappingCategory }>;
+  workPlanMode?: "create_in_linked_space" | "external_reference" | null;
+  billingMode?: "create_in_linked_space" | "external_reference" | null;
 }) {
   if (input.platform === "cliente") {
     const canClose = Boolean(input.clientPlatformUrl?.trim());
@@ -724,17 +764,21 @@ export function calculateJsmSetupReadiness(input: {
   }
   const blockers: string[] = [];
   if (!input.projectKey) blockers.push("Debe crear o vincular un Space JSM.");
+  const workPlanApplicable = (input.workPlanMode ?? "create_in_linked_space") === "create_in_linked_space";
+  const billingApplicable = (input.billingMode ?? "create_in_linked_space") === "create_in_linked_space";
   const categories = new Set(input.mappings.map(mapping => mapping.category));
-  if (input.workItems.length > 0 && !categories.has("work_plan"))
+  if (workPlanApplicable && input.workItems.length > 0 && !categories.has("work_plan"))
     blockers.push("Falta el mapping de plan de trabajo.");
-  if (input.billing.length > 0 && !categories.has("billing"))
+  if (billingApplicable && input.billing.length > 0 && !categories.has("billing"))
     blockers.push("Falta el mapping de facturación.");
-  const totalApplicable = input.workItems.length + input.billing.length;
+  const applicableWorkItems = workPlanApplicable
+    ? input.workItems.filter(item => (item as { itemType?: string }).itemType !== "facturacion")
+    : [];
+  const applicableBilling = billingApplicable ? input.billing : [];
+  const totalApplicable = applicableWorkItems.length + applicableBilling.length;
   const totalUnsynced =
-    input.workItems.filter(item => !item.jiraIssueKey).length +
-    input.billing.filter(item => !item.jiraIssueKey).length;
-  if (totalApplicable === 0)
-    blockers.push("No existen elementos aplicables para sincronizar.");
+    applicableWorkItems.filter(item => !item.jiraIssueKey).length +
+    applicableBilling.filter(item => !item.jiraIssueKey).length;
   if (totalUnsynced > 0)
     blockers.push(`Quedan ${totalUnsynced} elementos sin vincular a Jira.`);
   return {

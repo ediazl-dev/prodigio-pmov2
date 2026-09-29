@@ -51,6 +51,7 @@ export default function RSWorkPlanStage() {
   const isActive = stage?.status === "in_progress";
   const isCompleted = stage?.status === "completed";
   const svc = svcData?.service;
+  const isStaffing = svc?.serviceType === "staffing";
 
   const [showDateDialog, setShowDateDialog] = useState(false);
   const [formalStart, setFormalStart] = useState(svc?.formalStartDate ?? "");
@@ -63,7 +64,7 @@ export default function RSWorkPlanStage() {
   });
 
   const generateMutation = trpc.recurringServices.generateWorkPlan.useMutation({
-    onSuccess: (r) => { toast.success(`Plan generado: ${r.itemCount} ítems, ${r.slaCount} SLAs`); utils.recurringServices.getWorkPlan.invalidate({ serviceId: id }); },
+    onSuccess: (r) => { toast.success(isStaffing ? `Plan Staffing generado desde SoW: ${r.itemCount} ítems, SLA no aplica` : `Plan generado: ${r.itemCount} ítems, ${r.slaCount} SLAs`); utils.recurringServices.getWorkPlan.invalidate({ serviceId: id }); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -115,6 +116,15 @@ export default function RSWorkPlanStage() {
         </div>
       </div>
 
+      {isStaffing && (
+        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-950">
+          <p className="font-black">Aplicabilidad contractual · Staffing</p>
+          <p className="mt-1 text-xs leading-5 text-blue-900">
+            Este servicio administra capacidad, actividades, reportes y aprobación mensual. No aplican SLA de incidentes, DR ni cobertura 24x7. La facturación se conserva en su plan de cuotas y no se duplica como actividad.
+          </p>
+        </div>
+      )}
+
       {/* Formal Start Date */}
       <div style={{ background: "#fff", borderRadius: 12, border: `1px solid ${C.border}`, padding: "20px 24px", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -144,7 +154,7 @@ export default function RSWorkPlanStage() {
             <div style={{ display: "flex", gap: 8 }}>
               <Button size="sm" variant="outline" onClick={() => generateMutation.mutate({ serviceId: id })} disabled={generateMutation.isPending}>
                 {generateMutation.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Sparkles size={14} className="mr-1" />}
-                Generar con IA
+                {isStaffing ? "Regenerar desde SoW" : "Generar con IA"}
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowItemDialog(true)}>
                 <Plus size={14} className="mr-1" /> Agregar
@@ -195,7 +205,11 @@ export default function RSWorkPlanStage() {
       {/* SLA Config */}
       <div style={{ background: "#fff", borderRadius: 12, border: `1px solid ${C.border}`, padding: "20px 24px", marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 12 }}>Configuración SLA</h3>
-        {!workPlan?.sla.length ? (
+        {isStaffing ? (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">
+            <b>No aplica.</b> El SoW de Staffing no define tiempos de respuesta o resolución de incidentes, DR ni 24x7. Los plazos contractuales del reporte mensual se muestran en el plan.
+          </p>
+        ) : !workPlan?.sla.length ? (
           <p style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: 20 }}>
             Los SLAs se generan automáticamente con el plan de trabajo
           </p>
@@ -283,10 +297,10 @@ export default function RSWorkPlanStage() {
                 <SelectTrigger style={{ marginTop: 4 }}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="informe_mensual">Informe Mensual</SelectItem>
-                  <SelectItem value="facturacion">Facturación</SelectItem>
+                  {!isStaffing && <SelectItem value="facturacion">Facturación</SelectItem>}
                   <SelectItem value="tarea_programada">Tarea Programada</SelectItem>
-                  <SelectItem value="sla_definition">Definición SLA</SelectItem>
-                  <SelectItem value="coverage_definition">Cobertura</SelectItem>
+                  {!isStaffing && <SelectItem value="sla_definition">Definición SLA</SelectItem>}
+                  {!isStaffing && <SelectItem value="coverage_definition">Cobertura</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

@@ -83,6 +83,23 @@ describe("buildJsmSetupGate", () => {
     expect(gate.steps.find(step => step.id === "sync")?.state).toBe("done");
   });
 
+  it("cierra Staffing sin mappings cuando ambas categorías son referencias externas", () => {
+    const gate = buildJsmSetupGate(input({
+      workPlanMode: "external_reference",
+      billingMode: "external_reference",
+      totalWorkItems: 0,
+      totalBilling: 0,
+      totalSynced: 0,
+      totalUnsynced: 0,
+      readiness: { canClose: true, blockers: [] },
+    }));
+    expect(gate.steps.find(step => step.id === "mapping_work_plan")?.title).toBe("Plan de trabajo externo");
+    expect(gate.steps.find(step => step.id === "mapping_billing")?.title).toBe("Facturación en Jira externo");
+    expect(gate.steps.find(step => step.id === "sync")?.state).toBe("done");
+    expect(gate.canClose).toBe(true);
+    expect(gate.serverMismatch).toBe(false);
+  });
+
   it("en plataforma del cliente solo exige la URL", () => {
     const gate = buildJsmSetupGate(
       input({

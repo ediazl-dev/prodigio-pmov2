@@ -83,6 +83,8 @@ export interface JsmSetupGateInput {
   totalBilling: number;
   totalSynced: number;
   totalUnsynced: number;
+  workPlanMode?: "create_in_linked_space" | "external_reference";
+  billingMode?: "create_in_linked_space" | "external_reference";
   /** `issuesSummary.readiness`, tal cual llega del servidor. */
   readiness: { canClose: boolean; blockers: string[] } | null;
   /** Hay un dry-run ejecutado y sin consumir. */
@@ -158,8 +160,8 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
   const hasSpace = Boolean(input.projectKey);
   const hasWorkPlanMapping = input.mappingCategories.includes("work_plan");
   const hasBillingMapping = input.mappingCategories.includes("billing");
-  const workPlanRequired = input.totalWorkItems > 0;
-  const billingRequired = input.totalBilling > 0;
+  const workPlanRequired = input.workPlanMode !== "external_reference" && input.totalWorkItems > 0;
+  const billingRequired = input.billingMode !== "external_reference" && input.totalBilling > 0;
   const bothMappingsReady =
     (!workPlanRequired || hasWorkPlanMapping) && (!billingRequired || hasBillingMapping);
 
@@ -192,11 +194,13 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
   steps.push({
     id: "mapping_work_plan",
     order: 3,
-    title: "Mapping de plan de trabajo",
-    detail: workPlanRequired
+    title: input.workPlanMode === "external_reference" ? "Plan de trabajo externo" : "Mapping de plan de trabajo",
+    detail: input.workPlanMode === "external_reference"
+      ? "Las actividades se administran en el backlog existente; este flujo no creará issues masivamente."
+      : workPlanRequired
       ? "Qué tipo de issue del proyecto representa una actividad del plan."
       : "No hay actividades de plan de trabajo en este servicio.",
-    state: !workPlanRequired ? "done" : hasWorkPlanMapping ? "done" : hasSpace ? "pending" : "blocked",
+    state: input.workPlanMode === "external_reference" || !workPlanRequired ? "done" : hasWorkPlanMapping ? "done" : hasSpace ? "pending" : "blocked",
     actionLabel: workPlanRequired ? "Seleccionar tipo de issue" : null,
     hint: workPlanRequired
       ? `${input.totalWorkItems} actividad${input.totalWorkItems === 1 ? "" : "es"} espera${input.totalWorkItems === 1 ? "" : "n"} este mapping`
@@ -206,11 +210,13 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
   steps.push({
     id: "mapping_billing",
     order: 4,
-    title: "Mapping de facturación",
-    detail: billingRequired
-      ? "Qué tipo de issue representa un hito de cobro."
+    title: input.billingMode === "external_reference" ? "Facturación en Jira externo" : "Mapping de facturación",
+    detail: input.billingMode === "external_reference"
+      ? "Los hitos de facturación se leen desde el proyecto Jira existente y no se duplican en este Space JSM."
+      : billingRequired
+      ? "Qué tipo de issue representa un hito de facturación."
       : "No hay plan de cobro en este servicio.",
-    state: !billingRequired ? "done" : hasBillingMapping ? "done" : hasSpace ? "pending" : "blocked",
+    state: input.billingMode === "external_reference" || !billingRequired ? "done" : hasBillingMapping ? "done" : hasSpace ? "pending" : "blocked",
     actionLabel: billingRequired ? "Seleccionar tipo de issue" : null,
     hint: billingRequired
       ? `${input.totalBilling} cuota${input.totalBilling === 1 ? "" : "s"} espera${input.totalBilling === 1 ? "" : "n"} este mapping`
@@ -245,7 +251,7 @@ function spaceDetail(input: JsmSetupGateInput): string {
 
 function syncDetail(input: JsmSetupGateInput, bothMappingsReady: boolean): string {
   if (input.totalWorkItems + input.totalBilling === 0) {
-    return "No existen elementos aplicables para sincronizar.";
+    return "No se crearán issues masivamente: las categorías quedaron como referencias externas.";
   }
   if (input.totalUnsynced === 0) {
     return `Los ${input.totalSynced} elementos aplicables están vinculados a Jira.`;
@@ -256,7 +262,7 @@ function syncDetail(input: JsmSetupGateInput, bothMappingsReady: boolean): strin
 }
 
 function syncState(input: JsmSetupGateInput, bothMappingsReady: boolean): GateStepState {
-  if (input.totalWorkItems + input.totalBilling === 0) return "blocked";
+  if (input.totalWorkItems + input.totalBilling === 0) return "done";
   if (input.totalUnsynced === 0) return "done";
   if (!bothMappingsReady) return "blocked";
   return "pending";
