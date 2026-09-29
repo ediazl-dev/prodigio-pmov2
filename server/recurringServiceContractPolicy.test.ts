@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildStaffingContractPlan,
   getRecurringServiceContractPolicy,
+  parseStaffingContractTerms,
   sanitizeGeneratedRecurringPlan,
 } from "./recurringServiceContractPolicy";
 
@@ -50,6 +51,8 @@ describe("política contractual de servicios recurrentes", () => {
       durationMonths: 6,
       reportDueDates: ["2026-09-03", "2026-10-05", null, null, null, null],
       approvalDueDates: ["2026-09-08", "2026-10-08", null, null, null, null],
+      reportDeliveryBusinessDays: 3,
+      approvalWindowBusinessDays: 3,
     });
 
     expect(plan).toHaveLength(24);
@@ -58,5 +61,12 @@ describe("política contractual de servicios recurrentes", () => {
     expect(plan.some(item => /24\s*x\s*7|DR|parche/i.test(`${item.title} ${item.description}`))).toBe(false);
     expect(plan[0].dueDate).toBe("2026-09-03");
     expect(plan[2].dueDate).toBe("2026-09-08");
+  });
+
+  it("extrae los dos plazos del SoW y falla cerrado si falta alguno", () => {
+    expect(parseStaffingContractTerms(
+      "El Reporte Mensual se entrega dentro de los primeros 3 días hábiles. El cliente dispone de 3 días hábiles para observaciones o aprobación.",
+    )).toEqual({ reportDeliveryBusinessDays: 3, approvalWindowBusinessDays: 3 });
+    expect(parseStaffingContractTerms("Se debe entregar un reporte mensual.")).toBeNull();
   });
 });

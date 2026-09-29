@@ -843,5 +843,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] S3: Sanear transaccionalmente el Deal 4727: plan contractual, SLA vacío, mappings retirados y categorías externas.
 - [x] S4: Corregir generador y dry-run para leer evidencia, deduplicar facturación y validar moneda/fechas.
 - [x] S5: Rediseñar JSM Setup y Plan de Trabajo para explicar aplicabilidad y creación masiva antes de confirmar.
-- [ ] S6: Verificar 4727, CONSALOP02 vacío, PSCSC4S como fuente de facturación y no ejecutar escrituras Jira.
-- [ ] S7: Certificar focales, suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.
+- [x] S6: Verificar 4727, CONSALOP02 vacío, PSCSC4S como fuente de facturación y no ejecutar escrituras Jira.
+- [x] S7: Certificar focales, suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.

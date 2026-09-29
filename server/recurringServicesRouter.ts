@@ -19,7 +19,7 @@ import { reconcileRecurringBillingMonths } from "./recurringBillingReconciliatio
 import { loadRecurringServiceJiraBillingEvidence, loadRecurringServicesJiraBillingPortfolio } from "./jiraBillingEvidence";
 import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
-import { buildStaffingContractPlan, getRecurringServiceContractPolicy, sanitizeGeneratedRecurringPlan } from "./recurringServiceContractPolicy";
+import { buildStaffingContractPlan, getRecurringServiceContractPolicy, parseStaffingContractTerms, sanitizeGeneratedRecurringPlan } from "./recurringServiceContractPolicy";
 import { extractSowContent } from "./documentExtractor";
 import {
   getRecurringServiceForJsmRefresh,
@@ -880,11 +880,11 @@ Responde en español con formato JSON:
           message: `No fue posible leer el SoW adjunto: ${error instanceof Error ? error.message : "error desconocido"}`,
         });
       }
-      const normalizedEvidence = evidence.toLocaleLowerCase("es-CL");
-      if (!normalizedEvidence.includes("reporte mensual") || !normalizedEvidence.includes("días hábiles")) {
+      const contractTerms = parseStaffingContractTerms(evidence);
+      if (!contractTerms) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "El SoW no permite verificar el reporte mensual y su plazo en días hábiles. Revise el documento antes de generar.",
+          message: "El SoW no permite verificar los plazos de entrega y aprobación del reporte mensual. Revise el documento antes de generar.",
         });
       }
 
@@ -894,8 +894,8 @@ Responde en español con formato JSON:
         const periodEnd = new Date(`${svc.formalStartDate}T12:00:00Z`);
         periodEnd.setUTCMonth(periodEnd.getUTCMonth() + month);
         periodEnd.setUTCDate(periodEnd.getUTCDate() - 1);
-        const reportDue = await calculateDeadlineDate(periodEnd, 3);
-        const approvalDue = await calculateDeadlineDate(reportDue, 3);
+        const reportDue = await calculateDeadlineDate(periodEnd, contractTerms.reportDeliveryBusinessDays);
+        const approvalDue = await calculateDeadlineDate(reportDue, contractTerms.approvalWindowBusinessDays);
         reportDueDates.push(reportDue.toISOString().slice(0, 10));
         approvalDueDates.push(approvalDue.toISOString().slice(0, 10));
       }
@@ -903,6 +903,7 @@ Responde en español con formato JSON:
         durationMonths: svc.durationMonths,
         reportDueDates,
         approvalDueDates,
+        ...contractTerms,
       }).map((item, index) => ({
         serviceId: input.serviceId,
         itemType: item.itemType as "informe_mensual" | "tarea_programada",
@@ -927,6 +928,7 @@ Responde en español con formato JSON:
         evidenceFileName: sow.fileName,
         itemCount: staffingPlan.length,
         slaCount: 0,
+        contractTerms,
         excludedControls: ["sla_incidentes", "dr", "24x7", "facturacion_duplicada"],
       });
       return { itemCount: staffingPlan.length, slaCount: 0, excludedCount: 0, source: "sow" as const };

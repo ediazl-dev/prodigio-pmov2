@@ -113,10 +113,33 @@ export function sanitizeGeneratedRecurringPlan(input: {
   return { policy, items, sla, excluded };
 }
 
+export function parseStaffingContractTerms(text: string) {
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const fragments = normalized.split(/[\n.;]+/).map(value => value.trim()).filter(Boolean);
+  const numberWords: Record<string, number> = { uno: 1, un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+  const businessDays = (fragment: string) => {
+    const match = fragment.match(/(?:primeros?\s+)?(\d+|uno|un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+dias?\s+habiles?/);
+    if (!match) return null;
+    return /^\d+$/.test(match[1]) ? Number(match[1]) : numberWords[match[1]] ?? null;
+  };
+  const reportFragment = fragments.find(fragment => fragment.includes("reporte mensual") && businessDays(fragment) !== null);
+  const approvalFragment = fragments.find(fragment =>
+    (fragment.includes("observacion") || fragment.includes("aprobacion") || fragment.includes("revision")) &&
+    businessDays(fragment) !== null,
+  );
+  if (!reportFragment || !approvalFragment) return null;
+  return {
+    reportDeliveryBusinessDays: businessDays(reportFragment)!,
+    approvalWindowBusinessDays: businessDays(approvalFragment)!,
+  };
+}
+
 export function buildStaffingContractPlan(input: {
   durationMonths: number;
   reportDueDates: Array<string | null>;
   approvalDueDates: Array<string | null>;
+  reportDeliveryBusinessDays: number;
+  approvalWindowBusinessDays: number;
 }) {
   const items: GeneratedWorkPlanItem[] = [];
   for (let month = 1; month <= input.durationMonths; month += 1) {
@@ -136,7 +159,7 @@ export function buildStaffingContractPlan(input: {
         itemType: "informe_mensual",
         title: `Reporte Mensual de Servicio · Mes ${month}`,
         description:
-          "Entregar al cliente el reporte mensual de actividades y horas consumidas dentro de los primeros 3 días hábiles del período siguiente.",
+          `Entregar al cliente el reporte mensual de actividades y horas consumidas dentro de los primeros ${input.reportDeliveryBusinessDays} días hábiles del período siguiente.`,
         frequency: "mensual",
         monthNumber: month,
         dueDate: reportDueDate,
@@ -145,7 +168,7 @@ export function buildStaffingContractPlan(input: {
         itemType: "tarea_programada",
         title: `Revisión y aprobación del reporte · Mes ${month}`,
         description:
-          "Registrar observaciones o aprobación del cliente dentro de la ventana contractual de 3 días hábiles posteriores a la entrega.",
+          `Registrar observaciones o aprobación del cliente dentro de la ventana contractual de ${input.approvalWindowBusinessDays} días hábiles posteriores a la entrega.`,
         frequency: "mensual",
         monthNumber: month,
         dueDate: approvalDueDate,

@@ -57,6 +57,8 @@ const desiredPlan = buildStaffingContractPlan({
   durationMonths: service.durationMonths,
   reportDueDates,
   approvalDueDates,
+  reportDeliveryBusinessDays: 3,
+  approvalWindowBusinessDays: 3,
 }).map((item, index) => ({
   serviceId,
   itemType: item.itemType as "informe_mensual" | "tarea_programada",
