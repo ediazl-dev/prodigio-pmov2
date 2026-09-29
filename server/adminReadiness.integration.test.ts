@@ -32,7 +32,7 @@ describe("preparación del panel administrativo", () => {
     ]);
 
     expect(users).toEqual(expect.any(Array));
-    expect(["active", "inactive", "error"]).toContain(tokenHealth.status);
+    expect(["active", "inactive", "expired", "forbidden", "error"]).toContain(tokenHealth.status);
     expect(template.boards.length).toBeGreaterThan(0);
     expect(template.issueTypes.length).toBeGreaterThan(0);
     expect(compliance.details).toEqual(expect.any(Array));

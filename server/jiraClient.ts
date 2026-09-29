@@ -5,8 +5,17 @@ import { toInsightIssues } from "./jiraInsightsAdapter";
 
 // ==================== JIRA REST API v3 Client ====================
 
-const JIRA_BASE = ENV.jiraBaseUrl;
-const JIRA_AUTH = Buffer.from(`${ENV.jiraEmail}:${ENV.jiraApiToken}`).toString("base64");
+export function getJiraRuntimeCredentials(env: NodeJS.ProcessEnv = process.env) {
+  const baseUrl = (env.JIRA_BASE_URL ?? ENV.jiraBaseUrl).trim().replace(/\/+$/, "");
+  const email = (env.JIRA_EMAIL ?? ENV.jiraEmail).trim();
+  const apiToken = (env.JIRA_API_TOKEN ?? ENV.jiraApiToken).trim();
+  return {
+    baseUrl,
+    email,
+    apiToken,
+    authorization: `Basic ${Buffer.from(`${email}:${apiToken}`).toString("base64")}`,
+  };
+}
 
 interface JiraRequestOptions {
   method?: string;
@@ -16,13 +25,14 @@ interface JiraRequestOptions {
 
 async function jiraFetch<T = any>(path: string, options: JiraRequestOptions = {}): Promise<T> {
   const { method = "GET", body, params } = options;
-  let url = `${JIRA_BASE}/rest/api/3${path}`;
+  const credentials = getJiraRuntimeCredentials();
+  let url = `${credentials.baseUrl}/rest/api/3${path}`;
   if (params) {
     const qs = new URLSearchParams(params).toString();
     url += `?${qs}`;
   }
   const headers: Record<string, string> = {
-    Authorization: `Basic ${JIRA_AUTH}`,
+    Authorization: credentials.authorization,
     Accept: "application/json",
   };
   if (body) headers["Content-Type"] = "application/json";
@@ -46,7 +56,8 @@ async function jiraFetch<T = any>(path: string, options: JiraRequestOptions = {}
 }
 
 async function jiraServiceDeskFetch<T = any>(path: string, params?: Record<string, string>): Promise<T> {
-  let url = `${JIRA_BASE}/rest/servicedeskapi${path}`;
+  const credentials = getJiraRuntimeCredentials();
+  let url = `${credentials.baseUrl}/rest/servicedeskapi${path}`;
   if (params) {
     const qs = new URLSearchParams(params).toString();
     url += `?${qs}`;
@@ -55,7 +66,7 @@ async function jiraServiceDeskFetch<T = any>(path: string, params?: Record<strin
   const resp = await fetch(url, {
     method: "GET",
     headers: {
-      Authorization: `Basic ${JIRA_AUTH}`,
+      Authorization: credentials.authorization,
       Accept: "application/json",
     },
   });
@@ -178,9 +189,10 @@ export async function getJiraProjectIssueTypes(projectId: string): Promise<JiraP
 }
 
 export function buildJsmProjectUrls(projectKey: string, serviceDeskId: string) {
+  const { baseUrl } = getJiraRuntimeCredentials();
   return {
-    agentUrl: `${JIRA_BASE}/jira/servicedesk/projects/${encodeURIComponent(projectKey)}/boards`,
-    portalUrl: `${JIRA_BASE}/servicedesk/customer/portal/${encodeURIComponent(serviceDeskId)}`,
+    agentUrl: `${baseUrl}/jira/servicedesk/projects/${encodeURIComponent(projectKey)}/boards`,
+    portalUrl: `${baseUrl}/servicedesk/customer/portal/${encodeURIComponent(serviceDeskId)}`,
   };
 }
 
@@ -463,10 +475,11 @@ export async function getAssignableUsers(projectKey: string): Promise<JiraUser[]
 
 async function jiraAgileFetch<T = any>(path: string, options: JiraRequestOptions = {}): Promise<T> {
   const { method = "GET", body, params } = options;
-  let url = `${JIRA_BASE}/rest/agile/1.0${path}`;
+  const credentials = getJiraRuntimeCredentials();
+  let url = `${credentials.baseUrl}/rest/agile/1.0${path}`;
   if (params) url += `?${new URLSearchParams(params).toString()}`;
   const headers: Record<string, string> = {
-    Authorization: `Basic ${JIRA_AUTH}`,
+    Authorization: credentials.authorization,
     Accept: "application/json",
   };
   if (body) headers["Content-Type"] = "application/json";
@@ -766,6 +779,7 @@ export interface CreateJiraSpaceResult {
 
 /** Attempts to create a JIRA project replicating the PBTISD1 template structure with PPDC corporate configuration. */
 export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<CreateJiraSpaceResult> {
+  const credentials = getJiraRuntimeCredentials();
   // Always fetch the template structure first (used for preview and result summary)
   const template = await getTemplateStructure("PBTISD1");
 
@@ -888,7 +902,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
       filterId?: string;
     }> = [];
     const agileHeaders = {
-      Authorization: `Basic ${JIRA_AUTH}`,
+      Authorization: credentials.authorization,
       "Content-Type": "application/json",
       Accept: "application/json",
     };
@@ -909,7 +923,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
         let exactFilter: any = null;
         let searchStartAt = 0;
         while (!exactFilter) {
-          const searchResp = await fetch(`${JIRA_BASE}/rest/api/3/filter/search?filterName=${encodeURIComponent(filterName)}&maxResults=50&startAt=${searchStartAt}`, { headers: agileHeaders });
+          const searchResp = await fetch(`${credentials.baseUrl}/rest/api/3/filter/search?filterName=${encodeURIComponent(filterName)}&maxResults=50&startAt=${searchStartAt}`, { headers: agileHeaders });
           const searchResult = (await searchResp.json()) as any;
           exactFilter = searchResult.values?.find((v: any) => v.name === filterName) ?? null;
           if (exactFilter || searchResult.isLast || !searchResult.values?.length) break;
@@ -920,7 +934,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
         } else {
           // Create filter with a unique temp name first, then rename (avoids duplicate name race)
           const tempName = `${filterName} ${Date.now()}`;
-          const filterResp = await fetch(`${JIRA_BASE}/rest/api/3/filter`, {
+          const filterResp = await fetch(`${credentials.baseUrl}/rest/api/3/filter`, {
             method: "POST",
             headers: agileHeaders,
             body: JSON.stringify({ name: tempName, jql: filterJql }),
@@ -929,7 +943,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
           if (!filter.id) throw new Error(`Filter creation failed: ${JSON.stringify(filter)}`);
           filterId = filter.id;
           // Rename to canonical name
-          await fetch(`${JIRA_BASE}/rest/api/3/filter/${filterId}`, {
+          await fetch(`${credentials.baseUrl}/rest/api/3/filter/${filterId}`, {
             method: "PUT",
             headers: agileHeaders,
             body: JSON.stringify({ name: filterName, jql: filterJql }),
@@ -939,7 +953,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
         if (!filterId) throw new Error(`Could not obtain filter ID for ${board.name}`);
 
         // Create Kanban board WITHOUT location (business projects require this)
-        const boardResp = await fetch(`${JIRA_BASE}/rest/agile/1.0/board`, {
+        const boardResp = await fetch(`${credentials.baseUrl}/rest/agile/1.0/board`, {
           method: "POST",
           headers: agileHeaders,
           body: JSON.stringify({
@@ -990,7 +1004,7 @@ export async function createJiraSpace(input: CreateJiraSpaceInput): Promise<Crea
     }
 
     // JSM projects use a different URL (service desk portal)
-    const jiraProjectUrl = isJSM ? `${JIRA_BASE}/jira/servicedesk/projects/${result.key}/boards` : `${JIRA_BASE}/jira/core/projects/${result.key}/board`;
+    const jiraProjectUrl = isJSM ? `${credentials.baseUrl}/jira/servicedesk/projects/${result.key}/boards` : `${credentials.baseUrl}/jira/core/projects/${result.key}/board`;
 
     return {
       success: true,

@@ -45,7 +45,7 @@ import { generateBacklogExcel } from "./ganttBacklogExcel";
 import { parseGanttBuffer, summarizeGantt } from "./ganttParser";
 import { extractSowContent, extractGanttContent } from "./documentExtractor";
 import { generateStatusReportPptx, type ReportData } from "./pptxReportGenerator";
-import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport } from "./jiraClient";
+import { listJiraProjects, getProjectIssues, getJiraProject, createJiraIssue, transitionJiraIssue, getAssignableUsers, getProjectStatuses, jiraHealthCheck, searchJiraIssues, getTemplateStructure, createJiraSpace, getJiraCurrentUser, getJiraProjectReport, getProjectBoards, getJiraAdvanceReport, getJiraRuntimeCredentials } from "./jiraClient";
 import {
   buildJiraPortfolioReportEntry,
   indexJiraReportsByKey,
@@ -5176,7 +5176,7 @@ const jiraRouter = router({
         latencyMs: latency,
         checkedAt: new Date().toISOString(),
         message: is401
-          ? "Token expirado o inválido. Genera un nuevo API Token en https://id.atlassian.com/manage-profile/security/api-tokens"
+          ? "Atlassian rechazó la autenticación (HTTP 401). Verifica que JIRA_EMAIL corresponda al propietario del token y que el token esté vigente."
           : is403
           ? "Token sin permisos suficientes. Verifica los permisos de la cuenta JIRA."
           : `Error de conexión: ${err.message?.substring(0, 150)}`,
@@ -5184,23 +5184,29 @@ const jiraRouter = router({
     }
   }),
 
-  // Update JIRA API token (admin only) - writes to env and validates
-  updateToken: adminOnly.input(z.object({ token: z.string().min(10) })).mutation(async ({ input }) => {
+  // Update JIRA API token (admin only) - validates and activates it for the current process.
+  updateToken: adminOnly.input(z.object({ token: z.string().trim().min(10) })).mutation(async ({ input }) => {
     // Validate the new token before accepting it
-    const email = process.env.JIRA_EMAIL ?? "";
-    const base = process.env.JIRA_BASE_URL ?? "";
-    const auth = Buffer.from(`${email}:${input.token}`).toString("base64");
+    const credentials = getJiraRuntimeCredentials({ ...process.env, JIRA_API_TOKEN: input.token });
+    if (!credentials.email || !credentials.baseUrl) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "JIRA_EMAIL o JIRA_BASE_URL no están configurados." });
+    }
     try {
-      const resp = await fetch(`${base}/rest/api/3/myself`, {
-        headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+      const resp = await fetch(`${credentials.baseUrl}/rest/api/3/myself`, {
+        headers: { Authorization: credentials.authorization, Accept: "application/json" },
       });
       if (!resp.ok) {
-        const body = await resp.text();
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Token inválido (HTTP ${resp.status}): ${body.substring(0, 100)}` });
+        if (resp.status === 401) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Atlassian rechazó la combinación JIRA_EMAIL + token (HTTP 401). Confirma que el token fue creado por la misma cuenta configurada." });
+        }
+        if (resp.status === 403) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "El token es reconocido, pero la cuenta no tiene permisos suficientes en Jira (HTTP 403)." });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Atlassian rechazó la validación del token (HTTP ${resp.status}).` });
       }
       const user = await resp.json() as any;
       // Token is valid - update the environment variable at runtime
-      process.env.JIRA_API_TOKEN = input.token;
+      process.env.JIRA_API_TOKEN = credentials.apiToken;
       return {
         success: true,
         message: `Token actualizado exitosamente. Autenticado como ${user.displayName} (${user.emailAddress}).`,

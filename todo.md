@@ -845,3 +845,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] S5: Rediseñar JSM Setup y Plan de Trabajo para explicar aplicabilidad y creación masiva antes de confirmar.
 - [x] S6: Verificar 4727, CONSALOP02 vacío, PSCSC4S como fuente de facturación y no ejecutar escrituras Jira.
 - [x] S7: Certificar focales, suite, build, cinco errores TypeScript heredados, responsive, secretos, refs y checkpoint final.
+
+## Rotación segura del token Jira — 2026-09-29
+- [x] T0: Confirmar HTTP 401 y distinguir autenticación rechazada de expiración confirmada.
+- [x] T1: Eliminar la cabecera Jira congelada al arranque y activar el token validado en todas las APIs.
+- [ ] T2: Persistir `JIRA_API_TOKEN` en el gestor seguro y reiniciar el servidor.
+- [ ] T3: Validar `/myself`, pantalla administrativa, suite, build, secretos, refs y checkpoint final.

@@ -12,7 +12,7 @@ export default function AdminJiraToken() {
 
   const tokenHealth = trpc.jira.tokenHealth.useQuery(undefined, { refetchInterval: 5 * 60 * 1000, retry: false });
   const updateToken = trpc.jira.updateToken.useMutation({
-    onSuccess: (data) => { toast.success(data.message); setNewToken(""); setShowTokenInput(false); tokenHealth.refetch(); },
+    onSuccess: async (data) => { toast.success(data.message); setNewToken(""); setShowTokenInput(false); await tokenHealth.refetch(); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -23,7 +23,7 @@ export default function AdminJiraToken() {
 
   const statusMap: Record<string, { color: string; label: string; Icon: any }> = {
     active: { color: C.green, label: "Activo", Icon: ShieldCheck },
-    expired: { color: C.red, label: "Expirado", Icon: ShieldAlert },
+    expired: { color: C.red, label: "No autenticado", Icon: ShieldAlert },
     forbidden: { color: C.gold, label: "Sin Permisos", Icon: AlertCircle },
     error: { color: C.g400, label: "Error", Icon: AlertCircle },
     loading: { color: C.g300, label: "Verificando...", Icon: Loader2 },
@@ -67,7 +67,7 @@ export default function AdminJiraToken() {
           <div style={{ ...cardStyle, padding: 16, display: "flex", alignItems: "flex-start", gap: 12, background: isExpired ? `${C.red}08` : `${C.gold}08`, border: `1px solid ${isExpired ? C.red : C.gold}30` }}>
             <ShieldAlert className="h-5 w-5" style={{ color: isExpired ? C.red : C.gold, flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: isExpired ? C.red : C.gold }}>{isExpired ? "Token JIRA Expirado" : "Token sin Permisos Suficientes"}</h3>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: isExpired ? C.red : C.gold }}>{isExpired ? "Autenticación JIRA rechazada" : "Token sin Permisos Suficientes"}</h3>
               <p style={{ fontSize: 12, color: C.g400, marginTop: 4 }}>{tokenHealth.data?.message}</p>
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <Button size="sm" onClick={() => setShowTokenInput(true)} style={{ background: isExpired ? C.red : C.gold, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
@@ -160,7 +160,7 @@ export default function AdminJiraToken() {
           <div style={{ fontSize: 12, color: C.navy }}>
             <p style={{ fontWeight: 700, marginBottom: 6 }}>Sobre los API Tokens de JIRA</p>
             <ul style={{ listStyle: "disc", paddingLeft: 16, color: C.g400, display: "flex", flexDirection: "column", gap: 4 }}>
-              <li>Los API Tokens de Atlassian no tienen fecha de expiración fija, pero pueden ser revocados manualmente.</li>
+              <li>Los API Tokens de Atlassian pueden expirar o ser revocados; el token debe pertenecer a la cuenta configurada en JIRA_EMAIL.</li>
               <li>Si cambias la contraseña de tu cuenta Atlassian, los tokens existentes seguirán funcionando.</li>
               <li>El sistema verifica automáticamente el estado del token cada 5 minutos.</li>
               <li>Si el token falla, se mostrará una alerta en esta página y en el badge "JIRA Conectado" de los proyectos.</li>
