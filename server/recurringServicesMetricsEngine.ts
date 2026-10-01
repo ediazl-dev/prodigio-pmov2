@@ -11,10 +11,13 @@
  * - Todos los vencimientos se evalúan contra una fecha de corte ISO (YYYY-MM-DD).
  */
 
-export const RECURRING_DASHBOARD_METRICS_VERSION = "2.1" as const;
+import type { JiraBillingEvidence } from "./jiraBillingEvidence";
+import { getRecurringServiceContractPolicy } from "./recurringServiceContractPolicy";
+
+export const RECURRING_DASHBOARD_METRICS_VERSION = "2.2" as const;
 
 export type RecurringHealthLevel = "critical" | "attention" | "stable" | "no_data";
-export type EvidenceStatus = "available" | "not_configured" | "stale" | "error";
+export type EvidenceStatus = "available" | "not_configured" | "stale" | "error" | "not_applicable";
 
 export interface RecurringServiceMetricSource {
   id: number;
@@ -35,6 +38,7 @@ export interface RecurringServiceMetricSource {
 export interface RecurringBillingMetricSource {
   id: number;
   serviceId: number;
+  monthNumber?: number;
   dueDate: string | null;
   amount: string | number;
   currency: string | null;
@@ -94,6 +98,7 @@ export interface RecurringServicesMetricsInput {
   documents: RecurringDocumentMetricSource[];
   slaConfigs: RecurringSlaConfigMetricSource[];
   operationalEvidence?: RecurringOperationalEvidenceSource[];
+  jiraBilling?: Record<number, JiraBillingEvidence>;
 }
 
 export interface CurrencyMetrics {
@@ -128,7 +133,8 @@ export interface ServiceMetricsV2 {
     billingRows: number;
     overdueRows: number;
     planMatchesContract: boolean | null;
-    source: "recurring_service_billing_months.status";
+    billingStatusUnknownRows: number;
+    source: "jira_operational" | "corporate_historical";
   };
   reports: {
     planned: number;
@@ -159,6 +165,7 @@ export interface ServiceMetricsV2 {
     source: "jsm_snapshot";
   };
   sla: {
+    applicability: "applicable" | "not_applicable";
     configuredRules: number;
     availability: EvidenceStatus;
     observedAt: string | null;
@@ -271,7 +278,12 @@ export function calculateRecurringServicesMetrics(
     const reports = workPlan.filter(item => item.itemType === "informe_mensual");
     const documents = input.documents.filter(item => item.serviceId === service.id);
     const slaConfigs = input.slaConfigs.filter(item => item.serviceId === service.id);
-    const operational = operationalByService.get(service.id);
+    const slaApplicable = getRecurringServiceContractPolicy(service.serviceType as Parameters<typeof getRecurringServiceContractPolicy>[0]).incidentSlaApplicable;
+    const operational = slaApplicable ? operationalByService.get(service.id) : undefined;
+    const jiraBilling = input.jiraBilling?.[service.id];
+    const jiraOperational = input.jiraBilling !== undefined;
+    const jiraByMonth = new Map(jiraBilling?.items.filter(item => item.monthNumber != null).map(item => [item.monthNumber, item]) ?? []);
+    let billingStatusUnknownRows = 0;
     const qualityIssues: string[] = [];
     const signals: MetricSignal[] = [];
 
@@ -288,8 +300,12 @@ export function calculateRecurringServicesMetrics(
       const expectedDueDate = row.expectedDueDate ?? row.dueDate;
       expectedBucket.scheduled += expectedAmount;
 
-      const hasVerifiedInvoice = row.invoiceSource === "corporate_financial";
-      if (!hasVerifiedInvoice) {
+      const jiraItem = jiraOperational && row.monthNumber != null ? jiraByMonth.get(row.monthNumber) : undefined;
+      const jiraStatus = jiraOperational ? jiraItem?.billingStatus ?? "unknown" : null;
+      const hasVerifiedInvoice = !jiraOperational && row.invoiceSource === "corporate_financial";
+      if (jiraStatus === "unknown") {
+        if (!expectedDueDate || expectedDueDate <= input.cutOffDate) billingStatusUnknownRows += 1;
+      } else if (jiraStatus === "not_billed" || (!jiraBilling && !hasVerifiedInvoice)) {
         expectedBucket.pending += expectedAmount;
         if (expectedDueDate && expectedDueDate < input.cutOffDate) {
           expectedBucket.overdue += expectedAmount;
@@ -298,7 +314,12 @@ export function calculateRecurringServicesMetrics(
       }
       financeByCurrency[expectedCurrency] = expectedBucket;
 
-      if (hasVerifiedInvoice) {
+      if (jiraStatus === "billed" && jiraItem?.amount != null && jiraItem.currency) {
+        const invoiceCurrency = normalizeCurrency(jiraItem.currency);
+        const invoiceBucket = financeByCurrency[invoiceCurrency] ?? createCurrencyMetrics(invoiceCurrency);
+        invoiceBucket.invoiced += jiraItem.amount;
+        financeByCurrency[invoiceCurrency] = invoiceBucket;
+      } else if (hasVerifiedInvoice) {
         const invoiceCurrency = normalizeCurrency(row.invoiceCurrency ?? expectedCurrency);
         const invoiceBucket = financeByCurrency[invoiceCurrency] ?? createCurrencyMetrics(invoiceCurrency);
         invoiceBucket.invoiced += amount(row.invoiceAmount ?? expectedAmount);
@@ -330,6 +351,17 @@ export function calculateRecurringServicesMetrics(
         message: `${overdueRows} cuota(s) permanecen pendientes de facturar después de su fecha de vencimiento.`,
       });
     }
+    if (billingStatusUnknownRows > 0) signals.push({
+      code: "BILLING_STATUS_UNCONFIRMED", level: "attention",
+      message: `${billingStatusUnknownRows} cuota(s) exigible(s) sin estado de facturación acreditado en Jira; verificar emisión.`,
+    });
+    if (service.endDate && service.endDate < input.cutOffDate && service.status === "activo") {
+      signals.push({
+        code: "CONTRACT_TERM_ELAPSED_ACTIVE",
+        level: "attention",
+        message: `La fecha de término contractual (${service.endDate}) ya pasó, pero la ficha sigue activa; verificar continuidad o cierre administrativo.`,
+      });
+    }
 
     const dueReports = reports.filter(item => item.dueDate !== null && item.dueDate <= input.cutOffDate);
     const completedDueReports = dueReports.filter(item => item.status === "completado");
@@ -352,7 +384,7 @@ export function calculateRecurringServicesMetrics(
       signals.push({ code: "FORMAL_DOCUMENT_MISSING", level: "attention", message: `Falta evidencia formal: ${missingDocuments.join(", ")}.` });
     }
 
-    const operationalStatus: EvidenceStatus = operational?.status ?? "not_configured";
+    const operationalStatus: EvidenceStatus = slaApplicable ? operational?.status ?? "not_configured" : "not_applicable";
     const firstResponseCompliance = operationalStatus === "available"
       ? percentage(operational?.firstResponseMet ?? null, operational?.firstResponseMeasured ?? null)
       : null;
@@ -360,10 +392,10 @@ export function calculateRecurringServicesMetrics(
       ? percentage(operational?.resolutionMet ?? null, operational?.resolutionMeasured ?? null)
       : null;
 
-    if (service.jsmServiceDeskId === null) {
+    if (slaApplicable && service.jsmServiceDeskId === null) {
       qualityIssues.push("JSM_SERVICE_DESK_NOT_CONFIRMED");
       signals.push({ code: "JSM_EVIDENCE_UNAVAILABLE", level: "attention", message: "No existe un Service Desk JSM confirmado para medir incidentes y SLA." });
-    } else if (operationalStatus !== "available") {
+    } else if (slaApplicable && operationalStatus !== "available") {
       qualityIssues.push(`JSM_EVIDENCE_${operationalStatus.toUpperCase()}`);
       signals.push({ code: "JSM_EVIDENCE_UNAVAILABLE", level: "attention", message: "La evidencia operacional JSM no está disponible o vigente." });
     }
@@ -385,8 +417,8 @@ export function calculateRecurringServicesMetrics(
       billing.length > 0 || amount(service.totalContractAmount) > 0,
       reports.length > 0,
       documents.length > 0,
-      operationalStatus === "available",
-      measuredSlaRates.length > 0,
+      slaApplicable && operationalStatus === "available",
+      slaApplicable && measuredSlaRates.length > 0,
     ].filter(Boolean).length;
 
     return {
@@ -399,13 +431,14 @@ export function calculateRecurringServicesMetrics(
       currentStage: service.currentStage,
       health: determineHealth(signals, evidenceDimensions),
       healthSignals: signals,
-      evidenceCoveragePercent: Math.round((evidenceDimensions / 5) * 100),
+      evidenceCoveragePercent: Math.round((evidenceDimensions / (slaApplicable ? 5 : 3)) * 100),
       finance: {
         byCurrency: financeByCurrency,
         billingRows: billing.length,
         overdueRows,
         planMatchesContract,
-        source: "recurring_service_billing_months.status",
+        billingStatusUnknownRows,
+        source: jiraOperational ? "jira_operational" : "corporate_historical",
       },
       reports: {
         planned: reports.length,
@@ -436,7 +469,8 @@ export function calculateRecurringServicesMetrics(
         source: "jsm_snapshot",
       },
       sla: {
-        configuredRules: slaConfigs.length,
+        applicability: slaApplicable ? "applicable" : "not_applicable",
+        configuredRules: slaApplicable ? slaConfigs.length : 0,
         availability: operationalStatus,
         observedAt: operational?.observedAt ?? null,
         firstResponseCompliance,
@@ -464,6 +498,7 @@ export function calculateRecurringServicesMetrics(
   const reportDue = services.reduce((sum, service) => sum + service.reports.due, 0);
   const reportCompleted = services.reduce((sum, service) => sum + service.reports.completedDue, 0);
   const operationalServices = services.filter(service => service.incidents.availability === "available");
+  const applicableServices = services.filter(service => service.sla.applicability === "applicable");
   const sumNullable = (values: Array<number | null>): number | null => {
     const available = values.filter((value): value is number => value !== null);
     return available.length > 0 ? available.reduce((sum, value) => sum + value, 0) : null;
@@ -508,10 +543,10 @@ export function calculateRecurringServicesMetrics(
         unresolvedOver30Days: sumNullable(operationalServices.map(service => service.incidents.unresolvedOver30Days)),
       },
       sla: {
-        configuredServices: services.filter(service => service.sla.configuredRules > 0).length,
-        availableServices: services.filter(service => service.sla.firstResponseCompliance !== null || service.sla.resolutionCompliance !== null).length,
-        firstResponseCompliance: averageNullable(services.map(service => service.sla.firstResponseCompliance)),
-        resolutionCompliance: averageNullable(services.map(service => service.sla.resolutionCompliance)),
+        configuredServices: applicableServices.filter(service => service.sla.configuredRules > 0).length,
+        availableServices: applicableServices.filter(service => service.sla.firstResponseCompliance !== null || service.sla.resolutionCompliance !== null).length,
+        firstResponseCompliance: averageNullable(applicableServices.map(service => service.sla.firstResponseCompliance)),
+        resolutionCompliance: averageNullable(applicableServices.map(service => service.sla.resolutionCompliance)),
       },
       qualityIssueCount: services.reduce((sum, service) => sum + service.qualityIssues.length, 0),
     },

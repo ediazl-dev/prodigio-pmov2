@@ -32,7 +32,7 @@ const managementServices = [
     localInvoiceOnlyCount: 0,
     reconciliationStatus: "ambiguous",
     incidents: { availability: "available", observedAt: "2026-09-25T10:00:00.000Z", total: 66, open: 32, criticalOpen: 0, highOpen: 3, overdueOpen: 0, unresolvedOver30Days: 14, source: "jsm_snapshot" },
-    sla: { configuredRules: 1, jsmLinked: true, rules: [{ priority: "high", firstResponseMinutes: 30, resolutionMinutes: 240, coverageType: "24x7", customCoverageDescription: null }], firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null },
+    sla: { applicability: "applicable", configuredRules: 1, jsmLinked: true, rules: [{ priority: "high", firstResponseMinutes: 30, resolutionMinutes: 240, coverageType: "24x7", customCoverageDescription: null }], firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null },
     deliverables: { planned: 5, due: 0, delivered: 0, accepted: 0, overdue: 0, withoutDate: 5 },
     documents: { present: 2, valid: 0, required: 2 },
     penalties: { count: 0, byCurrency: [], withEvidence: 0 },
@@ -64,8 +64,8 @@ const managementServices = [
     jiraBillingSourceProjects: ["PSCSC4S"],
     localInvoiceOnlyCount: 0,
     reconciliationStatus: dealId === "Deal4687" ? "jira_unknown" : "matched",
-    incidents: { availability: "not_configured", observedAt: null, total: null, open: null, criticalOpen: null, highOpen: null, overdueOpen: null, unresolvedOver30Days: null, source: "jsm_snapshot" },
-    sla: { configuredRules: 1, jsmLinked: false, rules: [{ priority: "high", firstResponseMinutes: 60, resolutionMinutes: 480, coverageType: "8x5", customCoverageDescription: null }], firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null },
+    incidents: { availability: "not_applicable", observedAt: null, total: null, open: null, criticalOpen: null, highOpen: null, overdueOpen: null, unresolvedOver30Days: null, source: "jsm_snapshot" },
+    sla: { applicability: "not_applicable", configuredRules: 0, jsmLinked: false, rules: [], firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null },
     deliverables: { planned: 5, due: 0, delivered: 0, accepted: 0, overdue: 0, withoutDate: 5 },
     documents: { present: 2, valid: 0, required: 2 },
     penalties: { count: 0, byCurrency: [], withEvidence: 0 },
@@ -107,7 +107,7 @@ const data = {
   },
   management: {
     sourceCuts: { financialAt: "2026-09-26T06:00:00.000Z", jiraBillingAt: "2026-09-28T18:16:40.695-0300", jsmAt: "2026-09-25T10:00:00.000Z", documentsAt: null },
-    summary: { services: 3, withVerifiedInvoices: 2, withJiraBilling: 2, financeExceptions: 2, slaConfigured: 3, jsmLinked: 1, slaMeasured: 0, penalties: 0 },
+    summary: { services: 3, withVerifiedInvoices: 2, withJiraBilling: 2, financeExceptions: 2, slaApplicable: 1, slaConfigured: 1, jsmLinked: 1, slaMeasured: 0, penalties: 0 },
     currencies: [
       { currency: "UF", expectedToDate: 1152, expectedFuture: 1062, invoicedReal: 672, comparableGap: 0, expectedContributors: managementServices.map(service => ({ serviceId: service.serviceId, clientName: service.clientName, serviceName: service.serviceName, amount: service.expectedToDate.UF })), invoiceContributors: [{ serviceId: 1, clientName: "Camanchaca", serviceName: "Soporte SAP", amount: 282, invoices: 3 }, { serviceId: 3, clientName: "Consalud", serviceName: "Staffing Evolutivo", amount: 390, invoices: 2 }] },
     ],
@@ -183,9 +183,10 @@ describe("ClassicManagementDashboard", () => {
     expect(screen.getByRole("tab", { name: "UF" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getAllByText("UF 672").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Facturado según Jira/).length).toBeGreaterThan(0);
-    expect(screen.getByText("3/3", { selector: "p" })).toBeTruthy();
-    expect(screen.getAllByText("1/3", { selector: "p" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("0/3", { selector: "p" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1/1", { selector: "p" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0/1", { selector: "p" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/No aplica SLA de incidentes/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/N\/D · estado por verificar/).length).toBeGreaterThan(0);
     expect(screen.getByText("Evolución del stock de tickets")).toBeTruthy();
     expect(screen.queryByText(/Incidentes resueltos/i)).toBeNull();
     expect(screen.queryByText(/resueltos del mes/i)).toBeNull();

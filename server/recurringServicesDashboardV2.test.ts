@@ -114,6 +114,43 @@ const source: RecurringDashboardV2Source = {
 };
 
 describe("buildRecurringServicesDashboardV2", () => {
+  it("Staffing con Jira N/D no presenta mora ni SLA por tickets administrativos aunque el plan local diga facturado", () => {
+    const staffingSource: RecurringDashboardV2Source = {
+      ...source,
+      services: [{ ...source.services[1], currency: "UF", totalContractAmount: "480", jsmServiceDeskId: "10" }],
+      billingMonths: [
+        { id: 10, serviceId: 2, monthNumber: 1, dueDate: "2026-01-31", amount: "160", currency: "UF", status: "facturado" },
+        { id: 11, serviceId: 2, monthNumber: 2, dueDate: "2026-02-28", amount: "160", currency: "UF", status: "pendiente" },
+        { id: 12, serviceId: 2, monthNumber: 3, dueDate: "2026-03-31", amount: "160", currency: "UF", status: "pendiente" },
+      ],
+      documents: source.documents.filter(item => item.serviceId === 2),
+      workPlanItems: [],
+      slaConfigs: [{ id: 22, serviceId: 2, priority: "high" }],
+      jsmSnapshots: [{ ...source.jsmSnapshots[0], serviceId: 2, incidentCount: 15, openIncidentCount: 6 }],
+      financialEvidence: [],
+    };
+    const jiraBilling = { 2: {
+      entityType: "recurring_service", entityId: 2, dealId: "200", jiraAvailable: true,
+      loadedAt: "2026-03-16T12:00:00.000Z", evidenceAt: "2026-03-16T10:00:00.000Z", sourceProjectKeys: ["CONSALOP01"],
+      field: { id: "customfield_11237", name: "Estado de Facturación" },
+      summary: { totalItems: 3, billedItems: 0, notBilledItems: 0, unknownItems: 3, duplicateGroups: 0, amountCoverage: { withAmount: 3, total: 3 }, billedByCurrency: [], notBilledByCurrency: [] },
+      items: [1, 2, 3].map(month => ({ monthNumber: month, amount: 160, currency: "UF", billingStatus: "unknown", dueDate: staffingSource.billingMonths[month - 1].dueDate, duplicateCandidates: [] })),
+      warnings: [],
+    } } as any;
+    const result = buildRecurringServicesDashboardV2(staffingSource, { cutOffDate: "2026-03-16", jiraBilling });
+    const service = result.matrix[0];
+    expect(service.healthSignals.map(signal => signal.code)).toEqual(["BILLING_STATUS_UNCONFIRMED"]);
+    expect(service.billingStatusUnknownRows).toBe(2);
+    expect(service.financeByCurrency.UF).toMatchObject({ invoiced: 0, pending: 0, overdue: 0 });
+    expect(service.sla).toMatchObject({ applicability: "not_applicable", availability: "not_applicable", configuredRules: 0 });
+    expect(service.incidents.availability).toBe("not_applicable");
+    expect(result.operations.summary).toMatchObject({ measuredServices: 0, unmeasuredServices: 0 });
+    expect(result.operations.monthly).toHaveLength(0);
+    expect(result.management.summary).toMatchObject({ slaApplicable: 0, slaConfigured: 0, jsmLinked: 0, slaMeasured: 0 });
+    expect(result.management.exceptions.map(item => item.code)).not.toContain("SLA_NOT_MEASURED");
+    expect(result.management.currencies[0].comparableGap).toBe(0);
+  });
+
   it("mantiene monedas separadas y recalcula KPIs sobre el universo filtrado", () => {
     const result = buildRecurringServicesDashboardV2(source, {
       cutOffDate: "2026-03-16",

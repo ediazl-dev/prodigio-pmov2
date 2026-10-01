@@ -29,6 +29,8 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const STAFFING_AI_EVIDENCE_VERSION = "staffing-jira-explicit-sla-na-v1";
+
 const adminOrPmo = protectedProcedure.use(({ ctx, next }) => {
   if (!["admin", "pmo"].includes(ctx.user.role))
     throw new TRPCError({
@@ -1735,7 +1737,7 @@ Responde en JSON con este formato:
   getExecutionDashboard: protectedProcedure.input(z.object({ serviceId: z.number() })).query(async ({ input }) => {
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
-    const [localBilling, corporateBillingItems, workItems, sla, penalties, latestAnalysis, analysisHistory] = await Promise.all([getBillingMonths(input.serviceId), getActiveCorporateBillingItems(), getWorkPlanItems(input.serviceId), getSlaConfig(input.serviceId), getPenalties(input.serviceId), getLatestAiAnalysis(input.serviceId), getAiAnalysisHistory(input.serviceId, 5)]);
+    const [localBilling, corporateBillingItems, workItems, sla, penalties, latestAnalysis, analysisHistory, jiraEvidence] = await Promise.all([getBillingMonths(input.serviceId), getActiveCorporateBillingItems(), getWorkPlanItems(input.serviceId), getSlaConfig(input.serviceId), getPenalties(input.serviceId), getLatestAiAnalysis(input.serviceId), getAiAnalysisHistory(input.serviceId, 5), loadRecurringServiceJiraBillingEvidence(input.serviceId)]);
     const billing = reconcileRecurringBillingMonths({
       services: [svc],
       billingMonths: localBilling,
@@ -1743,9 +1745,14 @@ Responde en JSON con este formato:
       cutOffDate: new Date().toISOString().slice(0, 10),
     });
 
-    // Calculate metrics. El ciclo recurrente termina en Facturado.
-    const totalBilled = billing.filter(b => b.status === "facturado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
-    const totalPending = billing.filter(b => b.status === "pendiente").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
+    // El estado local es programación; no acredita ni descarta emisión de factura.
+    const jiraByMonth = new Map(jiraEvidence.items.filter(item => item.monthNumber !== null).map(item => [item.monthNumber, item]));
+    const billingOperational = billing.map(b => ({ ...b, jiraBillingStatus: jiraByMonth.get(b.monthNumber)?.billingStatus ?? "unknown" }));
+    const today = new Date().toISOString().slice(0, 10);
+    const dueBilling = billingOperational.filter(b => b.dueDate && b.dueDate <= today);
+    const unknownMonths = dueBilling.filter(b => b.jiraBillingStatus === "unknown").length;
+    const totalBilled = dueBilling.filter(b => b.jiraBillingStatus === "billed").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
+    const totalPending = dueBilling.filter(b => b.jiraBillingStatus === "not_billed").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
     const totalPenalties = penalties.reduce((s, p) => s + parseFloat(String(p.amount ?? 0)), 0);
     const completedItems = workItems.filter(i => i.status === "completado").length;
     const totalItems = workItems.length;
@@ -1776,7 +1783,7 @@ Responde en JSON con este formato:
     let jiraOverdueCount = 0;
     let jiraTotalIssues = 0;
     let jiraCompletedIssues = 0;
-    if (svc.jsmProjectKey) {
+    if (svc.jsmProjectKey && svc.serviceType !== "staffing") {
       try {
         const jiraResult = await searchJiraIssues(`project=${svc.jsmProjectKey} ORDER BY created ASC`, { maxResults: 200, fields: ["summary", "status", "duedate"] });
         jiraTotalIssues = jiraResult.issues.length;
@@ -1791,7 +1798,9 @@ Responde en JSON con este formato:
     }
 
     let slaCompliancePct: number | null = null;
-    if (totalItems === 0 && jiraTotalIssues === 0) {
+    if (svc.serviceType === "staffing") {
+      slaCompliancePct = null;
+    } else if (totalItems === 0 && jiraTotalIssues === 0) {
       // Sin tickets ni tareas → 0%
       slaCompliancePct = 0;
     } else if (overdueTasks.length > 0 || jiraOverdueCount > 0) {
@@ -1816,11 +1825,11 @@ Responde en JSON con este formato:
     const deliverablesCompliancePct = totalAllItems > 0 ? Math.round((completedAllItems / totalAllItems) * 100) : 0;
 
     // Billing compliance (on-time billing)
-    const overdueMonths = billing.filter(b => {
-      if (b.status !== "pendiente" || !b.dueDate) return false;
+    const overdueMonths = billingOperational.filter(b => {
+      if (b.jiraBillingStatus !== "not_billed" || !b.dueDate) return false;
       return new Date(b.dueDate) < now;
     });
-    const billingCompliancePct = billing.length > 0 ? Math.round(((billing.length - overdueMonths.length) / billing.length) * 100) : null;
+    const billingCompliancePct = dueBilling.length > 0 && unknownMonths === 0 ? Math.round(((dueBilling.length - overdueMonths.length) / dueBilling.length) * 100) : null;
 
     // AI analysis from history table (preferred) or legacy fields
     let aiAnalysis: any = null;
@@ -1867,15 +1876,18 @@ Responde en JSON con este formato:
       }
     }
 
+    const obsoleteStaffingAnalysis = svc.serviceType === "staffing" && !!aiAnalysis && aiAnalysis.sourcePolicyVersion !== STAFFING_AI_EVIDENCE_VERSION;
     return {
       service: svc,
-      billing,
+      billing: billingOperational,
       workItems,
       sla,
       penalties,
       metrics: {
         totalBilled,
         totalPending,
+        unknownMonths,
+        jiraBillingAvailable: jiraEvidence.jiraAvailable,
         totalPenalties,
         completedItems,
         totalItems,
@@ -1894,21 +1906,22 @@ Responde en JSON con este formato:
           jiraOverdueIssues: jiraOverdueCount,
           activePenalties: activePenalties.length,
           monthsElapsed,
-          reason: totalItems === 0 && jiraTotalIssues === 0 ? "no_tickets" : overdueTasks.length > 0 || jiraOverdueCount > 0 ? "overdue_items" : completedItems === 0 && jiraCompletedIssues === 0 && monthsElapsed > 0 ? "zero_progress" : hasSlaConfig ? "sla_penalty_calc" : "progress_based",
+          reason: svc.serviceType === "staffing" ? "not_applicable" : totalItems === 0 && jiraTotalIssues === 0 ? "no_tickets" : overdueTasks.length > 0 || jiraOverdueCount > 0 ? "overdue_items" : completedItems === 0 && jiraCompletedIssues === 0 && monthsElapsed > 0 ? "zero_progress" : hasSlaConfig ? "sla_penalty_calc" : "progress_based",
         },
         deliverablesCompliancePct,
         billingCompliancePct,
         overdueMonths: overdueMonths.length,
       },
       aiAnalysis: {
-        data: aiAnalysis,
-        healthStatus: latestAnalysis?.semaphore ?? svc.aiHealthStatus,
-        healthJustification: latestAnalysis?.semaphoreJustification ?? svc.aiHealthJustification,
-        abstract: latestAnalysis?.executiveAbstract ?? svc.aiExecutiveAbstract,
+        data: obsoleteStaffingAnalysis ? null : aiAnalysis,
+        obsolete: obsoleteStaffingAnalysis,
+        healthStatus: obsoleteStaffingAnalysis ? null : latestAnalysis?.semaphore ?? svc.aiHealthStatus,
+        healthJustification: obsoleteStaffingAnalysis ? null : latestAnalysis?.semaphoreJustification ?? svc.aiHealthJustification,
+        abstract: obsoleteStaffingAnalysis ? null : latestAnalysis?.executiveAbstract ?? svc.aiExecutiveAbstract,
         analysisDate: latestAnalysis?.createdAt ?? svc.aiAnalysisDate,
         daysOld: aiAnalysisDaysOld,
-        expired: aiAnalysisExpired,
-        dimensions: aiDimensions,
+        expired: aiAnalysisExpired || obsoleteStaffingAnalysis,
+        dimensions: obsoleteStaffingAnalysis ? null : aiDimensions,
         history: analysisHistory.map(a => ({
           id: a.id,
           semaphore: a.semaphore,
@@ -2065,7 +2078,7 @@ Responde en JSON con este formato:
           if (daysDiff <= 5) {
             try {
               const cached = JSON.parse(latest.fullAnalysis ?? "{}");
-              return {
+              if (svc.serviceType !== "staffing" || cached.sourcePolicyVersion === STAFFING_AI_EVIDENCE_VERSION) return {
                 ...cached,
                 fromCache: true,
                 daysOld: daysDiff,
@@ -2098,7 +2111,8 @@ Responde en JSON con este formato:
           if (daysDiff <= 5) {
             try {
               const cached = JSON.parse(svc.aiFullAnalysis);
-              return { ...cached, fromCache: true, daysOld: daysDiff };
+              if (svc.serviceType !== "staffing" || cached.sourcePolicyVersion === STAFFING_AI_EVIDENCE_VERSION)
+                return { ...cached, fromCache: true, daysOld: daysDiff };
             } catch {
               /* regenerate */
             }
@@ -2120,6 +2134,7 @@ Responde en JSON con este formato:
         corporateBillingItems,
         cutOffDate: new Date().toISOString().slice(0, 10),
       });
+      const staffingJiraBilling = svc.serviceType === "staffing" ? await loadRecurringServiceJiraBillingEvidence(input.serviceId) : null;
 
       const totalBilled = billing.filter(b => b.status === "facturado").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
       const totalPending = billing.filter(b => b.status === "pendiente").reduce((s, b) => s + parseFloat(String(b.amount)), 0);
@@ -2173,10 +2188,12 @@ DATOS DEL SERVICIO:
 - Avance temporal: ${svc.durationMonths > 0 ? Math.round((monthsElapsed / svc.durationMonths) * 100) : 0}%
 
 FACTURACION:
-- Total facturado: ${totalBilled} ${svc.currency}
-- Total pendiente de facturar: ${totalPending} ${svc.currency}
+${staffingJiraBilling ? `- Programación contractual: ${billing.length} cuotas en ${svc.currency}; no son evidencia de facturas.
+- Estado Jira por mes: ${staffingJiraBilling.items.map(item => `M${String(item.monthNumber ?? "?").padStart(2, "0")}: ${item.billingStatus === "billed" ? "Facturado explícito" : item.billingStatus === "not_billed" ? "No facturado explícito" : "N/D, por verificar"} (${item.key ?? "sin issue"})`).join("; ")}.
+- No inferir factura emitida de Completed/Done, tickets PMO, ni estado local pendiente. Si Jira no informa emisión, el facturado y la mora son N/D, NO cero ni vencido.` : `- Total facturado en conciliación: ${totalBilled} ${svc.currency}
+- Total pendiente en conciliación: ${totalPending} ${svc.currency}
 - Cuotas pendientes: ${billing.filter(b => b.status === "pendiente").length} de ${billing.length}
-- Cuotas vencidas sin facturar: ${overdueMonths.length}
+- Cuotas vencidas: ${overdueMonths.length}`}
 
 PLAN DE TRABAJO:
 - Items completados: ${completedItems} de ${workItems.length}
@@ -2184,24 +2201,23 @@ PLAN DE TRABAJO:
 - Avance tareas: ${workItems.length > 0 ? Math.round((completedItems / workItems.length) * 100) : 0}%
 ${jiraContext}
 
-SLAs CONFIGURADOS: ${slaConfig.length} niveles
+SLAs: ${svc.serviceType === "staffing" ? "No aplica SLA de incidentes, DR ni cobertura 24x7 según política contractual de Staffing; excluir del semáforo y del denominador" : `${slaConfig.length} niveles configurados (no equivale a medición acreditada)`}
 MULTAS REGISTRADAS: ${penalties.length} (activas: ${activePenalties.length}, total monto: ${penalties.reduce((s, p) => s + parseFloat(String(p.amount ?? 0)), 0)} ${svc.currency})
 
 EVALÚA EL SEMÁFORO DE SALUD CONSIDERANDO 3 DIMENSIONES:
 
 1. CUMPLIMIENTO SLA (REGLAS ESTRICTAS):
-   - Si NO hay tickets/tareas en el plan de trabajo → SLA = ROJO (score 0). No hay evidencia de servicio activo.
-   - Si hay tareas programadas con fecha vencida y no completadas → SLA = ROJO (score 0). Hay incumplimiento directo.
-   - Si hay multas activas → reducir score proporcionalmente.
-   - Solo si hay tickets activos, sin atrasos y sin multas → SLA puede ser VERDE.
+${svc.serviceType === "staffing" ? "   - STAFFING: estado NO_APLICA; no puntuar, no inferir incumplimiento por tickets de plan/facturación ni por ausencia de medición." : `   - Si no hay muestra de tickets SLA medidos, estado N/D (no asumir incumplimiento).
+   - Tareas o tickets vencidos no acreditan por sí solos incumplimiento del SLA; usar sólo denominador y reglas contractuales.
+   - Registrar multas por separado de la medición SLA.`}
 
 2. CUMPLIMIENTO ENTREGABLES: ¿Cuántos items del plan de trabajo están completados vs pendientes? ¿Hay items vencidos?
    - Si no hay items → score 0 (no hay entregables definidos).
 
 3. FACTURACIÓN AL DÍA: ¿Hay cuotas vencidas sin facturar? ¿El flujo de facturación es saludable?
 
-Para cada dimensión asigna: VERDE (>80% cumplimiento), AMARILLO (50-80%), ROJO (<50%)
-El semáforo general es el peor de las 3 dimensiones.
+Para cada dimensión aplicable asigna VERDE, AMARILLO, ROJO o N/D según evidencia; SLA Staffing es NO_APLICA.
+El semáforo general es el peor de las dimensiones aplicables; un estado de facturación N/D es un riesgo de información accionable, no mora demostrada. Nunca pintar VERDE por ausencia de evidencia.
 
 Responde en JSON.`;
 
@@ -2321,6 +2337,14 @@ Responde en JSON.`;
           message: "LLM no generó respuesta",
         });
       const parsed = JSON.parse(String(content));
+      if (svc.serviceType === "staffing") {
+        parsed.sourcePolicyVersion = STAFFING_AI_EVIDENCE_VERSION;
+        parsed.dimensions.sla = { status: "NO_APLICA", score: 0, detail: "El SoW Staffing no establece SLA de incidentes, DR ni 24x7; esta dimensión se excluye del semáforo." };
+        if (staffingJiraBilling?.items.some(item => item.billingStatus === "unknown") || !staffingJiraBilling?.jiraAvailable) {
+          parsed.dimensions.billing = { status: "N/D", score: 0, detail: "Emisión por verificar en Jira; no se acredita ni se descarta factura por cierre del hito o estado local." };
+          if (parsed.semaphore === "VERDE") parsed.semaphore = "AMARILLO";
+        }
+      }
 
       // Persist to legacy fields
       await updateRecurringService(input.serviceId, {

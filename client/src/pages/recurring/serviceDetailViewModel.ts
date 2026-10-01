@@ -178,11 +178,10 @@ export function applyJiraBillingToPlan(
   evidence: JiraBillingEvidenceOutput | null | undefined,
   cutOffDate: string,
 ): BillingPlan {
-  if (!evidence?.jiraAvailable) return plan;
-  const itemByMonth = new Map(evidence.items.filter(item => item.monthNumber !== null).map(item => [item.monthNumber as number, item]));
+  const itemByMonth = new Map((evidence?.jiraAvailable ? evidence.items : []).filter(item => item.monthNumber !== null).map(item => [item.monthNumber as number, item]));
   const rows = plan.rows.map(row => {
     const item = itemByMonth.get(row.monthNumber);
-    if (!item) return { ...row, state: "estado_nd" as const, stateLabel: STATE_LABEL.estado_nd, note: "Sin hito Jira conciliado para esta cuota", actionLabel: "Revisar cuota" };
+    if (!item) return { ...row, state: "estado_nd" as const, stateLabel: STATE_LABEL.estado_nd, note: evidence?.jiraAvailable ? "Sin hito Jira conciliado para esta cuota" : "Evidencia Jira no disponible; no se infiere facturación del estado local", actionLabel: "Revisar cuota" };
     const days = row.dueDate ? daysBetween(row.dueDate, cutOffDate) : null;
     let state: BillingRowState;
     if (item.billingStatus === "billed") state = "facturada";

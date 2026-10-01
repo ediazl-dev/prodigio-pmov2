@@ -48,6 +48,7 @@ export type ClassicCurrencyRow = {
   invoicedReal: number;
   comparableGap: number | null;
   comparableServices: number;
+  unknownDueItems: number;
   blockedServices: Array<{ serviceId: number; clientName: string; serviceName: string }>;
   expectedContributors: DashboardV2Data["management"]["currencies"][number]["expectedContributors"];
   invoiceContributors: DashboardV2Data["management"]["currencies"][number]["invoiceContributors"];
@@ -82,6 +83,9 @@ export function buildClassicManagementModel(
         ? comparableServices.reduce((sum, service) => sum + (service.comparableGap[row.currency] ?? 0), 0)
         : null,
       comparableServices: comparableServices.length,
+      unknownDueItems: management.services
+        .filter(service => service.expectedCurrencies.includes(row.currency))
+        .reduce((sum, service) => sum + service.jiraBillingUnknownCount, 0),
       blockedServices,
     };
   });

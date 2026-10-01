@@ -120,12 +120,12 @@ export default function RecurringServicesList() {
       <AppBreadcrumb segments={[{ label: "Servicios Recurrentes" }]} />
 
       {/* Header */}
-      <div style={{
+      <div className="p-5 md:p-9" style={{
         background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navy2} 55%, ${C.navy3} 100%)`,
         borderBottom: `3px solid ${C.accent}`,
-        borderRadius: 16, padding: "28px 36px", margin: "0 0 24px",
+        borderRadius: 16, margin: "0 0 24px",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
               <RefreshCw size={22} color={C.accent} />
@@ -142,7 +142,7 @@ export default function RecurringServicesList() {
               Gestión de contratos de servicios recurrentes con pipeline de 5 etapas
             </p>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* View toggle */}
             <div style={{ display: "flex", background: "rgba(255,255,255,.08)", borderRadius: 8, padding: 2 }}>
               <button
@@ -189,7 +189,7 @@ export default function RecurringServicesList() {
 
         {/* Top KPI strip */}
         {view === "list" && kpis && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginTop: 20 }}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" style={{ marginTop: 20 }}>
             {[
               { label: "Total Servicios", value: kpis.statusCounts.total, color: "#fff", icon: RefreshCw },
               { label: "Activos", value: kpis.statusCounts.activo, color: "#4ADE80", icon: Activity },

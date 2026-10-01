@@ -114,6 +114,10 @@ export default function RSExecutionStage() {
 
   // Load persisted AI analysis from dashboard
   useEffect(() => {
+    if (dashboard?.aiAnalysis?.obsolete) {
+      setAiResult(null);
+      return;
+    }
     if (dashboard?.aiAnalysis?.data && !aiResult) {
       setAiResult({
         ...dashboard.aiAnalysis.data,
@@ -180,6 +184,11 @@ export default function RSExecutionStage() {
       ]} />
 
       {/* ═══ HEADER ═══ */}
+      {ai?.obsolete && (
+        <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950">
+          El análisis agéntico anterior está obsoleto: atribuía facturación y SLA de incidentes sin evidencia contractual. Su historial se conserva, pero no se usa como veredicto vigente. Actualice el análisis con la política corregida.
+        </div>
+      )}
       <div style={{
         background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navy2} 55%, ${C.navy3} 100%)`,
         borderBottom: `3px solid ${semaphore ? semColor.dot : C.accent}`,
@@ -296,14 +305,16 @@ export default function RSExecutionStage() {
           const otherKpis = [
             { label: "Avance Temporal", value: `${metrics?.contractProgress ?? 0}%`, color: "#fff", icon: <TrendingUp size={12} />, sub: `${metrics?.monthsElapsed ?? 0}/${svc.durationMonths} meses` },
             { label: "Avance Tareas", value: `${metrics?.completionRate ?? 0}%`, color: "#4ADE80", icon: <Package size={12} />, sub: `${metrics?.completedItems ?? 0}/${metrics?.totalItems ?? 0}` },
-            { label: "Facturado", value: `${svc.currency} ${metrics?.totalBilled?.toLocaleString() ?? "0"}`, color: "#60A5FA", icon: <Receipt size={12} /> },
-            { label: "Pendiente Cobro", value: `${svc.currency} ${metrics?.totalPending?.toLocaleString() ?? "0"}`, color: "#FBBF24", icon: <DollarSign size={12} />, sub: metrics?.overdueMonths ? `${metrics.overdueMonths} vencidas` : undefined },
+            { label: "Facturado según Jira", value: metrics?.unknownMonths ? "N/D" : `${svc.currency} ${metrics?.totalBilled?.toLocaleString() ?? "0"}`, color: "#60A5FA", icon: <Receipt size={12} />, sub: metrics?.unknownMonths ? `${metrics.unknownMonths} cuota(s) por verificar` : undefined },
+            { label: "No facturado explícito", value: metrics?.unknownMonths ? "N/D" : `${svc.currency} ${metrics?.totalPending?.toLocaleString() ?? "0"}`, color: "#FBBF24", icon: <DollarSign size={12} />, sub: metrics?.overdueMonths ? `${metrics.overdueMonths} vencidas confirmadas` : undefined },
             { label: "Multas", value: `${svc.currency} ${metrics?.totalPenalties?.toLocaleString() ?? "0"}`, color: (metrics?.totalPenalties ?? 0) > 0 ? "#F87171" : "#4ADE80", icon: <AlertTriangle size={12} /> },
           ];
           return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginTop: 16 }}>
             {/* SLA KPI with Popover */}
-            <Popover>
+            {svc.serviceType === "staffing" ? (
+              <div className="rounded-lg border border-white/20 bg-white/5 p-3 text-sm font-semibold text-white">SLA incidentes: No aplica</div>
+            ) : <Popover>
               <PopoverTrigger asChild>
                 <div style={{
                   background: "rgba(255,255,255,.06)", borderRadius: 10, padding: "10px 12px",
@@ -321,7 +332,7 @@ export default function RSExecutionStage() {
                     <Info size={9} style={{ color: "rgba(255,255,255,.25)", marginLeft: "auto" }} />
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 800, color: slaColor, letterSpacing: "-.3px" }}>
-                    {metrics?.slaCompliancePct != null ? `${metrics.slaCompliancePct}%` : "N/A"}
+                    {metrics?.slaCompliancePct != null ? `${metrics.slaCompliancePct}%` : "N/D · sin medición acreditada"}
                   </div>
                   <div style={{ fontSize: 7, color: "rgba(255,255,255,.3)", marginTop: 2 }}>Click para ver detalle</div>
                 </div>
@@ -381,7 +392,7 @@ export default function RSExecutionStage() {
                   </div>
                 </div>
               </PopoverContent>
-            </Popover>
+            </Popover>}
             {/* Other KPIs */}
             {otherKpis.map((kpi) => (
               <div key={kpi.label} style={{
@@ -474,15 +485,16 @@ export default function RSExecutionStage() {
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {db.billing?.map((m: any) => {
                   const colors: Record<string, { bg: string; fg: string }> = {
-                    pendiente: { bg: "#FEF3C7", fg: "#92400E" },
-                    facturado: { bg: "#DBEAFE", fg: "#1E40AF" },
+                    unknown: { bg: "#F1F5F9", fg: "#334155" },
+                    not_billed: { bg: "#FEF3C7", fg: "#92400E" },
+                    billed: { bg: "#DBEAFE", fg: "#1E40AF" },
                   };
-                  const c = colors[m.status] ?? colors.pendiente;
+                  const c = colors[m.jiraBillingStatus] ?? colors.unknown;
                   return (
                     <div key={m.id} style={{
                       width: 28, height: 28, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 9, fontWeight: 700, background: c.bg, color: c.fg, border: `1px solid ${C.border}`,
-                    }} title={`Mes ${m.monthNumber}: ${m.status} - ${m.currency} ${parseFloat(m.amount).toLocaleString()}`}>
+                    }} title={`Mes ${m.monthNumber}: ${m.jiraBillingStatus === "unknown" ? "Estado Jira N/D" : m.jiraBillingStatus === "billed" ? "Facturado según Jira" : "No facturado explícito en Jira"} - Programado ${m.currency} ${parseFloat(m.amount).toLocaleString()}`}>
                       {m.monthNumber}
                     </div>
                   );
@@ -491,12 +503,12 @@ export default function RSExecutionStage() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#92400E" }}>Pendiente</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#78350F" }}>{svc.currency} {metrics?.totalPending?.toLocaleString() ?? "0"}</div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#92400E" }}>No facturado explícito en Jira</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#78350F" }}>{metrics?.unknownMonths ? "N/D · verificar emisión" : `${svc.currency} ${metrics?.totalPending?.toLocaleString() ?? "0"}`}</div>
               </div>
               <div style={{ padding: "10px 14px", borderRadius: 8, background: "#DBEAFE", border: "1px solid #BFDBFE" }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#1E40AF" }}>Facturado</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#1E3A8A" }}>{svc.currency} {metrics?.totalBilled?.toLocaleString() ?? "0"}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#1E3A8A" }}>{metrics?.unknownMonths ? "N/D · verificar Jira" : `${svc.currency} ${metrics?.totalBilled?.toLocaleString() ?? "0"}`}</div>
               </div>
             </div>
           </div>

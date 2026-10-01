@@ -68,6 +68,8 @@ interface SignalSpec {
  */
 export const SIGNAL_CATALOG: Record<string, SignalSpec> = {
   OVERDUE_BILLING: { domain: "finanzas", action: "Gestionar facturación", evidenceTab: "finanzas" },
+  BILLING_STATUS_UNCONFIRMED: { domain: "finanzas", action: "Verificar estado Jira", evidenceTab: "finanzas" },
+  CONTRACT_TERM_ELAPSED_ACTIVE: { domain: "formalidad", action: "Verificar continuidad", evidenceTab: "formalidad" },
   CONTRACT_BILLING_PLAN_MISMATCH: { domain: "finanzas", action: "Revisar plan", evidenceTab: "finanzas" },
   OVERDUE_REPORTS: { domain: "entregables", action: "Revisar entregables", evidenceTab: "entregables" },
   CONTRACT_DOCUMENT_MISSING: { domain: "formalidad", action: "Cargar contrato", evidenceTab: "formalidad" },
@@ -232,6 +234,9 @@ function impactForSignal(
         sortKey: overdue.sortKey,
       };
 
+    case "BILLING_STATUS_UNCONFIRMED":
+      return { value: "N/D", note: `${row.billingStatusUnknownRows} cuota(s) por verificar en Jira`, isMoney: false, sortKey: 0 };
+
     case "CONTRACT_BILLING_PLAN_MISMATCH":
       return { value: "Plan descuadrado", note: "Contratado ≠ programado", isMoney: false, sortKey: 0 };
 
@@ -306,8 +311,10 @@ export function buildDecisionMetrics(data: DashboardV2Data): DecisionMetric[] {
   const pendingDocs = documents.summary.pendingValidation;
   const riskyDocs = documents.summary.missing + documents.summary.expiredOrRejected;
 
-  const coverage =
-    kpis.totalServices > 0 ? Math.round((kpis.incidents.availableServices / kpis.totalServices) * 100) : 0;
+  const applicableActive = matrix.filter(row => row.status === "activo" && row.sla.applicability !== "not_applicable");
+  const availableApplicable = applicableActive.filter(row => row.incidents.availability === "available").length;
+  const coverage = applicableActive.length > 0 ? Math.round((availableApplicable / applicableActive.length) * 100) : null;
+  const unknownBilling = matrix.reduce((sum, row) => sum + (row.billingStatusUnknownRows ?? 0), 0);
 
   return [
     {
@@ -315,11 +322,11 @@ export function buildDecisionMetrics(data: DashboardV2Data): DecisionMetric[] {
       eyebrow: "Por facturar vencido",
       value: overdueByCurrency.length
         ? overdueByCurrency.map(row => formatRecurringMoney(row.overdue, row.currency)).join(" + ")
-        : "Sin pendientes vencidos",
+        : unknownBilling > 0 ? "N/D" : "Sin pendientes vencidos",
       detail: overdueByCurrency.length
         ? `${overdueItems} cuota${overdueItems === 1 ? "" : "s"} en ${servicesWithOverdue} servicio${servicesWithOverdue === 1 ? "" : "s"}`
-        : "Ninguna cuota pendiente de facturar después de su vencimiento",
-      tone: overdueByCurrency.length ? "alert" : "calm",
+        : unknownBilling > 0 ? `${unknownBilling} cuota(s) con estado Jira N/D; no se infiere mora ni ausencia de facturación` : "Ninguna cuota pendiente de facturar después de su vencimiento",
+      tone: overdueByCurrency.length ? "alert" : unknownBilling > 0 ? "warn" : "calm",
     },
     {
       key: "reportes",
@@ -344,9 +351,9 @@ export function buildDecisionMetrics(data: DashboardV2Data): DecisionMetric[] {
     {
       key: "operacion",
       eyebrow: "Operación medida",
-      value: `${coverage}%`,
-      detail: `${kpis.incidents.availableServices} de ${kpis.activeServices} activos con snapshot JSM vigente`,
-      tone: coverage === 100 ? "calm" : "warn",
+      value: coverage === null ? "No aplica" : `${coverage}%`,
+      detail: `${availableApplicable} de ${applicableActive.length} activos con SLA aplicable y snapshot JSM vigente; Staffing excluido`,
+      tone: coverage === 100 || coverage === null ? "calm" : "warn",
     },
   ];
 }
@@ -427,7 +434,7 @@ export function buildEvidenceTabs(data: DashboardV2Data, queue: ActionQueueItem[
       findings: countFor("operacion"),
       hasEvidence: jsmHasEvidence,
       emptyTitle: "Sin medición operacional: todavía no hay nada que mostrar",
-      emptyReason: `${activeServicesWithoutJsm} de ${kpis.activeServices} servicios activos no tienen snapshot JSM vigente, así que incidentes, antigüedad y SLA quedan en N/D.`,
+      emptyReason: `${activeServicesWithoutJsm} servicio(s) con SLA aplicable sin snapshot JSM vigente; Staffing es No aplica.`,
       emptyAction: "Revisar Spaces JSM",
       tone: jsmHasEvidence ? "calm" : "warn",
       badge: jsmHasEvidence ? String(countFor("operacion")) : "N/D",
@@ -446,7 +453,7 @@ export function defaultEvidenceTab(tabs: EvidenceTab[]): SignalDomain {
 function withDerived(data: DashboardV2Data) {
   return {
     ...data,
-    activeServicesWithoutJsm: Math.max(0, data.kpis.activeServices - data.kpis.incidents.availableServices),
+    activeServicesWithoutJsm: data.matrix.filter(row => row.status === "activo" && row.sla.applicability !== "not_applicable" && row.incidents.availability !== "available").length,
   };
 }
 

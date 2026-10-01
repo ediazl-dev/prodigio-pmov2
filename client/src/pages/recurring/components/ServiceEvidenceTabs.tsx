@@ -56,6 +56,7 @@ export function ServiceEvidenceTabs({
   const deliverables = data.deliverables.rows[0];
   const documentEvidence = data.documents.services[0];
   const slaAvailable = service.incidents.availability === "available";
+  const slaNotApplicable = service.sla.applicability === "not_applicable";
 
   const tabs: Array<{ key: TabKey; label: string; badge: string; tone: "alert" | "warn" | "calm" }> = [
     {
@@ -67,8 +68,8 @@ export function ServiceEvidenceTabs({
     {
       key: "financiero",
       label: "Financiero",
-      badge: String(service.healthSignals.filter(signal => signal.code.startsWith("OVERDUE_BILLING")).length),
-      tone: service.healthSignals.some(signal => signal.code === "OVERDUE_BILLING") ? "alert" : "calm",
+      badge: String(service.healthSignals.filter(signal => signal.code === "OVERDUE_BILLING" || signal.code === "BILLING_STATUS_UNCONFIRMED").length),
+      tone: service.healthSignals.some(signal => signal.code === "OVERDUE_BILLING") ? "alert" : service.healthSignals.some(signal => signal.code === "BILLING_STATUS_UNCONFIRMED") ? "warn" : "calm",
     },
     {
       key: "entregables",
@@ -76,7 +77,7 @@ export function ServiceEvidenceTabs({
       badge: String(service.reports.overdue),
       tone: service.reports.overdue > 0 ? "alert" : "calm",
     },
-    { key: "sla", label: "SLA e incidentes", badge: slaAvailable ? "OK" : "N/D", tone: slaAvailable ? "calm" : "warn" },
+    { key: "sla", label: "SLA e incidentes", badge: slaNotApplicable ? "No aplica" : slaAvailable ? "OK" : "N/D", tone: slaNotApplicable || slaAvailable ? "calm" : "warn" },
   ];
 
   const BADGE_TONE = {
@@ -229,15 +230,15 @@ export function ServiceEvidenceTabs({
               <h3 className="text-[13px] font-black text-slate-950">Análisis financiero histórico por moneda</h3>
               <p className="mt-1 text-[11px] text-slate-600">Fuente: planilla corporativa consolidada. Cada moneda se presenta por separado; no se construye un total multimoneda.</p>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                {Object.values(service.financeByCurrency).map(row => (
+                {finance.localCurrencies.map(row => (
                   <article key={row.currency} className="rounded-xl border border-slate-200 p-4">
                     <p className="font-mono text-xs font-black text-slate-950">{row.currency}</p>
                     <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                       <Stat label="Contratado" value={formatRecurringMoney(row.contracted, row.currency)} />
                       <Stat label="Programado" value={formatRecurringMoney(row.scheduled, row.currency)} />
                       <Stat label="Facturado histórico" value={formatRecurringMoney(row.invoiced, row.currency)} />
-                      <Stat label="Pendiente de facturar" value={formatRecurringMoney(row.pending, row.currency)} />
-                      <Stat label="Vencido sin facturar" value={formatRecurringMoney(row.overdue, row.currency)} tone={row.overdue > 0 ? "text-[#B42318]" : "text-slate-950"} />
+                      <Stat label="Pendiente histórico" value={formatRecurringMoney(row.pending, row.currency)} />
+                      <Stat label="Vencido histórico" value={formatRecurringMoney(row.overdue, row.currency)} tone={row.overdue > 0 ? "text-[#B42318]" : "text-slate-950"} />
                     </div>
                   </article>
                 ))}
@@ -338,7 +339,9 @@ export function ServiceEvidenceTabs({
 
       <div role="tabpanel" id="svc-panel-sla" aria-labelledby="svc-tab-sla" hidden={tab !== "sla"}>
         {tab === "sla" &&
-          (!slaAvailable ? (
+          (slaNotApplicable ? (
+            <div className="p-5 text-sm text-slate-700"><h3 className="font-black text-slate-950">No aplica SLA de incidentes</h3><p className="mt-2">Staffing se gobierna por entregables y condiciones contractuales; los tickets administrativos de Jira/JSM no prueban SLA, DR ni cobertura 24×7.</p></div>
+          ) : !slaAvailable ? (
             <EmptyDimension
               title="Sin medición operacional para este servicio"
               reason={`La evidencia JSM está en estado «${service.incidents.availability}», así que incidentes, antigüedad y SLA quedan en N/D.`}

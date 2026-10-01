@@ -161,8 +161,9 @@ export function buildRecurringManagementAnalytics(input: {
     }
 
     const snapshot = latestSnapshotByService.get(service.id);
-    const firstResponseMeasured = snapshot?.firstResponseMeasuredCount ?? 0;
-    const resolutionMeasured = snapshot?.resolutionMeasuredCount ?? 0;
+    const slaApplicable = service.sla.applicability === "applicable";
+    const firstResponseMeasured = slaApplicable ? snapshot?.firstResponseMeasuredCount ?? 0 : 0;
+    const resolutionMeasured = slaApplicable ? snapshot?.resolutionMeasuredCount ?? 0 : 0;
     const undatedDeliverables = deliverableRow?.cells.filter(cell => cell.workPlanItemId !== null && cell.dueDate === null).length ?? 0;
     const unvalidatedDocuments = documentRow?.documents.filter(document => document.status !== "valid" && document.status !== "missing").length ?? 0;
     const exceptions: Omit<RecurringManagementException, "serviceId" | "clientName" | "serviceName">[] = [];
@@ -173,8 +174,8 @@ export function buildRecurringManagementAnalytics(input: {
     else if (jiraBilling && jiraNotBilledDueCount > 0) exceptions.push({ code: "JIRA_NOT_BILLED_DUE", severity: "critical", label: `${jiraNotBilledDueCount} hito(s) exigible(s) no facturado(s)`, impact: "Jira los identifica explícitamente como no facturados.", action: "Gestionar el hito de facturación y actualizar Estado de Facturación en Jira." });
     else if (!jiraBilling && missingVerifiedInvoice) exceptions.push({ code: "MISSING_VERIFIED_INVOICE", severity: "critical", label: "Programación sin registro corporativo facturado", impact: "No existe evidencia suficiente para afirmar facturación del servicio en la fuente corporativa.", action: "Vincular el Deal con la fuente financiera o confirmar que aún no existe un registro marcado Facturado." });
     if (ambiguousCount > 0) exceptions.push({ code: jiraBilling ? "AMBIGUOUS_JIRA_BILLING" : "AMBIGUOUS_INVOICE", severity: "attention", label: jiraBilling ? "Más de un hito Jira coincide con una cuota" : "Más de una factura coincide con una cuota", impact: "Los candidatos adicionales no se suman automáticamente.", action: "Confirmar y persistir el vínculo Jira canónico por cuota." });
-    if (!sourceService?.jsmServiceDeskId) exceptions.push({ code: "JSM_NOT_LINKED", severity: "attention", label: "JSM no vinculado", impact: "Incidentes y cumplimiento SLA no son medibles.", action: "Vincular el Service Desk correcto o declarar una fuente alternativa." });
-    if (service.sla.configuredRules > 0 && firstResponseMeasured + resolutionMeasured === 0) exceptions.push({ code: "SLA_NOT_MEASURED", severity: "attention", label: "SLA configurado sin muestra medida", impact: "El cumplimiento debe permanecer N/D.", action: "Persistir contadores medidos y cumplidos de respuesta y resolución." });
+    if (slaApplicable && !sourceService?.jsmServiceDeskId) exceptions.push({ code: "JSM_NOT_LINKED", severity: "attention", label: "JSM no vinculado", impact: "Incidentes y cumplimiento SLA no son medibles.", action: "Vincular el Service Desk correcto o declarar una fuente alternativa." });
+    if (slaApplicable && service.sla.configuredRules > 0 && firstResponseMeasured + resolutionMeasured === 0) exceptions.push({ code: "SLA_NOT_MEASURED", severity: "attention", label: "SLA configurado sin muestra medida", impact: "El cumplimiento debe permanecer N/D.", action: "Persistir contadores medidos y cumplidos de respuesta y resolución." });
     if (undatedDeliverables > 0) exceptions.push({ code: "DELIVERABLES_WITHOUT_DATE", severity: "attention", label: `${undatedDeliverables} entregable(s) sin fecha exigible`, impact: "No existe calendario para medir cumplimiento.", action: "Registrar periodicidad y fecha exigible." });
     if (unvalidatedDocuments > 0) exceptions.push({ code: "DOCUMENTS_UNVALIDATED", severity: "attention", label: `${unvalidatedDocuments} documento(s) sin validación`, impact: "La presencia documental no acredita formalidad completa.", action: "Validar contrato y SoW del servicio." });
 
@@ -201,9 +202,10 @@ export function buildRecurringManagementAnalytics(input: {
       exceptions,
       incidents: service.incidents,
       sla: {
+        applicability: service.sla.applicability,
         configuredRules: service.sla.configuredRules,
-        jsmLinked: Boolean(sourceService?.jsmServiceDeskId),
-        rules: source.slaConfigs
+        jsmLinked: slaApplicable && Boolean(sourceService?.jsmServiceDeskId),
+        rules: slaApplicable ? source.slaConfigs
           .filter(rule => rule.serviceId === service.id)
           .map(rule => ({
             priority: rule.priority,
@@ -211,7 +213,7 @@ export function buildRecurringManagementAnalytics(input: {
             resolutionMinutes: rule.resolutionMinutes ?? null,
             coverageType: rule.coverageType ?? null,
             customCoverageDescription: rule.customCoverageDescription ?? null,
-          })),
+          })) : [],
         firstResponseMeasured,
         firstResponseCompliance: service.sla.firstResponseCompliance,
         resolutionMeasured,
@@ -257,6 +259,7 @@ export function buildRecurringManagementAnalytics(input: {
         .sort()
         .at(-1) ?? null,
       jsmAt: source.jsmSnapshots
+        .filter(snapshot => rows.some(row => row.serviceId === snapshot.serviceId && row.sla.applicability === "applicable"))
         .map(snapshot => iso(snapshot.capturedAt))
         .filter(value => value.slice(0, 10) <= cutOffDate)
         .sort()
@@ -274,6 +277,7 @@ export function buildRecurringManagementAnalytics(input: {
     },
     summary: {
       services: rows.length,
+      slaApplicable: rows.filter(row => row.sla.applicability === "applicable").length,
       withVerifiedInvoices: rows.filter(row => row.verifiedInvoiceCount > 0).length,
       withJiraBilling: rows.filter(row => row.billedJiraCount > 0).length,
       financeExceptions: rows.filter(row => ["currency_mismatch", "amount_mismatch", "ambiguous", "missing_invoice", "jira_unknown", "jira_unavailable"].includes(row.reconciliationStatus)).length,

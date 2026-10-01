@@ -122,7 +122,7 @@ export default function RecurringServiceDetail() {
   const serviceTypeLabel =
     RECURRING_SERVICE_TYPE_LABELS[svc.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? svc.serviceType;
   const canManage = user?.role === "admin" || user?.role === "pmo";
-  const refreshAll = () => Promise.all([serviceQuery.refetch(), metrics.refetch()]);
+  const refreshAll = () => Promise.all([serviceQuery.refetch(), jiraBilling.refetch(), metrics.refetch()]);
 
   return (
     <div className="space-y-4 pb-8">
@@ -254,7 +254,7 @@ export default function RecurringServiceDetail() {
       />
 
       {/* 4 · Plan de facturación */}
-      <BillingPlan plan={billingPlan} onRowAction={() => navigate(`/recurring-services/${id}/execution`)} />
+      <BillingPlan plan={billingPlan} cutOffDate={cutOffDate} onRowAction={() => navigate(`/recurring-services/${id}/execution`)} />
 
       <JiraBillingEvidencePanel evidence={jiraBilling.data} loading={jiraBilling.isLoading} title="Facturación operacional por cuota" />
 

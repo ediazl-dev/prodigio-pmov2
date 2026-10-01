@@ -32,17 +32,18 @@ const STATE_SKIN: Record<BillingRowState, { badge: string; cta: string }> = {
     cta: "border-slate-300 bg-white text-slate-700",
   },
   estado_nd: {
-    badge: "border-[#FDA29B] bg-[#FEF3F2] text-[#B42318]",
-    cta: "border-[#FDA29B] bg-[#FEF3F2] text-[#B42318]",
+    badge: "border-[#FEDF89] bg-[#FFFAEB] text-[#7A3A06]",
+    cta: "border-[#FEDF89] bg-[#FFFAEB] text-[#7A3A06]",
   },
 };
 
 interface BillingPlanProps {
   plan: BillingPlanModel;
   onRowAction?: (row: BillingRow) => void;
+  cutOffDate?: string;
 }
 
-export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
+export function BillingPlan({ plan, onRowAction, cutOffDate = new Date().toISOString().slice(0, 10) }: BillingPlanProps) {
   if (!plan.hasRows) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -56,6 +57,7 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
 
   const overdueTotals = plan.totals.filter(total => total.overdue > 0);
   const overdueItems = plan.totals.reduce((sum, total) => sum + total.overdueItems, 0);
+  const unknownDueRows = plan.rows.filter(row => row.state === "estado_nd" && row.dueDate && row.dueDate <= cutOffDate);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
@@ -71,10 +73,10 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
         {plan.totals.map(total => (
           <div key={total.currency} className="flex flex-wrap items-center gap-5">
             <Figure label="Contratado" value={total.contractedLabel} />
-            <Figure label="Facturado Jira" value={total.invoicedLabel} className="text-[#175CD3]" />
+            <Figure label="Facturado Jira" value={plan.rows.some(row => row.currency === total.currency && row.state === "estado_nd") ? "N/D" : total.invoicedLabel} className="text-[#175CD3]" />
             <div className="border-l border-slate-200 pl-5 text-right">
               <p className="text-[9px] font-bold uppercase tracking-wider text-[#B42318]">Vencido</p>
-              <p className="font-mono text-[19px] font-black text-[#B42318]">{total.overdueLabel}</p>
+              <p className="font-mono text-[19px] font-black text-[#B42318]">{unknownDueRows.some(row => row.currency === total.currency) ? "N/D" : total.overdueLabel}</p>
             </div>
           </div>
         ))}
@@ -147,9 +149,13 @@ export function BillingPlan({ plan, onRowAction }: BillingPlanProps) {
         </div>
       )}
 
-      {overdueTotals.length === 0 && (
+      {unknownDueRows.length > 0 ? (
+        <p role="status" className="border-t border-amber-200 bg-amber-50 px-5 py-2.5 text-[11.5px] font-semibold text-amber-950">
+          {unknownDueRows.length} cuota(s) exigible(s) sin estado de facturación acreditado en Jira. No se afirma mora ni ausencia de vencimientos: verificar emisión.
+        </p>
+      ) : overdueTotals.length === 0 && (
         <p className="border-t border-slate-200 px-5 py-2.5 text-[11.5px] text-slate-600">
-          Ninguna cuota pasada de su fecha de vencimiento al corte.
+          No hay cuotas con mora acreditada al corte.
         </p>
       )}
     </section>

@@ -851,3 +851,12 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] T1: Eliminar la cabecera Jira congelada al arranque y activar el token validado en todas las APIs.
 - [x] T2: Persistir `JIRA_API_TOKEN` en el gestor seguro y reiniciar el servidor.
 - [x] T3: Validar `/myself`, pantalla administrativa, suite, build, secretos, refs y checkpoint final.
+
+## Consistencia facturación y SLA Staffing Deal 4687 — 2026-10-01
+- [x] V0: Respaldar y reproducir contradicción de tres cuotas; auditar hitos y reglas SLA locales.
+- [x] V1: Excluir tickets PMO, no equiparar Completed con factura y clasificar sin estado explícito como N/D.
+- [x] V2: Unificar cabecera, plan, Ejecución, Torre y Clásico; distinguir riesgo de datos, término contractual y mora.
+- [x] V3: Aplicar SLA No aplica para Staffing y retirar cuatro reglas heredadas con transacción y auditoría.
+- [x] V4: Invalidar el análisis IA previo, refrescar panel Jira y corregir encabezado móvil.
+- [x] V5: Certificar 1.118 pruebas deterministas, build, cinco errores TS heredados, respaldo, integridad y lectura real.
+- [ ] V6: Finanzas/Jira debe acreditar el estado de emisión por hito 4687; no inferirlo ni borrar candidatos duplicados automáticamente.

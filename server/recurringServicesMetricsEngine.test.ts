@@ -45,6 +45,18 @@ function baseInput(): RecurringServicesMetricsInput {
 }
 
 describe("calculateRecurringServicesMetrics", () => {
+  it("señala fin contractual activo por separado de mora y SLA no aplicable", () => {
+    const input = baseInput();
+    input.services[0].serviceType = "staffing";
+    input.services[0].endDate = "2026-07-27";
+    input.billingMonths = [{ id: 1, serviceId: 1, monthNumber: 1, dueDate: "2026-06-01", amount: "160", currency: "UF", status: "pendiente" }];
+    input.jiraBilling = { 1: { jiraAvailable: true, items: [{ monthNumber: 1, billingStatus: "unknown" }] } as any };
+    const row = calculateRecurringServicesMetrics(input).services[0];
+    expect(row.healthSignals.map(signal => signal.code)).toEqual(expect.arrayContaining(["BILLING_STATUS_UNCONFIRMED", "CONTRACT_TERM_ELAPSED_ACTIVE"]));
+    expect(row.healthSignals.map(signal => signal.code)).not.toContain("OVERDUE_BILLING");
+    expect(row.sla.applicability).toBe("not_applicable");
+  });
+
   it("separa programado, facturado y pendiente sin introducir cobros", () => {
     const result = calculateRecurringServicesMetrics(baseInput());
     const usd = result.services[0].finance.byCurrency.USD;

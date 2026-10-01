@@ -35,6 +35,7 @@ const data = {
         reconciliationStatus: "missing_reference",
         corporateReference: null,
         verifiedEvidenceByCurrency: [],
+        localCurrencies: [{ currency: "UF", contracted: 480, scheduled: 480, invoiced: 0, pending: 480, overdue: 480 }],
       },
     ],
   },
@@ -114,13 +115,25 @@ describe("ServiceEvidenceTabs", () => {
 
     expect(screen.getByRole("tab", { name: /Financiero/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Programado")).toBeTruthy();
-    expect(screen.getByText("Pendiente de facturar")).toBeTruthy();
+    expect(screen.getByText("Pendiente histórico")).toBeTruthy();
     expect(screen.queryByText("CxC")).toBeNull();
-    expect(screen.getByText("USD 282")).toBeTruthy();
+    expect(screen.getAllByText("UF 480").length).toBeGreaterThan(0);
   });
 });
 
 describe("BillingPlan", () => {
+  it("no afirma UF 0 facturado ni ausencia de mora si hay cuotas exigibles con estado Jira N/D", () => {
+    const plan = {
+      rows: [{ id: 1, monthNumber: 1, dueDate: "2026-06-01", dueLabel: "01-06-2026", amount: 160, currency: "UF", amountLabel: "UF 160", state: "estado_nd" as const, stateLabel: "Estado Jira N/D", missingDueDate: false, daysOverdue: null, note: "Emisión por verificar", actionLabel: "Revisar cuota", jiraIssueKey: "CONSALOP01-20" }],
+      totals: [{ currency: "UF", contracted: 160, invoiced: 0, overdue: 0, overdueItems: 0, contractedLabel: "UF 160", invoicedLabel: "UF 0", overdueLabel: "UF 0" }],
+      missingDueDates: 0, planMismatch: null, hasRows: true,
+    } satisfies BillingPlanModel;
+    render(<BillingPlan plan={plan} cutOffDate="2026-10-01" />);
+    expect(screen.getAllByText("N/D")).toHaveLength(2);
+    expect(screen.getByRole("status").textContent).toContain("1 cuota(s) exigible(s)");
+    expect(screen.queryByText(/Ninguna cuota pasada/)).toBeNull();
+  });
+
   it("presenta una acción de navegación honesta y entrega la cuota seleccionada", () => {
     const onRowAction = vi.fn();
     const plan = {

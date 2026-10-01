@@ -214,7 +214,7 @@ function restrictSource(source: RecurringDashboardV2Source, serviceIds: Set<numb
   };
 }
 
-function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: string, staleAfterHours: number) {
+function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: string, staleAfterHours: number, jiraBilling?: Record<number, JiraBillingEvidence>) {
   return calculateRecurringServicesMetrics({
     cutOffDate,
     services: source.services,
@@ -223,6 +223,7 @@ function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: stri
     documents: source.documents,
     slaConfigs: source.slaConfigs,
     operationalEvidence: latestOperationalEvidence(source.jsmSnapshots, cutOffDate, staleAfterHours),
+    jiraBilling,
   });
 }
 
@@ -591,7 +592,8 @@ function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
 
 function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string, fromDate?: string) {
   const buckets = new Map<string, { capturedAt: string; total: number; open: number; criticalOpen: number; servicesMeasured: number }>();
-  for (const snapshot of source.jsmSnapshots.filter(item => item.status === "success" || item.status === "partial")) {
+  const applicable = new Set(source.services.filter(item => item.serviceType !== "staffing").map(item => item.id));
+  for (const snapshot of source.jsmSnapshots.filter(item => applicable.has(item.serviceId) && (item.status === "success" || item.status === "partial"))) {
     const capturedAt = isoDate(snapshot.capturedAt).slice(0, 10);
     if (capturedAt > cutOffDate || (fromDate && capturedAt < fromDate)) continue;
     const bucket = buckets.get(capturedAt) ?? { capturedAt, total: 0, open: 0, criticalOpen: 0, servicesMeasured: 0 };
@@ -610,7 +612,7 @@ function operationsAnalytics(source: RecurringDashboardV2Source, services: Servi
   const open = measuredServices.reduce((sum, service) => sum + (service.incidents.open ?? 0), 0);
   const resolved = Math.max(0, total - open);
   const priorityOrder = ["critical", "high", "medium", "low"];
-  const visibleServiceIds = new Set(services.map(service => service.id));
+  const visibleServiceIds = new Set(services.filter(service => service.sla.applicability === "applicable").map(service => service.id));
   const latestSnapshotByServiceMonth = new Map<string, RecurringDashboardV2Source["jsmSnapshots"][number]>();
 
   for (const snapshot of source.jsmSnapshots) {
@@ -670,7 +672,7 @@ function operationsAnalytics(source: RecurringDashboardV2Source, services: Servi
   return {
     summary: {
       measuredServices: measuredServices.length,
-      unmeasuredServices: Math.max(0, services.length - measuredServices.length),
+      unmeasuredServices: Math.max(0, visibleServiceIds.size - measuredServices.length),
       total,
       resolved,
       open,
@@ -712,12 +714,12 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
   };
   const initialIds = baseServiceIds(reconciledSource, filters);
   const initialSource = restrictSource(reconciledSource, initialIds);
-  const initialMetrics = calculateForSource(initialSource, options.cutOffDate, staleAfterHours);
+  const initialMetrics = calculateForSource(initialSource, options.cutOffDate, staleAfterHours, options.jiraBilling);
   const healthIds = filters.health
     ? new Set(initialMetrics.services.filter(service => service.health === filters.health).map(service => service.id))
     : initialIds;
   let filteredSource = restrictSource(initialSource, healthIds);
-  let metrics = filters.health ? calculateForSource(filteredSource, options.cutOffDate, staleAfterHours) : initialMetrics;
+  let metrics = filters.health ? calculateForSource(filteredSource, options.cutOffDate, staleAfterHours, options.jiraBilling) : initialMetrics;
   if (filters.onlyExceptions) {
     const preliminaryDeliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
     const preliminaryDocuments = documentAnalytics(filteredSource, options.cutOffDate);
@@ -732,7 +734,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     });
     const exceptionIds = new Set(preliminaryManagement.services.filter(service => service.exceptions.length > 0).map(service => service.serviceId));
     filteredSource = restrictSource(filteredSource, exceptionIds);
-    metrics = calculateForSource(filteredSource, options.cutOffDate, staleAfterHours);
+    metrics = calculateForSource(filteredSource, options.cutOffDate, staleAfterHours, options.jiraBilling);
   }
   const quality = qualityForSource(filteredSource);
   const qualityByService = new Map(quality.services.map(item => [item.serviceId, item]));
@@ -750,6 +752,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       healthSignals: service.healthSignals,
       evidenceCoveragePercent: service.evidenceCoveragePercent,
       financeByCurrency: service.finance.byCurrency,
+      billingStatusUnknownRows: service.finance.billingStatusUnknownRows,
       reports: service.reports,
       formalization: service.formalization,
       incidents: service.incidents,
@@ -758,12 +761,15 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     }))
     .sort((a, b) => HEALTH_ORDER[a.health] - HEALTH_ORDER[b.health] || a.clientName.localeCompare(b.clientName, "es") || a.serviceName.localeCompare(b.serviceName, "es"));
 
+  const incidentApplicableIds = new Set(metrics.services.filter(service => service.sla.applicability === "applicable").map(service => service.id));
   const latestSnapshotAt = filteredSource.jsmSnapshots
+    .filter(item => incidentApplicableIds.has(item.serviceId))
     .map(item => isoDate(item.capturedAt))
     .filter(value => value.slice(0, 10) <= options.cutOffDate)
     .sort()
     .at(-1) ?? null;
-  const financeAnalytics = financialAnalytics(filteredSource, metrics.services, options.cutOffDate);
+  const historicalMetrics = options.jiraBilling ? calculateForSource(filteredSource, options.cutOffDate, staleAfterHours) : metrics;
+  const financeAnalytics = financialAnalytics(filteredSource, historicalMetrics.services, options.cutOffDate);
   const operations = operationsAnalytics(filteredSource, metrics.services, options.cutOffDate, options.fromDate);
   const deliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
   const documents = documentAnalytics(filteredSource, options.cutOffDate);

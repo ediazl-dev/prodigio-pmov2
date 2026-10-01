@@ -133,6 +133,14 @@ describe("buildBillingPlan", () => {
     expect(plan.rows.map(row => row.jiraIssueKey)).toEqual(["CAMANSOP01-20", "CAMANSOP01-21", "CAMANSOP01-22"]);
     expect(plan.totals[0]).toMatchObject({ invoiced: 94, overdue: 94, overdueItems: 1 });
   });
+
+  it("marca N/D todas las cuotas si Jira no responde, aunque localmente figuren facturadas o vencidas", () => {
+    const local = buildBillingPlan(months.slice(0, 3), CUT_OFF, { amount: 282, currency: "USD" });
+    const plan = applyJiraBillingToPlan(local, { jiraAvailable: false, items: [] } as any, CUT_OFF);
+    expect(plan.rows.map(row => row.state)).toEqual(["estado_nd", "estado_nd", "estado_nd"]);
+    expect(plan.totals[0]).toMatchObject({ contracted: 282, invoiced: 0, overdue: 0 });
+    expect(plan.rows[0].note).toContain("Evidencia Jira no disponible");
+  });
 });
 
 describe("buildStagePipeline", () => {
