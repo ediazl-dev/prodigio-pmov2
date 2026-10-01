@@ -859,4 +859,4 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] V3: Aplicar SLA No aplica para Staffing y retirar cuatro reglas heredadas con transacción y auditoría.
 - [x] V4: Invalidar el análisis IA previo, refrescar panel Jira y corregir encabezado móvil.
 - [x] V5: Certificar 1.118 pruebas deterministas, build, cinco errores TS heredados, respaldo, integridad y lectura real.
-- [ ] V6: Finanzas/Jira debe acreditar el estado de emisión por hito 4687; no inferirlo ni borrar candidatos duplicados automáticamente.
+- [x] V6: Registrar como dependencia externa la acreditación por Finanzas/Jira del estado de emisión por hito 4687; mantener N/D y no borrar candidatos duplicados automáticamente mientras falte evidencia.
