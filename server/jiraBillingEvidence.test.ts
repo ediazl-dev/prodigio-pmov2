@@ -97,7 +97,7 @@ describe("jiraBillingEvidence", () => {
     expect(result.items[0].billingStatusLabel).toBe("Estado de facturación N/D");
   });
 
-  it("Camanchaca elige el ticket mensual coherente con UF, no suma duplicados ni usa el ticket USD heredado", () => {
+  it("Camanchaca no suma duplicados ni usa tickets PMO; Done sin Estado de Facturación es N/D", () => {
     const result = buildJiraBillingEvidence({
       entityType: "recurring_service",
       entityId: 2100001,
@@ -124,12 +124,42 @@ describe("jiraBillingEvidence", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].key).toBe("CAMANSOP01-20");
-    expect(result.items[0].billingStatus).toBe("billed");
+    expect(result.items[0].billingStatus).toBe("unknown");
     expect(result.items[0].amount).toBe(94);
     expect(result.items[0].currency).toBe("UF");
-    expect(result.items[0].duplicateCandidates).toEqual(["CAMANSOP01-3", "CAMANSOP01-44"]);
-    expect(result.summary.billedByCurrency).toEqual([{ currency: "UF", amount: 94, items: 1 }]);
+    expect(result.items[0].duplicateCandidates).toEqual(["CAMANSOP01-3"]);
+    expect(result.summary.billedByCurrency).toEqual([]);
     expect(result.summary.duplicateGroups).toBe(1);
+  });
+
+  it("Deal 4687 excluye los tickets PMO USD terminados: las tres cuotas UF siguen por conciliar", () => {
+    const result = buildJiraBillingEvidence({
+      entityType: "recurring_service", entityId: 2040001, dealId: "4687",
+      localItems: [1, 2, 3].map(month => ({ code: `M0${month}`, title: `Cuota mes ${month}`, monthNumber: month, amount: 160, currency: "UF", amountSource: "billing_schedule" as const, dueDate: `2026-0${5 + month}-01`, jiraIssueKey: null })),
+      jiraIssues: [1, 2, 3].flatMap(month => [
+        issue({ key: `CONSALOP01-${7 + month}`, summary: `Factura mensual - Mes ${month} (160.00 USD)`, status: "Completed", category: "done", labels: ["pmo-recurring", `pmo-rs-2040001-work-plan-${month}`] }),
+        issue({ key: `CONSALOP01-${20 + month}`, summary: `Deal 4687_H${month}_Mes ${month}`, status: "Completed", category: "done", labels: ["Deal4687"], project: "CONSALOP01" }),
+      ]),
+      sourceProjectKeys: ["CONSALOP01"], allowBillingIssueStatusFallback: true, jiraAvailable: true,
+    });
+    expect(result.items.map(item => item.key)).toEqual(["CONSALOP01-21", "CONSALOP01-22", "CONSALOP01-23"]);
+    expect(result.summary).toMatchObject({ billedItems: 0, notBilledItems: 0, unknownItems: 3 });
+    expect(result.items.every(item => item.currency === "UF" && item.billingStatusSource === "missing")).toBe(true);
+    expect(result.warnings.join(" ")).toContain("3 ticket(s) generados por PMO excluidos");
+  });
+
+  it("bloquea valores oficiales opuestos entre hitos candidatos para la misma cuota", () => {
+    const result = buildJiraBillingEvidence({
+      entityType: "recurring_service", entityId: 2040001, dealId: "4687",
+      localItems: [{ code: "M01", title: "Cuota 1", monthNumber: 1, amount: 160, currency: "UF", amountSource: "billing_schedule", dueDate: "2026-06-01", jiraIssueKey: null }],
+      jiraIssues: [
+        issue({ key: "CONSALOP01-20", summary: "Deal 4687_H1_Mes 1", billing: ["✅ Facturado"], project: "CONSALOP01" }),
+        issue({ key: "CONSALOP01-21", summary: "Deal 4687_H1_Mes 1", billing: ["❌ No facturado"], project: "CONSALOP01" }),
+      ], sourceProjectKeys: ["CONSALOP01"], allowBillingIssueStatusFallback: true, jiraAvailable: true,
+    });
+    expect(result.items[0].billingStatus).toBe("unknown");
+    expect(result.summary.billedByCurrency).toEqual([]);
+    expect(result.items[0].duplicateCandidates).toHaveLength(1);
   });
 
   it("deduplica el H1 del Deal 4687 y prefiere el issue cumplido cuando ambos tienen Estado de Facturación", () => {

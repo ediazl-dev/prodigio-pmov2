@@ -112,8 +112,8 @@ function projectDeal(project: { dealId?: string | null; projectName?: string | n
 
 function issueFieldValues(issue: JiraIssue): string[] {
   const raw = issue.fields?.[JIRA_BILLING_STATUS_FIELD_ID];
-  if (!Array.isArray(raw)) return [];
-  return raw
+  const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+  return values
     .map((item: unknown) => typeof item === "string" ? item : String((item as { value?: unknown })?.value ?? ""))
     .map(value => value.trim())
     .filter(Boolean);
@@ -126,15 +126,15 @@ function issueText(issue: JiraIssue): string {
 
 function isBillingIssue(issue: JiraIssue): boolean {
   const text = issueText(issue);
-  return text.includes("factur") || String(issue.fields?.issuetype?.name ?? "").toLowerCase() === "hito pmo";
+  return text.includes("factur")
+    || String(issue.fields?.issuetype?.name ?? "").toLowerCase() === "hito pmo"
+    || (issueDeal(issue) !== null && issueMonth(issue) !== null && /\bh(?:ito)?[-_ ]?\d+\b/i.test(String(issue.fields?.summary ?? "").replace(/_/g, " ")));
 }
 
-function supportsBillingStatusFallback(issue: JiraIssue): boolean {
+/** PMO-generated work-plan/billing tickets are not evidence of an emitted invoice. */
+function isGeneratedRecurringIssue(issue: JiraIssue): boolean {
   const labels = Array.isArray(issue.fields?.labels) ? issue.fields.labels.map(value => String(value).toLowerCase()) : [];
-  return labels.includes("facturacion") || (
-    String(issue.fields?.issuetype?.name ?? "").toLowerCase() !== "hito pmo"
-    && issueText(issue).includes("factur")
-  );
+  return labels.some(label => label === "pmo-recurring" || label.startsWith("pmo-rs-") || label.startsWith("pmo-service-"));
 }
 
 function issueMonth(issue: JiraIssue): number | null {
@@ -175,18 +175,17 @@ function statusForIssue(issue: JiraIssue, allowFallback: boolean): {
 } {
   const values = issueFieldValues(issue);
   const normalized = values.map(value => value.toLowerCase());
-  if (normalized.some(value => value.includes("no facturado"))) {
+  const notBilled = normalized.some(value => value.includes("no facturado"));
+  const billed = normalized.some(value => value.includes("facturado") && !value.includes("no facturado"));
+  if (billed && notBilled) return { status: "unknown", label: "Estado de facturación contradictorio", source: "missing", values };
+  if (notBilled) {
     return { status: "not_billed", label: "No facturado según Jira", source: "jira_custom_field", values };
   }
-  if (normalized.some(value => value.includes("facturado"))) {
+  if (billed) {
     return { status: "billed", label: "Facturado según Jira", source: "jira_custom_field", values };
   }
-  if (allowFallback && supportsBillingStatusFallback(issue)) {
-    if (String(issue.fields?.status?.statusCategory?.key ?? "").toLowerCase() === "done") {
-      return { status: "billed", label: "Facturado según ticket Jira", source: "jira_billing_issue_status", values };
-    }
-    return { status: "not_billed", label: "Pendiente según ticket Jira", source: "jira_billing_issue_status", values };
-  }
+  // Workflow completion proves only that the task was closed, never that an invoice was emitted.
+  void allowFallback;
   return { status: "unknown", label: "Estado de facturación N/D", source: "missing", values };
 }
 
@@ -221,12 +220,15 @@ function aggregateByCurrency(items: JiraBillingEvidenceItem[], status: JiraOpera
 }
 
 export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBillingEvidence {
-  const issuesByKey = new Map(input.jiraIssues.map(issue => [issue.key, issue]));
+  const eligibleIssues = input.entityType === "recurring_service"
+    ? input.jiraIssues.filter(issue => !isGeneratedRecurringIssue(issue))
+    : input.jiraIssues;
+  const issuesByKey = new Map(eligibleIssues.map(issue => [issue.key, issue]));
   const usedKeys = new Set<string>();
   const items: JiraBillingEvidenceItem[] = [];
   const warnings = [...(input.queryWarnings ?? [])];
 
-  const localItems = input.localItems.length > 0 ? input.localItems : input.jiraIssues
+  const localItems = input.localItems.length > 0 ? input.localItems : eligibleIssues
     .filter(issue => isBillingIssue(issue) && (input.entityType === "project" || !input.dealId || issueDeal(issue) === input.dealId))
     .map(issue => ({
       code: issue.key,
@@ -244,8 +246,8 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     if (local.jiraIssueKey && issuesByKey.has(local.jiraIssueKey)) {
       candidates = [issuesByKey.get(local.jiraIssueKey)!];
     } else if (input.entityType === "recurring_service" && local.monthNumber != null) {
-      candidates = input.jiraIssues.filter(issue => {
-        if (!isBillingIssue(issue) || issueMonth(issue) !== local.monthNumber) return false;
+      candidates = eligibleIssues.filter(issue => {
+        if (usedKeys.has(issue.key) || !isBillingIssue(issue) || issueMonth(issue) !== local.monthNumber) return false;
         const deal = issueDeal(issue);
         return !deal || !input.dealId || deal === input.dealId;
       });
@@ -254,7 +256,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     const ranked = candidates
       .map(issue => ({ issue, score: scoreServiceCandidate(issue, local, input.dealId) }))
       .sort((a, b) => b.score - a.score || a.issue.key.localeCompare(b.issue.key, undefined, { numeric: true }));
-    const selected = ranked[0]?.issue ?? (local.jiraIssueKey ? issuesByKey.get(local.jiraIssueKey) : undefined);
+    const selected = ranked[0]?.issue ?? (local.jiraIssueKey && !usedKeys.has(local.jiraIssueKey) ? issuesByKey.get(local.jiraIssueKey) : undefined);
     if (!selected) {
       items.push({
         key: local.jiraIssueKey ?? `local-${local.code}`,
@@ -286,6 +288,11 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     if (duplicateCandidates.length > 0) {
       warnings.push(`${local.code}: ${duplicateCandidates.length} candidato(s) Jira adicional(es) no sumados (${duplicateCandidates.join(", ")}).`);
     }
+    const conflictingStatus = ranked.slice(1).some(candidate => {
+      const alternative = statusForIssue(candidate.issue, false).status;
+      return alternative !== "unknown" && status.status !== "unknown" && alternative !== status.status;
+    });
+    if (conflictingStatus) warnings.push(`${local.code}: estados explícitos de facturación Jira contradictorios; resolver vínculo antes de sumar.`);
     items.push({
       key: selected.key,
       jiraUrl: `${ENV.jiraBaseUrl}/browse/${encodeURIComponent(selected.key)}`,
@@ -300,9 +307,9 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
       jiraUpdatedAt: selected.fields?.updated ?? null,
       jiraStatusName: selected.fields?.status?.name ?? null,
       jiraStatusCategory: selected.fields?.status?.statusCategory?.key ?? null,
-      billingStatus: status.status,
-      billingStatusLabel: status.label,
-      billingStatusSource: status.source,
+      billingStatus: conflictingStatus ? "unknown" : status.status,
+      billingStatusLabel: conflictingStatus ? "Facturación Jira ambigua" : status.label,
+      billingStatusSource: conflictingStatus ? "missing" : status.source,
       billingFieldValues: status.values,
       matchedBy: local.jiraIssueKey ? "jira_issue_key" : input.dealId && issueDeal(selected) === input.dealId ? "deal_month" : "month",
       duplicateCandidates,
@@ -310,7 +317,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
   }
 
   if (input.entityType === "recurring_service") {
-    for (const issue of input.jiraIssues) {
+    for (const issue of eligibleIssues) {
       if (usedKeys.has(issue.key) || !isBillingIssue(issue) || (input.dealId && issueDeal(issue) && issueDeal(issue) !== input.dealId)) continue;
       const monthNumber = issueMonth(issue);
       if (monthNumber != null && items.some(item => item.monthNumber === monthNumber)) continue;
@@ -344,9 +351,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
   const duplicateGroups = items.filter(item => item.duplicateCandidates.length > 0).length;
   const amountCoverage = items.filter(item => item.amount != null).length;
   if (amountCoverage < items.length) warnings.push(`Monto contractual disponible para ${amountCoverage} de ${items.length} hito(s); los demás permanecen N/D.`);
-  if (items.some(item => item.billingStatusSource === "jira_billing_issue_status")) {
-    warnings.push("Algunos servicios no usan el campo Estado de Facturación; se aplicó fallback sólo a tickets inequívocos de facturación.");
-  }
+  if (eligibleIssues.length < input.jiraIssues.length) warnings.push(`${input.jiraIssues.length - eligibleIssues.length} ticket(s) generados por PMO excluidos de la evidencia de emisión.`);
 
   return {
     entityType: input.entityType,
