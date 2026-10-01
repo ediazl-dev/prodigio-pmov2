@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DashboardV2Data, MatrixRow } from "../recurringDashboardV3ViewModel";
+import type { RouterOutputs } from "@/lib/trpc";
 import type { BillingPlan as BillingPlanModel, DocumentRow } from "../serviceDetailViewModel";
 import { BillingPlan } from "./BillingPlan";
 import { ServiceEvidenceTabs } from "./ServiceEvidenceTabs";
@@ -75,24 +76,38 @@ const documents: DocumentRow[] = [
   },
 ];
 
+const canonicalDocuments = {
+  coverage: { required: 4, compliant: 3, missing: 1 },
+  requirements: [
+    { code: "contract", label: "Contrato", status: "compliant", activeArtifact: { fileName: "contrato.pdf" }, latestDecision: { openEndedValidity: false, validUntil: "2026-12-31", decidedAt: "2026-09-17" } },
+    { code: "sow", label: "SoW", status: "missing", activeArtifact: null, latestDecision: null },
+    { code: "technical_economic_proposal", label: "Propuesta técnico-económica", status: "compliant", activeArtifact: { fileName: "propuesta.pdf" }, latestDecision: null },
+    { code: "costed_pnl", label: "P&L con costeo", status: "compliant", activeArtifact: { fileName: "pnl.pdf" }, latestDecision: null },
+  ],
+} as unknown as RouterOutputs["documentGovernance"]["portfolio"]["items"][number];
+
 afterEach(cleanup);
 
 describe("ServiceEvidenceTabs", () => {
-  it("preserva estado, vigencia y faltantes documentales", () => {
+  it("muestra los cuatro requisitos canónicos y usa el archivo legacy sólo para descarga", () => {
     render(
       <ServiceEvidenceTabs
         data={data}
         service={service}
         documents={documents}
+        canonicalDocuments={canonicalDocuments}
         onRevalidateJsm={vi.fn()}
         onOpenInitialization={vi.fn()}
         onOpenWorkPlan={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Vigente")).toBeTruthy();
+    expect(screen.getAllByText("Validado")).toHaveLength(3);
     expect(screen.getByText(/Vigencia 31-12-2026/)).toBeTruthy();
-    expect(screen.getByText("sow")).toBeTruthy();
+    expect(screen.getByText("SoW")).toBeTruthy();
+    expect(screen.getByText("P&L con costeo")).toBeTruthy();
+    expect(screen.getByText("Propuesta técnico-económica")).toBeTruthy();
+    expect(screen.getByText(/3\/4 requisitos validados/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "contrato.pdf" }).getAttribute("href")).toBe(
       "https://files.example/contrato.pdf",
     );
@@ -104,6 +119,7 @@ describe("ServiceEvidenceTabs", () => {
         data={data}
         service={service}
         documents={documents}
+        canonicalDocuments={canonicalDocuments}
         onRevalidateJsm={vi.fn()}
         onOpenInitialization={vi.fn()}
         onOpenWorkPlan={vi.fn()}

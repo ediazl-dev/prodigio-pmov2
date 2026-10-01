@@ -98,6 +98,7 @@ export interface RecurringServicesMetricsInput {
   documents: RecurringDocumentMetricSource[];
   slaConfigs: RecurringSlaConfigMetricSource[];
   operationalEvidence?: RecurringOperationalEvidenceSource[];
+  reportEvidence?: Array<{ serviceId: number; workPlanItemId: number | null; status: string; deliveredAt?: Date | string | null; acceptedAt?: Date | string | null }>;
   jiraBilling?: Record<number, JiraBillingEvidence>;
 }
 
@@ -141,6 +142,7 @@ export interface ServiceMetricsV2 {
     due: number;
     completedDue: number;
     overdue: number;
+    unconfirmed: number;
     deliveryRate: number | null;
     onTimeRate: null;
     source: "recurring_service_work_plan";
@@ -364,13 +366,26 @@ export function calculateRecurringServicesMetrics(
     }
 
     const dueReports = reports.filter(item => item.dueDate !== null && item.dueDate <= input.cutOffDate);
-    const completedDueReports = dueReports.filter(item => item.status === "completado");
-    const overdueReports = dueReports.filter(item => item.status !== "completado");
+    const reportEvidence = (input.reportEvidence ?? []).filter(item => item.serviceId === service.id);
+    const deliveredIds = new Set(reportEvidence.filter(item => ["delivered", "accepted"].includes(item.status) && (item.deliveredAt || (item.status === "accepted" && item.acceptedAt))).map(item => item.workPlanItemId));
+    const rejectedIds = new Set(reportEvidence.filter(item => item.status === "rejected").map(item => item.workPlanItemId));
+    const completedDueReports = dueReports.filter(item => service.serviceType === "staffing" ? deliveredIds.has(item.id) : item.status === "completado");
+    const reportsWithoutCompletion = dueReports.filter(item => item.status !== "completado");
+    // El estado del plan no prueba entrega; para Staffing sólo la evidencia vinculada acredita el reporte.
+    const unconfirmedReports = service.serviceType === "staffing" ? dueReports.filter(item => !deliveredIds.has(item.id) && !rejectedIds.has(item.id)) : [];
+    const overdueReports = service.serviceType === "staffing" ? dueReports.filter(item => rejectedIds.has(item.id)) : reportsWithoutCompletion;
     if (overdueReports.length > 0) {
       signals.push({
         code: "OVERDUE_REPORTS",
         level: "critical",
         message: `${overdueReports.length} reporte(s) exigibles no están completados a la fecha de corte.`,
+      });
+    }
+    if (unconfirmedReports.length > 0) {
+      signals.push({
+        code: "REPORT_DELIVERY_UNCONFIRMED",
+        level: "attention",
+        message: `${unconfirmedReports.length} reporte(s) exigible(s) sin entrega acreditada en PMO; verificar evidencia, sin presumir incumplimiento.`,
       });
     }
 
@@ -445,7 +460,8 @@ export function calculateRecurringServicesMetrics(
         due: dueReports.length,
         completedDue: completedDueReports.length,
         overdue: overdueReports.length,
-        deliveryRate: percentage(completedDueReports.length, dueReports.length),
+        unconfirmed: unconfirmedReports.length,
+        deliveryRate: unconfirmedReports.length > 0 ? null : percentage(completedDueReports.length, dueReports.length),
         onTimeRate: null,
         source: "recurring_service_work_plan",
       },

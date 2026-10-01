@@ -114,6 +114,21 @@ const source: RecurringDashboardV2Source = {
 };
 
 describe("buildRecurringServicesDashboardV2", () => {
+  it("mantiene los reportes Staffing sin evidencia en N/D en lugar de vencidos", () => {
+    const staffingSource: RecurringDashboardV2Source = {
+      ...source,
+      services: [source.services[1]],
+      billingMonths: source.billingMonths.filter(item => item.serviceId === 2),
+      workPlanItems: [{ id: 33, serviceId: 2, itemType: "informe_mensual", dueDate: "2026-02-28", status: "pendiente" }],
+      documents: source.documents.filter(item => item.serviceId === 2),
+      slaConfigs: [], jsmSnapshots: [], reportEvidence: [], financialEvidence: [],
+    };
+    const result = buildRecurringServicesDashboardV2(staffingSource, { cutOffDate: "2026-03-16" });
+    expect(result.deliverables.rows[0].cells[0]).toMatchObject({ status: "unconfirmed", evidenceId: null });
+    expect(result.deliverables.summary).toMatchObject({ due: 1, overdue: 0, unconfirmed: 1, deliveryRate: null });
+    expect(result.matrix[0].healthSignals.map(signal => signal.code)).toContain("REPORT_DELIVERY_UNCONFIRMED");
+  });
+
   it("Staffing con Jira N/D no presenta mora ni SLA por tickets administrativos aunque el plan local diga facturado", () => {
     const staffingSource: RecurringDashboardV2Source = {
       ...source,

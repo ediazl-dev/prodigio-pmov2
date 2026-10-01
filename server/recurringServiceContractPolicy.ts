@@ -150,7 +150,7 @@ export function buildStaffingContractPlan(input: {
         itemType: "tarea_programada",
         title: `Consolidar horas y capacidad · Mes ${month}`,
         description:
-          "Consolidar las actividades asignadas por el cliente y las horas consumidas por el profesional durante el período.",
+          "Consolidar worklog de las actividades asignadas por el cliente, horas consumidas y burn-rate contra la capacidad mensual contractual; identificar y coordinar al focal point del cliente. Registrar evidencia real, sin inferir cumplimiento ni inventar un responsable.",
         frequency: "mensual",
         monthNumber: month,
         dueDate: reportDueDate,

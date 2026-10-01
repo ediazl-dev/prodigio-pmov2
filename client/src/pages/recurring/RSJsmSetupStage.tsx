@@ -550,7 +550,7 @@ export default function RSJsmSetupStage() {
               value={issuesQuery.isLoading ? "—" : `${gate.doneCount}/${gate.totalCount}`}
             />
             <HeaderMetric
-              label="Vinculados"
+              label="Aplicables"
               value={issuesQuery.isLoading ? "—" : `${gate.linkedCount}/${gate.totalLinkable}`}
             />
             <HeaderMetric
@@ -615,6 +615,28 @@ export default function RSJsmSetupStage() {
       <JsmPendingItems groups={pendingGroups} />
 
       {issuesSummary && <JsmLinkedItems summary={issuesSummary} jiraBaseUrl={jiraBaseUrl} />}
+      {issuesSummary && issuesSummary.historicalLinkedItems.length > 0 && (
+        <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+          <summary className="cursor-pointer text-sm font-bold text-slate-950">
+            Historial de enlaces anteriores ({issuesSummary.historicalLinkedItems.length}) · no aplicables a esta sincronización
+          </summary>
+          <p className="mt-2 text-xs leading-5 text-slate-700">
+            Estos issues fueron creados con un plan anterior de soporte. Se conservan por trazabilidad; su estado Jira no acredita
+            entrega del Staffing ni emisión de factura. La compuerta sólo cuenta elementos aplicables a la política actual.
+          </p>
+          <ul className="mt-3 max-h-64 list-none space-y-2 overflow-y-auto">
+            {issuesSummary.historicalLinkedItems.map(item => (
+              <li key={item.key} className="flex flex-wrap items-center gap-2 border-b border-slate-100 py-2 text-xs text-slate-700">
+                <a href={`${jiraBaseUrl}/browse/${item.key}`} target="_blank" rel="noopener noreferrer" className="font-mono font-bold text-blue-700 underline">
+                  {item.key}
+                </a>
+                <span>{item.title}</span>
+                <span className="text-slate-500">· {item.type}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

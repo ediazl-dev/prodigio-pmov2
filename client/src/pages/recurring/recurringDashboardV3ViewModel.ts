@@ -72,6 +72,7 @@ export const SIGNAL_CATALOG: Record<string, SignalSpec> = {
   CONTRACT_TERM_ELAPSED_ACTIVE: { domain: "formalidad", action: "Verificar continuidad", evidenceTab: "formalidad" },
   CONTRACT_BILLING_PLAN_MISMATCH: { domain: "finanzas", action: "Revisar plan", evidenceTab: "finanzas" },
   OVERDUE_REPORTS: { domain: "entregables", action: "Revisar entregables", evidenceTab: "entregables" },
+  REPORT_DELIVERY_UNCONFIRMED: { domain: "entregables", action: "Verificar reportes", evidenceTab: "entregables" },
   CONTRACT_DOCUMENT_MISSING: { domain: "formalidad", action: "Cargar contrato", evidenceTab: "formalidad" },
   FORMAL_DOCUMENT_MISSING: { domain: "formalidad", action: "Completar formalidad", evidenceTab: "formalidad" },
   JSM_EVIDENCE_UNAVAILABLE: { domain: "operacion", action: "Revisar JSM", evidenceTab: "operacion" },
@@ -244,6 +245,14 @@ function impactForSignal(
       return {
         value: `${row.reports.overdue} reporte${row.reports.overdue === 1 ? "" : "s"}`,
         note: `de ${row.reports.due} exigible${row.reports.due === 1 ? "" : "s"}`,
+        isMoney: false,
+        sortKey: 0,
+      };
+
+    case "REPORT_DELIVERY_UNCONFIRMED":
+      return {
+        value: `${row.reports.unconfirmed} por verificar`,
+        note: "Sin evidencia PMO; no prueba incumplimiento",
         isMoney: false,
         sortKey: 0,
       };

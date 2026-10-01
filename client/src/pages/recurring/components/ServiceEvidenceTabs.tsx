@@ -16,6 +16,7 @@
 
 import React, { useState } from "react";
 import { CalendarCheck2, CircleDollarSign, DatabaseZap, FileText } from "lucide-react";
+import type { RouterOutputs } from "@/lib/trpc";
 import { formatRecurringMoney, formatRecurringPercent } from "../recurringDashboardV2ViewModel";
 import type { DashboardV2Data, MatrixRow } from "../recurringDashboardV3ViewModel";
 import { EmptyDimension } from "./EmptyDimension";
@@ -27,6 +28,9 @@ interface ServiceEvidenceTabsProps {
   data: DashboardV2Data;
   service: MatrixRow;
   documents: DocumentRow[];
+  canonicalDocuments?: RouterOutputs["documentGovernance"]["portfolio"]["items"][number] | null;
+  canonicalLoading?: boolean;
+  canonicalError?: boolean;
   onRevalidateJsm: () => void;
   onOpenInitialization: () => void;
   onOpenWorkPlan: () => void;
@@ -45,6 +49,9 @@ export function ServiceEvidenceTabs({
   data,
   service,
   documents,
+  canonicalDocuments,
+  canonicalLoading,
+  canonicalError,
   onRevalidateJsm,
   onOpenInitialization,
   onOpenWorkPlan,
@@ -54,7 +61,18 @@ export function ServiceEvidenceTabs({
   const quality = service.quality;
   const finance = data.financeAnalytics.services[0];
   const deliverables = data.deliverables.rows[0];
-  const documentEvidence = data.documents.services[0];
+  const legacyDocumentByRequirement: Record<string, DocumentRow["docType"]> = {
+    contract: "contrato", sow: "sow", technical_economic_proposal: "propuesta_tecnica", costed_pnl: "pl",
+  };
+  const canonicalBadge: Record<string, { label: string; tone: string }> = {
+    compliant: { label: "Validado", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+    missing: { label: "Faltante", tone: "border-red-200 bg-red-50 text-red-800" },
+    pending_validation: { label: "Pendiente de validación", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+    expired: { label: "Vencido", tone: "border-red-200 bg-red-50 text-red-800" },
+    rejected: { label: "Rechazado", tone: "border-red-200 bg-red-50 text-red-800" },
+    unconfirmed: { label: "Por confirmar", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+    not_applicable: { label: "Excepción autorizada", tone: "border-slate-200 bg-slate-50 text-slate-700" },
+  };
   const slaAvailable = service.incidents.availability === "available";
   const slaNotApplicable = service.sla.applicability === "not_applicable";
 
@@ -74,8 +92,8 @@ export function ServiceEvidenceTabs({
     {
       key: "entregables",
       label: "Entregables",
-      badge: String(service.reports.overdue),
-      tone: service.reports.overdue > 0 ? "alert" : "calm",
+      badge: service.reports.unconfirmed > 0 ? `${service.reports.unconfirmed} N/D` : String(service.reports.overdue),
+      tone: service.reports.overdue > 0 ? "alert" : service.reports.unconfirmed > 0 ? "warn" : "calm",
     },
     { key: "sla", label: "SLA e incidentes", badge: slaNotApplicable ? "No aplica" : slaAvailable ? "OK" : "N/D", tone: slaNotApplicable || slaAvailable ? "calm" : "warn" },
   ];
@@ -161,62 +179,46 @@ export function ServiceEvidenceTabs({
             </div>
 
             <div className="min-w-0">
-              <h3 className="text-[13px] font-black text-slate-950">Documentos del contrato ({documents.length})</h3>
-              {documents.length === 0 ? (
-                <p className="mt-3 text-[12px] text-slate-600">Sin documentos adjuntos.</p>
+              <h3 className="text-[13px] font-black text-slate-950">Expediente documental canónico ({canonicalDocuments?.requirements.length ?? "—"})</h3>
+              {canonicalLoading || canonicalError || !canonicalDocuments ? (
+                <p className="mt-3 text-[12px] text-slate-700">
+                  {canonicalLoading ? "Consultando validaciones documentales…" : "Expediente canónico no disponible; no se infiere validación desde los documentos legacy."}
+                </p>
               ) : (
                 <ul className="mt-3 list-none space-y-2">
-                  {documents.map(document => {
-                    const evidence = documentEvidence?.documents.find(
-                      item => item.documentId === document.id || item.docType === document.docType,
-                    );
-                    const status = evidence ? DOCUMENT_STATUS[evidence.status] : null;
+                  {canonicalDocuments.requirements.map(requirement => {
+                    const document = documents.find(item => item.docType === legacyDocumentByRequirement[requirement.code]
+                      && item.fileName === requirement.activeArtifact?.fileName);
+                    const badge = canonicalBadge[requirement.status];
                     return (
-                    <li key={document.id} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2">
+                    <li key={requirement.code} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2">
                       <FileText size={15} className="shrink-0 text-slate-500" />
-                      <a
-                        href={document.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="min-w-0 basis-[calc(100%-26px)] truncate text-[12px] font-semibold sm:flex-grow sm:basis-auto"
-                      >
-                        {document.fileName}
-                      </a>
+                      {document ? <a href={document.fileUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 basis-[calc(100%-26px)] truncate text-[12px] font-semibold sm:flex-grow sm:basis-auto">{requirement.activeArtifact?.fileName}</a>
+                        : <span className="min-w-0 basis-[calc(100%-26px)] truncate text-[12px] font-semibold sm:flex-grow sm:basis-auto">{requirement.activeArtifact?.fileName ?? "Sin documento activo"}</span>}
                       <span className="w-[112px] shrink-0 rounded-full border border-slate-200 bg-slate-100 py-0.5 text-center text-[9.5px] font-bold text-slate-700">
-                        {document.typeLabel}
+                        {requirement.label}
                       </span>
                       <span
                         className={`w-[132px] shrink-0 rounded-full border py-0.5 text-center text-[9.5px] font-bold ${
-                          status?.tone ?? "border-slate-300 bg-slate-100 text-slate-600"
+                          badge?.tone ?? "border-slate-300 bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {status?.label ?? (document.required ? "Exigible sin control" : "No exigible")}
+                        {badge?.label ?? "Por confirmar"}
                       </span>
-                      {evidence && (
+                      {requirement.latestDecision && (
                         <span className="hidden w-[160px] shrink-0 text-right text-[10px] leading-4 text-slate-500 lg:block">
-                          Vigencia {formatDate(evidence.validUntil)}<br />Validado {formatDate(evidence.validatedAt)}
+                          Vigencia {requirement.latestDecision.openEndedValidity ? "abierta documental" : formatDate(requirement.latestDecision.validUntil)}<br />Decisión {formatDate(requirement.latestDecision.decidedAt)}
                         </span>
                       )}
                     </li>
                     );
                   })}
-                  {documentEvidence?.documents
-                    .filter(item => item.status === "missing")
-                    .map(item => (
-                      <li key={`missing-${item.docType}`} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-                        <FileText size={15} className="shrink-0 text-red-600" />
-                        <span className="min-w-0 flex-grow text-[12px] font-semibold capitalize text-red-900">{item.docType}</span>
-                        <span className="w-[132px] shrink-0 rounded-full border border-red-200 bg-white py-0.5 text-center text-[9.5px] font-bold text-red-700">Faltante</span>
-                      </li>
-                    ))}
                 </ul>
               )}
               <p className="mt-3 text-[11px] text-slate-600">
-                Formalidad {service.formalization.coveragePercent}%
-                {service.formalization.missing.length > 0
-                  ? ` · falta ${service.formalization.missing.join(", ")}`
-                  : " · contrato y SoW presentes"}
-                . La presencia de un documento no equivale a su validación.
+                {canonicalDocuments ? `${canonicalDocuments.coverage.compliant}/${canonicalDocuments.coverage.required} requisitos validados al corte; la vigencia documental no prorroga el término contractual.`
+                  : "El estado documental no está confirmado mientras se consulta la fuente canónica."}
+                {" "}La presencia de un documento no equivale a su validación.
               </p>
             </div>
           </div>
@@ -307,6 +309,11 @@ export function ServiceEvidenceTabs({
             />
           ) : (
             <div className="overflow-x-auto p-5">
+              {service.reports.unconfirmed > 0 && (
+                <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+                  {service.reports.unconfirmed} reporte(s) exigible(s) sin entrega acreditada en PMO. Verificar correo, worklog y aceptación; el estado N/D no demuestra incumplimiento.
+                </p>
+              )}
               <table className="w-full min-w-[720px] text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
@@ -323,7 +330,7 @@ export function ServiceEvidenceTabs({
                     <tr key={`${cell.period}-${index}`} className="border-t border-slate-100">
                       <td className="px-4 py-2.5 font-bold text-slate-900">{cell.period}</td>
                       <td className="px-4 py-2.5">{formatDate(cell.dueDate)}</td>
-                      <td className="px-4 py-2.5">{cell.status}</td>
+                      <td className="px-4 py-2.5">{cell.status === "unconfirmed" ? "N/D · verificar entrega" : cell.status}</td>
                       <td className="px-4 py-2.5">{formatDate(cell.deliveredAt)}</td>
                       <td className="px-4 py-2.5">{formatDate(cell.acceptedAt)}</td>
                       <td className="px-4 py-2.5">

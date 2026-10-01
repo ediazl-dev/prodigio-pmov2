@@ -57,6 +57,26 @@ describe("calculateRecurringServicesMetrics", () => {
     expect(row.sla.applicability).toBe("not_applicable");
   });
 
+  it("clasifica reportes Staffing sin evidencia como por verificar, no como incumplidos", () => {
+    const input = baseInput();
+    input.services[0].serviceType = "staffing";
+    input.workPlanItems = [
+      { id: 1, serviceId: 1, itemType: "informe_mensual", dueDate: "2026-08-31", status: "pendiente" },
+      { id: 2, serviceId: 1, itemType: "informe_mensual", dueDate: "2026-09-16", status: "pendiente" },
+    ];
+    const row = calculateRecurringServicesMetrics(input).services[0];
+    expect(row.reports).toMatchObject({ due: 2, overdue: 0, unconfirmed: 2, deliveryRate: null });
+    expect(row.healthSignals.map(signal => signal.code)).toContain("REPORT_DELIVERY_UNCONFIRMED");
+    expect(row.healthSignals.map(signal => signal.code)).not.toContain("OVERDUE_REPORTS");
+    expect(row.healthSignals.find(signal => signal.code === "REPORT_DELIVERY_UNCONFIRMED")?.level).toBe("attention");
+    input.workPlanItems[0].status = "completado";
+    const stillUnknown = calculateRecurringServicesMetrics(input).services[0];
+    expect(stillUnknown.reports).toMatchObject({ unconfirmed: 2, completedDue: 0, deliveryRate: null });
+    input.reportEvidence = [{ serviceId: 1, workPlanItemId: 1, status: "delivered", deliveredAt: "2026-08-30" }];
+    const supported = calculateRecurringServicesMetrics(input).services[0];
+    expect(supported.reports).toMatchObject({ unconfirmed: 1, completedDue: 1, deliveryRate: null });
+  });
+
   it("separa programado, facturado y pendiente sin introducir cobros", () => {
     const result = calculateRecurringServicesMetrics(baseInput());
     const usd = result.services[0].finance.byCurrency.USD;

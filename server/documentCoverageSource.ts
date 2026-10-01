@@ -11,6 +11,7 @@ import {
   recurringServiceDocumentControls,
   recurringServiceDocuments,
   recurringServiceReportEvidence,
+  recurringServiceWorkPlan,
   recurringServices,
   sowDocuments,
   stageApprovals,
@@ -111,6 +112,7 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
     serviceDocumentRows,
     serviceControlRows,
     serviceReportRows,
+    serviceWorkPlanRows,
     dashboardSnapshotRows,
   ] = await Promise.all([
     db.select().from(projects),
@@ -129,6 +131,7 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
     db.select().from(recurringServiceDocuments),
     db.select().from(recurringServiceDocumentControls),
     db.select().from(recurringServiceReportEvidence),
+    db.select().from(recurringServiceWorkPlan),
     db.select().from(executiveDashboardSnapshots),
   ]);
 
@@ -146,6 +149,10 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
   const documentsByService = groupBy(serviceDocumentRows, (row: any) => Number(row.serviceId));
   const controlsByService = groupBy(serviceControlRows, (row: any) => Number(row.serviceId));
   const reportsByService = groupBy(serviceReportRows, (row: any) => Number(row.serviceId));
+  const scheduledReportsByService = groupBy(
+    (serviceWorkPlanRows as Array<{ id: number; serviceId: number; itemType: string; monthNumber: number | null; dueDate: string | null }>).filter(row => row.itemType === "informe_mensual"),
+    row => Number(row.serviceId),
+  );
   const snapshotsByProject = groupBy(dashboardSnapshotRows, (row: any) => Number(row.projectId));
 
   const projectEntities = projectRows.map((project: any) => {
@@ -192,6 +199,7 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
     documents: documentsByService.get(Number(service.id)) ?? [],
     controls: controlsByService.get(Number(service.id)) ?? [],
     reports: reportsByService.get(Number(service.id)) ?? [],
+    scheduledReports: (scheduledReportsByService.get(Number(service.id)) ?? []).map(row => ({ id: row.id, monthNumber: row.monthNumber, dueDate: row.dueDate })),
   }));
 
   const allEntities = [...projectEntities, ...serviceEntities];

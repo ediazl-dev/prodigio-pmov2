@@ -71,6 +71,10 @@ export default function RecurringServiceDetail() {
     { serviceId: id, cutOffDate },
     { enabled: !!id, staleTime: 30_000 },
   );
+  const canonicalDocuments = trpc.documentGovernance.portfolio.useQuery(
+    { entityId: id, entityType: "recurring_service", lifecycle: "all", coverageStatus: "all", page: 1, pageSize: 10, cutoffAt: cutOffDate },
+    { enabled: !!id, staleTime: 30_000 },
+  );
 
   const svc = data?.service;
 
@@ -122,7 +126,7 @@ export default function RecurringServiceDetail() {
   const serviceTypeLabel =
     RECURRING_SERVICE_TYPE_LABELS[svc.serviceType as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ?? svc.serviceType;
   const canManage = user?.role === "admin" || user?.role === "pmo";
-  const refreshAll = () => Promise.all([serviceQuery.refetch(), jiraBilling.refetch(), metrics.refetch()]);
+  const refreshAll = () => Promise.all([serviceQuery.refetch(), jiraBilling.refetch(), metrics.refetch(), canonicalDocuments.refetch()]);
 
   return (
     <div className="space-y-4 pb-8">
@@ -272,6 +276,9 @@ export default function RecurringServiceDetail() {
           data={metrics.data}
           service={serviceMetrics}
           documents={documents}
+          canonicalDocuments={canonicalDocuments.data?.items.find(item => item.entityId === id) ?? null}
+          canonicalLoading={canonicalDocuments.isLoading}
+          canonicalError={Boolean(canonicalDocuments.error)}
           onRevalidateJsm={() => navigate(`/recurring-services/${id}/jsm-setup`)}
           onOpenInitialization={() => navigate(`/recurring-services/${id}/init`)}
           onOpenWorkPlan={() => navigate(`/recurring-services/${id}/work-plan`)}

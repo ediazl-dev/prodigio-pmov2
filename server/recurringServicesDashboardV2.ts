@@ -220,6 +220,7 @@ function calculateForSource(source: RecurringDashboardV2Source, cutOffDate: stri
     services: source.services,
     billingMonths: source.billingMonths,
     workPlanItems: source.workPlanItems,
+    reportEvidence: source.reportEvidence,
     documents: source.documents,
     slaConfigs: source.slaConfigs,
     operationalEvidence: latestOperationalEvidence(source.jsmSnapshots, cutOffDate, staleAfterHours),
@@ -402,6 +403,7 @@ type ReportCellStatus =
   | "rejected"
   | "waived"
   | "overdue"
+  | "unconfirmed"
   | "planned"
   | "unscheduled_evidence";
 
@@ -428,11 +430,13 @@ function reportCellStatus(
   workPlanStatus: string | null,
   dueDate: string | null,
   cutOffDate: string,
+  staffing = false,
 ): ReportCellStatus {
   if (evidence?.status === "accepted") return "accepted";
   if (evidence?.status === "delivered") return "delivered";
   if (evidence?.status === "rejected") return "rejected";
   if (evidence?.status === "waived") return "waived";
+  if (staffing && (!evidence || (evidence.status === "pending" && !evidence.deliveredAt)) && dueDate && dueDate <= cutOffDate) return "unconfirmed";
   if (workPlanStatus === "completado") return "completed_without_evidence";
   if (dueDate && dueDate <= cutOffDate) return "overdue";
   return evidence ? "unscheduled_evidence" : "planned";
@@ -456,7 +460,7 @@ function deliverablesAnalytics(source: RecurringDashboardV2Source, cutOffDate: s
         evidenceId: evidence?.id ?? null,
         period: dueMonth ?? monthKey(evidence?.periodStart ?? null) ?? "sin-fecha",
         dueDate,
-        status: reportCellStatus(evidence, item.status, dueDate, cutOffDate),
+        status: reportCellStatus(evidence, item.status, dueDate, cutOffDate, service.serviceType === "staffing"),
         evidenceStatus: evidence?.status ?? null,
         deliveredAt: evidence?.deliveredAt ? isoDate(evidence.deliveredAt) : null,
         acceptedAt: evidence?.acceptedAt ? isoDate(evidence.acceptedAt) : null,
@@ -473,7 +477,7 @@ function deliverablesAnalytics(source: RecurringDashboardV2Source, cutOffDate: s
         evidenceId: evidence.id ?? null,
         period: monthKey(evidence.periodStart) ?? "sin-fecha",
         dueDate: evidence.dueDate,
-        status: reportCellStatus(evidence, null, evidence.dueDate, cutOffDate),
+        status: reportCellStatus(evidence, null, evidence.dueDate, cutOffDate, service.serviceType === "staffing"),
         evidenceStatus: evidence.status,
         deliveredAt: evidence.deliveredAt ? isoDate(evidence.deliveredAt) : null,
         acceptedAt: evidence.acceptedAt ? isoDate(evidence.acceptedAt) : null,
@@ -499,8 +503,9 @@ function deliverablesAnalytics(source: RecurringDashboardV2Source, cutOffDate: s
       accepted: dueCells.filter(cell => cell.status === "accepted").length,
       overdue: dueCells.filter(cell => ["overdue", "rejected", "completed_without_evidence"].includes(cell.status)).length,
       completedWithoutEvidence: dueCells.filter(cell => cell.status === "completed_without_evidence").length,
-      deliveryRate: dueCells.length > 0 ? Math.round((deliveredCells.length / dueCells.length) * 1000) / 10 : null,
-      acceptanceRate: dueCells.length > 0 ? Math.round((dueCells.filter(cell => cell.status === "accepted").length / dueCells.length) * 1000) / 10 : null,
+      unconfirmed: dueCells.filter(cell => cell.status === "unconfirmed").length,
+      deliveryRate: dueCells.length > 0 && !dueCells.some(cell => cell.status === "unconfirmed") ? Math.round((deliveredCells.length / dueCells.length) * 1000) / 10 : null,
+      acceptanceRate: dueCells.length > 0 && !dueCells.some(cell => cell.status === "unconfirmed") ? Math.round((dueCells.filter(cell => cell.status === "accepted").length / dueCells.length) * 1000) / 10 : null,
       onTimeRate: timedDeliveries.length > 0 ? Math.round((timedDeliveries.filter(cell => cell.deliveryTiming === "on_time").length / timedDeliveries.length) * 1000) / 10 : null,
     },
     rows,

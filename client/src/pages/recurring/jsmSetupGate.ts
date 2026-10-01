@@ -227,7 +227,9 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
     id: "sync",
     order: 5,
     title:
-      input.totalUnsynced > 0
+      input.totalWorkItems + input.totalBilling === 0
+        ? "Referencia externa · sin creación JSM"
+        : input.totalUnsynced > 0
         ? `Vincular ${input.totalUnsynced} elemento${input.totalUnsynced === 1 ? "" : "s"}`
         : "Vincular elementos a Jira",
     detail: syncDetail(input, bothMappingsReady),

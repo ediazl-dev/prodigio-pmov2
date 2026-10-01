@@ -28,7 +28,7 @@ describe("Staffing: coherencia de estado operacional", () => {
   });
 
   it("la actualización del detalle refresca matriz y evidencia Jira en una operación", () => {
-    expect(detail).toContain('Promise.all([serviceQuery.refetch(), jiraBilling.refetch(), metrics.refetch()])');
+    expect(detail).toContain('Promise.all([serviceQuery.refetch(), jiraBilling.refetch(), metrics.refetch(), canonicalDocuments.refetch()])');
   });
 
   it("la cobertura JSM sólo considera servicios activos con SLA aplicable", () => {

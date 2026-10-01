@@ -128,6 +128,35 @@ describe("documentCoverageModel", () => {
     expect(result.counters.overdueServiceReports).toBe(1);
   });
 
+  it("reconoce calendario Staffing desde plan sin inferir reportes incumplidos", () => {
+    const result = buildServiceDocumentCoverage({
+      entityType: "recurring_service", id: 2040001, name: "Staffing Consalud", clientName: "Consalud",
+      status: "activo", serviceType: "staffing", cutoffAt: "2026-10-01",
+      documents: [], controls: [], reports: [],
+      scheduledReports: [
+        { id: 1, monthNumber: 1, dueDate: "2026-05-29" },
+        { id: 2, monthNumber: 2, dueDate: "2026-07-02" },
+        { id: 3, monthNumber: 3, dueDate: "2026-07-29" },
+      ],
+    });
+    const reports = result.requirements.filter(item => item.kind === "service_periodic_report");
+    expect(reports).toHaveLength(3);
+    expect(reports.map(item => item.status)).toEqual(["unconfirmed", "unconfirmed", "unconfirmed"]);
+    expect(reports.map(item => item.dueDate)).toEqual(["2026-05-29", "2026-07-02", "2026-07-29"]);
+    expect(result.counters.overdueServiceReports).toBe(0);
+    const withFirstAccepted = buildServiceDocumentCoverage({
+      entityType: "recurring_service", id: 2040001, name: "Staffing Consalud", clientName: "Consalud",
+      status: "activo", serviceType: "staffing", cutoffAt: "2026-10-01", documents: [], controls: [],
+      scheduledReports: [
+        { id: 1, monthNumber: 1, dueDate: "2026-05-29" },
+        { id: 2, monthNumber: 2, dueDate: "2026-07-02" },
+        { id: 3, monthNumber: 3, dueDate: "2026-07-29" },
+      ],
+      reports: [{ id: 11, workPlanItemId: 1, periodStart: "2026-04-27", periodEnd: "2026-05-26", dueDate: "2026-05-29", status: "accepted", acceptedAt: "2026-06-01" }],
+    });
+    expect(withFirstAccepted.requirements.filter(item => item.kind === "service_periodic_report").map(item => item.status)).toEqual(["compliant", "unconfirmed", "unconfirmed"]);
+  });
+
   it("excluye no aplicables y por confirmar del denominador", () => {
     const result = buildServiceDocumentCoverage({
       entityType: "recurring_service",

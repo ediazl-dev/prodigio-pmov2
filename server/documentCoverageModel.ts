@@ -128,7 +128,8 @@ export type ServiceCoverageInput = {
   cutoffAt: string;
   documents: Array<{ id: number; docType: "propuesta_tecnica" | "pl" | "sow" | "contrato" | "otro"; fileName: string; fileUrl?: string | null; uploadedAt?: Date | string | null }>;
   controls: Array<{ documentId: number; validationStatus: "pending" | "valid" | "expired" | "rejected"; validUntil?: string | null; validatedAt?: Date | string | null }>;
-  reports: Array<{ id: number; periodStart: string; periodEnd: string; dueDate: string; status: "pending" | "delivered" | "accepted" | "rejected" | "waived"; deliveredAt?: Date | string | null; acceptedAt?: Date | string | null; evidenceDocumentId?: number | null; updatedAt?: Date | string | null }>;
+  reports: Array<{ id: number; workPlanItemId?: number | null; periodStart: string; periodEnd: string; dueDate: string; status: "pending" | "delivered" | "accepted" | "rejected" | "waived"; deliveredAt?: Date | string | null; acceptedAt?: Date | string | null; evidenceDocumentId?: number | null; updatedAt?: Date | string | null }>;
+  scheduledReports?: Array<{ id: number; monthNumber: number | null; dueDate: string | null }>;
 };
 
 function iso(value: Date | string | null | undefined): string | null {
@@ -323,7 +324,8 @@ function serviceDocumentRequirement(input: ServiceCoverageInput, kind: DocumentR
 
 export function buildServiceDocumentCoverage(input: ServiceCoverageInput): DocumentCoverageEntity {
   const lifecycle = resolveDocumentLifecycle(input.status);
-  const policy = recurringServiceDocumentPolicy({ lifecycle: lifecycle.lifecycle, serviceType: input.serviceType, hasReportSchedule: input.reports.length > 0 });
+  const scheduledStaffing = input.serviceType === "staffing" ? (input.scheduledReports ?? []).filter(item => item.dueDate) : [];
+  const policy = recurringServiceDocumentPolicy({ lifecycle: lifecycle.lifecycle, serviceType: input.serviceType, hasReportSchedule: input.reports.length > 0 || scheduledStaffing.length > 0 });
   const documentTypes: Partial<Record<DocumentRequirementKind, ServiceCoverageInput["documents"][number]["docType"]>> = {
     service_contract: "contrato",
     service_sow: "sow",
@@ -332,13 +334,17 @@ export function buildServiceDocumentCoverage(input: ServiceCoverageInput): Docum
   };
   const requirements: DocumentRequirement[] = policy.filter(rule => rule.kind !== "service_periodic_report").map(rule => serviceDocumentRequirement(input, rule.kind, rule.label, rule.applicability, documentTypes[rule.kind]!, rule.rationale, lifecycle.lifecycle));
   const reportRule = policy.find(rule => rule.kind === "service_periodic_report")!;
-  if (!input.reports.length) {
+  if (!input.reports.length && !scheduledStaffing.length) {
     requirements.push(requirement({ id: `service:${input.id}:reports`, kind: reportRule.kind, label: reportRule.label, applicability: reportRule.applicability, status: "unconfirmed", rationale: reportRule.rationale, detail: "No existe un calendario persistido; no se inventan períodos, entregas ni vencimientos.", dueDate: null, evidence: [] }));
   } else {
     for (const report of input.reports) {
       const isCompliant = report.status === "accepted" || report.status === "waived";
-      const baseStatus: DocumentCoverageStatus = isCompliant ? "compliant" : report.status === "delivered" ? "pending_validation" : past(report.dueDate, input.cutoffAt) ? "overdue" : "missing";
-      requirements.push(requirement({ id: `service:${input.id}:report:${report.id}`, kind: reportRule.kind, label: `Reporte ${report.periodStart} a ${report.periodEnd}`, applicability: "required", status: historicalStatus(lifecycle.lifecycle, baseStatus), rationale: reportRule.rationale, detail: report.status === "waived" ? "Período eximido mediante registro explícito." : report.status === "accepted" ? "Reporte aceptado." : report.status === "delivered" ? "Reporte entregado y pendiente de aceptación." : report.status === "rejected" ? "Reporte rechazado; requiere corrección." : "Reporte aún no entregado.", dueDate: report.dueDate, evidence: report.evidenceDocumentId ? [evidence(`service-report:${report.id}`, "Evidencia de reporte", "recurring_service_report_evidence", report.acceptedAt ?? report.deliveredAt ?? report.updatedAt, null, report.status)] : [] }));
+      const pendingStaffing = input.serviceType === "staffing" && report.status === "pending" && !report.deliveredAt;
+      const baseStatus: DocumentCoverageStatus = isCompliant ? "compliant" : report.status === "delivered" ? "pending_validation" : pendingStaffing ? "unconfirmed" : past(report.dueDate, input.cutoffAt) ? "overdue" : "missing";
+      requirements.push(requirement({ id: `service:${input.id}:report:${report.id}`, kind: reportRule.kind, label: `Reporte ${report.periodStart} a ${report.periodEnd}`, applicability: "required", status: historicalStatus(lifecycle.lifecycle, baseStatus), rationale: reportRule.rationale, detail: report.status === "waived" ? "Período eximido mediante registro explícito." : report.status === "accepted" ? "Reporte aceptado." : report.status === "delivered" ? "Reporte entregado y pendiente de aceptación." : report.status === "rejected" ? "Reporte rechazado; requiere corrección." : pendingStaffing ? "Entrega sin evidencia PMO; verificar sin inferir incumplimiento." : "Reporte aún no entregado.", dueDate: report.dueDate, evidence: report.evidenceDocumentId ? [evidence(`service-report:${report.id}`, "Evidencia de reporte", "recurring_service_report_evidence", report.acceptedAt ?? report.deliveredAt ?? report.updatedAt, null, report.status)] : [] }));
+    }
+    for (const report of scheduledStaffing.filter(item => !input.reports.some(row => row.workPlanItemId === item.id || row.dueDate === item.dueDate))) {
+      requirements.push(requirement({ id: `service:${input.id}:scheduled-report:${report.id}`, kind: reportRule.kind, label: `Reporte mensual · Mes ${report.monthNumber ?? "N/D"}`, applicability: reportRule.applicability, status: "unconfirmed", rationale: reportRule.rationale, detail: "Fecha programada en el plan contractual; entrega y aceptación sin evidencia en PMO. No implica incumplimiento acreditado.", dueDate: report.dueDate, evidence: [] }));
     }
   }
   return summarize({ entityType: "recurring_service", entityId: input.id, entityName: input.name, clientName: input.clientName, dealId: input.dealId ?? null, ownerName: input.ownerName ?? null, lifecycle: lifecycle.lifecycle, lifecycleDetail: lifecycle.detail, lifecycleLabel: lifecycle.label, lifecycleReason: lifecycle.reason, cutoffAt: input.cutoffAt }, requirements);

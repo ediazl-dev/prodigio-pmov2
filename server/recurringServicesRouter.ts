@@ -9,7 +9,7 @@ import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { calculateDeadlineDate, createAuditLog } from "./db";
 import { buildJsmProjectUrls, createJiraSpace, createJiraIssue, CreateIssueInput, listJsmServiceDesks, searchJiraIssues } from "./jiraClient";
-import { listRecurringServices, getRecurringServiceById, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, completeRecurringStageWithDocumentGate, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, replaceRecurringWorkPlan, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, setRecurringServiceJsmSyncPolicy, RecurringServiceJsmDbError } from "./recurringServicesDb";
+import { listRecurringServices, getRecurringServiceById, getRecurringServiceArchivedJsmLinks, createRecurringService, updateRecurringService, getRecurringServiceStages, getRecurringServiceStage, completeRecurringStage, completeRecurringStageWithDocumentGate, getBillingMonths, getActiveCorporateBillingItems, saveBillingMonths, updateBillingMonthStatus, updateBillingMonthJiraKey, getServiceDocuments, insertServiceDocument, deleteServiceDocument, getWorkPlanItems, insertWorkPlanItem, updateWorkPlanItem, deleteWorkPlanItem, bulkInsertWorkPlanItems, updateWorkPlanItemJiraKey, deleteAllWorkPlanItems, getSlaConfig, saveSlaConfig, replaceRecurringWorkPlan, getPenalties, getPenaltyById, insertPenalty, updatePenaltyEvidence, updatePenaltyJiraKey, updatePenaltyStatus, getDashboardKpisData, getRecurringDashboardV2Data, insertAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory, listActiveJsmIssueTypeMappings, saveRecurringJsmSnapshot, setRecurringServiceJsmSyncPolicy, RecurringServiceJsmDbError } from "./recurringServicesDb";
 import { nanoid } from "nanoid";
 import { recurringServiceTypeSchema } from "../shared/recurringServiceTypes";
 import { getExistingJsmLinkState, JsmExistingSpaceRunnerError, linkExistingJsmSpace, listExistingJsmSpaces, preflightExistingJsmSpace, revalidateExistingJsmSpace, unlinkExistingJsmSpace } from "./jsmExistingSpaceLinkRunner";
@@ -897,9 +897,9 @@ Responde en español con formato JSON:
         periodEnd.setUTCMonth(periodEnd.getUTCMonth() + month);
         periodEnd.setUTCDate(periodEnd.getUTCDate() - 1);
         const reportDue = await calculateDeadlineDate(periodEnd, contractTerms.reportDeliveryBusinessDays);
-        const approvalDue = await calculateDeadlineDate(reportDue, contractTerms.approvalWindowBusinessDays);
         reportDueDates.push(reportDue.toISOString().slice(0, 10));
-        approvalDueDates.push(approvalDue.toISOString().slice(0, 10));
+        // La ventana de aceptación corre desde la entrega real; sin esa fecha no hay vencimiento calculable.
+        approvalDueDates.push(null);
       }
       const staffingPlan = buildStaffingContractPlan({
         durationMonths: svc.durationMonths,
@@ -1597,7 +1597,10 @@ Responde en JSON con este formato:
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const workItems = await getWorkPlanItems(input.serviceId);
     const billing = await getBillingMonths(input.serviceId);
-    const mappings = await listActiveJsmIssueTypeMappings(input.serviceId);
+    const [mappings, historicalLinkedItems] = await Promise.all([
+      listActiveJsmIssueTypeMappings(input.serviceId),
+      getRecurringServiceArchivedJsmLinks(input.serviceId),
+    ]);
     const contractPolicy = getRecurringServiceContractPolicy(svc.serviceType);
     const workPlanApplicable = svc.jsmWorkPlanSyncMode === "create_in_linked_space";
     const billingApplicable = svc.jsmBillingSyncMode === "create_in_linked_space";
@@ -1666,6 +1669,7 @@ Responde en JSON con este formato:
       syncedBilling,
       unsyncedWorkItems,
       unsyncedBilling,
+      historicalLinkedItems,
       jsmProjectKey: svc.jsmProjectKey,
       jsmPortalUrl: svc.jsmPortalUrl,
       readiness: calculateJsmSetupReadiness({

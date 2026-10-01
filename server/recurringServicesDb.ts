@@ -3,7 +3,7 @@
  * Follows same patterns as server/db.ts — returns raw Drizzle rows.
  */
 import { eq, and, desc, asc } from "drizzle-orm";
-import { recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData, documentGateSnapshots } from "../drizzle/schema";
+import { auditLogs, recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData, documentGateSnapshots } from "../drizzle/schema";
 import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncCategoryMode, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
 
@@ -26,6 +26,29 @@ export async function getRecurringServiceById(id: number) {
   if (!db) return null;
   const [row] = await db.select().from(recurringServices).where(eq(recurringServices.id, id));
   return row ?? null;
+}
+
+/** Enlaces históricos del saneamiento Staffing, sólo para consulta; nunca cuentan para el gate de sync. */
+export async function getRecurringServiceArchivedJsmLinks(serviceId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const [record] = await db.select({ details: auditLogs.details })
+    .from(auditLogs)
+    .where(and(
+      eq(auditLogs.entity, "recurring_service"),
+      eq(auditLogs.entityId, String(serviceId)),
+      eq(auditLogs.action, "remediate_staffing_4687_configuration"),
+    ))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .limit(1);
+  const details = record?.details as { archivedLinkedItems?: unknown } | null;
+  if (!Array.isArray(details?.archivedLinkedItems)) return [];
+  return details.archivedLinkedItems.flatMap((item: unknown) => {
+    if (!item || typeof item !== "object") return [];
+    const value = item as Record<string, unknown>;
+    if (typeof value.key !== "string" || !/^[A-Z][A-Z0-9]+-\d+$/.test(value.key)) return [];
+    return [{ key: value.key, title: String(value.title ?? "Registro histórico"), type: String(value.type ?? "tarea_programada"), month: Number(value.month) || null }];
+  });
 }
 
 export async function createRecurringService(data: InsertRecurringService) {
