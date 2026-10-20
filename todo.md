@@ -870,5 +870,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Cierre administrativo y duplicado Staffing Deal 4687 — 2026-10-20
 - [x] C0: Respaldar ficha, etapas, cuotas, plan, evidencias y cuatro hitos Jira; validar original M01 CONSALOP01-23 frente a duplicado posterior -20.
 - [x] C1: Vincular las tres cuotas a -23/-21/-22 y cerrar administrativamente Ejecución/Cierre en una transacción auditada; preservar importes, fechas, facturas, reportes, documentos y Jira externo.
-- [ ] C2: Mostrar naturaleza administrativa y motivo de cierre sin afirmar aceptación o factura; mantener N/D operacional en la pantalla de Cierre.
-- [ ] C3: Certificar deduplicación, lifecycle cerrado, idempotencia, tests, build, deuda TS, integridad y checkpoint final.
+- [x] C2: Mostrar naturaleza administrativa y motivo de cierre sin afirmar aceptación o factura; mantener N/D operacional en la pantalla de Cierre.
+- [x] C3: Certificar 1.142 pruebas aprobadas, build, deuda TS de cinco errores heredados, deduplicación, lifecycle cerrado, idempotencia, integridad y preview autenticada; guardar versión final mediante checkpoint WebDev.

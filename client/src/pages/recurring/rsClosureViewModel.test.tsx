@@ -1,0 +1,11 @@
+import {describe,it,expect} from "vitest";
+import {readFileSync} from "node:fs";
+import {buildRecurringClosurePresentation} from "./rsClosureViewModel";
+const summary={totalItems:3,unknownItems:3,billedItems:0,billedByCurrency:[]};
+describe("presentación cierre recurrente",()=>{
+ it("mantiene N/D en las tres cuotas sin declarar cero facturado",()=>{const p=buildRecurringClosurePresentation({closureMode:"administrative",reason:"Servicio finalizado",remainingEvidence:["Facturas por verificar"]},{jiraAvailable:true,summary});expect(p.billingLabel).toBe("Facturación Jira: N/D · 3 cuota(s) por verificar");expect(p.title).toContain("Cierre administrativo");expect(p.disclaimer).toContain("no acredita");expect(p.remainingEvidence).toEqual(["Facturas por verificar"]);});
+ it("no convierte ausencia de consulta en factura cero",()=>{expect(buildRecurringClosurePresentation(null,undefined).billingLabel).toContain("N/D");expect(buildRecurringClosurePresentation(null,{jiraAvailable:false,summary}).billingLabel).toContain("N/D");});
+ it("separa monedas y conserva estados desconocidos",()=>{const p=buildRecurringClosurePresentation(null,{jiraAvailable:true,summary:{...summary,unknownItems:1,billedItems:2,billedByCurrency:[{currency:"UF",amount:160},{currency:"USD",amount:100}]}});expect(p.billingLabel).toContain("UF 160 · USD 100");expect(p.billingLabel).toContain("1 cuota(s) N/D");expect(p.billingLabel).not.toContain("260");});
+ it("conserva el cierre formal preexistente sin inventar motivo",()=>{const p=buildRecurringClosurePresentation(null,{jiraAvailable:true,summary:{...summary,unknownItems:0,billedItems:3,billedByCurrency:[{currency:"UF",amount:480}]}});expect(p.isAdministrative).toBe(false);expect(p.billingLabel).toBe("Facturado según Jira: UF 480");expect(p.reason).toBeNull();});
+ it("la pantalla consume Jira y ya no suma facturación legacy para el cierre",()=>{const source=readFileSync('client/src/pages/recurring/RSClosureStage.tsx','utf8');expect(source).toContain('trpc.recurringServices.jiraBillingEvidence.useQuery');expect(source).toContain('closurePresentation.billingLabel');expect(source).toContain('closurePresentation.isAdministrative');expect(source).not.toContain('metrics?.totalBilled');});
+});

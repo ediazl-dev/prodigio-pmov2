@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation, useParams } from "wouter";
 import { Input } from "@/components/ui/input";
+import { buildRecurringClosurePresentation } from "./rsClosureViewModel";
 
 const C = {
   navy: "#0B1A2E", navy2: "#132B4A", accent: "#3B8EE8",
@@ -29,11 +30,13 @@ export default function RSClosureStage() {
   const { data: svcData } = trpc.recurringServices.getById.useQuery({ id });
   const { data: stagesData } = trpc.recurringServices.getStages.useQuery({ serviceId: id });
   const { data: dashboard } = trpc.recurringServices.getExecutionDashboard.useQuery({ serviceId: id });
+  const { data: jiraBilling } = trpc.recurringServices.jiraBillingEvidence.useQuery({ serviceId: id });
 
   const stage = stagesData?.find((s: any) => s.stageId === "cierre");
   const isActive = stage?.status === "in_progress";
   const isCompleted = stage?.status === "completed";
   const svc = svcData?.service;
+  const closurePresentation = buildRecurringClosurePresentation(stage?.data, jiraBilling);
 
   const [showPenaltyDialog, setShowPenaltyDialog] = useState(false);
   const [penalty, setPenalty] = useState({ reason: "", description: "", amount: 0, monthNumber: 1 });
@@ -83,7 +86,7 @@ export default function RSClosureStage() {
           </div>
           {isCompleted && (
             <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, padding: "4px 12px", borderRadius: 10, background: "#DCFCE7", color: "#166534" }}>
-              COMPLETADA
+              {closurePresentation.isAdministrative ? "CERRADA ADMINISTRATIVAMENTE" : "COMPLETADA"}
             </span>
           )}
         </div>
@@ -97,7 +100,7 @@ export default function RSClosureStage() {
             <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.textMuted }}>Duración</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.textPrimary }}>{svc.durationMonths} meses</div>
             <div style={{ fontSize: 11, color: C.textSecondary }}>
-              {svc.formalStartDate ? new Date(svc.formalStartDate).toLocaleDateString("es-CL") : "N/A"} — {svc.endDate ? new Date(svc.endDate).toLocaleDateString("es-CL") : "N/A"}
+              {svc.formalStartDate ? new Date(svc.formalStartDate).toLocaleDateString("es-CL", { timeZone: "UTC" }) : "N/D"} — {svc.endDate ? new Date(svc.endDate).toLocaleDateString("es-CL", { timeZone: "UTC" }) : "N/D"}
             </div>
           </div>
           <div style={{ padding: "12px 16px", borderRadius: 8, background: "#F8FAFC" }}>
@@ -106,11 +109,11 @@ export default function RSClosureStage() {
               {svc.currency} {svc.totalContractAmount ? parseFloat(svc.totalContractAmount).toLocaleString() : "—"}
             </div>
             <div style={{ fontSize: 11, color: C.textSecondary }}>
-              Facturado: {svc.currency} {metrics?.totalBilled?.toLocaleString() ?? "0"}
+              {closurePresentation.billingLabel}
             </div>
           </div>
           <div style={{ padding: "12px 16px", borderRadius: 8, background: "#F8FAFC" }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.textMuted }}>Avance Tareas</div>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.textMuted }}>Controles registrados en PMO</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.textPrimary }}>
               {metrics?.completionRate ?? 0}%
             </div>
@@ -184,10 +187,15 @@ export default function RSClosureStage() {
           textAlign: "center",
         }}>
           <CheckCircle2 size={32} color={C.green} style={{ margin: "0 auto 8px" }} />
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#166534" }}>Servicio Cerrado</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#166534" }}>{closurePresentation.title}</h3>
           <p style={{ fontSize: 12, color: "#15803D", marginTop: 4 }}>
-            Este servicio ha sido cerrado formalmente el {stage?.completedAt ? new Date(stage.completedAt).toLocaleDateString("es-CL") : "—"}
+            Este servicio ha sido cerrado {closurePresentation.closureVerb} el {stage?.completedAt ? new Date(stage.completedAt).toLocaleDateString("es-CL") : "—"}
           </p>
+          {closurePresentation.isAdministrative && <div style={{ textAlign: "left", marginTop: 16, color: "#166534", fontSize: 12, lineHeight: 1.6 }}>
+            {closurePresentation.reason && <p><b>Motivo:</b> {closurePresentation.reason}</p>}
+            {closurePresentation.disclaimer && <p style={{ marginTop: 8 }}>{closurePresentation.disclaimer}</p>}
+            {closurePresentation.remainingEvidence.length > 0 && <><p style={{ marginTop: 8 }}><b>Evidencia pendiente independiente del cierre:</b></p><ul style={{ paddingLeft: 20 }}>{closurePresentation.remainingEvidence.map(item => <li key={item}>{item}</li>)}</ul></>}
+          </div>}
         </div>
       )}
 
