@@ -860,3 +860,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] V4: Invalidar el análisis IA previo, refrescar panel Jira y corregir encabezado móvil.
 - [x] V5: Certificar 1.118 pruebas deterministas, build, cinco errores TS heredados, respaldo, integridad y lectura real.
 - [x] V6: Registrar como dependencia externa la acreditación por Finanzas/Jira del estado de emisión por hito 4687; mantener N/D y no borrar candidatos duplicados automáticamente mientras falte evidencia.
+
+## Actualización de hitos Consalud Apigee Deal 4529 — 2026-10-20
+- [x] A0: Respaldar selectivamente proyecto 180003, fuente ejecutiva, hitos, facturación y actas; validar Jira GET-only y checksum.
+- [x] A1: Sincronizar H0–H3 por clave Jira, preservar IDs M01–M03, añadir M00, actualizar títulos/pesos observados/fechas/estado y auditar; sin fechas contractuales, facturas ni actas inventadas.
+- [ ] A2: Corregir tabla de V2: fechas separadas, estado Jira visible, título neutral, importes Jira referenciales y frescura de observaciones.
+- [ ] A3: Certificar tests de plan puro e interfaz, build, TS heredado, preview, idempotencia, checksum, refs y checkpoint final.
