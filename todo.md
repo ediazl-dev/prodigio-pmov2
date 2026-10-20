@@ -866,3 +866,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] A1: Sincronizar H0–H3 por clave Jira, preservar IDs M01–M03, añadir M00, actualizar títulos/pesos observados/fechas/estado y auditar; sin fechas contractuales, facturas ni actas inventadas.
 - [x] A2: Corregir tabla de V2: fechas separadas, estado Jira visible, título neutral, importes Jira referenciales y frescura de observaciones.
 - [x] A3: Certificar 1.132 pruebas deterministas, build, cinco errores TS heredados, preview, idempotencia, checksum y refs; entrega en checkpoint final WebDev.
+
+## Cierre administrativo y duplicado Staffing Deal 4687 — 2026-10-20
+- [x] C0: Respaldar ficha, etapas, cuotas, plan, evidencias y cuatro hitos Jira; validar original M01 CONSALOP01-23 frente a duplicado posterior -20.
+- [x] C1: Vincular las tres cuotas a -23/-21/-22 y cerrar administrativamente Ejecución/Cierre en una transacción auditada; preservar importes, fechas, facturas, reportes, documentos y Jira externo.
+- [ ] C2: Mostrar naturaleza administrativa y motivo de cierre sin afirmar aceptación o factura; mantener N/D operacional en la pantalla de Cierre.
+- [ ] C3: Certificar deduplicación, lifecycle cerrado, idempotencia, tests, build, deuda TS, integridad y checkpoint final.

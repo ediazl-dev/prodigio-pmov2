@@ -1,0 +1,21 @@
+type Service = { id:number; dealId:string|null; serviceType:string; status:string; currentStage:string; endDate:string|null; currency:string|null; totalContractAmount:string|null; jsmProjectKey:string|null; jsmWorkPlanSyncMode:string; jsmBillingSyncMode:string };
+type Billing = { id:number; monthNumber:number; amount:string; currency:string|null; jiraIssueKey:string|null };
+type Stage = { id:number; stageId:string; status:string; data:unknown };
+type JiraIssue = { key:string; id:string; fields:Record<string,any> };
+export function buildStaffing4687ClosurePlan(input:{service:Service;billing:Billing[];stages:Stage[];issues:JiraIssue[];closedAt:string;actorId:number}) {
+ const {service,billing,stages,issues}=input;
+ if(service.id!==2040001 || service.dealId!=="4687" || service.serviceType!=="staffing" || service.jsmProjectKey!=="CONSALOP01" || service.endDate!=="2026-07-27" || service.currency!=="UF" || service.totalContractAmount!=="480.00" || service.jsmWorkPlanSyncMode!=="external_reference" || service.jsmBillingSyncMode!=="external_reference") throw new Error("Identidad o contrato del servicio cambió.");
+ const bindings=[{monthNumber:1,jiraIssueKey:"CONSALOP01-23"},{monthNumber:2,jiraIssueKey:"CONSALOP01-21"},{monthNumber:3,jiraIssueKey:"CONSALOP01-22"}];
+ if(billing.length!==3 || new Set(billing.map(x=>x.monthNumber)).size!==3 || billing.some(x=>x.amount!=="160.00" || x.currency!=="UF" || !bindings.some(b=>b.monthNumber===x.monthNumber))) throw new Error("Cuotas contractuales cambiaron.");
+ const original=issues.find(x=>x.key==="CONSALOP01-23"), duplicate=issues.find(x=>x.key==="CONSALOP01-20");
+ if(!original || !duplicate || original.fields.summary!==duplicate.fields.summary || new Date(original.fields.created).getTime()>=new Date(duplicate.fields.created).getTime() || !original.fields.issuelinks?.length) throw new Error("No se puede acreditar el candidato original.");
+ if(bindings.some(binding=>!issues.some(issue=>issue.key===binding.jiraIssueKey && /Deal\s*4687/i.test(issue.fields.summary) && new RegExp(`Mes[_ ]?${binding.monthNumber}(?!\\d)`,"i").test(issue.fields.summary)))) throw new Error("Hito mensual ausente o ajeno al servicio.");
+ const execution=stages.find(x=>x.stageId==="ejecucion"), closure=stages.find(x=>x.stageId==="cierre");
+ const closureData=closure?.data as {closureMode?:string}|null;
+ const alreadyClosed=service.status==="completado" && service.currentStage==="cierre" && execution?.status==="completed" && closure?.status==="completed" && closureData?.closureMode==="administrative" && bindings.every(b=>billing.find(x=>x.monthNumber===b.monthNumber)?.jiraIssueKey===b.jiraIssueKey);
+ if(alreadyClosed) return {alreadyClosed:true,bindings,stageUpdates:[],serviceUpdate:{status:"completado" as const,currentStage:"cierre" as const},closureData};
+ if(service.status!=="activo" || service.currentStage!=="ejecucion" || execution?.status!=="in_progress" || closure?.status!=="locked" || stages.filter(x=>["inicializacion","plan_trabajo","jira_setup"].includes(x.stageId)).some(x=>x.status!=="completed")) throw new Error("Lifecycle cambió: no aplicar un cierre parcial ni inventar etapas previas.");
+ const reason="Cierre administrativo por instrucción del usuario del 20-10-2026. Servicio Staffing Deal 4687 finalizado; término contractual registrado 27-07-2026. No acredita facturación, entrega/aceptación de reportes ni cumplimiento operativo.";
+ const data={closureMode:"administrative",reason,closedAt:input.closedAt,closedBy:input.actorId,contractEndDate:service.endDate,operationalEvidenceConfirmed:false,invoiceEvidenceConfirmed:false,canonicalBillingBindings:bindings,duplicateResolution:{canonicalKey:original.key,excludedCandidateKey:duplicate.key,externalIssueDeleted:false},remainingEvidence:["Emisión de las tres cuotas: Estado de Facturación Jira N/D al cierre","Worklogs, reportes, aceptación y NPS sin nueva evidencia aportada por esta operación"],slaApplicability:"not_applicable_staffing"};
+ return {alreadyClosed:false,bindings,stageUpdates:[{id:execution.id,data:{...((execution.data&&typeof execution.data==="object")?execution.data:{}),administrativeTermination:data}},{id:closure.id,data:{...((closure.data&&typeof closure.data==="object")?closure.data:{}),...data}}],serviceUpdate:{status:"completado" as const,currentStage:"cierre" as const},closureData:data};
+}
