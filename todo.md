@@ -864,5 +864,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Actualización de hitos Consalud Apigee Deal 4529 — 2026-10-20
 - [x] A0: Respaldar selectivamente proyecto 180003, fuente ejecutiva, hitos, facturación y actas; validar Jira GET-only y checksum.
 - [x] A1: Sincronizar H0–H3 por clave Jira, preservar IDs M01–M03, añadir M00, actualizar títulos/pesos observados/fechas/estado y auditar; sin fechas contractuales, facturas ni actas inventadas.
-- [ ] A2: Corregir tabla de V2: fechas separadas, estado Jira visible, título neutral, importes Jira referenciales y frescura de observaciones.
-- [ ] A3: Certificar tests de plan puro e interfaz, build, TS heredado, preview, idempotencia, checksum, refs y checkpoint final.
+- [x] A2: Corregir tabla de V2: fechas separadas, estado Jira visible, título neutral, importes Jira referenciales y frescura de observaciones.
+- [x] A3: Certificar 1.132 pruebas deterministas, build, cinco errores TS heredados, preview, idempotencia, checksum y refs; entrega en checkpoint final WebDev.

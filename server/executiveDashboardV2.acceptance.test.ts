@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 const component = readFileSync(new URL("../client/src/pages/stages/ExecutiveDashboardV2.tsx", import.meta.url), "utf8");
 const financialAxis = readFileSync(new URL("../client/src/pages/stages/ExecutiveFinancialAxis.tsx", import.meta.url), "utf8");
-const dashboardSource = `${component}\n${financialAxis}`;
+const milestoneEvidenceTable = readFileSync(new URL("../client/src/pages/stages/ExecutiveMilestoneEvidenceTable.tsx", import.meta.url), "utf8");
+const dashboardSource = `${component}\n${financialAxis}\n${milestoneEvidenceTable}`;
 const requirementEmptyState = readFileSync(new URL("../client/src/pages/stages/ExecutiveRequirementEmptyState.tsx", import.meta.url), "utf8");
 const router = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../client/src/index.css", import.meta.url), "utf8");
@@ -46,7 +47,11 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     [
       "Eje primario — cumplimiento cardinal de hitos",
       "Línea de tiempo contractual — baseline vs. real",
-      "Hitos vencidos sin aceptación y evidencia por hito",
+      "Calendario y evidencia por hito",
+      "Fecha base contractual",
+      "Programada Jira",
+      "Cierre Jira",
+      "Última observación PMO:",
       "Análisis financiero histórico — planilla consolidada",
       "Facturación operacional Jira",
       "Ciclo financiero histórico",
@@ -75,6 +80,8 @@ describe("Dashboard Ejecutivo v2 — matriz de aceptación verificable", () => {
     ].forEach((label) => expect(dashboardSource).toContain(label));
 
     expect(component).not.toContain('>N/A<');
+    expect(component).not.toContain("Hitos vencidos sin aceptación y evidencia por hito");
+    expect(component).not.toContain("La fecha planificada de Jira es el compromiso contractual");
   });
 
   it("presenta la ausencia de exigencias como brecha de gobierno cuando el estado es crítico", () => {
