@@ -39,10 +39,18 @@ import RSWorkPlanStage from "./pages/recurring/RSWorkPlanStage";
 import RSJsmSetupStage from "./pages/recurring/RSJsmSetupStage";
 import RSExecutionStage from "./pages/recurring/RSExecutionStage";
 import RSClosureStage from "./pages/recurring/RSClosureStage";
+import { withRecurringServiceLifecycle } from "./pages/recurring/RecurringServiceLifecycleBoundary";
 import InviteAccept from "./pages/InviteAccept";
 import MyProfile from "./pages/MyProfile";
 import { useAuth } from "./_core/hooks/useAuth";
 import { ReactNode } from "react";
+
+const RecurringDetailRoute = withRecurringServiceLifecycle(RecurringServiceDetail);
+const RecurringInitRoute = withRecurringServiceLifecycle(RSInitStage);
+const RecurringPlanRoute = withRecurringServiceLifecycle(RSWorkPlanStage);
+const RecurringJsmRoute = withRecurringServiceLifecycle(RSJsmSetupStage);
+const RecurringExecutionRoute = withRecurringServiceLifecycle(RSExecutionStage);
+const RecurringClosureRoute = withRecurringServiceLifecycle(RSClosureStage);
 
 /** Guard component that restricts access to admin-only routes */
 function AdminGuard({ children }: { children: ReactNode }) {
@@ -111,12 +119,12 @@ function Router() {
             <Route path="/admin/financial-consolidated">{() => <Redirect to="/reports/finance" />}</Route>
             <Route path="/recurring-services" component={RecurringServicesList} />
             <Route path="/recurring-services/new" component={RecurringServiceCreate} />
-            <Route path="/recurring-services/:id" component={RecurringServiceDetail} />
-            <Route path="/recurring-services/:id/init" component={RSInitStage} />
-            <Route path="/recurring-services/:id/work-plan" component={RSWorkPlanStage} />
-            <Route path="/recurring-services/:id/jsm-setup" component={RSJsmSetupStage} />
-            <Route path="/recurring-services/:id/execution" component={RSExecutionStage} />
-            <Route path="/recurring-services/:id/closure" component={RSClosureStage} />
+            <Route path="/recurring-services/:id" component={RecurringDetailRoute} />
+            <Route path="/recurring-services/:id/init" component={RecurringInitRoute} />
+            <Route path="/recurring-services/:id/work-plan" component={RecurringPlanRoute} />
+            <Route path="/recurring-services/:id/jsm-setup" component={RecurringJsmRoute} />
+            <Route path="/recurring-services/:id/execution" component={RecurringExecutionRoute} />
+            <Route path="/recurring-services/:id/closure" component={RecurringClosureRoute} />
             <Route path="/admin/settings">{() => <AdminGuard><AdminSettings /></AdminGuard>}</Route>
             <Route path="/profile" component={MyProfile} />
             <Route path="/404" component={NotFound} />

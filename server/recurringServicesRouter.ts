@@ -26,6 +26,7 @@ import {
   listRecurringServicesJsmRefreshHistory,
   runProductionRecurringServicesJsmRefresh,
 } from "./recurringServicesJsmRefreshRunner";
+import { assertRecurringChildWritable, assertRecurringServiceWritable } from "./recurringServiceWriteGuard";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -316,6 +317,7 @@ export const recurringServicesRouter = router({
   refreshJsmSnapshot: adminOrPmo
     .input(z.object({ serviceId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const service = await getRecurringServiceForJsmRefresh(input.serviceId);
       if (!service) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
@@ -333,6 +335,7 @@ export const recurringServicesRouter = router({
   refreshJsmSnapshots: adminOrPmo
     .input(z.object({ serviceIds: z.array(z.number().int().positive()).max(100).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
+      if (input?.serviceIds) await Promise.all(input.serviceIds.map(serviceId => assertRecurringServiceWritable(serviceId)));
       return runProductionRecurringServicesJsmRefresh({
         trigger: "manual",
         actor: { id: ctx.user.id, name: ctx.user.name ?? "Unknown", role: ctx.user.role },
@@ -427,6 +430,7 @@ export const recurringServicesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.id);
       const svc = await getRecurringServiceById(input.id);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       if (input.data.currency && input.data.currency !== svc.currency) {
@@ -462,6 +466,7 @@ export const recurringServicesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.id);
       const svc = await getRecurringServiceById(input.id);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       await updateRecurringService(input.id, { status: input.status });
@@ -495,6 +500,7 @@ export const recurringServicesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       if (!svc.currency || !["UF", "USD", "CLP"].includes(svc.currency)) {
@@ -531,6 +537,7 @@ export const recurringServicesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       const buffer = Buffer.from(input.fileBase64, "base64");
@@ -549,6 +556,7 @@ export const recurringServicesRouter = router({
     }),
 
   deleteDocument: adminOrPmo.input(z.object({ serviceId: z.number(), documentId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringChildWritable("document", input.documentId, input.serviceId);
     await deleteServiceDocument(input.documentId);
     await audit(ctx, "delete_document", "recurring_service", input.serviceId, null, { documentId: input.documentId });
   }),
@@ -561,6 +569,7 @@ export const recurringServicesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -633,6 +642,7 @@ export const recurringServicesRouter = router({
     }),
 
   generatePipedriveAiSummary: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     if (!svc.dealId)
@@ -755,6 +765,7 @@ Responde en español con formato JSON:
   }),
 
   confirmInitStep1: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const stage = await getRecurringServiceStage(input.serviceId, "inicializacion");
@@ -777,6 +788,7 @@ Responde en español con formato JSON:
   }),
 
   closeInitializationStage: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const stage = await getRecurringServiceStage(input.serviceId, "inicializacion");
@@ -847,6 +859,7 @@ Responde en español con formato JSON:
   // ═══════════════════════════════════════════════════════════════════════════
 
   setFormalStartDate: adminOrPmo.input(z.object({ serviceId: z.number(), formalStartDate: z.string() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     // Calculate end date based on duration
@@ -861,6 +874,7 @@ Responde en español con formato JSON:
   }),
 
   generateWorkPlan: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const docs = await getServiceDocuments(input.serviceId);
@@ -1085,6 +1099,11 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.item.id !== undefined) {
+        await assertRecurringChildWritable("work_plan", input.item.id, input.serviceId);
+      } else {
+        await assertRecurringServiceWritable(input.serviceId);
+      }
       const service = await getRecurringServiceById(input.serviceId);
       if (!service) throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
       if (service.serviceType === "staffing" && ["facturacion", "sla_definition", "coverage_definition"].includes(input.item.itemType)) {
@@ -1116,6 +1135,7 @@ Responde en JSON con este formato:
     }),
 
   deleteWorkPlanItem: adminOrPmo.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    await assertRecurringChildWritable("work_plan", input.id);
     await deleteWorkPlanItem(input.id);
   }),
 
@@ -1135,6 +1155,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const service = await getRecurringServiceById(input.serviceId);
       if (!service) throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
       if (service.serviceType === "staffing" && input.items.length > 0) {
@@ -1154,6 +1175,7 @@ Responde en JSON con este formato:
     }),
 
   closeWorkPlanStage: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const stage = await getRecurringServiceStage(input.serviceId, "plan_trabajo");
@@ -1190,6 +1212,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       await updateRecurringService(input.serviceId, {
@@ -1240,6 +1263,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const result = await preflightExistingJsmSpace({ ...input, actor });
@@ -1269,6 +1293,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const result = await linkExistingJsmSpace({ ...input, actor });
@@ -1299,6 +1324,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const result = await revalidateExistingJsmSpace({ ...input, actor });
@@ -1326,6 +1352,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const result = await unlinkExistingJsmSpace({ ...input, actor });
@@ -1370,6 +1397,7 @@ Responde en JSON con este formato:
       reason: z.string().trim().min(10).max(1000),
     }))
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const service = await getRecurringServiceById(input.serviceId);
       if (!service) throw new TRPCError({ code: "NOT_FOUND", message: "Servicio recurrente no encontrado" });
       const updated = await setRecurringServiceJsmSyncPolicy({
@@ -1400,6 +1428,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const mappings = await configureJsmIssueTypeMappings({
@@ -1430,6 +1459,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const result = await dryRunJsmSync({ ...input, actor });
@@ -1457,6 +1487,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const actor = { id: ctx.user.id, name: ctx.user.name ?? "Unknown" };
       try {
         const result = await confirmJsmSync({ ...input, actor });
@@ -1494,6 +1525,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringChildWritable(input.category === "work_plan" ? "work_plan" : "billing", input.entityId, input.serviceId);
       try {
         const result = await associateExistingJiraIssue(input);
         await audit(ctx, "jsm_existing_issue_associate", "recurring_service", input.serviceId, null, {
@@ -1522,6 +1554,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       if (svc.jsmPlatform !== "prodigio")
@@ -1574,7 +1607,8 @@ Responde en JSON con este formato:
       return result;
     }),
 
-  syncJsmTasks: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async () => {
+  syncJsmTasks: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     return Promise.reject(
       new TRPCError({
         code: "BAD_REQUEST",
@@ -1686,7 +1720,8 @@ Responde en JSON con este formato:
   }),
 
   // Re-sync: create only missing JIRA issues
-  resyncJsmTasks: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async () => {
+  resyncJsmTasks: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     return Promise.reject(
       new TRPCError({
         code: "BAD_REQUEST",
@@ -1705,6 +1740,7 @@ Responde en JSON con este formato:
   }),
 
   closeJiraSetupStage: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const stage = await getRecurringServiceStage(input.serviceId, "jira_setup");
@@ -2071,6 +2107,7 @@ Responde en JSON con este formato:
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -2407,6 +2444,7 @@ Responde en JSON.`;
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringServiceWritable(input.serviceId);
       const svc = await getRecurringServiceById(input.serviceId);
       if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
       const validatedEvidence = input.evidence
@@ -2451,6 +2489,7 @@ Responde en JSON.`;
       mimeType: z.string().min(1).max(150),
     }))
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringChildWritable("penalty", input.id, input.serviceId);
       const [svc, penalty] = await Promise.all([
         getRecurringServiceById(input.serviceId),
         getPenaltyById(input.id),
@@ -2488,6 +2527,7 @@ Responde en JSON.`;
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringChildWritable("penalty", input.id, input.serviceId);
       const penalty = await getPenaltyById(input.id);
       if (!penalty || penalty.serviceId !== input.serviceId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "La multa no pertenece a este servicio" });
@@ -2498,6 +2538,7 @@ Responde en JSON.`;
 
   // generateAiExecutiveSummary is now replaced by getOrRefreshAiAnalysis above
   generateAiExecutiveSummary: adminOrPmo.input(z.object({ serviceId: z.number() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     // Delegate to getOrRefreshAiAnalysis with forceRefresh=true
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
@@ -2625,6 +2666,7 @@ Responde en JSON.`;
   // ═══════════════════════════════════════════════════════════════════════════
 
   closeService: adminOrPmo.input(z.object({ serviceId: z.number(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+    await assertRecurringServiceWritable(input.serviceId);
     const svc = await getRecurringServiceById(input.serviceId);
     if (!svc) throw new TRPCError({ code: "NOT_FOUND" });
     const stage = await getRecurringServiceStage(input.serviceId, "cierre");
@@ -2652,6 +2694,7 @@ Responde en JSON.`;
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRecurringChildWritable("billing", input.id, input.serviceId);
       await updateBillingMonthStatus(input.id, input.status, input.invoiceNumber);
       await audit(ctx, "billing_status_change", "recurring_service", input.serviceId, null, { billingId: input.id, status: input.status });
     }),

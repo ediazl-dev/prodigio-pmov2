@@ -15,6 +15,7 @@
 
 import type { RouterOutputs } from "@/lib/trpc";
 import { formatRecurringMoney, type RecurringHealthKey } from "./recurringDashboardV2ViewModel";
+import { isRecurringServiceClosed } from "@shared/recurringServiceLifecycle";
 
 export type DashboardV2Data = RouterOutputs["recurringServices"]["dashboardV2"];
 export type MatrixRow = DashboardV2Data["matrix"][number];
@@ -182,6 +183,7 @@ export function buildActionQueue(matrix: MatrixRow[], options: BuildQueueOptions
   const items: ActionQueueItem[] = [];
 
   for (const row of matrix) {
+    if (isRecurringServiceClosed(row.status)) continue;
     const overdue = overdueBreakdown(row.financeByCurrency);
 
     row.healthSignals.forEach((signal, index) => {
@@ -511,6 +513,7 @@ export interface PortfolioRow {
   dealId: string | null;
   serviceTypeKey: string;
   stageKey: string;
+  lifecycleStatus?: string;
   health: RecurringHealthKey;
   overdue: OverdueBreakdown;
   contractedLabel: string;
@@ -541,6 +544,7 @@ export function buildPortfolioRows(matrix: MatrixRow[]): PortfolioRow[] {
       dealId: row.dealId,
       serviceTypeKey: row.serviceType,
       stageKey: row.currentStage,
+      lifecycleStatus: row.lifecycleStatus,
       health: row.health as RecurringHealthKey,
       overdue,
       contractedLabel: currencies.length

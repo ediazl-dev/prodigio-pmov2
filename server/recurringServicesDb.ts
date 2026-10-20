@@ -28,6 +28,52 @@ export async function getRecurringServiceById(id: number) {
   return row ?? null;
 }
 
+export type RecurringServiceChildResource = "document" | "work_plan" | "billing" | "penalty";
+
+/** Resolve ownership from the child row; callers must not trust a client serviceId. */
+export async function getRecurringServiceIdForChild(
+  resource: RecurringServiceChildResource,
+  childId: number,
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  switch (resource) {
+    case "document": {
+      const [row] = await db
+        .select({ serviceId: recurringServiceDocuments.serviceId })
+        .from(recurringServiceDocuments)
+        .where(eq(recurringServiceDocuments.id, childId))
+        .limit(1);
+      return row?.serviceId ?? null;
+    }
+    case "work_plan": {
+      const [row] = await db
+        .select({ serviceId: recurringServiceWorkPlan.serviceId })
+        .from(recurringServiceWorkPlan)
+        .where(eq(recurringServiceWorkPlan.id, childId))
+        .limit(1);
+      return row?.serviceId ?? null;
+    }
+    case "billing": {
+      const [row] = await db
+        .select({ serviceId: recurringServiceBillingMonths.serviceId })
+        .from(recurringServiceBillingMonths)
+        .where(eq(recurringServiceBillingMonths.id, childId))
+        .limit(1);
+      return row?.serviceId ?? null;
+    }
+    case "penalty": {
+      const [row] = await db
+        .select({ serviceId: recurringServicePenalties.serviceId })
+        .from(recurringServicePenalties)
+        .where(eq(recurringServicePenalties.id, childId))
+        .limit(1);
+      return row?.serviceId ?? null;
+    }
+  }
+}
+
 /** Enlaces históricos del saneamiento Staffing, sólo para consulta; nunca cuentan para el gate de sync. */
 export async function getRecurringServiceArchivedJsmLinks(serviceId: number) {
   const db = await getDb();

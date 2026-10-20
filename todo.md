@@ -872,3 +872,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] C1: Vincular las tres cuotas a -23/-21/-22 y cerrar administrativamente Ejecución/Cierre en una transacción auditada; preservar importes, fechas, facturas, reportes, documentos y Jira externo.
 - [x] C2: Mostrar naturaleza administrativa y motivo de cierre sin afirmar aceptación o factura; mantener N/D operacional en la pantalla de Cierre.
 - [x] C3: Certificar 1.142 pruebas aprobadas, build, deuda TS de cinco errores heredados, deduplicación, lifecycle cerrado, idempotencia, integridad y preview autenticada; guardar versión final mediante checkpoint WebDev.
+
+## Corrección de cierre efectivo — 2026-10-20 (base 50450c78)
+- [x] L0: Contrastar las tres capturas y preservar snapshot de datos del servicio cerrado; causa: cambio de estado sin guard de escritura ni exclusión de gestión activa.
+- [x] L1: Bloquear servidor para todos los roles, IDs de hijos, documentos globales y automatismos; mantener consultas y descargas.
+- [x] L2: Retirar servicios cerrados de colas/alertas/KPIs operativos actuales sin inventar cumplimiento ni eliminar historial.
+- [x] L3: Mostrar archivo sólo lectura en detalle y TODAS las rutas interiores; sin editar, registrar multa, subir/revisar documento, cambiar cuota, sincronizar o regenerar IA.
+- [x] L4: Probar rechazo real de mutaciones y URLs directas, activos sin regresiones y snapshot sin cambios; 1.163 pruebas aprobadas, build y cinco errores TS heredados, preview autenticada de Inicialización/Ejecución; guardar checkpoint final. La publicación productiva corresponde a la UI WebDev disponible.

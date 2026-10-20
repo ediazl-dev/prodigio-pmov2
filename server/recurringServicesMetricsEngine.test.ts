@@ -45,6 +45,27 @@ function baseInput(): RecurringServicesMetricsInput {
 }
 
 describe("calculateRecurringServicesMetrics", () => {
+  it.each(["completado", "cancelado"] as const)("%s conserva evidencia pero no genera gestión activa", status => {
+    const input = baseInput();
+    input.services[0] = { ...input.services[0], status, serviceType: "staffing", currency: "UF", totalContractAmount: "480", currentStage: "cierre" };
+    input.billingMonths = [1, 2, 3].map(monthNumber => ({ id: monthNumber, serviceId: 1, monthNumber, dueDate: "2026-06-01", amount: "160", currency: "UF", status: "pendiente" }));
+    input.workPlanItems = [{ id: 1, serviceId: 1, itemType: "informe_mensual", dueDate: "2026-06-01", status: "pendiente" }];
+    input.jiraBilling = { 1: { jiraAvailable: true, items: [1, 2, 3].map(monthNumber => ({ monthNumber, billingStatus: "unknown" })) } as any };
+    const before = JSON.stringify(input);
+    const result = calculateRecurringServicesMetrics(input);
+    const row = result.services[0];
+    expect(row.lifecycleStatus).toBe("closed");
+    expect(row.healthSignals).toEqual([]);
+    expect(row.reports.unconfirmed).toBe(1);
+    expect(row.finance.byCurrency.UF).toMatchObject({ contracted: 480, scheduled: 480 });
+    expect(row.sla.applicability).toBe("not_applicable");
+    expect(result.portfolio.totalServices).toBe(1);
+    expect(result.portfolio.activeServices).toBe(0);
+    expect(result.portfolio.reports.due).toBe(0);
+    expect(Object.values(result.portfolio.healthCounts).every(count => count === 0)).toBe(true);
+    expect(JSON.stringify(input)).toBe(before);
+  });
+
   it("señala fin contractual activo por separado de mora y SLA no aplicable", () => {
     const input = baseInput();
     input.services[0].serviceType = "staffing";

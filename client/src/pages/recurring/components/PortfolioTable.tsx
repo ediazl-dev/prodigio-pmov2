@@ -14,6 +14,7 @@ import {
 import React, { type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { RECURRING_SERVICE_TYPE_LABELS } from "@shared/recurringServiceTypes";
+import { isRecurringServiceClosed } from "@shared/recurringServiceLifecycle";
 import { RECURRING_HEALTH_UI, formatRecurringPercent } from "../recurringDashboardV2ViewModel";
 import type { PortfolioRow } from "../recurringDashboardV3ViewModel";
 
@@ -191,7 +192,10 @@ export function PortfolioTable(props: PortfolioTableProps) {
       ) : (
         <ul className="space-y-4 bg-slate-100/80 p-3 sm:p-4" aria-label="Servicios visibles">
           {props.rows.map((row, index) => {
-            const healthUi = RECURRING_HEALTH_UI[row.health];
+            const closed = row.lifecycleStatus === "closed" || isRecurringServiceClosed(row.lifecycleStatus);
+            const healthUi = closed
+              ? { label: "Cerrado · sólo consulta", tone: "#475569", surface: "#F8FAFC", border: "#CBD5E1" }
+              : RECURRING_HEALTH_UI[row.health];
             const hasOverdue = row.overdue.byCurrency.length > 0;
             const typeLabel =
               RECURRING_SERVICE_TYPE_LABELS[row.serviceTypeKey as keyof typeof RECURRING_SERVICE_TYPE_LABELS] ??
@@ -252,12 +256,15 @@ export function PortfolioTable(props: PortfolioTableProps) {
                         aria-label={`Abrir ${row.serviceName}`}
                         className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0F2F52] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#175CD3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#175CD3] focus-visible:ring-offset-2"
                       >
-                        Abrir servicio
+                        {closed ? "Consultar archivo" : "Abrir servicio"}
                         <ArrowRight size={15} />
                       </button>
                     </div>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {closed ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                      Servicio finalizado, fuera de la gestión activa. Monto contractual conservado: {row.contractedLabel}.
+                      Sólo consulta de historial, facturación registrada y documentos; sin tareas ni alertas operativas abiertas.
+                    </div> : <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                       <MetricPanel
                         icon={<CircleDollarSign size={16} />}
                         label="Facturación vencida"
@@ -316,9 +323,9 @@ export function PortfolioTable(props: PortfolioTableProps) {
                           Calidad de evidencia {row.qualityScore}/100
                         </p>
                       </MetricPanel>
-                    </div>
+                    </div>}
 
-                    <section
+                    {!closed && <section
                       aria-label={`Señales abiertas de ${row.serviceName}`}
                       className="mt-4 rounded-xl border p-3.5"
                       style={{ borderColor: healthUi.border, background: healthUi.surface }}
@@ -350,7 +357,7 @@ export function PortfolioTable(props: PortfolioTableProps) {
                           ))}
                         </ul>
                       )}
-                    </section>
+                    </section>}
                   </div>
                 </article>
               </li>

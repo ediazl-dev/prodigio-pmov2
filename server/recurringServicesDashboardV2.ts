@@ -17,6 +17,7 @@ import {
 } from "./recurringBillingReconciliation";
 import { buildRecurringManagementAnalytics } from "./recurringManagementDashboard";
 import type { JiraBillingEvidence } from "./jiraBillingEvidence";
+import { isRecurringServiceClosed } from "../shared/recurringServiceLifecycle";
 
 export type DashboardHealthFilter = "critical" | "attention" | "stable" | "no_data";
 
@@ -128,6 +129,10 @@ function numeric(value: string | number | null | undefined): number {
 
 function normalizedCurrency(value: string | null | undefined): string {
   return value?.trim().toUpperCase() || "N/D";
+}
+
+function isCurrentOperationalStatus(status: string): boolean {
+  return status === "activo" || status === "pausado";
 }
 
 function priorityCount(value: unknown, key: string): number | null {
@@ -444,6 +449,7 @@ function reportCellStatus(
 
 function deliverablesAnalytics(source: RecurringDashboardV2Source, cutOffDate: string) {
   const plannedReports = source.workPlanItems.filter(item => item.itemType === "informe_mensual");
+  const currentServiceIds = new Set(source.services.filter(service => isCurrentOperationalStatus(service.status)).map(service => service.id));
   const usedEvidence = new Set<number>();
   const rows = source.services.map(service => {
     const items = plannedReports.filter(item => item.serviceId === service.id);
@@ -491,13 +497,14 @@ function deliverablesAnalytics(source: RecurringDashboardV2Source, cutOffDate: s
   });
 
   const cells = rows.flatMap(row => row.cells);
-  const dueCells = cells.filter(cell => cell.dueDate !== null && cell.dueDate <= cutOffDate && cell.status !== "waived");
+  const currentCells = rows.filter(row => currentServiceIds.has(row.serviceId)).flatMap(row => row.cells);
+  const dueCells = currentCells.filter(cell => cell.dueDate !== null && cell.dueDate <= cutOffDate && cell.status !== "waived");
   const deliveredCells = dueCells.filter(cell => cell.status === "delivered" || cell.status === "accepted");
   const timedDeliveries = deliveredCells.filter(cell => cell.deliveryTiming !== "unknown");
   return {
     periods: distinctSorted(cells.map(cell => cell.period)),
     summary: {
-      planned: cells.filter(cell => cell.workPlanItemId !== null).length,
+      planned: currentCells.filter(cell => cell.workPlanItemId !== null).length,
       due: dueCells.length,
       deliveredWithEvidence: deliveredCells.length,
       accepted: dueCells.filter(cell => cell.status === "accepted").length,
@@ -562,7 +569,8 @@ function documentAnalytics(source: RecurringDashboardV2Source, cutOffDate: strin
       additionalDocuments: serviceDocuments.filter(document => !requiredTypes.includes(document.docType as typeof requiredTypes[number])).length,
     };
   });
-  const requiredDocuments = services.flatMap(service => service.documents);
+  const currentServiceIds = new Set(source.services.filter(service => isCurrentOperationalStatus(service.status)).map(service => service.id));
+  const requiredDocuments = services.filter(service => currentServiceIds.has(service.serviceId)).flatMap(service => service.documents);
   return {
     requiredTypes,
     summary: {
@@ -572,7 +580,7 @@ function documentAnalytics(source: RecurringDashboardV2Source, cutOffDate: strin
       pendingValidation: requiredDocuments.filter(item => item.status === "pending" || item.status === "unvalidated").length,
       expiredOrRejected: requiredDocuments.filter(item => item.status === "expired" || item.status === "rejected").length,
       missing: requiredDocuments.filter(item => item.status === "missing").length,
-      validServices: services.filter(service => service.status === "valid").length,
+      validServices: services.filter(service => currentServiceIds.has(service.serviceId) && service.status === "valid").length,
     },
     services,
   };
@@ -580,7 +588,8 @@ function documentAnalytics(source: RecurringDashboardV2Source, cutOffDate: strin
 
 function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
   const buckets = new Map<string, { month: string; planned: number; due: number; completedDue: number; overdue: number }>();
-  for (const row of source.workPlanItems.filter(item => item.itemType === "informe_mensual")) {
+  const currentServiceIds = new Set(source.services.filter(service => isCurrentOperationalStatus(service.status)).map(service => service.id));
+  for (const row of source.workPlanItems.filter(item => item.itemType === "informe_mensual" && currentServiceIds.has(item.serviceId))) {
     const month = monthKey(row.dueDate);
     if (!month) continue;
     const bucket = buckets.get(month) ?? { month, planned: 0, due: 0, completedDue: 0, overdue: 0 };
@@ -597,7 +606,7 @@ function reportTrend(source: RecurringDashboardV2Source, cutOffDate: string) {
 
 function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string, fromDate?: string) {
   const buckets = new Map<string, { capturedAt: string; total: number; open: number; criticalOpen: number; servicesMeasured: number }>();
-  const applicable = new Set(source.services.filter(item => item.serviceType !== "staffing").map(item => item.id));
+  const applicable = new Set(source.services.filter(item => isCurrentOperationalStatus(item.status) && item.serviceType !== "staffing").map(item => item.id));
   for (const snapshot of source.jsmSnapshots.filter(item => applicable.has(item.serviceId) && (item.status === "success" || item.status === "partial"))) {
     const capturedAt = isoDate(snapshot.capturedAt).slice(0, 10);
     if (capturedAt > cutOffDate || (fromDate && capturedAt < fromDate)) continue;
@@ -612,12 +621,13 @@ function incidentTrend(source: RecurringDashboardV2Source, cutOffDate: string, f
 }
 
 function operationsAnalytics(source: RecurringDashboardV2Source, services: ServiceMetricsV2[], cutOffDate: string, fromDate?: string) {
-  const measuredServices = services.filter(service => service.incidents.availability === "available");
+  const currentServices = services.filter(service => isCurrentOperationalStatus(service.status));
+  const measuredServices = currentServices.filter(service => service.incidents.availability === "available");
   const total = measuredServices.reduce((sum, service) => sum + (service.incidents.total ?? 0), 0);
   const open = measuredServices.reduce((sum, service) => sum + (service.incidents.open ?? 0), 0);
   const resolved = Math.max(0, total - open);
   const priorityOrder = ["critical", "high", "medium", "low"];
-  const visibleServiceIds = new Set(services.filter(service => service.sla.applicability === "applicable").map(service => service.id));
+  const visibleServiceIds = new Set(currentServices.filter(service => service.sla.applicability === "applicable").map(service => service.id));
   const latestSnapshotByServiceMonth = new Map<string, RecurringDashboardV2Source["jsmSnapshots"][number]>();
 
   for (const snapshot of source.jsmSnapshots) {
@@ -737,11 +747,28 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       documents: preliminaryDocuments,
       jiraBilling: options.jiraBilling,
     });
-    const exceptionIds = new Set(preliminaryManagement.services.filter(service => service.exceptions.length > 0).map(service => service.serviceId));
+    const exceptionIds = new Set(preliminaryManagement.services
+      .filter(service => isCurrentOperationalStatus(service.status) && service.exceptions.length > 0)
+      .map(service => service.serviceId));
     filteredSource = restrictSource(filteredSource, exceptionIds);
     metrics = calculateForSource(filteredSource, options.cutOffDate, staleAfterHours, options.jiraBilling);
   }
-  const quality = qualityForSource(filteredSource);
+  const rawQuality = qualityForSource(filteredSource);
+  const currentServiceIds = new Set(metrics.services.filter(service => isCurrentOperationalStatus(service.status)).map(service => service.id));
+  const currentQualityServices = rawQuality.services.filter(service => currentServiceIds.has(service.serviceId));
+  const quality = {
+    ...rawQuality,
+    // Closed quality findings remain available per service, but do not inflate
+    // the current confidence/attention summary.
+    summary: {
+      ...rawQuality.summary,
+      valid: currentQualityServices.filter(service => service.status === "valid").length,
+      warning: currentQualityServices.filter(service => service.status === "warning").length,
+      blocked: currentQualityServices.filter(service => service.status === "blocked").length,
+      issueCount: currentQualityServices.reduce((sum, service) => sum + service.issues.length, 0),
+      confirmedCorrectionCount: currentQualityServices.reduce((sum, service) => sum + service.confirmedCorrections.length, 0),
+    },
+  };
   const qualityByService = new Map(quality.services.map(item => [item.serviceId, item]));
 
   const matrix = metrics.services
@@ -753,6 +780,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
       serviceType: service.serviceType,
       status: service.status,
       currentStage: service.currentStage,
+      lifecycleStatus: service.lifecycleStatus,
       health: service.health,
       healthSignals: service.healthSignals,
       evidenceCoveragePercent: service.evidenceCoveragePercent,
@@ -766,7 +794,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     }))
     .sort((a, b) => HEALTH_ORDER[a.health] - HEALTH_ORDER[b.health] || a.clientName.localeCompare(b.clientName, "es") || a.serviceName.localeCompare(b.serviceName, "es"));
 
-  const incidentApplicableIds = new Set(metrics.services.filter(service => service.sla.applicability === "applicable").map(service => service.id));
+  const incidentApplicableIds = new Set(metrics.services.filter(service => isCurrentOperationalStatus(service.status) && service.sla.applicability === "applicable").map(service => service.id));
   const latestSnapshotAt = filteredSource.jsmSnapshots
     .filter(item => incidentApplicableIds.has(item.serviceId))
     .map(item => isoDate(item.capturedAt))
@@ -778,7 +806,7 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
   const operations = operationsAnalytics(filteredSource, metrics.services, options.cutOffDate, options.fromDate);
   const deliverables = deliverablesAnalytics(filteredSource, options.cutOffDate);
   const documents = documentAnalytics(filteredSource, options.cutOffDate);
-  const management = buildRecurringManagementAnalytics({
+  const rawManagement = buildRecurringManagementAnalytics({
     source: filteredSource,
     services: metrics.services,
     cutOffDate: options.cutOffDate,
@@ -787,6 +815,26 @@ export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2So
     documents,
     jiraBilling: options.jiraBilling,
   });
+  const management = {
+    ...rawManagement,
+    // Preserve the closed service rows and their historical reconciliation,
+    // but remove current management actions and operational denominators.
+    services: rawManagement.services.map(service => isRecurringServiceClosed(service.status) ? { ...service, exceptions: [] } : service),
+    exceptions: rawManagement.exceptions.filter(exception => {
+      const service = rawManagement.services.find(item => item.serviceId === exception.serviceId);
+      return service ? isCurrentOperationalStatus(service.status) : false;
+    }),
+    summary: {
+      ...rawManagement.summary,
+      financeExceptions: rawManagement.services.filter(service =>
+        isCurrentOperationalStatus(service.status) && ["currency_mismatch", "amount_mismatch", "ambiguous", "missing_invoice", "jira_unknown", "jira_unavailable"].includes(service.reconciliationStatus),
+      ).length,
+      slaApplicable: rawManagement.services.filter(service => isCurrentOperationalStatus(service.status) && service.sla.applicability === "applicable").length,
+      slaConfigured: rawManagement.services.filter(service => isCurrentOperationalStatus(service.status) && service.sla.configuredRules > 0).length,
+      jsmLinked: rawManagement.services.filter(service => isCurrentOperationalStatus(service.status) && service.sla.jsmLinked).length,
+      slaMeasured: rawManagement.services.filter(service => isCurrentOperationalStatus(service.status) && service.sla.firstResponseMeasured + service.sla.resolutionMeasured > 0).length,
+    },
+  };
 
   return {
     metadata: {

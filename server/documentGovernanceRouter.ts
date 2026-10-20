@@ -10,6 +10,7 @@ import { loadDocumentGovernancePortfolio } from "./documentGovernanceSource";
 import { getDocumentGateReadiness } from "./documentGateReadiness";
 import {
   appendDocumentValidationDecision,
+  assertDocumentEntityWritable,
   archiveDocumentArtifact,
   createDocumentArtifact,
   findDocumentArtifactBySha,
@@ -116,6 +117,7 @@ export const documentGovernanceRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const entity = await loadEntity(input.entityType, input.entityId);
+      await assertDocumentEntityWritable(input.entityType, input.entityId);
       assertAccess({ action: "upload", user: ctx.user, assignedPmId: entity.assignedPmId });
       try {
         const validated = validateDocumentArtifactUpload(input);
@@ -168,6 +170,7 @@ export const documentGovernanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       const artifact = await getDocumentArtifactById(input.artifactId);
       if (!artifact) throw new TRPCError({ code: "NOT_FOUND", message: "Documento no encontrado." });
+      await assertDocumentEntityWritable(artifact.entityType, artifact.entityId);
       const entity = await loadEntity(artifact.entityType, artifact.entityId);
       assertAccess({ action: "validate", user: ctx.user, assignedPmId: entity.assignedPmId });
       try {
@@ -212,6 +215,7 @@ export const documentGovernanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       const artifact = await getDocumentArtifactById(input.artifactId);
       if (!artifact) throw new TRPCError({ code: "NOT_FOUND", message: "Documento no encontrado." });
+      await assertDocumentEntityWritable(artifact.entityType, artifact.entityId);
       const entity = await loadEntity(artifact.entityType, artifact.entityId);
       assertAccess({ action: "validate", user: ctx.user, assignedPmId: entity.assignedPmId });
       const archived = await archiveDocumentArtifact({
@@ -240,6 +244,7 @@ export const documentGovernanceRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const entity = await loadEntity(input.entityType, input.entityId);
+      await assertDocumentEntityWritable(input.entityType, input.entityId);
       assertAccess({ action: input.applicability === "not_applicable" ? "not_applicable" : "validate", user: ctx.user, assignedPmId: entity.assignedPmId });
       if (input.applicability === "not_applicable" && !input.evidenceArtifactId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "La excepción requiere un documento de evidencia." });
@@ -282,7 +287,13 @@ export const documentGovernanceRouter = router({
       })).min(1).max(500),
     }))
     .mutation(async ({ ctx, input }) => {
-      const entity = await loadEntity(input.entityType, input.entityId);
+      const artifact = await getDocumentArtifactById(input.artifactId);
+      if (!artifact) throw new TRPCError({ code: "NOT_FOUND", message: "Documento no encontrado." });
+      if (artifact.entityType !== input.entityType || artifact.entityId !== input.entityId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "El snapshot no corresponde al expediente indicado." });
+      }
+      await assertDocumentEntityWritable(artifact.entityType, artifact.entityId);
+      const entity = await loadEntity(artifact.entityType, artifact.entityId);
       assertAccess({ action: "upload", user: ctx.user, assignedPmId: entity.assignedPmId });
       try {
         const snapshotId = await saveDocumentWorkPlanSnapshot({
@@ -307,6 +318,7 @@ export const documentGovernanceRouter = router({
     .input(z.object({ projectId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const entity = await loadEntity("project", input.projectId);
+      await assertDocumentEntityWritable("project", input.projectId);
       assertAccess({ action: "upload", user: ctx.user, assignedPmId: entity.assignedPmId });
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado." });

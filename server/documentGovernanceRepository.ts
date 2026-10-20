@@ -10,6 +10,23 @@ import {
 } from "../drizzle/schema";
 import type { DocumentGovernanceEntityType, DocumentRequirementCode } from "../shared/documentGovernance";
 import { getDb } from "./db";
+import { assertRecurringServiceWritable } from "./recurringServiceWriteGuard";
+
+/**
+ * Canonical owner guard for document governance writes.
+ *
+ * Project documents remain independent from recurring-service lifecycle. Only
+ * an artifact explicitly owned by a recurring service is checked here; callers
+ * must not infer that ownership from a client-provided serviceId.
+ */
+export async function assertDocumentEntityWritable(
+  entityType: DocumentGovernanceEntityType,
+  entityId: number,
+): Promise<void> {
+  if (entityType === "recurring_service") {
+    await assertRecurringServiceWritable(entityId);
+  }
+}
 
 async function requireDb() {
   const db = await getDb();
@@ -46,6 +63,7 @@ export async function findDocumentArtifactBySha(input: {
 }
 
 export async function createDocumentArtifact(input: Omit<InsertDocumentArtifact, "version" | "artifactStatus" | "supersedesArtifactId">) {
+  await assertDocumentEntityWritable(input.entityType, input.entityId);
   const db = await requireDb();
   return db.transaction(async tx => {
     const [versionRow] = await tx
@@ -100,6 +118,9 @@ export async function appendDocumentValidationDecision(
   artifactId: number,
   decision: Omit<InsertDocumentValidationDecision, "artifactId" | "entityType" | "entityId" | "requirementCode">,
 ) {
+  const owner = await getDocumentArtifactById(artifactId);
+  if (!owner) throw new Error("Documento no encontrado.");
+  await assertDocumentEntityWritable(owner.entityType, owner.entityId);
   const db = await requireDb();
   return db.transaction(async tx => {
     const [artifact] = await tx.select().from(documentArtifacts).where(eq(documentArtifacts.id, artifactId)).limit(1);

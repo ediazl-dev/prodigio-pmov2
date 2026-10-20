@@ -5,6 +5,7 @@ import {
   listRecurringServices,
   saveRecurringJsmSnapshot,
 } from "./recurringServicesDb";
+import { isRecurringServiceClosed } from "../shared/recurringServiceLifecycle";
 import {
   collectRecurringJsmSnapshot,
   type RecurringJsmSnapshotDraft,
@@ -215,12 +216,17 @@ export async function runRecurringServicesJsmRefresh(
   const selected = services.filter(
     service => !requestedIds || requestedIds.has(service.id)
   );
+  // Closed services are historical/read-only even when a caller explicitly
+  // requests IDs or asks to include services without JSM configuration.
   const active = selected.filter(
     service =>
-      service.status === "activo" || Boolean(input.includeRequestedWithoutJsm)
+      !isRecurringServiceClosed(service.status) &&
+      (service.status === "activo" || Boolean(input.includeRequestedWithoutJsm))
   );
   const inactive = selected.filter(
-    service => service.status !== "activo" && !input.includeRequestedWithoutJsm
+    service =>
+      isRecurringServiceClosed(service.status) ||
+      (service.status !== "activo" && !input.includeRequestedWithoutJsm)
   );
   const configured = active.filter(service =>
     Boolean(service.jsmProjectKey && service.jsmServiceDeskId)

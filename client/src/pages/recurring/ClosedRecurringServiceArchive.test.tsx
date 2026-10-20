@@ -1,0 +1,14 @@
+import React from "react";
+import {describe,it,expect,vi,beforeEach} from "vitest";
+import {render,screen,cleanup} from "@testing-library/react";
+const mock=vi.hoisted(()=>({download:vi.fn()}));
+vi.mock("@/components/AppBreadcrumb",()=>({default:()=> <nav>Archivo</nav>}));
+vi.mock("wouter",()=>({Link:({children,...props}:any)=><a {...props}>{children}</a>}));
+vi.mock("@/lib/trpc",()=>({trpc:{recurringServices:{jiraBillingEvidence:{useQuery:()=>({data:{items:[1,2,3].map(n=>({monthNumber:n,key:`CONSALOP01-${n===1?23:n===2?21:22}`,jiraUrl:`https://jira.example/${n}`,billingStatus:"unknown"}))}})},getWorkPlan:{useQuery:()=>({data:{items:[{id:1,title:"Reporte mensual",status:"pendiente",dueDate:"2026-05-29",description:"Registro histórico"}]}})}},documentGovernance:{portfolio:{useQuery:()=>({data:{items:[{requirements:[{code:"contract",label:"Contrato",status:"compliant",activeArtifact:{id:1,fileName:"contrato.pdf",version:1}}]}]}})},download:{useMutation:()=>({isPending:false,mutateAsync:mock.download})}}}}));
+import ClosedArchive from "./ClosedRecurringServiceArchive";
+const data={service:{id:2040001,serviceName:"Deal 4687_Servicio Staffing",clientName:"Consalud",dealId:"4687",serviceType:"staffing",status:"completado",formalStartDate:"2026-04-27",endDate:"2026-07-27",totalContractAmount:"480.00",currency:"UF"},stages:[{id:1,stageId:"cierre",status:"completed",completedAt:new Date("2026-10-20T19:36:48Z"),data:{reason:"Servicio finalizado"}}],billingMonths:[1,2,3].map(n=>({id:n,monthNumber:n,dueDate:`2026-0${5+n}-01`,amount:"160.00",currency:"UF",jiraIssueKey:null})),documents:[{fileName:"contrato.pdf",fileUrl:"https://example.com/contrato.pdf"}],penalties:[]} as any;
+describe("archivo de servicio cerrado",()=>{
+ beforeEach(()=>{cleanup();vi.clearAllMocks();});
+ it("muestra cerrado sóloconsulta sin alertas o formularios de gestión",()=>{render(<ClosedArchive data={data}/>);expect(screen.getByText(/CERRADO · SÓLO CONSULTA/)).toBeTruthy();for(const label of ["Editar configuración","Registrar","Nueva versión","Revisar cuota","Actualizar Análisis","Qué hacer con este servicio"]){expect(screen.queryByText(label)).toBeNull();}expect(document.querySelector('input,textarea,select')).toBeNull();expect(document.querySelectorAll('button')).toHaveLength(0);expect(mock.download).not.toHaveBeenCalled();});
+ it("conserva las tres cuotas UF160, las referencias únicas y el documento descargable",()=>{render(<ClosedArchive data={data}/>);expect(screen.getAllByText("UF 160")).toHaveLength(3);expect(screen.getByRole("link",{name:"CONSALOP01-23"})).toBeTruthy();expect(screen.queryByText("CONSALOP01-20")).toBeNull();expect(screen.getByRole("link",{name:"Descargar"}).getAttribute('href')).toContain('contrato.pdf');expect(screen.getByText("Estado local conservado: pendiente · Fecha registrada 29-05-2026")).toBeTruthy();});
+});

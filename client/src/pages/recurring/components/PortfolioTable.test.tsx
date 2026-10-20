@@ -129,4 +129,14 @@ describe("PortfolioTable", () => {
     fireEvent.click(screen.getByRole("button", { name: "Limpiar 2 filtros" }));
     expect(clearFilters).toHaveBeenCalledTimes(1);
   });
+
+  it("un cerrado sólo ofrece consultar archivo, sin salud activa ni señales abiertas", () => {
+    renderPortfolio({ rows: [serviceRow({ lifecycleStatus: "closed", contractedLabel: "UF 480" })] });
+    expect(screen.getByText("Cerrado · sólo consulta")).toBeTruthy();
+    expect(screen.getByText("Consultar archivo")).toBeTruthy();
+    expect(screen.queryByText("Facturación vencida")).toBeNull();
+    expect(screen.queryByText("Señales abiertas del servicio")).toBeNull();
+    expect(screen.queryByText("3 cuotas permanecen pendientes de facturar.")).toBeNull();
+    expect(screen.queryByText("Operación JSM")).toBeNull();
+  });
 });

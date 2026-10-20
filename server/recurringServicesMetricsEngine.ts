@@ -13,6 +13,7 @@
 
 import type { JiraBillingEvidence } from "./jiraBillingEvidence";
 import { getRecurringServiceContractPolicy } from "./recurringServiceContractPolicy";
+import { isRecurringServiceClosed } from "../shared/recurringServiceLifecycle";
 
 export const RECURRING_DASHBOARD_METRICS_VERSION = "2.2" as const;
 
@@ -126,6 +127,7 @@ export interface ServiceMetricsV2 {
   serviceType: string;
   status: string;
   currentStage: string;
+  lifecycleStatus: "open" | "closed";
   health: RecurringHealthLevel;
   healthSignals: MetricSignal[];
   evidenceCoveragePercent: number;
@@ -269,12 +271,17 @@ function determineHealth(signals: MetricSignal[], evidenceDimensions: number): R
   return "stable";
 }
 
+function isCurrentOperationalStatus(status: string): boolean {
+  return status === "activo" || status === "pausado";
+}
+
 export function calculateRecurringServicesMetrics(
   input: RecurringServicesMetricsInput,
 ): RecurringServicesPortfolioMetricsV2 {
   const operationalByService = new Map((input.operationalEvidence ?? []).map(item => [item.serviceId, item]));
 
   const services = input.services.map<ServiceMetricsV2>(service => {
+    const closed = isRecurringServiceClosed(service.status);
     const billing = input.billingMonths.filter(item => item.serviceId === service.id);
     const workPlan = input.workPlanItems.filter(item => item.serviceId === service.id);
     const reports = workPlan.filter(item => item.itemType === "informe_mensual");
@@ -436,6 +443,8 @@ export function calculateRecurringServicesMetrics(
       slaApplicable && measuredSlaRates.length > 0,
     ].filter(Boolean).length;
 
+    const historicalHealth = determineHealth(signals, evidenceDimensions);
+
     return {
       id: service.id,
       clientName: service.clientName,
@@ -444,8 +453,11 @@ export function calculateRecurringServicesMetrics(
       serviceType: service.serviceType,
       status: service.status,
       currentStage: service.currentStage,
-      health: determineHealth(signals, evidenceDimensions),
-      healthSignals: signals,
+      lifecycleStatus: closed ? "closed" : "open",
+      // Closed services retain historical severity for bounded presentation,
+      // but never expose current action signals.
+      health: historicalHealth,
+      healthSignals: closed ? [] : signals,
       evidenceCoveragePercent: Math.round((evidenceDimensions / (slaApplicable ? 5 : 3)) * 100),
       finance: {
         byCurrency: financeByCurrency,
@@ -508,13 +520,14 @@ export function calculateRecurringServicesMetrics(
   for (const service of services) {
     statusCounts[service.status] = (statusCounts[service.status] ?? 0) + 1;
     typeCounts[service.serviceType] = (typeCounts[service.serviceType] ?? 0) + 1;
-    healthCounts[service.health] += 1;
+    if (isCurrentOperationalStatus(service.status)) healthCounts[service.health] += 1;
   }
 
-  const reportDue = services.reduce((sum, service) => sum + service.reports.due, 0);
-  const reportCompleted = services.reduce((sum, service) => sum + service.reports.completedDue, 0);
-  const operationalServices = services.filter(service => service.incidents.availability === "available");
-  const applicableServices = services.filter(service => service.sla.applicability === "applicable");
+  const currentServices = services.filter(service => isCurrentOperationalStatus(service.status));
+  const reportDue = currentServices.reduce((sum, service) => sum + service.reports.due, 0);
+  const reportCompleted = currentServices.reduce((sum, service) => sum + service.reports.completedDue, 0);
+  const operationalServices = currentServices.filter(service => service.incidents.availability === "available");
+  const applicableServices = currentServices.filter(service => service.sla.applicability === "applicable");
   const sumNullable = (values: Array<number | null>): number | null => {
     const available = values.filter((value): value is number => value !== null);
     return available.length > 0 ? available.reduce((sum, value) => sum + value, 0) : null;
@@ -540,14 +553,14 @@ export function calculateRecurringServicesMetrics(
       reports: {
         due: reportDue,
         completedDue: reportCompleted,
-        overdue: services.reduce((sum, service) => sum + service.reports.overdue, 0),
+        overdue: currentServices.reduce((sum, service) => sum + service.reports.overdue, 0),
         deliveryRate: percentage(reportCompleted, reportDue),
         onTimeRate: null,
       },
       formalization: {
-        complete: services.filter(service => service.formalization.status === "complete").length,
-        partial: services.filter(service => service.formalization.status === "partial").length,
-        missing: services.filter(service => service.formalization.status === "missing").length,
+        complete: currentServices.filter(service => service.formalization.status === "complete").length,
+        partial: currentServices.filter(service => service.formalization.status === "partial").length,
+        missing: currentServices.filter(service => service.formalization.status === "missing").length,
       },
       incidents: {
         availableServices: operationalServices.length,
@@ -564,7 +577,7 @@ export function calculateRecurringServicesMetrics(
         firstResponseCompliance: averageNullable(applicableServices.map(service => service.sla.firstResponseCompliance)),
         resolutionCompliance: averageNullable(applicableServices.map(service => service.sla.resolutionCompliance)),
       },
-      qualityIssueCount: services.reduce((sum, service) => sum + service.qualityIssues.length, 0),
+      qualityIssueCount: currentServices.reduce((sum, service) => sum + service.qualityIssues.length, 0),
     },
   };
 }
