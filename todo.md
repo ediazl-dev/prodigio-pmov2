@@ -879,3 +879,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] L2: Retirar servicios cerrados de colas/alertas/KPIs operativos actuales sin inventar cumplimiento ni eliminar historial.
 - [x] L3: Mostrar archivo sólo lectura en detalle y TODAS las rutas interiores; sin editar, registrar multa, subir/revisar documento, cambiar cuota, sincronizar o regenerar IA.
 - [x] L4: Probar rechazo real de mutaciones y URLs directas, activos sin regresiones y snapshot sin cambios; 1.163 pruebas aprobadas, build y cinco errores TS heredados, preview autenticada de Inicialización/Ejecución; guardar checkpoint final. La publicación productiva corresponde a la UI WebDev disponible.
+
+## Activación CONSALOP02 — operación y facturación 4727 — 2026-10-21
+- [x] P0: Snapshot/manifiesto actualizado y respaldo SHA-256 completo de PMO/SoW/seis hitos, adjunto, comentario e historial; permisos de movimiento y administración destino confirmados. Build exitoso y cinco errores TS heredados.
+- [ ] P1: Pendiente sesión Jira autenticada para preparar tipos/campos de CONSALOP02 team-managed y verificar la representación del campo financiero; no ejecutar traslado con mappings desconocidos ni copiar sin aprobación de alternativa.
+- [ ] P2: Adaptar lectura canónica a CONSALOP02 y simular manifiesto de plan/facturación, preservando IDs, seis cuotas e histórico.
+- [ ] P3: Mover seis hitos por la vía validada, verificar campos/historia y registrar claves destino sin copias silenciosas.
+- [ ] P4: Completar plan desde SoW (mensuales/quincenales/inicio con evidencia), crear operación JSM idempotente y enlazar reportes/hitos.
+- [ ] P5: Aplicar corte exclusivo CONSALOP02, revalidar vistas y JSM Setup, preservar 4687 cerrado, suite/build/TS conocido y checkpoints por bloque.
