@@ -13,9 +13,16 @@ import {
   getRecurringServiceById,
   listRecurringServices,
 } from "./recurringServicesDb";
+import {
+  loadRecurringJiraBillingFieldMapping,
+} from "./recurringJiraBillingFieldMapping";
 
 export const JIRA_BILLING_STATUS_FIELD_ID = "customfield_11237";
 export const JIRA_BILLING_STATUS_FIELD_NAME = "Estado de Facturación";
+export const DEFAULT_JIRA_BILLING_FIELD = {
+  id: JIRA_BILLING_STATUS_FIELD_ID,
+  name: JIRA_BILLING_STATUS_FIELD_NAME,
+} as const;
 
 export type JiraOperationalBillingStatus = "billed" | "not_billed" | "unknown";
 export type JiraBillingStatusSource = "jira_custom_field" | "jira_billing_issue_status" | "missing";
@@ -88,6 +95,10 @@ export type JiraBillingBuildInput = {
   jiraAvailable: boolean;
   queryWarnings?: string[];
   error?: string;
+  /** Defaults to the historical global field for backwards compatibility. */
+  billingField?: { id: string; name: string };
+  /** A present but invalid/unreadable canonical mapping must not use the global field. */
+  billingFieldUnavailable?: boolean;
 };
 
 function numeric(value: unknown): number | null {
@@ -110,8 +121,8 @@ function projectDeal(project: { dealId?: string | null; projectName?: string | n
   return normalizeDeal(project.dealId) ?? normalizeDeal(project.projectName);
 }
 
-function issueFieldValues(issue: JiraIssue): string[] {
-  const raw = issue.fields?.[JIRA_BILLING_STATUS_FIELD_ID];
+function issueFieldValues(issue: JiraIssue, fieldId = JIRA_BILLING_STATUS_FIELD_ID): string[] {
+  const raw = issue.fields?.[fieldId];
   const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
   return values
     .map((item: unknown) => typeof item === "string" ? item : String((item as { value?: unknown })?.value ?? ""))
@@ -167,13 +178,13 @@ function plainText(value: unknown): string {
   return "";
 }
 
-function statusForIssue(issue: JiraIssue, allowFallback: boolean): {
+function statusForIssue(issue: JiraIssue, allowFallback: boolean, fieldId = JIRA_BILLING_STATUS_FIELD_ID, fieldAvailable = true): {
   status: JiraOperationalBillingStatus;
   label: string;
   source: JiraBillingStatusSource;
   values: string[];
 } {
-  const values = issueFieldValues(issue);
+  const values = fieldAvailable ? issueFieldValues(issue, fieldId) : [];
   const normalized = values.map(value => value.toLowerCase());
   const notBilled = normalized.some(value => value.includes("no facturado"));
   const billed = normalized.some(value => value.includes("facturado") && !value.includes("no facturado"));
@@ -189,12 +200,18 @@ function statusForIssue(issue: JiraIssue, allowFallback: boolean): {
   return { status: "unknown", label: "Estado de facturación N/D", source: "missing", values };
 }
 
-function scoreServiceCandidate(issue: JiraIssue, local: LocalBillingItem, dealId: string | null): number {
+function scoreServiceCandidate(
+  issue: JiraIssue,
+  local: LocalBillingItem,
+  dealId: string | null,
+  billingFieldId = JIRA_BILLING_STATUS_FIELD_ID,
+  billingFieldAvailable = true,
+): number {
   const labels = Array.isArray(issue.fields?.labels) ? issue.fields.labels.map(value => String(value).toLowerCase()) : [];
   const description = plainText(issue.fields?.description).toUpperCase();
   let score = 0;
   if (local.jiraIssueKey === issue.key) score += 1000;
-  if (issueFieldValues(issue).length > 0) score += 300;
+  if (billingFieldAvailable && issueFieldValues(issue, billingFieldId).length > 0) score += 300;
   if (dealId && issueDeal(issue) === dealId) score += 160;
   if (labels.includes("facturacion")) score += 100;
   if (local.monthNumber != null && issueMonth(issue) === local.monthNumber) score += 70;
@@ -220,6 +237,7 @@ function aggregateByCurrency(items: JiraBillingEvidenceItem[], status: JiraOpera
 }
 
 export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBillingEvidence {
+  const billingField = input.billingField ?? DEFAULT_JIRA_BILLING_FIELD;
   const eligibleIssues = input.entityType === "recurring_service"
     ? input.jiraIssues.filter(issue => !isGeneratedRecurringIssue(issue))
     : input.jiraIssues;
@@ -254,7 +272,10 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     }
 
     const ranked = candidates
-      .map(issue => ({ issue, score: scoreServiceCandidate(issue, local, input.dealId) }))
+      .map(issue => ({
+        issue,
+        score: scoreServiceCandidate(issue, local, input.dealId, billingField.id, !input.billingFieldUnavailable),
+      }))
       .sort((a, b) => b.score - a.score || a.issue.key.localeCompare(b.issue.key, undefined, { numeric: true }));
     const selected = ranked[0]?.issue ?? (local.jiraIssueKey && !usedKeys.has(local.jiraIssueKey) ? issuesByKey.get(local.jiraIssueKey) : undefined);
     if (!selected) {
@@ -283,13 +304,13 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     }
 
     usedKeys.add(selected.key);
-    const status = statusForIssue(selected, input.allowBillingIssueStatusFallback);
+    const status = statusForIssue(selected, input.allowBillingIssueStatusFallback, billingField.id, !input.billingFieldUnavailable);
     const duplicateCandidates = ranked.slice(1).map(candidate => candidate.issue.key);
     if (duplicateCandidates.length > 0) {
       warnings.push(`${local.code}: ${duplicateCandidates.length} candidato(s) Jira adicional(es) no sumados (${duplicateCandidates.join(", ")}).`);
     }
     const conflictingStatus = ranked.slice(1).some(candidate => {
-      const alternative = statusForIssue(candidate.issue, false).status;
+      const alternative = statusForIssue(candidate.issue, false, billingField.id, !input.billingFieldUnavailable).status;
       return alternative !== "unknown" && status.status !== "unknown" && alternative !== status.status;
     });
     if (conflictingStatus) warnings.push(`${local.code}: estados explícitos de facturación Jira contradictorios; resolver vínculo antes de sumar.`);
@@ -321,7 +342,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
       if (usedKeys.has(issue.key) || !isBillingIssue(issue) || (input.dealId && issueDeal(issue) && issueDeal(issue) !== input.dealId)) continue;
       const monthNumber = issueMonth(issue);
       if (monthNumber != null && items.some(item => item.monthNumber === monthNumber)) continue;
-      const status = statusForIssue(issue, input.allowBillingIssueStatusFallback);
+      const status = statusForIssue(issue, input.allowBillingIssueStatusFallback, billingField.id, !input.billingFieldUnavailable);
       items.push({
         key: issue.key,
         jiraUrl: `${ENV.jiraBaseUrl}/browse/${encodeURIComponent(issue.key)}`,
@@ -361,7 +382,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     loadedAt: new Date().toISOString(),
     evidenceAt,
     sourceProjectKeys: Array.from(new Set(input.sourceProjectKeys)).sort(),
-    field: { id: JIRA_BILLING_STATUS_FIELD_ID, name: JIRA_BILLING_STATUS_FIELD_NAME },
+    field: billingField,
     summary: {
       totalItems: items.length,
       billedItems: items.filter(item => item.billingStatus === "billed").length,
@@ -378,7 +399,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
   };
 }
 
-async function searchAllIssues(jql: string): Promise<JiraIssue[]> {
+async function searchAllIssues(jql: string, billingFieldId = JIRA_BILLING_STATUS_FIELD_ID): Promise<JiraIssue[]> {
   const issues: JiraIssue[] = [];
   let nextPageToken: string | undefined;
   do {
@@ -395,6 +416,7 @@ async function searchAllIssues(jql: string): Promise<JiraIssue[]> {
         "updated",
         "description",
         JIRA_BILLING_STATUS_FIELD_ID,
+        ...(billingFieldId !== JIRA_BILLING_STATUS_FIELD_ID ? [billingFieldId] : []),
       ],
     });
     issues.push(...page.issues);
@@ -403,9 +425,9 @@ async function searchAllIssues(jql: string): Promise<JiraIssue[]> {
   return issues;
 }
 
-async function safeIssueSearch(jql: string, label: string) {
+async function safeIssueSearch(jql: string, label: string, billingFieldId = JIRA_BILLING_STATUS_FIELD_ID) {
   try {
-    return { issues: await searchAllIssues(jql), warning: null as string | null };
+    return { issues: await searchAllIssues(jql, billingFieldId), warning: null as string | null };
   } catch (error) {
     return { issues: [] as JiraIssue[], warning: `${label}: ${error instanceof Error ? error.message.slice(0, 180) : "Jira no disponible"}` };
   }
@@ -487,7 +509,7 @@ function hasCompleteLinkedBillingBindings(
 ): boolean {
   if (
     service.jsmBillingSyncMode !== "external_reference"
-    || service.jsmLinkSource !== "linked"
+    || !["linked", "created"].includes(service.jsmLinkSource ?? "")
     || !service.jsmProjectKey
     || schedule.length === 0
   ) return false;
@@ -522,15 +544,31 @@ async function buildRecurringServiceEvidence(
   const issueMap = new Map<string, JiraIssue>();
   const warnings: string[] = [];
   const normalizedDealId = normalizeDeal(service.dealId);
-
-  const direct = service.jsmProjectKey
-    ? await safeIssueSearch(`project=${service.jsmProjectKey} ORDER BY created ASC`, service.jsmProjectKey)
-    : { issues: [] as JiraIssue[], warning: null as string | null };
-  if (direct.warning) warnings.push(direct.warning);
   const canonicalBindings = hasCompleteLinkedBillingBindings(service, schedule);
   const canonicalKeys = canonicalBindings
     ? new Set(schedule.map(month => month.jiraIssueKey!))
     : null;
+  let billingField: { id: string; name: string } = DEFAULT_JIRA_BILLING_FIELD;
+  let billingFieldUnavailable = false;
+  if (canonicalBindings) {
+    const mapping = await loadRecurringJiraBillingFieldMapping({
+      serviceId: service.id,
+      projectId: service.jsmProjectId ?? null,
+      projectKey: service.jsmProjectKey ?? null,
+    });
+    if (mapping.mapping) {
+      billingField = { id: mapping.mapping.fieldId, name: mapping.mapping.fieldName };
+    }
+    if (mapping.error) {
+      billingFieldUnavailable = true;
+      warnings.push(mapping.error);
+    }
+  }
+
+  const direct = service.jsmProjectKey
+    ? await safeIssueSearch(`project=${service.jsmProjectKey} ORDER BY created ASC`, service.jsmProjectKey, billingField.id)
+    : { issues: [] as JiraIssue[], warning: null as string | null };
+  if (direct.warning) warnings.push(direct.warning);
 
   if (!canonicalBindings) {
     const global = await context.loadGlobal();
@@ -580,7 +618,7 @@ async function buildRecurringServiceEvidence(
     }
   }
   const jiraAvailable = canonicalBindings
-    ? !direct.warning
+    ? !direct.warning && !billingFieldUnavailable
     : !warnings.some(warning => warning.startsWith("Hitos PMO globales:"))
       || Boolean(service.jsmProjectKey && !warnings.some(warning => warning.startsWith(`${service.jsmProjectKey}:`)));
   return buildJiraBillingEvidence({
@@ -592,6 +630,8 @@ async function buildRecurringServiceEvidence(
     sourceProjectKeys,
     allowBillingIssueStatusFallback: !canonicalBindings,
     jiraAvailable,
+    billingField,
+    billingFieldUnavailable,
     queryWarnings: warnings,
     ...(!jiraAvailable ? { error: warnings.join(" · ") || "Jira no disponible" } : {}),
   });

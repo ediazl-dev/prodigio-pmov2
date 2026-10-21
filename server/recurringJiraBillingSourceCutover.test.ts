@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getExecutiveContractMilestones: vi.fn(),
   getProjectById: vi.fn(),
   getBillingByProject: vi.fn(),
+  getAdminSettingValue: vi.fn(),
   getFinancialDataForDeal: vi.fn(),
   getBillingMonths: vi.fn(),
   getRecurringServiceById: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("./db", () => ({
   getExecutiveContractMilestones: mocks.getExecutiveContractMilestones,
   getProjectById: mocks.getProjectById,
   getBillingByProject: mocks.getBillingByProject,
+  getAdminSettingValue: mocks.getAdminSettingValue,
 }));
 vi.mock("./financialDataFetcher", () => ({ getFinancialDataForDeal: mocks.getFinancialDataForDeal }));
 vi.mock("./recurringServicesDb", () => ({
@@ -31,7 +33,7 @@ vi.mock("./recurringServicesDb", () => ({
 
 import { loadRecurringServiceJiraBillingEvidence } from "./jiraBillingEvidence";
 
-function issue(input: { key: string; month: number; project: string; billing?: string }): JiraIssue {
+function issue(input: { key: string; month: number; project: string; billing?: string; billingField?: string; globalBilling?: string }): JiraIssue {
   return {
     id: input.key,
     key: input.key,
@@ -45,7 +47,8 @@ function issue(input: { key: string; month: number; project: string; billing?: s
       updated: "2026-10-01T00:00:00.000Z",
       labels: [`mes-${input.month}`],
       duedate: `2026-${String(input.month).padStart(2, "0")}-06`,
-      ["customfield_11237"]: input.billing ? [{ value: input.billing }] : null,
+      [input.billingField ?? "customfield_11237"]: input.billing ? [{ value: input.billing }] : null,
+      ...(input.globalBilling ? { ["customfield_11237"]: [{ value: input.globalBilling }] } : {}),
     },
   };
 }
@@ -59,6 +62,7 @@ function service(overrides: Record<string, unknown> = {}) {
     currency: "UF",
     jsmLinkSource: "linked",
     jsmProjectKey: "CONSALOP02",
+    jsmProjectId: "13114",
     jsmBillingSyncMode: "external_reference",
     jsmWorkPlanSyncMode: "external_reference",
     ...overrides,
@@ -90,6 +94,7 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
     mocks.getBillingByProject.mockResolvedValue([]);
     mocks.getFinancialDataForDeal.mockResolvedValue({ projectFinancial: null });
     mocks.listRecurringServices.mockResolvedValue([]);
+    mocks.getAdminSettingValue.mockResolvedValue(null);
   });
 
   it("con seis bindings canónicos confirmados usa sólo CONSALOP02 y cuenta cada cuota una vez", async () => {
@@ -127,6 +132,38 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
     );
   });
 
+  it.each(["linked", "created"])("usa el field financiero local verificado con procedencia %s y lo expone en evidence", async (jsmLinkSource) => {
+    const canonical = Array.from({ length: 6 }, (_, index) => issue({
+      key: `CONSALOP02-${101 + index}`,
+      month: index + 1,
+      project: "CONSALOP02",
+      billing: "✅ Facturado",
+      billingField: "customfield_12127",
+      globalBilling: "❌ No facturado",
+    }));
+    mocks.getRecurringServiceById.mockResolvedValue(service({ jsmLinkSource }));
+    mocks.getBillingMonths.mockResolvedValue(schedule([1, 2, 3, 4, 5, 6]));
+    mocks.getAdminSettingValue.mockResolvedValue(JSON.stringify({
+      version: 1,
+      serviceId: 2070001,
+      projectId: "13114",
+      projectKey: "CONSALOP02",
+      fieldId: "customfield_12127",
+      fieldName: "Estado de Facturación Staffing",
+      verifiedAt: "2026-10-21T19:00:00.000Z",
+    }));
+    mocks.searchJiraIssues.mockResolvedValue({ issues: canonical });
+
+    const result = await loadRecurringServiceJiraBillingEvidence(2070001);
+
+    expect(result.field).toEqual({ id: "customfield_12127", name: "Estado de Facturación Staffing" });
+    expect(result.items.every(item => item.billingStatus === "billed")).toBe(true);
+    expect(mocks.searchJiraIssues).toHaveBeenCalledWith(
+      "project=CONSALOP02 ORDER BY created ASC",
+      expect.objectContaining({ fields: expect.arrayContaining(["customfield_12127", "customfield_11237"]) }),
+    );
+  });
+
   it("mantiene el fallback legado mientras falte al menos un binding de cuota", async () => {
     const canonical = issue({ key: "CONSALOP02-101", month: 1, project: "CONSALOP02", billing: "✅ Facturado" });
     const legacy = issue({ key: "PSCSC4S-202", month: 2, project: "PSCSC4S", billing: "❌ No facturado" });
@@ -149,6 +186,34 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
       'issuetype="Hito PMO" ORDER BY project,key',
       expect.any(Object),
     );
+    expect(mocks.getAdminSettingValue).not.toHaveBeenCalled();
+  });
+
+  it("mapping canónico inválido deja Jira no disponible y no usa el campo global", async () => {
+    mocks.getRecurringServiceById.mockResolvedValue(service());
+    mocks.getBillingMonths.mockResolvedValue(schedule([1, 2, 3, 4, 5, 6]));
+    mocks.getAdminSettingValue.mockResolvedValue(JSON.stringify({
+      version: 1,
+      serviceId: 2070001,
+      projectId: "99999",
+      projectKey: "CONSALOP02",
+      fieldId: "customfield_12127",
+      fieldName: "Estado de Facturación Staffing",
+      verifiedAt: "2026-10-21T19:00:00.000Z",
+    }));
+    mocks.searchJiraIssues.mockResolvedValue({ issues: Array.from({ length: 6 }, (_, index) => issue({
+      key: `CONSALOP02-${101 + index}`,
+      month: index + 1,
+      project: "CONSALOP02",
+      globalBilling: "✅ Facturado",
+    })) });
+
+    const result = await loadRecurringServiceJiraBillingEvidence(2070001);
+
+    expect(result.jiraAvailable).toBe(false);
+    expect(result.summary.unknownItems).toBe(6);
+    expect(result.summary.billedItems).toBe(0);
+    expect(result.warnings.join(" ")).toMatch(/projectId/);
   });
 
   it("no vuelve al origen si Jira falla después de persistir todos los bindings canónicos", async () => {
