@@ -1,0 +1,30 @@
+export const CLOUDOPS4775_SERVICE_ID=3300001;
+export const CLOUDOPS4775_SOW_HASH='568ec1f605d405e974f6fb54c4570dfbaf001b378778fe84c6afb5350d1369c0';
+export const CLOUDOPS4775_VERSION='cloudops-4775-sow-v1-20261021';
+export type CloudOps4775Item={code:string;title:string;description:string;itemType:'tarea_programada'|'informe_mensual';frequency:'mensual'|'unica';monthNumber:number|null;dueDate:null;reuseId:number|null;kind:'monthly'|'cadence'|'initial'|'conditional'};
+export function buildCloudOps4775Plan(existing:Array<{id:number;monthNumber:number|null;jiraIssueKey:string|null}>):CloudOps4775Item[]{
+ if(existing.length!==6||existing.some(r=>r.jiraIssueKey)||new Set(existing.map(r=>r.monthNumber)).size!==6||existing.some(r=>!r.monthNumber||r.monthNumber<1||r.monthNumber>6))throw Error('Se requieren exactamente seis filas genéricas sin vínculo, una por cuota M01–M06.');
+ const items:CloudOps4775Item[]=[];
+ const common='Fuente: SoW - Servicio CloudOps - Consalud (Renovación) - Deal 4775, artifact300001, SHA256 '+CLOUDOPS4775_SOW_HASH+'.\nStaffing Ingeniero CloudSecOps Senior, 160 horas/mes, remoto. No compromete productos de software cerrados, SLA de incidentes, DR ni cobertura24x7. Registro pendiente: no acredita ejecución, recepción, aceptación ni factura.';
+ const monthly=[
+  {code:'worklog',title:'Consolidar Worklog y capacidad CloudSecOps',section:'§2.1 pp1–2 / §2.2 p2',text:'Registrar actividades y horas reales, ausencias autorizadas y aprobación del Cliente. 160h es capacidad acordada, no horas efectivamente consumidas.'},
+  {code:'report',title:'Reporte Mensual de Servicio CloudOps',section:'§2.2 p2 / §5.1 p6',text:'Entregar detalle de actividades y horas dentro de los primeros3 días hábiles del período siguiente al reportado. La cuota no identifica por sí sola un mes calendario. Fecha de entrega y período requieren evidencia/confirmación.'},
+  {code:'approval',title:'Revisión del reporte y habilitación de factura',section:'§2.2 p2 / §§5.2 y6.2 pp6–7',text:'Guardar recepción, observaciones y decisión del Cliente. §§5.2/6.2 indican3 días hábiles; §2.2 dice cinco(3): registrar inconsistencia, no decidir aceptación automática. No fijar vencimiento sin recepción acreditada; factura se lee por campo explícito Jira.'},
+  {code:'nps',title:'Feedback mensual NPS CloudOps',section:'§2.5 pp3–4 / §3 p4 / §5.2 p6',text:'Solicitar feedback y registrar respuesta/evidencia. No rellenar puntuación, envío ni participación no acreditados.'}
+ ];
+ for(let n=1;n<=6;n++)for(const c of monthly){const period='M'+String(n).padStart(2,'0');items.push({code:`${period}-${c.code}`,title:`${c.title} · Cuota ${period}`,description:`${common}\nCláusula: ${c.section}.\n${c.text}\nPeríodo: referencia a cuota${n}, NO mes calendario confirmado. Inicio27/07/2026 y término PMO27/01/2027 generan tramos parciales; confirmar calendario/prorrata, sin crear una séptima cuota.`,itemType:c.code==='report'?'informe_mensual':'tarea_programada',frequency:'mensual',monthNumber:n,dueDate:null,reuseId:c.code==='worklog'?existing.find(r=>r.monthNumber===n)!.id:null,kind:'monthly'});}
+ const definitions:Array<[string,string,CloudOps4775Item['kind'],string,string]>=[
+ ['cadence-1on1','Control quincenal 1-on-1 y desempeño','cadence','§3 p4','Definir y ejecutar seguimiento quincenal interno; no inventar reuniones históricas, fechas ni resultados.'],
+ ['cadence-burnrate','Control quincenal burn-rate y asignación','cadence','§3 pp4–5 / §4.1 p5','Focal Point monitorea horas y baja asignación; ante señal real, notificar Líder del Cliente. No inferir consumo ni demanda.'],
+ ['initial-oc-sign','Verificar OC y aceptación contractual Cliente','initial','§1 p1 / §2.4 p3 / firmas pp8–10','OC previa al inicio y firma son condiciones. AuditoríaPDF muestra firmas Prodigio el25/26agosto; no demuestra firma/aceptación Cliente ni OC. Conservar y verificar evidencia, sin marcar completo.'],
+ ['initial-access','Verificar accesos del profesional y del Gestor','initial','§2.4 p3 / §3 p4','Ambientes, VPN, repositorios, pipelines, comunicación y herramientas para extraer Worklog/reportes; antecedencia5 días hábiles es regla, no prueba.'],
+ ['initial-roles','Confirmar contrapartes y Focal Point','initial','§2.5 pp3–4 / §4.1 p5 / p8','Confirmar Líder Técnico, Responsable de Contrato y Focal Point. SoW nombra JorgeBachler, AntonioAlamo, ArielGomez y AizaPineda; no asignar cuentas Jira por inferencia.'],
+ ['initial-periods','Confirmar calendario de reportes y cuotas parciales','initial','§2.1 pp1–2 / §2.2 p2 / §6.2 p7','Reconciliar julio/enero parciales con seis cuotas, significado de fechas PMO/Jira y prorrata/OC. Mantener cuotas UF160, sus fechas y totalUF960 intactos; no fijar nuevos períodos ni prorratear sin decisión.'],
+ ['initial-profile','Integración de perfil CloudSecOps al backlog Cliente','initial','§2.1 p2 / §2.5 pp3–4','PerfilGCP, Terraform/Helm, GKE, ServiceMesh, VPC/VPN, WAF/CloudArmor; integración a ceremonias del Cliente. Son competencias/contexto, no proyectos de implementación con plazos inventados.'],
+ ['conditional-absence','Definir control de ausencias y sustitución','conditional','§2.4 p3 / §3 p4','Aviso10 días, reemplazo o descuento conforme acuerdo; sólo activar ante ausencia real. Sin descuentos automáticos ni ausencias inventadas.'],
+ ['conditional-escalation','Definir escalamiento y reemplazo ágil','conditional','§4.2 p5','Alerta temprana, plan15/30 días y reemplazo si corresponde; es protocolo pendiente de implementación/confirmación, no un incidente ocurrido.'],
+ ['conditional-change','Control de cambios, extras y gastos autorizados','conditional','§4.3 p5 / §6.2 p7','Cambios de seniority/horas/extensión requieren CR/anexo; extras fuera de horario/feriados y gastos sólo por solicitud/aprobación escrita. No calcular recargos ni crear facturas adicionales.']
+ ];
+ for(const [code,title,kind,section,text] of definitions)items.push({code,title,description:`${common}\nCláusula: ${section}.\n${text}`,itemType:'tarea_programada',frequency:'unica',monthNumber:null,dueDate:null,reuseId:null,kind});
+ return items;
+}

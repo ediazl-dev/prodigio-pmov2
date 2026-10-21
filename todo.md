@@ -887,3 +887,11 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] P3: Seis originales movidos a CONSALOP02-3/4/5/6/7/2; IDs, campos, vínculos, comentarios, entradas históricas y bytes del adjunto conservados. Copia explícita verificada al campo local de los estados originales, sin inferir factura.
 - [x] P4: 31 tareas creadas y vinculadas a hitos (24 mensuales, 2 definiciones quincenales, 5 verificaciones de inicio); todos los estados siguen pendientes, sin inventar recepción ni responsables. Facturación/documentos/evidencia intactos, journal y respaldo inicial conservados; 37 issues total en CONSALOP02.
 - [x] P5: GET, readiness 31/31 y cero pendientes, vínculo saludable, 4687 intacto. UI certificada con Actividades (31) y Facturación (6), sin etiqueta Jira externo ni nuevas creaciones financieras. 1183 pruebas aprobadas, 20 omitidas, build correcto, sólo cinco errores TS heredados; diff/secret scan correctos. Checkpoint final de este bloque; P1 permanece pendiente explícito.
+
+## Activación CloudOps 4775 — CONSALOP03 — 2026-10-21 (base a20a0796)
+- [x] G0: SoW artifact300001 verificado por hash, respaldo completo de PMO/SoW y seis originales con historias/comentarios/adjuntos; hashes correctos, destino13149/434 y acceso HTTP200. No se aplicaron escrituras Jira/PMO.
+- [x] G1: Matriz pura34 controles (24mensuales,2quincenales,5inicio,3protocolos condicionados), reutiliza IDs510001–510006; sin SLA/DR/24x7 ni períodos/aceptación inventados. Cuatro pruebas focales y build aprobados, cinco errores TS heredados. Calendario/prorrata y recepción deben confirmarse con evidencia.
+- [ ] G2: Configurar tipos locales y campos propios en CONSALOP03 con máximo un intento por ruta fallida; sin tocar otros Spaces ni permisos globales.
+- [ ] G3: Traslado financiero sujeto a respuesta explícita de la consulta: no copiar ni mover originales hasta autorización; preservar 2 Facturado, 1 En Proceso y 3 sin información, cuotas y evidencia.
+- [ ] G4: Crear tareas operativas internas del SoW con journal intent/receipt y verificación GET; enlazar referencias financieras donde corresponda, revalidar vínculo, sin cerrar tareas/etapas.
+- [ ] G5: Lectura/UI canónica según decisión financiera, invariantes 4687/4727, suite/build/TS heredado, respaldo/diff y checkpoints por bloque.
