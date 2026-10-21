@@ -305,7 +305,7 @@ export default function RSExecutionStage() {
           const otherKpis = [
             { label: "Avance Temporal", value: `${metrics?.contractProgress ?? 0}%`, color: "#fff", icon: <TrendingUp size={12} />, sub: `${metrics?.monthsElapsed ?? 0}/${svc.durationMonths} meses` },
             { label: "Avance Tareas", value: `${metrics?.completionRate ?? 0}%`, color: "#4ADE80", icon: <Package size={12} />, sub: `${metrics?.completedItems ?? 0}/${metrics?.totalItems ?? 0}` },
-            { label: "Facturado según Jira", value: metrics?.unknownMonths ? "N/D" : `${svc.currency} ${metrics?.totalBilled?.toLocaleString() ?? "0"}`, color: "#60A5FA", icon: <Receipt size={12} />, sub: metrics?.unknownMonths ? `${metrics.unknownMonths} cuota(s) por verificar` : undefined },
+            { label: "Facturado según Jira · confirmado", value: metrics?.unknownMonths && !(metrics.totalBilled > 0) ? "N/D" : `${svc.currency} ${metrics?.totalBilled?.toLocaleString() ?? "0"}`, color: "#60A5FA", icon: <Receipt size={12} />, sub: metrics?.unknownMonths ? `${metrics.unknownMonths} cuota(s) N/D no incluidas` : undefined },
             { label: "No facturado explícito", value: metrics?.unknownMonths ? "N/D" : `${svc.currency} ${metrics?.totalPending?.toLocaleString() ?? "0"}`, color: "#FBBF24", icon: <DollarSign size={12} />, sub: metrics?.overdueMonths ? `${metrics.overdueMonths} vencidas confirmadas` : undefined },
             { label: "Multas", value: `${svc.currency} ${metrics?.totalPenalties?.toLocaleString() ?? "0"}`, color: (metrics?.totalPenalties ?? 0) > 0 ? "#F87171" : "#4ADE80", icon: <AlertTriangle size={12} /> },
           ];

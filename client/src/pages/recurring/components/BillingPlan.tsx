@@ -73,7 +73,7 @@ export function BillingPlan({ plan, onRowAction, cutOffDate = new Date().toISOSt
         {plan.totals.map(total => (
           <div key={total.currency} className="flex flex-wrap items-center gap-5">
             <Figure label="Contratado" value={total.contractedLabel} />
-            <Figure label="Facturado Jira" value={plan.rows.some(row => row.currency === total.currency && row.state === "estado_nd") ? "N/D" : total.invoicedLabel} className="text-[#175CD3]" />
+            <Figure label="Facturado Jira · confirmado" value={plan.rows.some(row => row.currency === total.currency && row.state === "estado_nd") && !plan.rows.some(row => row.currency === total.currency && row.state === "facturada") ? "N/D" : total.invoicedLabel} className="text-[#175CD3]" note={plan.rows.some(row => row.currency === total.currency && row.state === "estado_nd") ? `${plan.rows.filter(row => row.currency === total.currency && row.state === "estado_nd").length} cuota(s) N/D no incluidas` : undefined} />
             <div className="border-l border-slate-200 pl-5 text-right">
               <p className="text-[9px] font-bold uppercase tracking-wider text-[#B42318]">Vencido</p>
               <p className="font-mono text-[19px] font-black text-[#B42318]">{unknownDueRows.some(row => row.currency === total.currency) ? "N/D" : total.overdueLabel}</p>
@@ -162,11 +162,12 @@ export function BillingPlan({ plan, onRowAction, cutOffDate = new Date().toISOSt
   );
 }
 
-function Figure({ label, value, className = "text-slate-950" }: { label: string; value: string; className?: string }) {
+function Figure({ label, value, note, className = "text-slate-950" }: { label: string; value: string; note?: string; className?: string }) {
   return (
     <div className="text-right">
       <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
       <p className={`font-mono text-[15px] font-black ${className}`}>{value}</p>
+      {note && <p className="text-[9px] text-slate-600">{note}</p>}
     </div>
   );
 }

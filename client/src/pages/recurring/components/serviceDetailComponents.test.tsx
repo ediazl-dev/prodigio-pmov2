@@ -150,6 +150,18 @@ describe("BillingPlan", () => {
     expect(screen.queryByText(/Ninguna cuota pasada/)).toBeNull();
   });
 
+  it("conserva UF470 confirmados con una cuota N/D que no se incluye", () => {
+    const plan = {
+      rows: Array.from({length: 6}, (_, i) => ({id: i+1, monthNumber: i+1, dueDate: i === 5 ? "2026-12-07" : "2026-10-01", dueLabel: "01-10-2026", amount: 94, currency: "UF", amountLabel: "UF 94", state: i < 5 ? "facturada" as const : "estado_nd" as const, stateLabel: i < 5 ? "Facturada" : "Estado Jira N/D", missingDueDate: false, daysOverdue: null, note: i < 5 ? "Confirmación JSM" : "Por verificar", actionLabel: null, jiraIssueKey: `CAMANSOP01-${20+i}`})),
+      totals: [{currency: "UF", contracted: 564, invoiced: 470, overdue: 0, overdueItems: 0, contractedLabel: "UF 564", invoicedLabel: "UF 470", overdueLabel: "UF 0"}],
+      missingDueDates: 0, planMismatch: null, hasRows: true,
+    } satisfies BillingPlanModel;
+    render(<BillingPlan plan={plan} cutOffDate="2026-10-21" />);
+    expect(screen.getByText("UF 470")).toBeTruthy();
+    expect(screen.getByText("1 cuota(s) N/D no incluidas")).toBeTruthy();
+    expect(screen.getByText("Facturado Jira · confirmado")).toBeTruthy();
+  });
+
   it("presenta una acción de navegación honesta y entrega la cuota seleccionada", () => {
     const onRowAction = vi.fn();
     const plan = {

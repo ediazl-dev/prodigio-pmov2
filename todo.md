@@ -904,5 +904,5 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 ## Asociación financiera Camanchaca 2383 — 2026-10-21 (base ba5fe6ac)
 - [x] F0: Seis cuotas sin claves; cinco confirmaciones explícitas en comentarios de Aiza, campo estructurado vacío. Respaldo privado SHA-256 y causa reproducible.
 - [x] F1: Seis claves originales CAMANSOP01-20 a -25, reutilización y política opt-in de comentarios; UF470 confirmados y M06 N/D. Transacción/auditoría/idempotencia, Jira sin escrituras.
-- [ ] F2: Alinear detalle, JSM Setup y vistas consolidadas con la evidencia única; sin sumar duplicados ni alterar importes/monedas/histórico.
-- [ ] F3: Regresiones de Staffing/cortes, lectura real, invariantes, build/TS heredado, suite y checkpoint de entrega.
+- [x] F2: Cabecera/panel mantienen UF470 confirmados con M06 N/D; Ejecución conserva subtotal parcial; JSM Setup consulta seis originales sin crear copias. Fuente común y regresiones de Clásico/Staffing; cero cambios de importes/monedas/histórico.
+- [x] F3: Live seis hitos/UF470/una N/D/sin duplicados; documentos/cuotas/etapas/plan preservados; 4687 cerrado intacto y cortes 4727/4775 sin regresión. 1.232 pruebas aprobadas, 20 omitidas; build, cinco TS heredados y preview HTTP200. Checkpoint final de entrega.
