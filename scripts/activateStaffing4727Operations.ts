@@ -574,6 +574,14 @@ function saveSelectiveBackup(state: Awaited<ReturnType<typeof readDbState>>): {
 } {
   const backup = selectiveBackup(state);
   const path = join(JOURNAL_ROOT, "pmo-before-selective.json");
+  if (existsSync(path)) {
+    const digest = sha256(readFileSync(path));
+    const expected = readFileSync(`${path}.sha256`, "utf8").split(/\s+/)[0];
+    assert(digest === expected, "checksum del respaldo inicial no coincide");
+    const original = JSON.parse(readFileSync(path, "utf8"));
+    assert(original.service?.id === STAFFING4727_SERVICE_ID, "respaldo inicial pertenece a otro servicio");
+    return { path, sha256: digest };
+  }
   writeJsonAtomic(path, backup);
   const digest = sha256(readFileSync(path));
   writeFileSync(`${path}.sha256`, `${digest}  pmo-before-selective.json\n`, {
@@ -1161,6 +1169,7 @@ async function main(): Promise<void> {
       assert(milestone, `hito canónico no encontrado para ${item.period}`);
       await ensureNativeLink(journal, issue, milestone, jira.linkType);
     }
+    console.log(JSON.stringify({progress: `${issueKeysByWorkPlanId.size}/${afterPlan.plan.length}`, planId: row.id, issueKey: issue.key, linksVerified: true}));
   }
   await applyDbCompletion(
     db,

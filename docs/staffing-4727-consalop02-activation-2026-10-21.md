@@ -38,3 +38,15 @@ Corte PMO: `/home/ubuntu/backups/prodigio-pmo/2026-10-21-staffing-4727-billing-c
 Activación operacional: `/home/ubuntu/backups/prodigio-pmo/2026-10-21-staffing-4727-activation`.
 
 Un checkpoint de código no revierte Jira ni los datos. No se hará rollback automático del movimiento ni se borrarán originales o evidencia.
+
+## Actualización: operación aplicada — 21-oct-2026, 17:16 Chile
+
+La corrida operacional terminó con código 0. CONSALOP02 contiene 37 issues: seis hitos originales trasladados y 31 tareas únicas (CONSALOP02-8 a CONSALOP02-38). Son 24 controles mensuales, dos definiciones quincenales y cinco verificaciones de inicio. Las definiciones quincenales no constituyen reuniones realizadas ni tienen fechas ficticias.
+
+GET confirmó 31 claves únicas, cero tareas cerradas, cero customer request type asignado y cero participantes de solicitudes en las tareas creadas. Los registros son internos; esto no equivale a ocultar sus tipos del catálogo del portal. Ese control todavía no quedó certificado: ambos tipos aparecen en el grupo de portal 462. La ruta de restricciones del navegador se detuvo al volverse repetitiva, sin afirmar que hubiese guardado una restricción.
+
+Las filas financieras se conservaron íntegramente; los reportes y la evidencia financiera no se modificaron. El respaldo inicial se preserva en reanudaciones y el journal registra cada intención antes del POST. La lectura financiera mantiene UF585 facturados según campo explícito y UF585 No facturado, cero N/D y cero duplicados. El 4687 permanece cerrado e idéntico a su snapshot.
+
+Revalidación oficial `staffing4727-revalidate-20261021-after-activation`: mismo servicio/Space, cero bloqueadores/advertencias, healthy y procedencia created preservada. Readiness: 31 elementos aplicables, cero sin vincular. QA: 1.180 pruebas aprobadas, 20 omitidas; build exitoso; cinco errores TypeScript heredados.
+
+Se detectó un defecto de presentación: JSM Setup todavía muestra Facturación (0) y Jira externo, al excluir las seis referencias existentes de la lista. Se corregirá sin tratarlas como seis nuevas creaciones ni cambiar la compuerta de 31 actividades.
