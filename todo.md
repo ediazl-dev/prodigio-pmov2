@@ -906,3 +906,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] F1: Seis claves originales CAMANSOP01-20 a -25, reutilización y política opt-in de comentarios; UF470 confirmados y M06 N/D. Transacción/auditoría/idempotencia, Jira sin escrituras.
 - [x] F2: Cabecera/panel mantienen UF470 confirmados con M06 N/D; Ejecución conserva subtotal parcial; JSM Setup consulta seis originales sin crear copias. Fuente común y regresiones de Clásico/Staffing; cero cambios de importes/monedas/histórico.
 - [x] F3: Live seis hitos/UF470/una N/D/sin duplicados; documentos/cuotas/etapas/plan preservados; 4687 cerrado intacto y cortes 4727/4775 sin regresión. 1.232 pruebas aprobadas, 20 omitidas; build, cinco TS heredados y preview HTTP200. Checkpoint final de entrega.
+
+## Claro 2397 operativo — cierre JSM Setup — 2026-10-21 (base cc09bac8)
+- [x] Q0: Respaldo SHA-256 completo y verificado; 32 actividades MDSCE2937 y doce originales MDS2937-56 a -67 del mismo Deal/mes, sin propietarios PMO previos.
+- [x] Q1: Doce referencias financieras asociadas; ambas categorías reutilizan existentes; mappings anteriores superseded. Jira sin escrituras y cuotas/plan/documentos/validaciones preservados, emisión N/D.
+- [x] Q2: Listado muestra actividades y hitos existentes; cierre nativo con cero bloqueadores, Setup completed, Ejecución in_progress y Cierre locked. Análisis previo a configuración retirado del veredicto/caches sin borrar historial ni generar otro.
+- [x] Q3: 1.241 pruebas aprobadas y 20 omitidas, build y mismos cinco TS heredados; API/dashboard de Ejecución verificados, 4687 intacto y diff íntegro. Checkpoint final de entrega.

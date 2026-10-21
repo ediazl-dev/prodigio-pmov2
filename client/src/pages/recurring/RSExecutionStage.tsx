@@ -186,7 +186,9 @@ export default function RSExecutionStage() {
       {/* ═══ HEADER ═══ */}
       {ai?.obsolete && (
         <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950">
-          El análisis agéntico anterior está obsoleto: atribuía facturación y SLA de incidentes sin evidencia contractual. Su historial se conserva, pero no se usa como veredicto vigente. Actualice el análisis con la política corregida.
+          {ai.obsoleteAfterConfiguration
+            ? "El análisis anterior es previo a la configuración JSM vigente. Se conserva en el historial, pero no se utiliza como veredicto actual ni como prueba de facturación."
+            : "El análisis agéntico anterior está obsoleto: atribuía facturación y SLA de incidentes sin evidencia contractual. Su historial se conserva, pero no se usa como veredicto vigente. Actualice el análisis con la política corregida."}
         </div>
       )}
       <div style={{

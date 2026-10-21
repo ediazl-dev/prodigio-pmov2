@@ -23,6 +23,7 @@ import { buildStaffingContractPlan, getRecurringServiceContractPolicy, parseStaf
 import { extractSowContent } from "./documentExtractor";
 import { loadRecurringContractEvidence } from "./recurringContractEvidenceSource";
 import { storageGet } from "./storage";
+import { isRecurringAnalysisOlderThanConfiguration } from "./recurringAnalysisFreshness";
 import {
   getRecurringServiceForJsmRefresh,
   listRecurringServicesJsmRefreshHistory,
@@ -1709,6 +1710,17 @@ Responde en JSON con este formato:
       unsyncedWorkItems,
       unsyncedBilling,
       historicalLinkedItems,
+      ...(!workPlanApplicable ? {
+        existingWorkReferences: workItems.filter(item => item.jiraIssueKey && item.itemType !== "facturacion").map(item => ({
+          id: item.id,
+          jiraKey: item.jiraIssueKey!,
+          title: item.title,
+          type: item.itemType,
+          frequency: item.frequency,
+          monthNumber: item.monthNumber,
+          category: "actividad" as const,
+        })),
+      } : {}),
       ...(!billingApplicable ? {
         existingBillingReferences: billing.filter(item => item.jiraIssueKey).map(item => ({
           id: item.id,
@@ -1933,6 +1945,8 @@ Responde en JSON con este formato:
     }
 
     const obsoleteStaffingAnalysis = svc.serviceType === "staffing" && !!aiAnalysis && aiAnalysis.sourcePolicyVersion !== STAFFING_AI_EVIDENCE_VERSION;
+    const obsoleteAfterConfiguration = !!aiAnalysis && isRecurringAnalysisOlderThanConfiguration({ configuredAt: svc.jsmSyncPolicyUpdatedAt, analysisCreatedAt: latestAnalysis?.createdAt ?? svc.aiAnalysisDate });
+    const obsoleteAnalysis = obsoleteStaffingAnalysis || obsoleteAfterConfiguration;
     return {
       service: svc,
       billing: billingOperational,
@@ -1969,15 +1983,16 @@ Responde en JSON con este formato:
         overdueMonths: overdueMonths.length,
       },
       aiAnalysis: {
-        data: obsoleteStaffingAnalysis ? null : aiAnalysis,
-        obsolete: obsoleteStaffingAnalysis,
-        healthStatus: obsoleteStaffingAnalysis ? null : latestAnalysis?.semaphore ?? svc.aiHealthStatus,
-        healthJustification: obsoleteStaffingAnalysis ? null : latestAnalysis?.semaphoreJustification ?? svc.aiHealthJustification,
-        abstract: obsoleteStaffingAnalysis ? null : latestAnalysis?.executiveAbstract ?? svc.aiExecutiveAbstract,
+        data: obsoleteAnalysis ? null : aiAnalysis,
+        obsolete: obsoleteAnalysis,
+        obsoleteAfterConfiguration,
+        healthStatus: obsoleteAnalysis ? null : latestAnalysis?.semaphore ?? svc.aiHealthStatus,
+        healthJustification: obsoleteAnalysis ? null : latestAnalysis?.semaphoreJustification ?? svc.aiHealthJustification,
+        abstract: obsoleteAnalysis ? null : latestAnalysis?.executiveAbstract ?? svc.aiExecutiveAbstract,
         analysisDate: latestAnalysis?.createdAt ?? svc.aiAnalysisDate,
         daysOld: aiAnalysisDaysOld,
-        expired: aiAnalysisExpired || obsoleteStaffingAnalysis,
-        dimensions: obsoleteStaffingAnalysis ? null : aiDimensions,
+        expired: aiAnalysisExpired || obsoleteAnalysis,
+        dimensions: obsoleteAnalysis ? null : aiDimensions,
         history: analysisHistory.map(a => ({
           id: a.id,
           semaphore: a.semaphore,
@@ -2135,7 +2150,7 @@ Responde en JSON con este formato:
           if (daysDiff <= 5) {
             try {
               const cached = JSON.parse(latest.fullAnalysis ?? "{}");
-              if (svc.serviceType !== "staffing" || cached.sourcePolicyVersion === STAFFING_AI_EVIDENCE_VERSION) return {
+              if (!isRecurringAnalysisOlderThanConfiguration({ configuredAt: svc.jsmSyncPolicyUpdatedAt, analysisCreatedAt: latest.createdAt }) && (svc.serviceType !== "staffing" || cached.sourcePolicyVersion === STAFFING_AI_EVIDENCE_VERSION)) return {
                 ...cached,
                 fromCache: true,
                 daysOld: daysDiff,
@@ -2168,7 +2183,7 @@ Responde en JSON con este formato:
           if (daysDiff <= 5) {
             try {
               const cached = JSON.parse(svc.aiFullAnalysis);
-              if (svc.serviceType !== "staffing" || cached.sourcePolicyVersion === STAFFING_AI_EVIDENCE_VERSION)
+              if (!isRecurringAnalysisOlderThanConfiguration({ configuredAt: svc.jsmSyncPolicyUpdatedAt, analysisCreatedAt: svc.aiAnalysisDate }) && (svc.serviceType !== "staffing" || cached.sourcePolicyVersion === STAFFING_AI_EVIDENCE_VERSION))
                 return { ...cached, fromCache: true, daysOld: daysDiff };
             } catch {
               /* regenerate */

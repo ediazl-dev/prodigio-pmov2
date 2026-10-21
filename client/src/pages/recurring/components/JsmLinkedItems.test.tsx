@@ -41,4 +41,14 @@ describe("consulta de referencias financieras existentes en JSM", () => {
     fireEvent.click(screen.getByRole("button", { name: "Facturación (1)" }));
     expect(screen.getAllByRole("link", { name: "CONSALOP02-3" })).toHaveLength(1);
   });
+
+  it("muestra actividades existentes sin exigir una nueva creación o mapping", () => {
+    const activities = Array.from({ length: 32 }, (_, i) => ({ id: 450001 + i, jiraKey: `MDSCE2937-${i + 1}`, title: `Control ${i + 1}`, type: "tarea_programada", frequency: "mensual", monthNumber: null, category: "actividad" }));
+    const data = summary({ existingWorkReferences: activities, totalWorkItems: 0, totalSynced: 0 });
+    render(<JsmLinkedItems summary={data} jiraBaseUrl="https://apiservice2.atlassian.net" />);
+    expect(screen.getByRole("button", { name: "Actividades (32)" })).toBeTruthy();
+    expect(screen.getAllByRole("link")).toHaveLength(32);
+    expect(data.totalSynced).toBe(0);
+    expect(screen.queryByText("Ejecutar dry-run")).toBeNull();
+  });
 });

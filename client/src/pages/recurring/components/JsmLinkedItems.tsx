@@ -27,7 +27,10 @@ interface JsmLinkedItemsProps {
 export function JsmLinkedItems({ summary, jiraBaseUrl }: JsmLinkedItemsProps) {
   const [tab, setTab] = useState<"actividades" | "facturacion">("actividades");
 
-  const activities = summary.syncedWorkItems;
+  const activities = Array.from(new Map(
+    [...summary.syncedWorkItems, ...(summary.existingWorkReferences ?? [])]
+      .map(item => [item.jiraKey, item] as const)
+  ).values());
   const billing = Array.from(new Map(
     [...summary.syncedBilling, ...(summary.existingBillingReferences ?? [])]
       .map(item => [item.jiraKey, item] as const)
