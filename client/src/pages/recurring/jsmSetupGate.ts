@@ -210,9 +210,9 @@ function prodigioSteps(input: JsmSetupGateInput): GateStep[] {
   steps.push({
     id: "mapping_billing",
     order: 4,
-    title: input.billingMode === "external_reference" ? "Facturación en Jira externo" : "Mapping de facturación",
+    title: input.billingMode === "external_reference" ? "Facturación existente · sin duplicar" : "Mapping de facturación",
     detail: input.billingMode === "external_reference"
-      ? "Los hitos de facturación se leen desde el proyecto Jira existente y no se duplican en este Space JSM."
+      ? "Se leen los hitos ya existentes por sus claves Jira. Pueden estar en este mismo Space JSM; no se crean copias."
       : billingRequired
       ? "Qué tipo de issue representa un hito de facturación."
       : "No hay plan de cobro en este servicio.",

@@ -351,7 +351,7 @@ export default function RSJsmSetupStage() {
         <div>
           <h3 className="text-sm font-black text-slate-950">Qué se creará en este Space</h3>
           <p className="mt-1 text-xs leading-5 text-slate-600">
-            “Referencia externa” conserva el seguimiento en el Jira existente y evita duplicar actividades o hitos.
+            “Referencia existente” reutiliza las claves Jira sin crear copias. Los registros pueden estar en este mismo Space; consúltelos en «Ya vinculados».
           </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -783,7 +783,7 @@ function SyncModeSelect({
         disabled={disabled}
         className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
       >
-        <option value="external_reference">Referencia externa · no crear issues</option>
+        <option value="external_reference">Referencia existente · no crear duplicados</option>
         <option value="create_in_linked_space">Crear en este Space · requiere mapping</option>
       </select>
     </div>

@@ -94,7 +94,8 @@ describe("buildJsmSetupGate", () => {
       readiness: { canClose: true, blockers: [] },
     }));
     expect(gate.steps.find(step => step.id === "mapping_work_plan")?.title).toBe("Plan de trabajo externo");
-    expect(gate.steps.find(step => step.id === "mapping_billing")?.title).toBe("Facturación en Jira externo");
+    expect(gate.steps.find(step => step.id === "mapping_billing")?.title).toBe("Facturación existente · sin duplicar");
+    expect(gate.steps.find(step => step.id === "mapping_billing")?.detail).toContain("este mismo Space JSM");
     expect(gate.steps.find(step => step.id === "sync")?.state).toBe("done");
     expect(gate.canClose).toBe(true);
     expect(gate.serverMismatch).toBe(false);

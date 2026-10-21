@@ -1704,6 +1704,17 @@ Responde en JSON con este formato:
       unsyncedWorkItems,
       unsyncedBilling,
       historicalLinkedItems,
+      ...(!billingApplicable ? {
+        existingBillingReferences: billing.filter(item => item.jiraIssueKey).map(item => ({
+          id: item.id,
+          jiraKey: item.jiraIssueKey!,
+          title: `Facturación Mes ${item.monthNumber}`,
+          amount: item.amount,
+          currency: item.currency,
+          monthNumber: item.monthNumber,
+          category: "facturacion" as const,
+        })),
+      } : {}),
       jsmProjectKey: svc.jsmProjectKey,
       jsmPortalUrl: svc.jsmPortalUrl,
       readiness: calculateJsmSetupReadiness({

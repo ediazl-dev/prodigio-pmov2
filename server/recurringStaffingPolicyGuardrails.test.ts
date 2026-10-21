@@ -32,7 +32,8 @@ describe("guardrails contractuales Staffing", () => {
   it("explica la aplicabilidad y la referencia externa antes del dry-run", () => {
     expect(workPlanPage).toContain("No aplican SLA de incidentes, DR ni cobertura 24x7");
     expect(workPlanPage).toContain("Regenerar desde SoW");
-    expect(jsmPage).toContain("Referencia externa · no crear issues");
+    expect(jsmPage).toContain("Referencia existente · no crear duplicados");
+    expect(jsmPage).toContain('value="external_reference"');
     expect(jsmPage).toContain("Qué se creará en este Space");
   });
 

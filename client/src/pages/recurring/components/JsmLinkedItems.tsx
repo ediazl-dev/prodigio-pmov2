@@ -28,7 +28,10 @@ export function JsmLinkedItems({ summary, jiraBaseUrl }: JsmLinkedItemsProps) {
   const [tab, setTab] = useState<"actividades" | "facturacion">("actividades");
 
   const activities = summary.syncedWorkItems;
-  const billing = summary.syncedBilling;
+  const billing = Array.from(new Map(
+    [...summary.syncedBilling, ...(summary.existingBillingReferences ?? [])]
+      .map(item => [item.jiraKey, item] as const)
+  ).values());
   const rows = tab === "actividades" ? activities : billing;
 
   if (activities.length === 0 && billing.length === 0) return null;
@@ -38,7 +41,7 @@ export function JsmLinkedItems({ summary, jiraBaseUrl }: JsmLinkedItemsProps) {
       <header className="flex flex-wrap items-center gap-2.5 border-b border-slate-200 px-5 py-2.5">
         <Check size={15} className="text-[#067647]" strokeWidth={2.4} />
         <h2 className="text-[14px] font-black text-slate-950">Ya vinculados</h2>
-        <span className="text-[11.5px] text-slate-600">Lista de consulta.</span>
+        <span className="text-[11.5px] text-slate-600">Lista de consulta; incluye hitos existentes sin recrearlos.</span>
         <div className="flex-grow" />
         {(
           [

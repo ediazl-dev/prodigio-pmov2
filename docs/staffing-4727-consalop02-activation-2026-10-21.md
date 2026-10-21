@@ -50,3 +50,19 @@ Las filas financieras se conservaron íntegramente; los reportes y la evidencia 
 Revalidación oficial `staffing4727-revalidate-20261021-after-activation`: mismo servicio/Space, cero bloqueadores/advertencias, healthy y procedencia created preservada. Readiness: 31 elementos aplicables, cero sin vincular. QA: 1.180 pruebas aprobadas, 20 omitidas; build exitoso; cinco errores TypeScript heredados.
 
 Se detectó un defecto de presentación: JSM Setup todavía muestra Facturación (0) y Jira externo, al excluir las seis referencias existentes de la lista. Se corregirá sin tratarlas como seis nuevas creaciones ni cambiar la compuerta de 31 actividades.
+
+## Presentación corregida — JSM Setup
+
+La vista previa ahora muestra Actividades (31) y Facturación (6). Las seis cuotas existentes se exponen como referencias de consulta, excluidas del contador de nuevas creaciones y de pendientes de sincronización. La compuerta permanece en 31/31 y cero pendientes. Se retiró la etiqueta engañosa «Facturación en Jira externo» y se explica que los hitos existentes pueden estar en el mismo CONSALOP02. El enum técnico external_reference conserva su función de no recrear hitos y no expresa que la facturación esté en otro Space.
+
+No se declaró el plan completo: quedan pendientes ocultar/restringir ambos tipos en el catálogo del portal y configurar monto/período como campos Jira adicionales. Las tareas creadas no tienen customer request type ni participantes; esos registros internos no equivalen a una restricción certificada del catálogo. Los montos contractuales están disponibles en PMO y se preservan sus seis cuotas; no se los convierte ni se deriva dinero desde texto Jira.
+
+La causa del bucle fue insistir con controles de restricciones que cambiaban de referencia o quedaban cubiertos en el navegador integrado. Se detuvo esa ruta y se completó la creación con la API, un único journal, progreso finito por tarea y verificación por GET. No se reenviaron a ciegas creaciones inciertas.
+
+## Certificación de la versión final
+
+La suite final exacta terminó con código 0: 1.183 pruebas aprobadas, 20 omitidas, 169 archivos aprobados; se excluyó la prueba live `ufService.test.ts` ajena a esta corrección. Build exitoso, cinco errores TypeScript heredados, diff íntegro y secret scan correcto. La regresión antigua se actualizó al nuevo texto conservando el enum external_reference; se añadieron tres pruebas para referencias existentes, compatibilidad y deduplicación de consulta.
+
+La comprobación de vista previa confirmó Actividades (31), Facturación (6), compuerta 5/5, 31/31 aplicables y cero pendientes. No se modificó la etapa de Ejecución ni se declaró cumplido el SoW. El estado de entrega de reportes continúa sujeto a evidencia real. Los cambios de Jira y de datos PMO ya están aplicados; la última corrección de texto/lista en la aplicación debe publicarse desde su checkpoint para llevarla al dominio productivo. No se confunde guardar con publicar.
+
+El plan no se marca completo: P1 conserva los dos pendientes administrativos indicados arriba. La creación operacional y la migración de facturación están ejecutadas y verificadas, no pendientes de otro dry-run.
