@@ -26,7 +26,7 @@ import {
   users,
 } from "../drizzle/schema";
 import { getDb } from "../server/db";
-import { getJiraRuntimeCredentials } from "../server/jiraClient";
+import { getJiraRuntimeCredentials, searchJiraIssues } from "../server/jiraClient";
 import {
   buildCloudOps4775Plan,
   CLOUDOPS4775_SERVICE_ID,
@@ -320,15 +320,9 @@ async function jiraGet<T>(path: string): Promise<T> {
 }
 
 async function jiraSearch(jql: string, fields: string[]): Promise<JiraIssue[]> {
-  const query = new URLSearchParams({
-    jql,
-    maxResults: "100",
-    fields: fields.join(","),
-  });
-  const result = await jiraGet<JiraSearchResponse>(
-    `/rest/api/3/search?${query.toString()}`
-  );
-  return result.issues ?? [];
+  const result = await searchJiraIssues(jql, { maxResults: 100, fields });
+  assert(!result.nextPageToken, "Búsqueda exacta de control excede 100; no crear con lectura parcial");
+  return result.issues as unknown as JiraIssue[];
 }
 
 async function getIssue(key: string): Promise<JiraIssue> {
