@@ -882,7 +882,7 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 ## Activación CONSALOP02 — operación y facturación 4727 — 2026-10-21
 - [x] P0: Snapshot/manifiesto actualizado y respaldo SHA-256 completo de PMO/SoW/seis hitos, adjunto, comentario e historial; permisos de movimiento y administración destino confirmados. Build exitoso y cinco errores TS heredados.
-- [ ] P1: Pendiente sesión Jira autenticada para preparar tipos/campos de CONSALOP02 team-managed y verificar la representación del campo financiero; no ejecutar traslado con mappings desconocidos ni copiar sin aprobación de alternativa.
+- [ ] P1: BLOQUEADO: API rechaza tipo local con HTTP400 (not a global issue type); requesttype JSM HTTP403; Estado de Facturación ausente de formularios destino. Usuario rechaza takeover. Requiere vía de acceso web alternativa o configuración única por administrador; seis originales y tipos comprobados sin cambios. No repetir intento ni mover con mappings incompletos.
 - [ ] P2: Adaptar lectura canónica a CONSALOP02 y simular manifiesto de plan/facturación, preservando IDs, seis cuotas e histórico.
 - [ ] P3: Mover seis hitos por la vía validada, verificar campos/historia y registrar claves destino sin copias silenciosas.
 - [ ] P4: Completar plan desde SoW (mensuales/quincenales/inicio con evidencia), crear operación JSM idempotente y enlazar reportes/hitos.
