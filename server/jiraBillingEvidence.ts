@@ -466,17 +466,41 @@ export async function loadProjectJiraBillingEvidence(projectId: number): Promise
 }
 
 type RecurringServiceRow = NonNullable<Awaited<ReturnType<typeof getRecurringServiceById>>>;
+type RecurringBillingQuery = Awaited<ReturnType<typeof safeIssueSearch>>;
 type RecurringBillingContext = {
-  global: Awaited<ReturnType<typeof safeIssueSearch>>;
   projects: Awaited<ReturnType<typeof getAllProjects>>;
+  loadGlobal: () => Promise<RecurringBillingQuery>;
 };
 
 async function loadRecurringBillingContext(): Promise<RecurringBillingContext> {
-  const [global, projects] = await Promise.all([
-    safeIssueSearch('issuetype="Hito PMO" ORDER BY project,key', "Hitos PMO globales"),
-    getAllProjects(),
-  ]);
-  return { global, projects };
+  const projects = await getAllProjects();
+  let globalPromise: Promise<RecurringBillingQuery> | undefined;
+  return {
+    projects,
+    loadGlobal: () => globalPromise ??= safeIssueSearch('issuetype="Hito PMO" ORDER BY project,key', "Hitos PMO globales"),
+  };
+}
+
+function hasCompleteLinkedBillingBindings(
+  service: RecurringServiceRow,
+  schedule: Awaited<ReturnType<typeof getBillingMonths>>,
+): boolean {
+  if (
+    service.jsmBillingSyncMode !== "external_reference"
+    || service.jsmLinkSource !== "linked"
+    || !service.jsmProjectKey
+    || schedule.length === 0
+  ) return false;
+
+  const targetProjectKey = service.jsmProjectKey.toUpperCase();
+  const boundKeys = new Set<string>();
+  return schedule.every(month => {
+    const key = month.jiraIssueKey?.trim();
+    if (!key || boundKeys.has(key)) return false;
+    if (key.split("-")[0].toUpperCase() !== targetProjectKey) return false;
+    boundKeys.add(key);
+    return true;
+  });
 }
 
 async function buildRecurringServiceEvidence(
@@ -499,34 +523,52 @@ async function buildRecurringServiceEvidence(
   const warnings: string[] = [];
   const normalizedDealId = normalizeDeal(service.dealId);
 
-  const global = context.global;
-  if (global.warning) warnings.push(global.warning);
-  const globalByKey = new Map(global.issues.map(issue => [issue.key, issue]));
-  for (const issue of global.issues) {
-    if (normalizedDealId && issueDeal(issue) === normalizedDealId) issueMap.set(issue.key, issue);
-  }
+  const direct = service.jsmProjectKey
+    ? await safeIssueSearch(`project=${service.jsmProjectKey} ORDER BY created ASC`, service.jsmProjectKey)
+    : { issues: [] as JiraIssue[], warning: null as string | null };
+  if (direct.warning) warnings.push(direct.warning);
+  const canonicalBindings = hasCompleteLinkedBillingBindings(service, schedule);
+  const canonicalKeys = canonicalBindings
+    ? new Set(schedule.map(month => month.jiraIssueKey!))
+    : null;
 
-  if (normalizedDealId) {
-    const relatedProjects = context.projects.filter(project => project.jiraProjectKey && projectDeal(project) === normalizedDealId);
-    for (const project of relatedProjects) {
-      sourceProjectKeys.push(project.jiraProjectKey!);
-      const source = await getExecutiveProjectSource(project.id);
-      const milestones = source ? await getExecutiveContractMilestones(project.id, source.id) : [];
-      for (const milestone of milestones) {
-        if (!milestone.jiraIssueKey) continue;
-        const issue = globalByKey.get(milestone.jiraIssueKey);
-        if (!issue) continue;
-        const explicitDeal = issueDeal(issue);
-        if (!explicitDeal || explicitDeal === normalizedDealId) issueMap.set(issue.key, issue);
+  if (!canonicalBindings) {
+    const global = await context.loadGlobal();
+    if (global.warning) warnings.push(global.warning);
+    const globalByKey = new Map(global.issues.map(issue => [issue.key, issue]));
+    for (const issue of global.issues) {
+      if (normalizedDealId && issueDeal(issue) === normalizedDealId) issueMap.set(issue.key, issue);
+    }
+
+    if (normalizedDealId) {
+      const relatedProjects = context.projects.filter(project => project.jiraProjectKey && projectDeal(project) === normalizedDealId);
+      for (const project of relatedProjects) {
+        sourceProjectKeys.push(project.jiraProjectKey!);
+        const source = await getExecutiveProjectSource(project.id);
+        const milestones = source ? await getExecutiveContractMilestones(project.id, source.id) : [];
+        for (const milestone of milestones) {
+          if (!milestone.jiraIssueKey) continue;
+          const issue = globalByKey.get(milestone.jiraIssueKey);
+          if (!issue) continue;
+          const explicitDeal = issueDeal(issue);
+          if (!explicitDeal || explicitDeal === normalizedDealId) issueMap.set(issue.key, issue);
+        }
       }
     }
   }
 
   if (service.jsmProjectKey) {
     sourceProjectKeys.push(service.jsmProjectKey);
-    const direct = await safeIssueSearch(`project=${service.jsmProjectKey} ORDER BY created ASC`, service.jsmProjectKey);
-    if (direct.warning) warnings.push(direct.warning);
-    for (const issue of direct.issues) if (isBillingIssue(issue)) issueMap.set(issue.key, issue);
+    for (const issue of direct.issues) {
+      if (canonicalBindings && canonicalKeys!.has(issue.key)) {
+        const month = schedule.find(row => row.jiraIssueKey === issue.key);
+        if (!month || issueMonth(issue) !== month.monthNumber || !isBillingIssue(issue)) {
+          warnings.push(`${issue.key}: vínculo canónico no coincide con su período/tipo de facturación; verificar configuración.`);
+          continue;
+        }
+      }
+      if (canonicalBindings ? canonicalKeys!.has(issue.key) : isBillingIssue(issue)) issueMap.set(issue.key, issue);
+    }
   }
 
   for (const issue of Array.from(issueMap.values())) {
@@ -537,7 +579,10 @@ async function buildRecurringServiceEvidence(
       if (projectKey) sourceProjectKeys.push(projectKey);
     }
   }
-  const jiraAvailable = !global.warning || Boolean(service.jsmProjectKey && !warnings.some(warning => warning.startsWith(`${service.jsmProjectKey}:`)));
+  const jiraAvailable = canonicalBindings
+    ? !direct.warning
+    : !warnings.some(warning => warning.startsWith("Hitos PMO globales:"))
+      || Boolean(service.jsmProjectKey && !warnings.some(warning => warning.startsWith(`${service.jsmProjectKey}:`)));
   return buildJiraBillingEvidence({
     entityType: "recurring_service",
     entityId: service.id,
@@ -545,7 +590,7 @@ async function buildRecurringServiceEvidence(
     localItems,
     jiraIssues: Array.from(issueMap.values()),
     sourceProjectKeys,
-    allowBillingIssueStatusFallback: true,
+    allowBillingIssueStatusFallback: !canonicalBindings,
     jiraAvailable,
     queryWarnings: warnings,
     ...(!jiraAvailable ? { error: warnings.join(" · ") || "Jira no disponible" } : {}),

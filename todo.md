@@ -882,8 +882,8 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 
 ## Activación CONSALOP02 — operación y facturación 4727 — 2026-10-21
 - [x] P0: Snapshot/manifiesto actualizado y respaldo SHA-256 completo de PMO/SoW/seis hitos, adjunto, comentario e historial; permisos de movimiento y administración destino confirmados. Build exitoso y cinco errores TS heredados.
-- [ ] P1: BLOQUEADO: API rechaza tipo local con HTTP400 (not a global issue type); requesttype JSM HTTP403; Estado de Facturación ausente de formularios destino. Usuario rechaza takeover. Requiere vía de acceso web alternativa o configuración única por administrador; seis originales y tipos comprobados sin cambios. No repetir intento ni mover con mappings incompletos.
-- [ ] P2: Adaptar lectura canónica a CONSALOP02 y simular manifiesto de plan/facturación, preservando IDs, seis cuotas e histórico.
+- [ ] P1: Sesión Google/Jira del MacBook ya autenticada. Sigue pendiente acceso de producto JSM: Eugenio es Administrator del Space pero sólo tiene applicationRole Jira Software; menú sin Request types/Work types y GET requesttype HTTP403. Campo 11237 global confirmado, no disponible en selector Fields. Comprobar implicancias antes de conceder acceso JSM; no comprar licencias ni modificar permisos globales sin autorización.
+- [ ] P2: Preparados manifiesto SoW y lectura canónica condicional con fallo cerrado una vez persistidos todos los bindings; validar y guardar este bloque. Simulación de traslado todavía depende de tipos/campos destino verificables. No declarar activado el corte ni alterar cuotas.
 - [ ] P3: Mover seis hitos por la vía validada, verificar campos/historia y registrar claves destino sin copias silenciosas.
 - [ ] P4: Completar plan desde SoW (mensuales/quincenales/inicio con evidencia), crear operación JSM idempotente y enlazar reportes/hitos.
 - [ ] P5: Aplicar corte exclusivo CONSALOP02, revalidar vistas y JSM Setup, preservar 4687 cerrado, suite/build/TS conocido y checkpoints por bloque.
