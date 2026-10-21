@@ -306,14 +306,18 @@ export function buildProjectDocumentCoverage(input: ProjectCoverageInput): Docum
 }
 
 function serviceDocumentRequirement(input: ServiceCoverageInput, kind: DocumentRequirementKind, label: string, applicability: RequirementApplicability, docType: ServiceCoverageInput["documents"][number]["docType"], rationale: string, lifecycle: DocumentLifecycle): DocumentRequirement {
-  const docs = input.documents.filter(item => item.docType === docType);
+  const docs = input.documents.filter(item => kind === "service_contract" ? item.docType === "contrato" || item.docType === "sow" : item.docType === docType);
   const evidenceRows = docs.map(document => {
     const control = input.controls.find(item => item.documentId === document.id);
     return evidence(`service-document:${document.id}`, label, "recurring_service_documents", control?.validatedAt ?? document.uploadedAt, document.fileName, control?.validationStatus ?? "sin_control");
   });
-  const statuses = docs.map(document => input.controls.find(item => item.documentId === document.id)?.validationStatus ?? "pending");
+  const statuses = docs.map(document => {
+    const control = input.controls.find(item => item.documentId === document.id);
+    return control?.validationStatus === "valid" && control.validUntil && control.validUntil < input.cutoffAt ? "expired" : control?.validationStatus ?? "pending";
+  });
   let status: DocumentCoverageStatus;
   if (statuses.includes("valid")) status = "compliant";
+  else if (statuses.includes("pending")) status = "pending_validation";
   else if (statuses.includes("expired") || statuses.includes("rejected")) status = "overdue";
   else if (docs.length) status = "pending_validation";
   else if (applicability === "required") status = "missing";

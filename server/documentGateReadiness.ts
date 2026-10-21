@@ -52,11 +52,13 @@ export async function getDocumentGateReadiness(input: {
 
   const mode = resolveDocumentGateMode(input.entityType, input.entityId, input.environment);
   const documentBlockers = item.requirements
-    .filter(requirement => requirement.applicability === "required" && requirement.status !== "compliant")
+    .filter(requirement => requirement.exigibility === "required" && requirement.applicability === "required" && requirement.status !== "compliant")
     .map(requirement => ({
       type: "document" as const,
       code: requirement.code,
-      label: requirement.label,
+      label: requirement.exigibility === "required" && requirement.alternativePolicy?.code === "recurring_contract_or_sow"
+        ? requirement.alternativePolicy.label
+        : requirement.label,
       status: requirement.status,
       detail: requirement.detail,
       action: requirement.action,
@@ -90,6 +92,8 @@ export async function getDocumentGateReadiness(input: {
       code: requirement.code,
       status: requirement.status,
       applicability: requirement.applicability,
+      exigibility: requirement.exigibility,
+      alternativePolicy: requirement.alternativePolicy,
       artifactId: requirement.activeArtifact?.id ?? null,
       version: requirement.activeArtifact?.version ?? null,
       sha256: requirement.activeArtifact?.sha256 ?? null,

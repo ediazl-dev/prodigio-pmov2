@@ -134,7 +134,9 @@ function RequirementRow({ requirement }: { requirement: CoverageRequirement }) {
           <p className="text-sm font-semibold text-slate-800">{requirement.label}</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">{requirement.detail}</p>
         </div>
-        <CoverageBadge status={requirement.status} />
+        {requirement.exigibility === "alternative"
+          ? <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-600">No exigible · alternativa</span>
+          : <CoverageBadge status={requirement.status} />}
       </div>
       <p className="mt-2 text-[11px] leading-4 text-slate-400">{requirement.description}</p>
       {requirement.activeArtifact && <div className="mt-3 flex flex-wrap gap-2"><span className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600"><FileCheck2 className="h-3 w-3 shrink-0" /><span className="truncate">v{requirement.activeArtifact.version} · {requirement.activeArtifact.fileName}</span></span><span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-500">{requirement.activeArtifact.sha256?.slice(0, 10) ?? "sin hash"}</span></div>}

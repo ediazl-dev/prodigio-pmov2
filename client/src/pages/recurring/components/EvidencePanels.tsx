@@ -422,7 +422,7 @@ export function FormalityPanel({ data, tab }: { data: DashboardV2Data; tab: Evid
             <ShieldCheck size={16} className="text-[#E91E8C]" /> Formalidad documental
           </div>
           <p className="mt-1 text-[11px] leading-4 text-slate-600">
-            Contrato y SoW por servicio. «Presente sin control» significa cargado, pero nunca validado.
+            Contrato o SoW por servicio; no se exigen ambos. «Presente sin control» significa cargado, pero todavía no validado.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2">

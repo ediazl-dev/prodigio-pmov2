@@ -6,6 +6,7 @@ import { eq, and, desc, asc } from "drizzle-orm";
 import { auditLogs, recurringServices, InsertRecurringService, recurringServiceBillingMonths, InsertRecurringServiceBillingMonth, recurringServiceDocuments, InsertRecurringServiceDocument, recurringServiceDocumentControls, recurringServiceReportEvidence, recurringServiceFinancialEvidence, recurringServiceJsmSnapshots, InsertRecurringServiceJsmSnapshot, recurringServiceStages, recurringServiceWorkPlan, InsertRecurringServiceWorkPlanItem, recurringServiceSlaConfig, InsertRecurringServiceSlaConfigItem, recurringServicePenalties, InsertRecurringServicePenalty, recurringServiceAiAnalyses, InsertRecurringServiceAiAnalysis, recurringServiceJsmLinkRuns, InsertRecurringServiceJsmLinkRun, recurringServiceJsmIssueTypeMappings, InsertRecurringServiceJsmIssueTypeMapping, recurringServiceJsmSyncRuns, InsertRecurringServiceJsmSyncRun, financialBillingItems, financialData, documentGateSnapshots } from "../drizzle/schema";
 import type { JsmExistingSpaceSnapshot, JsmLinkHealth, JsmLinkRunStatus, JsmSyncCategoryMode, JsmSyncRunStatus } from "../shared/jsmExistingSpace";
 import { getDb } from "./db";
+import { documentArtifacts, documentValidationDecisions } from "../drizzle/schema";
 
 // ─── Service CRUD ────────────────────────────────────────────────────────────
 
@@ -1065,7 +1066,7 @@ export async function getRecurringDashboardV2Data() {
     };
   }
 
-  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, penalties, jsmSnapshots, financialReferences, corporateBillingItems] = await Promise.all([
+  const [services, billingMonths, workPlanItems, documents, documentControls, reportEvidence, financialEvidence, slaConfigs, penalties, jsmSnapshots, financialReferences, corporateBillingItems, canonicalDocumentArtifacts, canonicalDocumentDecisions] = await Promise.all([
     db.select().from(recurringServices).orderBy(desc(recurringServices.createdAt)),
     db.select().from(recurringServiceBillingMonths).orderBy(asc(recurringServiceBillingMonths.dueDate)),
     db.select().from(recurringServiceWorkPlan).orderBy(asc(recurringServiceWorkPlan.dueDate)),
@@ -1092,6 +1093,8 @@ export async function getRecurringDashboardV2Data() {
       })
       .from(financialData),
     db.select().from(financialBillingItems).where(eq(financialBillingItems.sourceActive, true)),
+    db.select().from(documentArtifacts).where(eq(documentArtifacts.entityType, "recurring_service")),
+    db.select().from(documentValidationDecisions),
   ]);
 
   return {
@@ -1107,6 +1110,8 @@ export async function getRecurringDashboardV2Data() {
     jsmSnapshots,
     financialReferences,
     corporateBillingItems,
+    canonicalDocumentArtifacts,
+    canonicalDocumentDecisions,
   };
 }
 

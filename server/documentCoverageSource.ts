@@ -27,6 +27,8 @@ import {
   type DocumentCoverageStatus,
 } from "./documentCoverageModel";
 import type { DocumentLifecycle } from "./documentCoveragePolicy";
+import { documentArtifacts, documentValidationDecisions } from "../drizzle/schema";
+import { mergeRecurringCanonicalDocumentEvidence } from "./recurringServicesMetricsEngine";
 
 export type DocumentCoverageQuery = {
   lifecycle?: "all" | DocumentLifecycle;
@@ -114,6 +116,8 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
     serviceReportRows,
     serviceWorkPlanRows,
     dashboardSnapshotRows,
+    artifactRows,
+    decisionRows,
   ] = await Promise.all([
     db.select().from(projects),
     db.select().from(recurringServices),
@@ -133,6 +137,8 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
     db.select().from(recurringServiceReportEvidence),
     db.select().from(recurringServiceWorkPlan),
     db.select().from(executiveDashboardSnapshots),
+    db.select().from(documentArtifacts),
+    db.select().from(documentValidationDecisions),
   ]);
 
   const ownerById = new Map<number, string>(userRows.map((row: any) => [Number(row.id), String(row.name)]));
@@ -146,8 +152,14 @@ export async function loadDocumentCoveragePortfolio(query: DocumentCoverageQuery
   const recoveryByProject = groupBy(recoveryRows, (row: any) => Number(row.projectId));
   const approvalsByProject = groupBy(approvalRows, (row: any) => Number(row.projectId));
   const closuresByProject = groupBy(closureRows, (row: any) => Number(row.projectId));
-  const documentsByService = groupBy(serviceDocumentRows, (row: any) => Number(row.serviceId));
-  const controlsByService = groupBy(serviceControlRows, (row: any) => Number(row.serviceId));
+  const merged = mergeRecurringCanonicalDocumentEvidence(serviceDocumentRows, serviceControlRows, artifactRows, decisionRows);
+  const mergedDocuments = merged.documents.map(document => {
+    const old = serviceDocumentRows.find((d: typeof recurringServiceDocuments.$inferSelect) => d.id === document.id && d.serviceId === document.serviceId);
+    const artifact = document.sourceKind === "document_artifacts" ? artifactRows.find((a: typeof documentArtifacts.$inferSelect) => a.id === document.id) : null;
+    return { ...old, ...document, docType: document.docType as "contrato" | "sow" | "pl" | "propuesta_tecnica" | "otro", fileName: artifact?.fileName ?? old?.fileName ?? "Documento contractual", fileUrl: artifact?.fileUrl ?? old?.fileUrl, uploadedAt: artifact?.observedAt ?? old?.uploadedAt };
+  });
+  const documentsByService = groupBy(mergedDocuments, (row: any) => Number(row.serviceId));
+  const controlsByService = groupBy(merged.documentControls, (row: any) => Number(row.serviceId));
   const reportsByService = groupBy(serviceReportRows, (row: any) => Number(row.serviceId));
   const scheduledReportsByService = groupBy(
     (serviceWorkPlanRows as Array<{ id: number; serviceId: number; itemType: string; monthNumber: number | null; dueDate: string | null }>).filter(row => row.itemType === "informe_mensual"),

@@ -138,15 +138,9 @@ export function recurringServiceDocumentPolicy(input: {
   return [
     {
       kind: "service_contract",
-      label: "Contrato del servicio",
+      label: "Contrato o SoW del servicio",
       applicability: "required",
-      rationale: "Todo servicio recurrente debe conservar el contrato que acredita su vigencia y condiciones.",
-    },
-    {
-      kind: "service_sow",
-      label: "SoW del servicio",
-      applicability: "required",
-      rationale: "El SoW define alcance y obligaciones del servicio recurrente.",
+      rationale: "Contrato o SoW constituyen alternativas de base contractual. Una renovación puede conservar el contrato base y sus antecedentes de renovación; no se exigen ambos documentos.",
     },
     {
       kind: "service_proposal",

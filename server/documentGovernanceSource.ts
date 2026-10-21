@@ -16,6 +16,7 @@ import {
   type CanonicalDocumentEntity,
   type CanonicalDocumentStatus,
 } from "./documentGovernanceModel";
+import { DOCUMENT_GOVERNANCE_POLICY_VERSION } from "../shared/documentGovernance";
 
 export type DocumentGovernancePortfolioQuery = {
   entityId?: number;
@@ -64,7 +65,7 @@ function matchesStatus(entity: CanonicalDocumentEntity, status: NonNullable<Docu
   if (status === "all") return true;
   if (status === "gaps") return entity.blockers.length > 0;
   if (status === "compliant") return entity.coverage.required > 0 && entity.coverage.compliant === entity.coverage.required;
-  return entity.requirements.some(requirement => requirement.status === status);
+  return entity.requirements.some(requirement => requirement.exigibility !== "alternative" && requirement.status === status);
 }
 
 export function filterDocumentGovernanceEntities<T extends CanonicalDocumentEntity>(entities: T[], query: DocumentGovernancePortfolioQuery): T[] {
@@ -80,7 +81,7 @@ export function filterDocumentGovernanceEntities<T extends CanonicalDocumentEnti
     .filter(entity => !query.client || entity.clientName === query.client)
     .filter(entity => !query.owner || entity.ownerName === query.owner)
     .filter(entity => !search || [entity.entityName, entity.clientName, entity.dealId, entity.ownerName, String(entity.entityId)].some(value => String(value ?? "").toLocaleLowerCase("es-CL").includes(search)))
-    .filter(entity => requirementCode === "all" || entity.requirements.some(requirement => requirement.code === requirementCode && requirement.status !== "compliant"))
+    .filter(entity => requirementCode === "all" || entity.requirements.some(requirement => requirement.exigibility !== "alternative" && requirement.code === requirementCode && requirement.status !== "compliant"))
     .filter(entity => matchesStatus(entity, coverageStatus))
     .sort((left, right) => {
       const priority = (entity: CanonicalDocumentEntity) => entity.lifecycle === "open"
@@ -173,7 +174,7 @@ export async function loadDocumentGovernancePortfolio(query: DocumentGovernanceP
   const offset = (safePage - 1) * pageSize;
 
   return {
-    policyVersion: "2026-09-26.v1",
+    policyVersion: DOCUMENT_GOVERNANCE_POLICY_VERSION,
     cutoffAt,
     summary: summarizeCanonicalDocumentPortfolio(filtered),
     items: filtered.slice(offset, offset + pageSize),

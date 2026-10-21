@@ -346,7 +346,7 @@ describe("buildRecurringServicesDashboardV2", () => {
     const complete = result.documents.services.find(item => item.serviceId === 1);
     const unvalidated = result.documents.services.find(item => item.serviceId === 2);
 
-    expect(result.documents.summary).toMatchObject({ required: 4, present: 4, valid: 2, pendingValidation: 2, missing: 0, validServices: 1 });
+    expect(result.documents.summary).toMatchObject({ required: 2, present: 2, valid: 1, pendingValidation: 1, missing: 0, validServices: 1 });
     expect(complete?.status).toBe("valid");
     expect(unvalidated?.status).toBe("pending_validation");
     expect(unvalidated?.documents.every(document => document.status === "unvalidated")).toBe(true);
@@ -356,6 +356,7 @@ describe("buildRecurringServicesDashboardV2", () => {
     const result = buildRecurringServicesDashboardV2(
       {
         ...source,
+        documents: source.documents.filter(document => !(document.serviceId === 1 && document.docType === "sow")),
         documentControls: source.documentControls.map(control => control.documentId === 1 ? { ...control, validUntil: "2026-02-28" } : control),
       },
       { cutOffDate: "2026-03-16" },

@@ -154,7 +154,7 @@ export default function RSWorkPlanStage() {
             <div style={{ display: "flex", gap: 8 }}>
               <Button size="sm" variant="outline" onClick={() => generateMutation.mutate({ serviceId: id })} disabled={generateMutation.isPending}>
                 {generateMutation.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Sparkles size={14} className="mr-1" />}
-                {isStaffing ? "Regenerar desde SoW" : "Generar con IA"}
+                {isStaffing ? "Regenerar desde Contrato o SoW" : "Generar con IA"}
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowItemDialog(true)}>
                 <Plus size={14} className="mr-1" /> Agregar

@@ -1,6 +1,10 @@
 import {
   calculateRecurringServicesMetrics,
+  mergeRecurringCanonicalDocumentEvidence,
   type EvidenceStatus,
+  type RecurringCanonicalDocumentArtifactSource,
+  type RecurringCanonicalDocumentDecisionSource,
+  type RecurringCanonicalDocumentEvidenceSource,
   type RecurringOperationalEvidenceSource,
   type RecurringServicesMetricsInput,
   type ServiceMetricsV2,
@@ -64,6 +68,9 @@ export interface RecurringDashboardV2Source
     validUntil: string | null;
     validatedAt: Date | string | null;
   }>;
+  canonicalDocumentEvidence?: RecurringCanonicalDocumentEvidenceSource;
+  canonicalDocumentArtifacts?: RecurringCanonicalDocumentArtifactSource[];
+  canonicalDocumentDecisions?: RecurringCanonicalDocumentDecisionSource[];
   reportEvidence: Array<{
     id?: number;
     serviceId: number;
@@ -536,10 +543,12 @@ function documentAnalytics(source: RecurringDashboardV2Source, cutOffDate: strin
       const candidates = serviceDocuments
         .filter(document => document.docType === docType)
         .map(document => {
-          const control = source.documentControls.find(item => item.documentId === document.id);
+          const control = source.documentControls.find(item => item.documentId === document.id && item.serviceId === service.id);
           const status: DocumentStatus = !control
             ? "unvalidated"
-            : control.validationStatus === "valid" && control.validUntil && control.validUntil < cutOffDate
+            : control.validationStatus === "valid" && control.validFrom && control.validFrom > cutOffDate
+              ? "pending"
+              : control.validationStatus === "valid" && control.validUntil && control.validUntil < cutOffDate
               ? "expired"
               : control.validationStatus;
           return {
@@ -553,8 +562,8 @@ function documentAnalytics(source: RecurringDashboardV2Source, cutOffDate: strin
         .sort((a, b) => statusRank[b.status] - statusRank[a.status]);
       return candidates.length > 0
         ? candidates[0]
-        : { documentId: null, docType, status: "missing", validUntil: null, validatedAt: null };
-    });
+        : { documentId: null, docType, status: "missing" as DocumentStatus, validUntil: null, validatedAt: null };
+    }).sort((a, b) => statusRank[b.status] - statusRank[a.status]).slice(0, 1);
     const status = documents.every(item => item.status === "valid")
       ? "valid"
       : documents.some(item => item.status === "missing" || item.status === "expired" || item.status === "rejected")
@@ -716,6 +725,17 @@ function qualityForSource(source: RecurringDashboardV2Source) {
 }
 
 export function buildRecurringServicesDashboardV2(source: RecurringDashboardV2Source, options: RecurringDashboardV2Options) {
+  const artifacts = source.canonicalDocumentEvidence?.artifacts ?? source.canonicalDocumentArtifacts ?? [];
+  const decisions = source.canonicalDocumentEvidence?.decisions ?? source.canonicalDocumentDecisions ?? [];
+  const merged = mergeRecurringCanonicalDocumentEvidence(source.documents, source.documentControls, artifacts, decisions);
+  source = {
+    ...source,
+    documents: merged.documents.map(document => {
+      const old = source.documents.find(d => d.id === document.id && d.serviceId === document.serviceId);
+      return { ...old, ...document };
+    }),
+    documentControls: merged.documentControls,
+  };
   const filters = options.filters ?? {};
   const staleAfterHours = options.staleAfterHours ?? 36;
   const reconciledSource: RecurringDashboardV2Source = {

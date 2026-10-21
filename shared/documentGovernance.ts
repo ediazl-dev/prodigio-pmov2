@@ -1,4 +1,4 @@
-export const DOCUMENT_GOVERNANCE_POLICY_VERSION = "2026-09-26.v1" as const;
+export const DOCUMENT_GOVERNANCE_POLICY_VERSION = "2026-09-26.v2" as const;
 
 export const DOCUMENT_ENTITY_TYPES = ["project", "recurring_service"] as const;
 export type DocumentGovernanceEntityType = (typeof DOCUMENT_ENTITY_TYPES)[number];
@@ -81,6 +81,19 @@ export const PROJECT_BASE_REQUIREMENTS = [
   ...RECURRING_SERVICE_BASE_REQUIREMENTS,
   "work_plan_milestones",
 ] as const satisfies readonly DocumentRequirementCode[];
+
+/**
+ * A recurring service has one contractual base: a Contract or a SoW.
+ * The canonical rows and artifact codes remain separate so both histories
+ * can be uploaded and retained; this policy only changes which row is
+ * exigible for the base-coverage denominator.
+ */
+export const RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY = {
+  code: "recurring_contract_or_sow",
+  label: "Contrato o SoW",
+  requirementCodes: ["contract", "sow"] as const,
+  selectionOrder: ["compliant", "pending_validation", "expired", "rejected", "missing"] as const,
+} as const;
 
 export function getBaseDocumentRequirements(entityType: DocumentGovernanceEntityType): readonly DocumentRequirementCode[] {
   return entityType === "project" ? PROJECT_BASE_REQUIREMENTS : RECURRING_SERVICE_BASE_REQUIREMENTS;

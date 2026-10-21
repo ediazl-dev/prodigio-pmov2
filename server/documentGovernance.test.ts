@@ -5,6 +5,7 @@ import {
   DOCUMENT_GOVERNANCE_POLICY_VERSION,
   DOCUMENT_REQUIREMENT_DEFINITIONS,
   PROJECT_BASE_REQUIREMENTS,
+  RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY,
   RECURRING_DOCUMENT_LEGACY_ALIASES,
   RECURRING_SERVICE_BASE_REQUIREMENTS,
   getBaseDocumentRequirements,
@@ -13,10 +14,10 @@ import {
 
 describe("documentGovernance", () => {
   it("define una versión de política explícita", () => {
-    expect(DOCUMENT_GOVERNANCE_POLICY_VERSION).toBe("2026-09-26.v1");
+    expect(DOCUMENT_GOVERNANCE_POLICY_VERSION).toBe("2026-09-26.v2");
   });
 
-  it("exige exactamente cuatro documentos a todo servicio recurrente, incluido Staffing", () => {
+  it("mantiene cuatro filas canónicas para recurrentes, con una base contractual alternativa", () => {
     expect(RECURRING_SERVICE_BASE_REQUIREMENTS).toEqual([
       "contract",
       "sow",
@@ -27,6 +28,11 @@ describe("documentGovernance", () => {
       expect(serviceType).toBeTruthy();
       expect(getBaseDocumentRequirements("recurring_service")).toEqual(RECURRING_SERVICE_BASE_REQUIREMENTS);
     }
+    expect(RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY).toMatchObject({
+      code: "recurring_contract_or_sow",
+      label: "Contrato o SoW",
+      requirementCodes: ["contract", "sow"],
+    });
   });
 
   it("exige a proyectos los cuatro documentos recurrentes más el plan con hitos", () => {

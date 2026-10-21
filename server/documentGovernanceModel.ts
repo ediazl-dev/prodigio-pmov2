@@ -1,6 +1,7 @@
 import {
   DOCUMENT_GOVERNANCE_POLICY_VERSION,
   DOCUMENT_REQUIREMENT_DEFINITIONS,
+  RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY,
   getBaseDocumentRequirements,
   type DocumentGovernanceEntityType,
   type DocumentRequirementCode,
@@ -14,6 +15,15 @@ export type CanonicalDocumentStatus =
   | "rejected"
   | "not_applicable"
   | "unconfirmed";
+
+export type CanonicalDocumentExigibility = "required" | "alternative";
+
+type ContractualAlternativePolicy = {
+  code: typeof RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.code;
+  label: typeof RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.label;
+  representativeCode: DocumentRequirementCode;
+  representativeLabel: string;
+};
 
 export type GovernanceArtifactInput = {
   id: number;
@@ -76,6 +86,13 @@ function dateOnly(value: Date | string | null | undefined) {
 
 function latestBy<T extends { id: number }>(rows: T[], dateValue: (row: T) => Date | string | null | undefined) {
   return [...rows].sort((left, right) => instant(dateValue(right)) - instant(dateValue(left)) || right.id - left.id)[0] ?? null;
+}
+
+function contractualEvidencePriority(status: CanonicalDocumentStatus) {
+  const priority = RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.selectionOrder.indexOf(
+    status as (typeof RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.selectionOrder)[number],
+  );
+  return priority >= 0 ? priority : RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.selectionOrder.length;
 }
 
 export function buildCanonicalDocumentEntity(input: {
@@ -189,6 +206,8 @@ export function buildCanonicalDocumentEntity(input: {
       validation,
       validity,
       status,
+      exigibility: "required" as CanonicalDocumentExigibility,
+      alternativePolicy: null as ContractualAlternativePolicy | null,
       detail,
       action,
       activeArtifact: activeArtifact ? {
@@ -228,8 +247,37 @@ export function buildCanonicalDocumentEntity(input: {
     };
   });
 
-  const required = requirements.filter(item => item.applicability === "required");
-  const count = (status: CanonicalDocumentStatus) => requirements.filter(item => item.status === status).length;
+  if (input.entityType === "recurring_service") {
+    const contractualRows = requirements.filter(item =>
+      (RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.requirementCodes as readonly string[]).includes(item.code),
+    );
+    const representative = [...contractualRows].sort((left, right) =>
+      contractualEvidencePriority(left.status) - contractualEvidencePriority(right.status)
+      || left.code.localeCompare(right.code),
+    )[0];
+
+    if (representative) {
+      for (const row of contractualRows) {
+        row.alternativePolicy = {
+          code: RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.code,
+          label: RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.label,
+          representativeCode: representative.code,
+          representativeLabel: representative.label,
+        };
+        if (row.code === representative.code) {
+          row.detail = row.status === "missing"
+            ? "Falta una base contractual: cargue un Contrato o SoW."
+            : `${row.detail} Representa la base contractual exigible del servicio recurrente (${RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.label}).`;
+        } else {
+          row.exigibility = "alternative";
+          row.detail = `No exigible por política alternativa «${RECURRING_CONTRACTUAL_ALTERNATIVE_POLICY.label}»: ${representative.label} representa la base contractual de este servicio. La evidencia y el historial de ${row.label} se conservan; esta marca no es una excepción humana ni una validación automática.`;
+        }
+      }
+    }
+  }
+
+  const required = requirements.filter(item => item.exigibility === "required" && item.applicability === "required");
+  const count = (status: CanonicalDocumentStatus) => requirements.filter(item => item.exigibility === "required" && item.status === status).length;
   const compliant = count("compliant");
   return {
     policyVersion: DOCUMENT_GOVERNANCE_POLICY_VERSION,
@@ -254,7 +302,7 @@ export function buildCanonicalDocumentEntity(input: {
       percentage: required.length ? Math.round((compliant / required.length) * 100) : null,
     },
     requirements,
-    blockers: requirements.filter(item => ["missing", "pending_validation", "expired", "rejected", "unconfirmed"].includes(item.status)),
+    blockers: requirements.filter(item => item.exigibility === "required" && ["missing", "pending_validation", "expired", "rejected", "unconfirmed"].includes(item.status)),
     latestEvidenceAt: [...input.artifacts].map(item => dateOnly(item.observedAt ?? item.createdAt)).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null,
   };
 }
@@ -263,8 +311,9 @@ export type CanonicalDocumentEntity = ReturnType<typeof buildCanonicalDocumentEn
 
 export function summarizeCanonicalDocumentPortfolio(entities: CanonicalDocumentEntity[]) {
   const requirements = entities.flatMap(entity => entity.requirements);
-  const required = requirements.filter(item => item.applicability === "required");
+  const required = requirements.filter(item => item.exigibility === "required" && item.applicability === "required");
   const compliant = required.filter(item => item.status === "compliant").length;
+  const counted = requirements.filter(item => item.exigibility === "required");
   return {
     entities: entities.length,
     openEntities: entities.filter(entity => entity.lifecycle === "open").length,
@@ -272,12 +321,12 @@ export function summarizeCanonicalDocumentPortfolio(entities: CanonicalDocumentE
     unconfirmedEntities: entities.filter(entity => entity.lifecycle === "unconfirmed").length,
     required: required.length,
     compliant,
-    missing: requirements.filter(item => item.status === "missing").length,
-    pendingValidation: requirements.filter(item => item.status === "pending_validation").length,
-    expired: requirements.filter(item => item.status === "expired").length,
-    rejected: requirements.filter(item => item.status === "rejected").length,
-    notApplicable: requirements.filter(item => item.status === "not_applicable").length,
-    unconfirmed: requirements.filter(item => item.status === "unconfirmed").length,
+    missing: counted.filter(item => item.status === "missing").length,
+    pendingValidation: counted.filter(item => item.status === "pending_validation").length,
+    expired: counted.filter(item => item.status === "expired").length,
+    rejected: counted.filter(item => item.status === "rejected").length,
+    notApplicable: counted.filter(item => item.status === "not_applicable").length,
+    unconfirmed: counted.filter(item => item.status === "unconfirmed").length,
     percentage: required.length ? Math.round((compliant / required.length) * 100) : null,
   };
 }

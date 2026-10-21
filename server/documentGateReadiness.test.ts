@@ -4,6 +4,7 @@ import { resolveDocumentGateMode } from "./documentGateReadiness";
 
 const recurringRouter = readFileSync(new URL("./recurringServicesRouter.ts", import.meta.url), "utf8");
 const recurringRepository = readFileSync(new URL("./recurringServicesDb.ts", import.meta.url), "utf8");
+const gateReadiness = readFileSync(new URL("./documentGateReadiness.ts", import.meta.url), "utf8");
 
 describe("document gate rollout", () => {
   it("usa observación por defecto y nunca activa enforce sin cohorte explícita", () => {
@@ -19,6 +20,13 @@ describe("document gate rollout", () => {
 
   it("conserva explícitamente el modo off", () => {
     expect(resolveDocumentGateMode("project", 1, { DOCUMENT_GOVERNANCE_GATE_MODE: "off" })).toBe("off");
+  });
+
+  it("bloquea sólo requisitos exigibles y conserva la trazabilidad de la alternativa contractual", () => {
+    expect(gateReadiness).toContain('requirement.exigibility === "required"');
+    expect(gateReadiness).toContain('requirement.applicability === "required"');
+    expect(gateReadiness).toContain("exigibility: requirement.exigibility");
+    expect(gateReadiness).toContain("alternativePolicy: requirement.alternativePolicy");
   });
 
   it("evalúa readiness antes de completar Inicialización y conserva el gate legacy en observe", () => {

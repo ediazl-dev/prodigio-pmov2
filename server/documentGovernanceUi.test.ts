@@ -32,6 +32,13 @@ describe("document governance UI", () => {
     expect(panel).toContain("requiere validación");
   });
 
+  it("explica la alternativa contractual recurrente sin ocultar carga ni historial", () => {
+    expect(panel).toContain("la base contractual exigible es Contrato o SoW");
+    expect(panel).toContain("uno basta y ambos pueden conservarse");
+    expect(panel).toContain("sin ocultar ni reemplazar el historial del otro tipo");
+    expect(panel).toContain("No exigible · alternativa");
+  });
+
   it("retira el diálogo legacy de carga recurrente y no mantiene un fallback USD", () => {
     expect(recurring).not.toContain("Subir Documento del Servicio");
     expect(recurring).not.toContain('svc.currency || "USD"');

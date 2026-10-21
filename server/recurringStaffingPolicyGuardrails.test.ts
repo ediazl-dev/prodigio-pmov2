@@ -14,8 +14,10 @@ function staffingGenerationBlock() {
 }
 
 describe("guardrails contractuales Staffing", () => {
-  it("genera desde SoW, extrae plazos y persiste SLA vacío", () => {
+  it("genera desde Contrato o SoW, extrae plazos y persiste SLA vacío", () => {
     const block = staffingGenerationBlock();
+    expect(block).toContain("loadRecurringContractEvidence");
+    expect(block).toContain("no se exigen ambos");
     expect(block).toContain("extractSowContent");
     expect(block).toContain("parseStaffingContractTerms");
     expect(block).toContain("replaceRecurringWorkPlan({ serviceId: input.serviceId, items: staffingPlan, sla: [] })");
@@ -31,7 +33,7 @@ describe("guardrails contractuales Staffing", () => {
 
   it("explica la aplicabilidad y la referencia externa antes del dry-run", () => {
     expect(workPlanPage).toContain("No aplican SLA de incidentes, DR ni cobertura 24x7");
-    expect(workPlanPage).toContain("Regenerar desde SoW");
+    expect(workPlanPage).toContain("Regenerar desde Contrato o SoW");
     expect(jsmPage).toContain("Referencia existente · no crear duplicados");
     expect(jsmPage).toContain('value="external_reference"');
     expect(jsmPage).toContain("Qué se creará en este Space");

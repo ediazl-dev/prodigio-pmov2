@@ -67,6 +67,49 @@ export interface RecurringDocumentMetricSource {
   id: number;
   serviceId: number;
   docType: string;
+  sourceKind?: "recurring_service_documents" | "document_artifacts";
+}
+
+/** Raw canonical artifact shape accepted by the recurring read model. */
+export interface RecurringCanonicalDocumentArtifactSource {
+  id: number;
+  serviceId?: number;
+  entityType?: string | null;
+  entityId?: number;
+  requirementCode: string;
+  artifactStatus: string;
+  version: number;
+  fileName: string;
+  fileUrl?: string | null;
+  fileKey?: string | null;
+  observedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+}
+
+/** Latest-decision fields used only to preserve canonical validation controls. */
+export interface RecurringCanonicalDocumentDecisionSource {
+  id: number;
+  artifactId: number;
+  decision: string;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  openEndedValidity?: boolean;
+  decidedAt?: Date | string | null;
+}
+
+export interface RecurringCanonicalDocumentEvidenceSource {
+  artifacts: RecurringCanonicalDocumentArtifactSource[];
+  decisions: RecurringCanonicalDocumentDecisionSource[];
+}
+
+export interface RecurringDocumentControlMetricSource {
+  id?: number;
+  serviceId: number;
+  documentId: number;
+  validationStatus: "pending" | "valid" | "expired" | "rejected";
+  validFrom: string | null;
+  validUntil: string | null;
+  validatedAt: Date | string | null;
 }
 
 export interface RecurringSlaConfigMetricSource {
@@ -97,10 +140,15 @@ export interface RecurringServicesMetricsInput {
   billingMonths: RecurringBillingMetricSource[];
   workPlanItems: RecurringWorkPlanMetricSource[];
   documents: RecurringDocumentMetricSource[];
+  documentControls?: RecurringDocumentControlMetricSource[];
   slaConfigs: RecurringSlaConfigMetricSource[];
   operationalEvidence?: RecurringOperationalEvidenceSource[];
   reportEvidence?: Array<{ serviceId: number; workPlanItemId: number | null; status: string; deliveredAt?: Date | string | null; acceptedAt?: Date | string | null }>;
   jiraBilling?: Record<number, JiraBillingEvidence>;
+  /** Canonical artifacts are optional for compatibility with legacy fixtures. */
+  canonicalDocumentEvidence?: RecurringCanonicalDocumentEvidenceSource;
+  canonicalDocumentArtifacts?: RecurringCanonicalDocumentArtifactSource[];
+  canonicalDocumentDecisions?: RecurringCanonicalDocumentDecisionSource[];
 }
 
 export interface CurrencyMetrics {
@@ -151,11 +199,12 @@ export interface ServiceMetricsV2 {
   };
   formalization: {
     required: readonly ["contrato", "sow"];
+    requiredMode: "any";
     present: string[];
     missing: string[];
     coveragePercent: number;
     status: "complete" | "partial" | "missing";
-    source: "recurring_service_documents";
+    source: "recurring_service_documents" | "document_artifacts";
   };
   incidents: {
     availability: EvidenceStatus;
@@ -224,7 +273,80 @@ export interface RecurringServicesPortfolioMetricsV2 {
 }
 
 const REQUIRED_DOCUMENTS = ["contrato", "sow"] as const;
+const CONTRACTUAL_REQUIREMENT_LABEL = "Contrato o SoW";
 const MONEY_EPSILON = 0.01;
+
+function canonicalDocType(requirementCode: string): "contrato" | "sow" | null {
+  if (requirementCode === "contract" || requirementCode === "contrato") return "contrato";
+  if (requirementCode === "sow") return "sow";
+  return null;
+}
+
+function dateTime(value: Date | string | null | undefined): number {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Merge canonical document_artifacts into the legacy document/control read model.
+ *
+ * Active canonical artifacts own their contractual type: a legacy row of the same
+ * type is not duplicated, and an archived/superseded canonical history prevents
+ * an older legacy row from silently becoming the current source.  A canonical
+ * artifact remains present when its latest decision is pending/rejected/expired;
+ * only the generated control changes, so presence is never treated as validation.
+ */
+export function mergeRecurringCanonicalDocumentEvidence(
+  legacyDocuments: RecurringDocumentMetricSource[],
+  legacyControls: RecurringDocumentControlMetricSource[],
+  canonicalArtifacts: RecurringCanonicalDocumentArtifactSource[] = [],
+  canonicalDecisions: RecurringCanonicalDocumentDecisionSource[] = [],
+): { documents: RecurringDocumentMetricSource[]; documentControls: RecurringDocumentControlMetricSource[] } {
+  const contractualArtifacts = canonicalArtifacts.filter(artifact => {
+    const docType = canonicalDocType(artifact.requirementCode);
+    return Boolean(docType) && (!artifact.entityType || artifact.entityType === "recurring_service");
+  });
+  const canonicalTypes = new Set(contractualArtifacts.map(artifact => `${artifact.serviceId ?? artifact.entityId}:${canonicalDocType(artifact.requirementCode)}`));
+  const documents = legacyDocuments.filter(document => !canonicalTypes.has(`${document.serviceId}:${document.docType}`));
+  const documentControls = legacyControls.filter(control => documents.some(document => document.id === control.documentId && document.serviceId === control.serviceId));
+
+  const latestDecision = (artifactId: number) => canonicalDecisions
+    .filter(decision => decision.artifactId === artifactId)
+    .sort((left, right) => dateTime(right.decidedAt) - dateTime(left.decidedAt) || right.id - left.id)[0];
+
+  const activeByType = new Map<string, RecurringCanonicalDocumentArtifactSource>();
+  for (const artifact of contractualArtifacts) {
+    const docType = canonicalDocType(artifact.requirementCode);
+    if (!docType || artifact.artifactStatus !== "active") continue;
+    const key = `${artifact.serviceId ?? artifact.entityId}:${docType}`;
+    const current = activeByType.get(key);
+    if (!current || artifact.version > current.version || (artifact.version === current.version && artifact.id > current.id)) activeByType.set(key, artifact);
+  }
+
+  for (const artifact of Array.from(activeByType.values())) {
+    const docType = canonicalDocType(artifact.requirementCode)!;
+    const decision = latestDecision(artifact.id);
+    const normalizedDecision = decision?.decision ?? "pending";
+    const validationStatus: RecurringDocumentControlMetricSource["validationStatus"] = normalizedDecision === "valid"
+      ? decision?.openEndedValidity || decision?.validUntil ? "valid" : "pending"
+      : normalizedDecision === "rejected" || normalizedDecision === "revoked"
+        ? "rejected"
+        : "pending";
+    documents.push({ id: artifact.id, serviceId: artifact.serviceId ?? artifact.entityId!, docType, sourceKind: "document_artifacts" });
+    documentControls.push({
+      id: decision?.id,
+      serviceId: artifact.serviceId ?? artifact.entityId!,
+      documentId: artifact.id,
+      validationStatus,
+      validFrom: decision?.validFrom ?? null,
+      validUntil: decision?.validUntil ?? null,
+      validatedAt: decision?.decidedAt ?? null,
+    });
+  }
+
+  return { documents, documentControls };
+}
 
 function amount(value: string | number | null | undefined): number {
   const parsed = typeof value === "number" ? value : Number.parseFloat(value ?? "0");
@@ -278,6 +400,17 @@ function isCurrentOperationalStatus(status: string): boolean {
 export function calculateRecurringServicesMetrics(
   input: RecurringServicesMetricsInput,
 ): RecurringServicesPortfolioMetricsV2 {
+  const canonicalEvidence = input.canonicalDocumentEvidence ?? {
+    artifacts: input.canonicalDocumentArtifacts ?? [],
+    decisions: input.canonicalDocumentDecisions ?? [],
+  };
+  const mergedDocuments = mergeRecurringCanonicalDocumentEvidence(
+    input.documents,
+    input.documentControls ?? [],
+    canonicalEvidence.artifacts,
+    canonicalEvidence.decisions,
+  );
+  const effectiveDocuments = mergedDocuments.documents;
   const operationalByService = new Map((input.operationalEvidence ?? []).map(item => [item.serviceId, item]));
 
   const services = input.services.map<ServiceMetricsV2>(service => {
@@ -285,7 +418,7 @@ export function calculateRecurringServicesMetrics(
     const billing = input.billingMonths.filter(item => item.serviceId === service.id);
     const workPlan = input.workPlanItems.filter(item => item.serviceId === service.id);
     const reports = workPlan.filter(item => item.itemType === "informe_mensual");
-    const documents = input.documents.filter(item => item.serviceId === service.id);
+    const documents = effectiveDocuments.filter(item => item.serviceId === service.id);
     const slaConfigs = input.slaConfigs.filter(item => item.serviceId === service.id);
     const slaApplicable = getRecurringServiceContractPolicy(service.serviceType as Parameters<typeof getRecurringServiceContractPolicy>[0]).incidentSlaApplicable;
     const operational = slaApplicable ? operationalByService.get(service.id) : undefined;
@@ -397,13 +530,14 @@ export function calculateRecurringServicesMetrics(
     }
 
     const presentDocuments = Array.from(new Set(documents.map(item => item.docType)));
-    const missingDocuments = REQUIRED_DOCUMENTS.filter(docType => !presentDocuments.includes(docType));
-    const formalizationCoverage = Math.round(((REQUIRED_DOCUMENTS.length - missingDocuments.length) / REQUIRED_DOCUMENTS.length) * 100);
-    const formalizationStatus = missingDocuments.length === 0 ? "complete" : missingDocuments.length === REQUIRED_DOCUMENTS.length ? "missing" : "partial";
-    if (missingDocuments.includes("contrato")) {
-      signals.push({ code: "CONTRACT_DOCUMENT_MISSING", level: "critical", message: "No existe contrato cargado como evidencia formal." });
-    } else if (missingDocuments.length > 0) {
-      signals.push({ code: "FORMAL_DOCUMENT_MISSING", level: "attention", message: `Falta evidencia formal: ${missingDocuments.join(", ")}.` });
+    const hasContractualEvidence = presentDocuments.some(docType => REQUIRED_DOCUMENTS.includes(docType as typeof REQUIRED_DOCUMENTS[number]));
+    // Recurrent services require one contractual base: Contrato OR SoW. Keep
+    // the candidate list for API compatibility, but never publish 50% coverage.
+    const missingDocuments = hasContractualEvidence ? [] : [CONTRACTUAL_REQUIREMENT_LABEL];
+    const formalizationCoverage = hasContractualEvidence ? 100 : 0;
+    const formalizationStatus = hasContractualEvidence ? "complete" : "missing";
+    if (!hasContractualEvidence) {
+      signals.push({ code: "CONTRACT_DOCUMENT_MISSING", level: "critical", message: "No existe Contrato o SoW cargado como evidencia formal." });
     }
 
     const operationalStatus: EvidenceStatus = slaApplicable ? operational?.status ?? "not_configured" : "not_applicable";
@@ -479,11 +613,12 @@ export function calculateRecurringServicesMetrics(
       },
       formalization: {
         required: REQUIRED_DOCUMENTS,
+        requiredMode: "any",
         present: presentDocuments,
         missing: missingDocuments,
         coveragePercent: formalizationCoverage,
         status: formalizationStatus,
-        source: "recurring_service_documents",
+        source: documents.some(document => document.sourceKind === "document_artifacts") ? "document_artifacts" : "recurring_service_documents",
       },
       incidents: {
         availability: operationalStatus,

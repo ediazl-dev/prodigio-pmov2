@@ -91,9 +91,9 @@ describe("documentCoverageModel", () => {
       controls: [],
       reports: [],
     });
-    expect(result.coverage.pendingValidation).toBe(3);
+    expect(result.coverage.pendingValidation).toBe(2);
     expect(result.requirements.find(item => item.kind === "service_periodic_report")).toMatchObject({ status: "unconfirmed", applicability: "unconfirmed" });
-    expect(result.activeActions).toHaveLength(3);
+    expect(result.activeActions).toHaveLength(2);
   });
 
   it("no crea acciones para requisitos opcionales o por confirmar", () => {
@@ -170,9 +170,23 @@ describe("documentCoverageModel", () => {
       controls: [],
       reports: [],
     });
-    expect(result.coverage.required).toBe(2);
+    expect(result.coverage.required).toBe(1);
     expect(result.coverage.unconfirmed).toBe(1);
     expect(result.coverage.notApplicable).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each(["contrato", "sow"] as const)("acepta sólo %s como base contractual validada", docType => {
+    const result = buildServiceDocumentCoverage({entityType:"recurring_service",id:1,name:"Renovación",clientName:"Claro",status:"activo",serviceType:"staffing",cutoffAt:"2026-10-21",documents:[{id:1,docType,fileName:"base.pdf"}],controls:[{documentId:1,validationStatus:"valid"}],reports:[]});
+    expect(result.requirements.find(r=>r.kind==="service_contract")).toMatchObject({label:"Contrato o SoW del servicio",status:"compliant"});
+    expect(result.requirements.some(r=>r.kind==="service_sow")).toBe(false);
+    expect(result.activeActions).toHaveLength(0);
+  });
+
+  it("con ninguno genera un solo faltante contractual y mantiene el vencimiento real", () => {
+    const input={entityType:"recurring_service" as const,id:1,name:"Servicio",clientName:"Cliente",status:"activo" as const,serviceType:"staffing" as const,cutoffAt:"2026-10-21",documents:[],controls:[],reports:[]};
+    expect(buildServiceDocumentCoverage(input).activeActions).toHaveLength(1);
+    const expired=buildServiceDocumentCoverage({...input,documents:[{id:1,docType:"contrato",fileName:"base.pdf"}],controls:[{documentId:1,validationStatus:"valid",validUntil:"2026-10-01"}]});
+    expect(expired.requirements.find(r=>r.kind==="service_contract")?.status).toBe("overdue");
   });
 
   it("resume abiertos e históricos por separado", () => {

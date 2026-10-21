@@ -179,7 +179,8 @@ export function ServiceEvidenceTabs({
             </div>
 
             <div className="min-w-0">
-              <h3 className="text-[13px] font-black text-slate-950">Expediente documental canónico ({canonicalDocuments?.requirements.length ?? "—"})</h3>
+              <h3 className="text-[13px] font-black text-slate-950">Expediente documental canónico ({canonicalDocuments?.requirements.filter(r => r.exigibility !== "alternative").length ?? "—"})</h3>
+              <p className="mt-1 text-[11px] text-slate-600">Base contractual: Contrato o SoW; no se exigen ambos.</p>
               {canonicalLoading || canonicalError || !canonicalDocuments ? (
                 <p className="mt-3 text-[12px] text-slate-700">
                   {canonicalLoading ? "Consultando validaciones documentales…" : "Expediente canónico no disponible; no se infiere validación desde los documentos legacy."}
@@ -189,7 +190,9 @@ export function ServiceEvidenceTabs({
                   {canonicalDocuments.requirements.map(requirement => {
                     const document = documents.find(item => item.docType === legacyDocumentByRequirement[requirement.code]
                       && item.fileName === requirement.activeArtifact?.fileName);
-                    const badge = canonicalBadge[requirement.status];
+                    const badge = requirement.exigibility === "alternative"
+                      ? { label: "No exigible · alternativa", tone: "border-slate-200 bg-slate-50 text-slate-700" }
+                      : canonicalBadge[requirement.status];
                     return (
                     <li key={requirement.code} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2">
                       <FileText size={15} className="shrink-0 text-slate-500" />

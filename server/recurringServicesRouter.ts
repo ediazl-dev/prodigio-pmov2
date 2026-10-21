@@ -21,6 +21,8 @@ import { getDocumentGateReadiness } from "./documentGateReadiness";
 import { validateRecurringPenaltyEvidence } from "./recurringPenaltyEvidencePolicy";
 import { buildStaffingContractPlan, getRecurringServiceContractPolicy, parseStaffingContractTerms, sanitizeGeneratedRecurringPlan } from "./recurringServiceContractPolicy";
 import { extractSowContent } from "./documentExtractor";
+import { loadRecurringContractEvidence } from "./recurringContractEvidenceSource";
+import { storageGet } from "./storage";
 import {
   getRecurringServiceForJsmRefresh,
   listRecurringServicesJsmRefreshHistory,
@@ -883,24 +885,26 @@ Responde en español con formato JSON:
       if (!svc.formalStartDate) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Defina la fecha formal de inicio antes de generar el plan Staffing." });
       }
-      const sow = docs.find(document => document.docType === "sow");
-      if (!sow) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Staffing requiere un SoW adjunto antes de generar el plan contractual." });
+      const contractEvidence = await loadRecurringContractEvidence(input.serviceId, docs);
+      if (!contractEvidence) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Adjunte Contrato o SoW para generar el plan contractual Staffing; no se exigen ambos." });
       }
       let evidence;
       try {
-        evidence = await extractSowContent(sow.fileUrl, sow.fileName, svc.serviceName);
+        const sourceUrl = contractEvidence.fileKey ? (await storageGet(contractEvidence.fileKey)).url : contractEvidence.fileUrl;
+        if (!sourceUrl) throw new Error("La fuente contractual no tiene archivo verificable");
+        evidence = await extractSowContent(sourceUrl, contractEvidence.fileName, svc.serviceName);
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `No fue posible leer el SoW adjunto: ${error instanceof Error ? error.message : "error desconocido"}`,
+          message: `No fue posible leer el Contrato o SoW adjunto: ${error instanceof Error ? error.message : "error desconocido"}`,
         });
       }
       const contractTerms = parseStaffingContractTerms(evidence);
       if (!contractTerms) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "El SoW no permite verificar los plazos de entrega y aprobación del reporte mensual. Revise el documento antes de generar.",
+          message: "La fuente contractual no permite verificar los plazos de entrega y aprobación del reporte mensual. Revise el Contrato o SoW y sus antecedentes de renovación antes de generar.",
         });
       }
 
@@ -940,14 +944,15 @@ Responde en español con formato JSON:
       });
       await audit(ctx, "contract_generate", "recurring_service", input.serviceId, svc.serviceName, {
         type: "staffing_work_plan",
-        evidenceDocumentId: sow.id,
-        evidenceFileName: sow.fileName,
+        evidenceDocumentId: contractEvidence.id,
+        evidenceFileName: contractEvidence.fileName,
+        evidenceSourceKind: contractEvidence.sourceKind,
         itemCount: staffingPlan.length,
         slaCount: 0,
         contractTerms,
         excludedControls: ["sla_incidentes", "dr", "24x7", "facturacion_duplicada"],
       });
-      return { itemCount: staffingPlan.length, slaCount: 0, excludedCount: 0, source: "sow" as const };
+      return { itemCount: staffingPlan.length, slaCount: 0, excludedCount: 0, source: contractEvidence.docType === "sow" ? "sow" as const : "contract" as const };
     }
 
     const prompt = `Eres un Gerente de Proyectos Senior especializado en servicios recurrentes de TI.

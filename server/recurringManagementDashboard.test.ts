@@ -188,7 +188,7 @@ describe("dashboard gerencial recurrente", () => {
     expect(camanchaca.sla).toMatchObject({ jsmLinked: true, firstResponseMeasured: 0, firstResponseCompliance: null, resolutionMeasured: 0, resolutionCompliance: null });
     expect(result.management.services.filter(row => row.sla.jsmLinked)).toHaveLength(1);
     expect(result.management.services.reduce((sum, row) => sum + row.deliverables.withoutDate, 0)).toBe(15);
-    expect(result.management.services.reduce((sum, row) => sum + row.documents.present, 0)).toBe(6);
+    expect(result.management.services.reduce((sum, row) => sum + row.documents.present, 0)).toBe(3);
     expect(result.management.services.reduce((sum, row) => sum + row.documents.valid, 0)).toBe(0);
     expect(result.management.exceptions.some(row => row.code === "DELIVERABLES_WITHOUT_DATE")).toBe(true);
     expect(result.management.exceptions.some(row => row.code === "DOCUMENTS_UNVALIDATED")).toBe(true);

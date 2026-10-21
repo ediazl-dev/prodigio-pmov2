@@ -186,10 +186,8 @@ export function diagnoseRecurringServicesQuality(
     }
 
     const presentDocumentTypes = new Set(documents.map(document => document.docType));
-    for (const requiredDocument of REQUIRED_DOCUMENTS) {
-      if (!presentDocumentTypes.has(requiredDocument)) {
-        addIssue(issues, { code: `${requiredDocument.toUpperCase()}_MISSING`, dimension: "documents", severity: requiredDocument === "contrato" ? "error" : "warning", message: `Falta el documento obligatorio ${requiredDocument}.`, blocksTrustedMetrics: requiredDocument === "contrato" });
-      }
+    if (!REQUIRED_DOCUMENTS.some(type => presentDocumentTypes.has(type))) {
+      addIssue(issues, { code: "CONTRACTUAL_BASE_MISSING", dimension: "documents", severity: "error", message: "Falta una base contractual: Contrato o SoW; no se exigen ambos.", blocksTrustedMetrics: true });
     }
 
     if (!service.jsmProjectKey && !service.jsmServiceDeskId) {

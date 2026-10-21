@@ -43,10 +43,36 @@ function validService() {
 }
 
 describe("documentGovernanceModel", () => {
-  it("muestra cuatro faltantes para un servicio sin documentos", () => {
+  it("muestra una sola brecha contractual exigible como Contrato o SoW cuando no hay ninguno", () => {
     const result = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service" });
     expect(result.requirements.map(item => item.code)).toEqual(serviceCodes);
-    expect(result.coverage).toMatchObject({ required: 4, compliant: 0, missing: 4, percentage: 0 });
+    expect(result.coverage).toMatchObject({ required: 3, compliant: 0, missing: 3, percentage: 0 });
+    expect(result.requirements.filter(item => item.exigibility === "required" && ["contract", "sow"].includes(item.code))).toHaveLength(1);
+    expect(result.requirements.find(item => item.code === "contract")).toMatchObject({ exigibility: "required", status: "missing" });
+    expect(result.requirements.find(item => item.code === "sow")).toMatchObject({ exigibility: "alternative", status: "missing" });
+    expect(result.requirements.find(item => item.code === "contract")?.detail).toContain("Contrato o SoW");
+  });
+
+  it("acepta sólo Contrato o sólo SoW como la base contractual del recurrente", () => {
+    const { artifacts, decisions } = validService();
+    const onlyContract = buildCanonicalDocumentEntity({
+      ...base,
+      entityType: "recurring_service",
+      artifacts: artifacts.filter(artifact => artifact.requirementCode !== "sow"),
+      decisions: decisions.filter(decision => artifacts.find(artifact => artifact.id === decision.artifactId)?.requirementCode !== "sow"),
+    });
+    const onlySow = buildCanonicalDocumentEntity({
+      ...base,
+      entityType: "recurring_service",
+      artifacts: artifacts.filter(artifact => artifact.requirementCode !== "contract"),
+      decisions: decisions.filter(decision => artifacts.find(artifact => artifact.id === decision.artifactId)?.requirementCode !== "contract"),
+    });
+    for (const result of [onlyContract, onlySow]) {
+      expect(result.coverage).toMatchObject({ required: 3, compliant: 3, percentage: 100 });
+      expect(result.blockers).toHaveLength(0);
+    }
+    expect(onlyContract.requirements.find(item => item.code === "sow")).toMatchObject({ exigibility: "alternative", status: "missing" });
+    expect(onlySow.requirements.find(item => item.code === "contract")).toMatchObject({ exigibility: "alternative", status: "missing" });
   });
 
   it("distingue presencia de validación y no cuenta pendientes como cumplimiento", () => {
@@ -60,15 +86,18 @@ describe("documentGovernanceModel", () => {
       decidedAt: "2026-09-21",
     }));
     const result = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service", artifacts, decisions });
-    expect(result.coverage).toMatchObject({ required: 4, compliant: 0, pendingValidation: 4, percentage: 0 });
+    expect(result.coverage).toMatchObject({ required: 3, compliant: 0, pendingValidation: 3, percentage: 0 });
     expect(result.requirements.every(item => item.presence === "present")).toBe(true);
   });
 
-  it("considera cumplidos los cuatro documentos válidos y vigentes", () => {
+  it("con ambos documentos conserva ambas historias pero cuenta una sola base contractual", () => {
     const { artifacts, decisions } = validService();
     const result = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service", artifacts, decisions });
-    expect(result.coverage).toMatchObject({ required: 4, compliant: 4, percentage: 100 });
+    expect(result.coverage).toMatchObject({ required: 3, compliant: 3, percentage: 100 });
     expect(result.blockers).toHaveLength(0);
+    expect(result.requirements.find(item => item.code === "contract")?.historyCount).toBe(1);
+    expect(result.requirements.find(item => item.code === "sow")?.historyCount).toBe(1);
+    expect(result.requirements.find(item => item.code === "sow")?.detail).toContain("no es una excepción humana");
   });
 
   it("marca como vencido un documento cuya vigencia terminó antes del corte", () => {
@@ -76,7 +105,25 @@ describe("documentGovernanceModel", () => {
     decisions[0] = { ...decisions[0], openEndedValidity: false, validUntil: "2026-09-25" };
     const result = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service", artifacts, decisions });
     expect(result.requirements.find(item => item.code === "contract")?.status).toBe("expired");
-    expect(result.coverage.expired).toBe(1);
+    expect(result.coverage.expired).toBe(0);
+    expect(result.requirements.find(item => item.code === "sow")).toMatchObject({ exigibility: "required", status: "compliant" });
+    expect(result.requirements.find(item => item.code === "contract")).toMatchObject({ exigibility: "alternative", status: "expired" });
+  });
+
+  it("prefiere evidencia pendiente sobre vencida o rechazada, pero la pendiente no cumple", () => {
+    const { artifacts, decisions } = validService();
+    const contract = artifacts.find(artifact => artifact.requirementCode === "contract")!;
+    const sow = artifacts.find(artifact => artifact.requirementCode === "sow")!;
+    const pendingContract = decisions.map(decision => decision.artifactId === contract.id ? { ...decision, decision: "pending" as const, openEndedValidity: false, validUntil: null } : decision);
+    const pendingResult = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service", artifacts, decisions: pendingContract });
+    expect(pendingResult.requirements.find(item => item.code === "contract")).toMatchObject({ exigibility: "alternative", status: "pending_validation" });
+    expect(pendingResult.requirements.find(item => item.code === "sow")).toMatchObject({ exigibility: "required", status: "compliant" });
+    expect(pendingResult.coverage.compliant).toBe(3);
+
+    const rejectedSow = decisions.map(decision => decision.artifactId === sow.id ? { ...decision, decision: "rejected" as const, reason: "No corresponde" } : decision);
+    const rejectedResult = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service", artifacts, decisions: rejectedSow });
+    expect(rejectedResult.requirements.find(item => item.code === "contract")).toMatchObject({ exigibility: "required", status: "compliant" });
+    expect(rejectedResult.requirements.find(item => item.code === "sow")).toMatchObject({ exigibility: "alternative", status: "rejected" });
   });
 
   it("no cumple el plan de proyecto sin snapshot con hitos", () => {
@@ -84,6 +131,8 @@ describe("documentGovernanceModel", () => {
     artifacts.push({ id: 5, requirementCode: "work_plan_milestones", sourceKind: "jira_snapshot", fileName: "Plan Jira", fileKey: "key-5", version: 1, artifactStatus: "active", observedAt: "2026-09-20" });
     decisions.push({ id: 5, artifactId: 5, decision: "valid", validFrom: "2026-09-01", validUntil: null, openEndedValidity: true, costingStatus: "not_applicable", decidedAt: "2026-09-21" });
     const withoutSnapshot = buildCanonicalDocumentEntity({ ...base, entityType: "project", artifacts, decisions });
+    expect(withoutSnapshot.requirements.filter(item => ["contract", "sow"].includes(item.code)).every(item => item.exigibility === "required")).toBe(true);
+    expect(withoutSnapshot.coverage.required).toBe(5);
     expect(withoutSnapshot.requirements.find(item => item.code === "work_plan_milestones")?.status).toBe("pending_validation");
     const withSnapshot = buildCanonicalDocumentEntity({
       ...base,
@@ -109,6 +158,6 @@ describe("documentGovernanceModel", () => {
     const { artifacts, decisions } = validService();
     const compliant = buildCanonicalDocumentEntity({ ...base, entityType: "recurring_service", artifacts, decisions });
     const missing = buildCanonicalDocumentEntity({ ...base, entityType: "project", entityId: 2 });
-    expect(summarizeCanonicalDocumentPortfolio([compliant, missing])).toMatchObject({ entities: 2, required: 9, compliant: 4, missing: 5 });
+    expect(summarizeCanonicalDocumentPortfolio([compliant, missing])).toMatchObject({ entities: 2, required: 8, compliant: 3, missing: 5 });
   });
 });
