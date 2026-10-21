@@ -164,6 +164,29 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
     );
   });
 
+  it("reconoce seis hitos CloudOps trasladados sin etiquetas y no factura En Proceso ni vacíos", async () => {
+    const canonical = Array.from({ length: 6 }, (_, index) => {
+      const i = issue({ key: `CONSALOP03-${index + 1}`, month: index + 1, project: "CONSALOP03", billingField: "customfield_12128", billing: index < 2 ? "Facturado" : index === 2 ? "En Proceso" : undefined });
+      i.fields.summary = `Deal 4775_${index + 1}_Mes ${index + 1}`;
+      i.fields.labels = [];
+      i.fields.issuetype = { name: "Hito de Facturación CloudOps", subtask: false };
+      return i;
+    });
+    mocks.getRecurringServiceById.mockResolvedValue(service({ id: 3300001, dealId: "4775", jsmProjectKey: "CONSALOP03", jsmProjectId: "13149", jsmLinkSource: "created" }));
+    mocks.getBillingMonths.mockResolvedValue(schedule([1, 2, 3, 4, 5, 6]).map((s, index) => ({ ...s, serviceId: 3300001, amount: "160.00", jiraIssueKey: canonical[index].key })));
+    mocks.getAdminSettingValue.mockResolvedValue(JSON.stringify({ version: 1, serviceId: 3300001, projectId: "13149", projectKey: "CONSALOP03", fieldId: "customfield_12128", fieldName: "Estado de Facturación CloudOps", verifiedAt: "2026-10-21T21:00:00.000Z" }));
+    mocks.searchJiraIssues.mockResolvedValue({ issues: canonical });
+    const result = await loadRecurringServiceJiraBillingEvidence(3300001);
+    expect(result.items).toHaveLength(6);
+    expect(result.items.every(i => i.jiraStatusName === "Completed")).toBe(true);
+    expect(result.items[2].billingFieldValues).toEqual(["En Proceso"]);
+    expect(result.summary).toMatchObject({ billedItems: 2, unknownItems: 4, duplicateGroups: 0 });
+    expect(result.summary.billedByCurrency).toEqual([{ currency: "UF", amount: 320, items: 2 }]);
+    expect(result.warnings).toEqual([]);
+    expect(result.sourceProjectKeys).toEqual(["CONSALOP03"]);
+    expect(mocks.searchJiraIssues).toHaveBeenCalledTimes(1);
+  });
+
   it("mantiene el fallback legado mientras falte al menos un binding de cuota", async () => {
     const canonical = issue({ key: "CONSALOP02-101", month: 1, project: "CONSALOP02", billing: "✅ Facturado" });
     const legacy = issue({ key: "PSCSC4S-202", month: 2, project: "PSCSC4S", billing: "❌ No facturado" });

@@ -138,6 +138,7 @@ function issueText(issue: JiraIssue): string {
 function isBillingIssue(issue: JiraIssue): boolean {
   const text = issueText(issue);
   return text.includes("factur")
+    || String(issue.fields?.issuetype?.name ?? "").toLowerCase().includes("factur")
     || String(issue.fields?.issuetype?.name ?? "").toLowerCase() === "hito pmo"
     || (issueDeal(issue) !== null && issueMonth(issue) !== null && /\bh(?:ito)?[-_ ]?\d+\b/i.test(String(issue.fields?.summary ?? "").replace(/_/g, " ")));
 }
