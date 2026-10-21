@@ -16,6 +16,7 @@ import {
 import {
   loadRecurringJiraBillingFieldMapping,
 } from "./recurringJiraBillingFieldMapping";
+import { getExplicitJiraBillingCommentConfirmation, loadRecurringJiraBillingCommentPolicy, type RecurringJiraBillingCommentPolicy } from "./recurringJiraBillingCommentPolicy";
 
 export const JIRA_BILLING_STATUS_FIELD_ID = "customfield_11237";
 export const JIRA_BILLING_STATUS_FIELD_NAME = "Estado de Facturación";
@@ -25,7 +26,7 @@ export const DEFAULT_JIRA_BILLING_FIELD = {
 } as const;
 
 export type JiraOperationalBillingStatus = "billed" | "not_billed" | "unknown";
-export type JiraBillingStatusSource = "jira_custom_field" | "jira_billing_issue_status" | "missing";
+export type JiraBillingStatusSource = "jira_custom_field" | "jira_billing_issue_status" | "jira_billing_comment" | "missing";
 
 export type JiraBillingEvidenceItem = {
   key: string;
@@ -45,6 +46,7 @@ export type JiraBillingEvidenceItem = {
   billingStatusLabel: string;
   billingStatusSource: JiraBillingStatusSource;
   billingFieldValues: string[];
+  billingCommentEvidence?: { id: string; authorAccountId: string; authorName: string; updatedAt: string; text: string };
   matchedBy: "jira_issue_key" | "deal_month" | "month" | "jira_only";
   duplicateCandidates: string[];
 };
@@ -99,6 +101,8 @@ export type JiraBillingBuildInput = {
   billingField?: { id: string; name: string };
   /** A present but invalid/unreadable canonical mapping must not use the global field. */
   billingFieldUnavailable?: boolean;
+  /** Explicit service/project/key/author policy; never a global workflow fallback. */
+  billingCommentPolicy?: RecurringJiraBillingCommentPolicy;
 };
 
 function numeric(value: unknown): number | null {
@@ -179,11 +183,12 @@ function plainText(value: unknown): string {
   return "";
 }
 
-function statusForIssue(issue: JiraIssue, allowFallback: boolean, fieldId = JIRA_BILLING_STATUS_FIELD_ID, fieldAvailable = true): {
+function statusForIssue(issue: JiraIssue, allowFallback: boolean, fieldId = JIRA_BILLING_STATUS_FIELD_ID, fieldAvailable = true, commentPolicy?: RecurringJiraBillingCommentPolicy): {
   status: JiraOperationalBillingStatus;
   label: string;
   source: JiraBillingStatusSource;
   values: string[];
+  comment?: JiraBillingEvidenceItem["billingCommentEvidence"];
 } {
   const values = fieldAvailable ? issueFieldValues(issue, fieldId) : [];
   const normalized = values.map(value => value.toLowerCase());
@@ -195,6 +200,14 @@ function statusForIssue(issue: JiraIssue, allowFallback: boolean, fieldId = JIRA
   }
   if (billed) {
     return { status: "billed", label: "Facturado según Jira", source: "jira_custom_field", values };
+  }
+  // A structured value (including En Proceso) or unavailable field cannot be overridden.
+  if (fieldAvailable && values.length === 0 && commentPolicy && !isGeneratedRecurringIssue(issue)) {
+    const confirmation = getExplicitJiraBillingCommentConfirmation(issue, commentPolicy);
+    if (confirmation && confirmation.status !== "unknown") {
+      const { status, ...comment } = confirmation;
+      return { status, label: status === "billed" ? "Facturación confirmada en comentario JSM" : "No facturado según comentario JSM", source: "jira_billing_comment", values, comment };
+    }
   }
   // Workflow completion proves only that the task was closed, never that an invoice was emitted.
   void allowFallback;
@@ -305,7 +318,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     }
 
     usedKeys.add(selected.key);
-    const status = statusForIssue(selected, input.allowBillingIssueStatusFallback, billingField.id, !input.billingFieldUnavailable);
+    const status = statusForIssue(selected, input.allowBillingIssueStatusFallback, billingField.id, !input.billingFieldUnavailable, input.billingCommentPolicy);
     const duplicateCandidates = ranked.slice(1).map(candidate => candidate.issue.key);
     if (duplicateCandidates.length > 0) {
       warnings.push(`${local.code}: ${duplicateCandidates.length} candidato(s) Jira adicional(es) no sumados (${duplicateCandidates.join(", ")}).`);
@@ -333,6 +346,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
       billingStatusLabel: conflictingStatus ? "Facturación Jira ambigua" : status.label,
       billingStatusSource: conflictingStatus ? "missing" : status.source,
       billingFieldValues: status.values,
+      ...(!conflictingStatus && status.comment ? { billingCommentEvidence: status.comment } : {}),
       matchedBy: local.jiraIssueKey ? "jira_issue_key" : input.dealId && issueDeal(selected) === input.dealId ? "deal_month" : "month",
       duplicateCandidates,
     });
@@ -400,7 +414,7 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
   };
 }
 
-async function searchAllIssues(jql: string, billingFieldId = JIRA_BILLING_STATUS_FIELD_ID): Promise<JiraIssue[]> {
+async function searchAllIssues(jql: string, billingFieldId = JIRA_BILLING_STATUS_FIELD_ID, includeComments = false): Promise<JiraIssue[]> {
   const issues: JiraIssue[] = [];
   let nextPageToken: string | undefined;
   do {
@@ -416,6 +430,8 @@ async function searchAllIssues(jql: string, billingFieldId = JIRA_BILLING_STATUS
         "created",
         "updated",
         "description",
+        "project",
+        ...(includeComments ? ["comment"] : []),
         JIRA_BILLING_STATUS_FIELD_ID,
         ...(billingFieldId !== JIRA_BILLING_STATUS_FIELD_ID ? [billingFieldId] : []),
       ],
@@ -426,11 +442,11 @@ async function searchAllIssues(jql: string, billingFieldId = JIRA_BILLING_STATUS
   return issues;
 }
 
-async function safeIssueSearch(jql: string, label: string, billingFieldId = JIRA_BILLING_STATUS_FIELD_ID) {
+async function safeIssueSearch(jql: string, label: string, billingFieldId = JIRA_BILLING_STATUS_FIELD_ID, includeComments = false) {
   try {
-    return { issues: await searchAllIssues(jql, billingFieldId), warning: null as string | null };
+    return { issues: await searchAllIssues(jql, billingFieldId, includeComments), warning: null as string | null };
   } catch (error) {
-    return { issues: [] as JiraIssue[], warning: `${label}: ${error instanceof Error ? error.message.slice(0, 180) : "Jira no disponible"}` };
+    return { issues: [] as JiraIssue[], warning: `${label}: ${error instanceof Error ? error.message.slice(0, 180) : "No disponible"}` };
   }
 }
 
@@ -551,6 +567,7 @@ async function buildRecurringServiceEvidence(
     : null;
   let billingField: { id: string; name: string } = DEFAULT_JIRA_BILLING_FIELD;
   let billingFieldUnavailable = false;
+  let billingCommentPolicy: RecurringJiraBillingCommentPolicy | undefined;
   if (canonicalBindings) {
     const mapping = await loadRecurringJiraBillingFieldMapping({
       serviceId: service.id,
@@ -564,10 +581,13 @@ async function buildRecurringServiceEvidence(
       billingFieldUnavailable = true;
       warnings.push(mapping.error);
     }
+    const comments = await loadRecurringJiraBillingCommentPolicy({ serviceId: service.id, projectId: service.jsmProjectId ?? null, projectKey: service.jsmProjectKey ?? null });
+    if (comments.policy) billingCommentPolicy = comments.policy;
+    if (comments.error) warnings.push(comments.error);
   }
 
   const direct = service.jsmProjectKey
-    ? await safeIssueSearch(`project=${service.jsmProjectKey} ORDER BY created ASC`, service.jsmProjectKey, billingField.id)
+    ? await safeIssueSearch(`project=${service.jsmProjectKey} ORDER BY created ASC`, service.jsmProjectKey, billingField.id, Boolean(billingCommentPolicy))
     : { issues: [] as JiraIssue[], warning: null as string | null };
   if (direct.warning) warnings.push(direct.warning);
 
@@ -633,6 +653,7 @@ async function buildRecurringServiceEvidence(
     jiraAvailable,
     billingField,
     billingFieldUnavailable,
+    billingCommentPolicy,
     queryWarnings: warnings,
     ...(!jiraAvailable ? { error: warnings.join(" · ") || "Jira no disponible" } : {}),
   });

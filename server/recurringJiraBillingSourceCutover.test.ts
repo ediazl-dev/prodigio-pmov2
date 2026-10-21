@@ -143,7 +143,7 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
     }));
     mocks.getRecurringServiceById.mockResolvedValue(service({ jsmLinkSource }));
     mocks.getBillingMonths.mockResolvedValue(schedule([1, 2, 3, 4, 5, 6]));
-    mocks.getAdminSettingValue.mockResolvedValue(JSON.stringify({
+    mocks.getAdminSettingValue.mockImplementation(async (key: string) => key.startsWith("recurring-jira-billing-field:") ? JSON.stringify({
       version: 1,
       serviceId: 2070001,
       projectId: "13114",
@@ -151,7 +151,7 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
       fieldId: "customfield_12127",
       fieldName: "Estado de Facturación Staffing",
       verifiedAt: "2026-10-21T19:00:00.000Z",
-    }));
+    }) : null);
     mocks.searchJiraIssues.mockResolvedValue({ issues: canonical });
 
     const result = await loadRecurringServiceJiraBillingEvidence(2070001);
@@ -174,7 +174,7 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
     });
     mocks.getRecurringServiceById.mockResolvedValue(service({ id: 3300001, dealId: "4775", jsmProjectKey: "CONSALOP03", jsmProjectId: "13149", jsmLinkSource: "created" }));
     mocks.getBillingMonths.mockResolvedValue(schedule([1, 2, 3, 4, 5, 6]).map((s, index) => ({ ...s, serviceId: 3300001, amount: "160.00", jiraIssueKey: canonical[index].key })));
-    mocks.getAdminSettingValue.mockResolvedValue(JSON.stringify({ version: 1, serviceId: 3300001, projectId: "13149", projectKey: "CONSALOP03", fieldId: "customfield_12128", fieldName: "Estado de Facturación CloudOps", verifiedAt: "2026-10-21T21:00:00.000Z" }));
+    mocks.getAdminSettingValue.mockImplementation(async (key: string) => key.startsWith("recurring-jira-billing-field:") ? JSON.stringify({ version: 1, serviceId: 3300001, projectId: "13149", projectKey: "CONSALOP03", fieldId: "customfield_12128", fieldName: "Estado de Facturación CloudOps", verifiedAt: "2026-10-21T21:00:00.000Z" }) : null);
     mocks.searchJiraIssues.mockResolvedValue({ issues: canonical });
     const result = await loadRecurringServiceJiraBillingEvidence(3300001);
     expect(result.items).toHaveLength(6);
@@ -215,7 +215,7 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
   it("mapping canónico inválido deja Jira no disponible y no usa el campo global", async () => {
     mocks.getRecurringServiceById.mockResolvedValue(service());
     mocks.getBillingMonths.mockResolvedValue(schedule([1, 2, 3, 4, 5, 6]));
-    mocks.getAdminSettingValue.mockResolvedValue(JSON.stringify({
+    mocks.getAdminSettingValue.mockImplementation(async (key: string) => key.startsWith("recurring-jira-billing-field:") ? JSON.stringify({
       version: 1,
       serviceId: 2070001,
       projectId: "99999",
@@ -223,7 +223,7 @@ describe("precedencia de fuente Jira para cuotas recurrentes", () => {
       fieldId: "customfield_12127",
       fieldName: "Estado de Facturación Staffing",
       verifiedAt: "2026-10-21T19:00:00.000Z",
-    }));
+    }) : null);
     mocks.searchJiraIssues.mockResolvedValue({ issues: Array.from({ length: 6 }, (_, index) => issue({
       key: `CONSALOP02-${101 + index}`,
       month: index + 1,

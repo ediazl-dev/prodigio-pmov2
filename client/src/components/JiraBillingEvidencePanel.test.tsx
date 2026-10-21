@@ -39,8 +39,8 @@ const evidence: JiraBillingEvidenceData = {
       jiraStatusCategory: "done",
       billingStatus: "billed",
       billingStatusLabel: "Facturado según ticket Jira",
-      billingStatusSource: "jira_billing_issue_status",
-      billingFieldValues: [],
+      billingStatusSource: "jira_custom_field",
+      billingFieldValues: ["Facturado"],
       matchedBy: "month",
       duplicateCandidates: ["CAMANSOP01-3"],
     },
@@ -60,8 +60,8 @@ const evidence: JiraBillingEvidenceData = {
       jiraStatusCategory: "new",
       billingStatus: "not_billed",
       billingStatusLabel: "Pendiente según ticket Jira",
-      billingStatusSource: "jira_billing_issue_status",
-      billingFieldValues: [],
+      billingStatusSource: "jira_custom_field",
+      billingFieldValues: ["No facturado"],
       matchedBy: "month",
       duplicateCandidates: [],
     },
@@ -81,12 +81,28 @@ describe("JiraBillingEvidencePanel", () => {
     expect(screen.getByRole("link", { name: /CAMANSOP01-20/ }).getAttribute("href")).toBe("https://jira.example/browse/CAMANSOP01-20");
     expect(screen.queryByText(/Cobrado/i)).toBeNull();
     expect(screen.getByText(/No equivale a factura tributaria/i)).toBeTruthy();
-    expect(screen.getByText(/workflow sólo en tickets inequívocos de facturación/i)).toBeTruthy();
+    expect(screen.getByText(/Estado por hito desde Estado de Facturación/i)).toBeTruthy();
+    expect(screen.queryByText(/workflow como fallback/i)).toBeNull();
   });
 
   it("expone duplicados sin sumarlos", () => {
     render(<JiraBillingEvidencePanel evidence={evidence} />);
     expect(screen.getByText("1 grupo(s) con duplicados")).toBeTruthy();
     expect(screen.getByText("1 duplicado(s) no sumado(s)")).toBeTruthy();
+  });
+
+  it("muestra la confirmación financiera con autor y enlace al comentario", () => {
+    const item = {...evidence.items[0], billingStatusSource: "jira_billing_comment" as const, billingFieldValues: [], billingCommentEvidence: {id: "59170", authorAccountId: "author-1", authorName: "Aiza Pineda Centeno", updatedAt: "2026-08-17T21:52:35Z", text: "Facturado"}};
+    render(<JiraBillingEvidencePanel evidence={{...evidence, items: [item]}} />);
+    expect(screen.getByText(/Facturación confirmada explícitamente en comentarios JSM/)).toBeTruthy();
+    expect(screen.getByRole("link", {name: /Confirmación de Aiza/}).getAttribute("href")).toContain("focusedCommentId=59170");
+    expect(screen.getByText("«Facturado»")).toBeTruthy();
+  });
+
+  it("evidencia desconocida se muestra N/D, no ausencia de hitos ni UF0", () => {
+    render(<JiraBillingEvidencePanel evidence={{...evidence, summary: {...evidence.summary, billedItems: 0, notBilledItems: 0, unknownItems: 2, billedByCurrency: [], notBilledByCurrency: []}, items: evidence.items.map(i => ({...i, billingStatus: "unknown", billingStatusSource: "missing", billingStatusLabel: "Estado de facturación N/D"}))}} />);
+    expect(screen.getByText(/Estado de facturación por verificar/)).toBeTruthy();
+    expect(screen.queryByText("UF 0")).toBeNull();
+    expect(screen.queryByText("No hay hitos de facturación identificados.")).toBeNull();
   });
 });

@@ -43,14 +43,14 @@ export function JiraBillingEvidencePanel({ evidence, loading = false, title = "F
 
   const sourceLabel = evidence.sourceProjectKeys.length > 0 ? evidence.sourceProjectKeys.join(" · ") : "sin proyecto Jira identificado";
   const usesBillingField = evidence.items.some(item => item.billingStatusSource === "jira_custom_field");
-  const usesWorkflowFallback = evidence.items.some(item => item.billingStatusSource === "jira_billing_issue_status");
-  const statusSourceText = usesBillingField && usesWorkflowFallback
-    ? `Estado por hito desde ${evidence.field.name}; los tickets inequívocos sin ese campo usan su workflow como fallback.`
+  const usesComments = evidence.items.some(item => item.billingStatusSource === "jira_billing_comment");
+  const statusSourceText = usesBillingField && usesComments
+    ? `Estado por hito desde ${evidence.field.name} y confirmaciones explícitas en comentarios JSM autorizados.`
     : usesBillingField
       ? `Estado por hito desde ${evidence.field.name}.`
-      : usesWorkflowFallback
-        ? "El proyecto no usa Estado de Facturación; se considera el workflow sólo en tickets inequívocos de facturación."
-        : "No hay evidencia Jira suficiente para determinar el estado de facturación.";
+      : usesComments
+        ? "Facturación confirmada explícitamente en comentarios JSM; cada confirmación conserva su autor y referencia."
+        : "Estado de facturación por verificar; un hito cerrado no acredita por sí solo una factura.";
   return (
     <section aria-labelledby={`jira-billing-${evidence.entityType}-${evidence.entityId}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
       <header className="flex flex-wrap items-start gap-3 border-b border-slate-200 px-5 py-4">
@@ -90,6 +90,10 @@ export function JiraBillingEvidencePanel({ evidence, loading = false, title = "F
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={item.billingStatus} label={item.billingStatusLabel} />
               {item.duplicateCandidates.length > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700"><AlertTriangle size={12} /> {item.duplicateCandidates.length} duplicado(s) no sumado(s)</span>}
+              {item.billingCommentEvidence && <div className="w-full text-[10px] leading-4 text-slate-600">
+                <a href={`${item.jiraUrl}?focusedCommentId=${encodeURIComponent(item.billingCommentEvidence.id)}`} target="_blank" rel="noreferrer" className="font-bold text-cyan-700 underline">Confirmación de {item.billingCommentEvidence.authorName} · {formatDate(item.billingCommentEvidence.updatedAt)}</a>
+                <p className="mt-1 break-words">«{item.billingCommentEvidence.text}»</p>
+              </div>}
             </div>
             {item.jiraUrl ? <a href={item.jiraUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-end gap-1 text-[11px] font-black text-cyan-700 hover:text-cyan-900">{item.key}<ExternalLink size={12} /></a> : <span className="text-right text-[10px] font-bold text-slate-400">Sin vínculo Jira</span>}
           </article>

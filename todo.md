@@ -900,3 +900,9 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] D1: Política canónica versionada: una base contractual Contrato o SoW para recurrentes; preservar ambos tipos/historia, validación/vigencia y propuesta/P&L. Proyectos no cambian.
 - [x] D2: Alertas/métricas leen expediente canónico además de legacy; 2397 sin falso faltante, sin exigir el documento alternativo. Alinear detalle/Clásico/reporte/gate/carga.
 - [x] D3: Generador acepta Contrato o SoW como fuente real; no se ejecutó generación ni se inventaron términos o aceptación. Live2397: 3/3 y evidencia intacta; 1194 pruebas, 20 omitidas; build aprobado; mismos cinco errores TS heredados. Checkpoint final de entrega.
+
+## Asociación financiera Camanchaca 2383 — 2026-10-21 (base ba5fe6ac)
+- [x] F0: Seis cuotas sin claves; cinco confirmaciones explícitas en comentarios de Aiza, campo estructurado vacío. Respaldo privado SHA-256 y causa reproducible.
+- [x] F1: Seis claves originales CAMANSOP01-20 a -25, reutilización y política opt-in de comentarios; UF470 confirmados y M06 N/D. Transacción/auditoría/idempotencia, Jira sin escrituras.
+- [ ] F2: Alinear detalle, JSM Setup y vistas consolidadas con la evidencia única; sin sumar duplicados ni alterar importes/monedas/histórico.
+- [ ] F3: Regresiones de Staffing/cortes, lectura real, invariantes, build/TS heredado, suite y checkpoint de entrega.

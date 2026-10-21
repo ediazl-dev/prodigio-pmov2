@@ -1,0 +1,23 @@
+import {getDb} from '../server/db';
+import {getRecurringServiceById,getBillingMonths} from '../server/recurringServicesDb';
+import {recurringServiceStages,recurringServiceWorkPlan,documentArtifacts,documentValidationDecisions} from '../drizzle/schema';
+import {loadRecurringServiceJiraBillingEvidence} from '../server/jiraBillingEvidence';
+import {eq,inArray} from 'drizzle-orm';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+const ROOT='/home/ubuntu/backups/prodigio-pmo/2026-10-21-camanchaca-2383-billing-association',ID=2100001;
+const raw=readFileSync(ROOT+'/before.json');if(createHash('sha256').update(raw).digest('hex')!==readFileSync(ROOT+'/before.json.sha256','utf8').split(/\s/)[0])throw Error('Checksum incorrecto');
+const before=JSON.parse(raw.toString());const json=(x:unknown)=>JSON.stringify(x);
+(async()=>{
+ const db=await getDb();if(!db)throw Error('DB no disponible');
+ const [service,billing,stages,workPlan,artifacts]=await Promise.all([getRecurringServiceById(ID),getBillingMonths(ID),db.select().from(recurringServiceStages).where(eq(recurringServiceStages.serviceId,ID)),db.select().from(recurringServiceWorkPlan).where(eq(recurringServiceWorkPlan.serviceId,ID)),db.select().from(documentArtifacts).where(eq(documentArtifacts.entityId,ID))]);
+ const decisions=artifacts.length?await db.select().from(documentValidationDecisions).where(inArray(documentValidationDecisions.artifactId,artifacts.map(a=>a.id))):[];
+ const withoutKey=({jiraIssueKey:_key,...r}:any)=>r;
+ if(!service||service.status!==before.service.status||service.jsmProjectKey!=='CAMANSOP01'||service.jsmBillingSyncMode!=='external_reference')throw Error('Lifecycle/Space no esperado');
+ if(json(billing.map(withoutKey))!==json(before.billing.map(withoutKey)))throw Error('Cambió una cuota además de su vínculo');
+ if(json(stages)!==json(before.stages)||json(workPlan)!==json(before.workPlan)||json(artifacts)!==json(before.artifacts)||json(decisions)!==json(before.decisions))throw Error('Cambió etapa/plan/documento/decisión');
+ const evidence=await loadRecurringServiceJiraBillingEvidence(ID);
+ if(!evidence.jiraAvailable||evidence.items.length!==6||evidence.summary.billedItems!==5||evidence.summary.unknownItems!==1||evidence.summary.notBilledItems!==0||evidence.summary.billedByCurrency[0]?.amount!==470||evidence.warnings.length||evidence.sourceProjectKeys.join()!=='CAMANSOP01'||evidence.items.some((i,index)=>i.key!==`CAMANSOP01-${20+index}`))throw Error('Lectura financiera no verificada');
+ const result={verifiedAt:new Date().toISOString(),serviceId:ID,scope:'CAMANSOP01',summary:evidence.summary,items:evidence.items.map(i=>({code:i.code,key:i.key,status:i.billingStatus,source:i.billingStatusSource,commentId:i.billingCommentEvidence?.id??null})),invariants:{amounts:true,currencies:true,dates:true,invoiceFields:true,stages:true,workPlan:true,artifacts:true,decisions:true,lifecycle:true},jiraWrites:0};
+ const text=JSON.stringify(result,null,2)+'\n';writeFileSync(ROOT+'/verified-after.json',text,{mode:0o600});writeFileSync(ROOT+'/verified-after.json.sha256',createHash('sha256').update(text).digest('hex')+'  verified-after.json\n',{mode:0o600});console.log(JSON.stringify(result));
+})().then(()=>process.exit(0)).catch(e=>{console.error(e.message);process.exit(1)});
