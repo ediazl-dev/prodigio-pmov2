@@ -495,6 +495,7 @@ const projectsRouter = router({
     clientContact: z.string().optional(),
     clientEmail: z.string().email().optional(),
     projectType: z.enum(["apigee", "desarrollo", "integracion", "data", "otro"]).optional(),
+    financialMode: z.enum(["commercial", "internal"]).optional(),
     pmId: z.number().optional(),
     totalAmount: z.string().optional(),
     currency: z.string().optional(),
@@ -521,6 +522,7 @@ const projectsRouter = router({
   update: adminOrPmo.input(z.object({ id: z.number(), data: z.record(z.string(), z.any()) }))
     .mutation(async ({ input, ctx }) => {
       try {
+        if (input.data.financialMode !== undefined) z.enum(["commercial", "internal"]).parse(input.data.financialMode);
         await updateProject(input.id, input.data);
       } catch (error) {
         if (error instanceof DuplicateProjectNameError) {
@@ -4077,6 +4079,15 @@ Responde SOLO con JSON:
       // Dashboard Ejecutivo v2 disponible para proyectos con baseline ejecutivo aprobado.
       const project = await getProjectById(input.projectId);
       if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Proyecto no encontrado" });
+      const isInternalProject = (project as any).financialMode === "internal";
+      const internalPlanSetting = isInternalProject ? await getAdminSettingValue(`project.internal-work-plan.v1.${input.projectId}`) : null;
+      let internalWorkPlan: any[] = [];
+      if (internalPlanSetting) {
+        try {
+          const stored = JSON.parse(internalPlanSetting);
+          if (stored.projectId === input.projectId && Array.isArray(stored.activities)) internalWorkPlan = stored.activities;
+        } catch { /* An invalid plan never changes the commercial source or dates. */ }
+      }
       const source = await getExecutiveProjectSource(input.projectId);
       if (!source) {
         const proposal = await getExecutiveProjectSourceProposal(input.projectId);
@@ -4086,6 +4097,20 @@ Responde SOLO con JSON:
             ? "El proyecto tiene una propuesta de baseline pendiente de revisión y aprobación humana"
             : "El proyecto no tiene un baseline ejecutivo aprobado. Genere primero una propuesta desde su onboarding Jira",
         });
+      }
+      const internalJiraByKey = new Map<string, any>();
+      let internalJiraObservationAvailability: "not_applicable" | "available" | "unavailable" = "not_applicable";
+      if (isInternalProject && internalWorkPlan.length) {
+        const keys = internalWorkPlan.map(task => task.jiraIssueKey).filter(key => typeof key === "string" && /^[A-Z][A-Z0-9_]*-\d+$/.test(key));
+        try {
+          const page = await searchJiraIssues(`key in (${keys.map(key => `"${key}"`).join(",")})`, { maxResults: 100, fields: ["project", "summary", "status", "duedate", "resolutiondate"] });
+          for (const issue of page.issues) if (issue.fields.project?.key === source.jiraProjectKey) internalJiraByKey.set(issue.key, issue);
+          internalJiraObservationAvailability = internalJiraByKey.size === keys.length ? "available" : "unavailable";
+          internalWorkPlan = internalWorkPlan.map(task => {
+            const issue = internalJiraByKey.get(task.jiraIssueKey);
+            return issue ? { ...task, jiraStatusName: issue.fields.status?.name ?? null, jiraStatusCategory: issue.fields.status?.statusCategory?.key ?? null, jiraDueDate: issue.fields.duedate ?? null, jiraClosedDate: issue.fields.resolutiondate?.slice(0, 10) ?? null, jiraObservedAt: new Date().toISOString() } : task;
+          });
+        } catch { internalJiraObservationAvailability = "unavailable"; }
       }
       const milestones = await getExecutiveContractMilestones(input.projectId, source.id);
       const [acceptances, minutes, commitments, requirements, recoveryPlan, recoveryPlans, assignments, persistedFinancialSnapshot, persistedDashboardSnapshot, agenticVerdict, executivePortfolio] = await Promise.all([
@@ -4111,7 +4136,7 @@ Responde SOLO con JSON:
       for (const acceptance of acceptances) {
         if (!acceptanceByMilestone.has(acceptance.milestoneId)) acceptanceByMilestone.set(acceptance.milestoneId, acceptance);
       }
-      const financialEvidenceResult = await resolveExternalEvidence({
+      const financialEvidenceResult = isInternalProject ? { value: null } : await resolveExternalEvidence({
         source: "finanzas",
         load: async () => {
           const { getFinancialDataForDeal } = await import("./financialDataFetcher");
@@ -4138,8 +4163,9 @@ Responde SOLO con JSON:
       });
       const milestoneEvidence = milestones.map((milestone) => {
         const acceptance = acceptanceByMilestone.get(milestone.id);
-        const jiraDueDate = milestone.jiraDueDate;
-        const jiraClosedDate = milestone.jiraClosedDate ?? null;
+        const internalJiraIssue = internalJiraByKey.get(milestone.jiraIssueKey);
+        const jiraDueDate = internalJiraIssue ? internalJiraIssue.fields.duedate ?? null : milestone.jiraDueDate;
+        const jiraClosedDate = internalJiraIssue ? internalJiraIssue.fields.resolutiondate?.slice(0, 10) ?? null : milestone.jiraClosedDate ?? null;
         const acceptedAt = acceptance?.acceptanceStatus === "accepted" ? acceptance.acceptedAt : null;
         const acceptanceEvidenceUrl = acceptance?.acceptanceStatus === "accepted" ? acceptance.evidenceUrl : null;
         return {
@@ -4152,8 +4178,8 @@ Responde SOLO con JSON:
           jiraIssueKey: milestone.jiraIssueKey,
           jiraDueDate,
           jiraClosedDate,
-          jiraStatusName: milestone.jiraStatusName,
-          lastObservedAt: milestone.lastObservedAt,
+          jiraStatusName: internalJiraIssue?.fields.status?.name ?? milestone.jiraStatusName,
+          lastObservedAt: internalJiraIssue ? new Date() : milestone.lastObservedAt,
           semanticStatus: milestone.semanticStatus,
           isCritical: milestone.isCritical,
           billingWeight: milestone.billingWeight,
@@ -4170,9 +4196,9 @@ Responde SOLO con JSON:
         financial: {
           budgetCostUf: latestFinancial?.presupuestoUF ?? null,
           executedCostUf: latestFinancial?.utilizadoUF ?? null,
-          saleValueUf: latestFinancial?.valorVentaUF ?? null,
-          targetMarginUf: latestFinancial?.margenBrutoNotaVentaUF ?? null,
-          projectedMarginUf: latestFinancial?.margenProyectadoUF ?? null,
+          saleValueUf: isInternalProject ? null : latestFinancial?.valorVentaUF ?? null,
+          targetMarginUf: isInternalProject ? null : latestFinancial?.margenBrutoNotaVentaUF ?? null,
+          projectedMarginUf: isInternalProject ? null : latestFinancial?.margenProyectadoUF ?? null,
           annualWacc: latestFinancial?.annualWacc ?? null,
           blockedHeadcount: latestFinancial?.blockedHeadcount ?? null,
           dailyRateUf: latestFinancial?.dailyRateUf ?? null,
@@ -4217,6 +4243,9 @@ Responde SOLO con JSON:
       });
       return {
         project: { id: project.id, name: project.projectName, client: (project as any).clientName || "" },
+        projectFinancialMode: isInternalProject ? "internal" as const : "commercial" as const,
+        internalWorkPlan,
+        internalJiraObservationAvailability,
         source: {
           dealId: source.dealId, jiraProjectKey: source.jiraProjectKey, baselineVersion: source.baselineVersion,
           contractFileName: source.contractFileName, contractFileUrl: source.contractFileUrl,

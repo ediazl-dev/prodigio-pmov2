@@ -1,4 +1,5 @@
 export type FinancialLifecycle = "open" | "closed" | "internal";
+export type FinancialMode = "commercial" | "internal";
 export type FinancialLifecycleSource =
   | "project_active"
   | "service_active"
@@ -15,6 +16,8 @@ type AmountLike = string | number | null | undefined;
 export interface FinancialSnapshotInput {
   id?: number;
   dealId: string;
+  /** Explicit project classification, when the snapshot is linked to PMO. */
+  financialMode?: FinancialMode | null;
   estadoProyecto?: string | null;
   projectName?: string | null;
   clientName?: string | null;
@@ -56,6 +59,7 @@ export interface FinancialOperationalItemInput {
   name: string;
   clientName?: string | null;
   dealId?: string | null;
+  financialMode?: FinancialMode | null;
   status: string;
 }
 
@@ -103,6 +107,7 @@ export interface FinancialSeriesPoint {
 
 export interface FinancialPortfolioItem {
   financialId: string;
+  financialMode: FinancialMode;
   clientName: string;
   projectName: string;
   lineOfBusiness: string | null;
@@ -290,14 +295,54 @@ function resolveOperationalId(item: FinancialOperationalItemInput): string | nul
   return canonicalFinancialId(item.dealId) ?? extractFinancialIdFromName(item.name);
 }
 
+function normalizeEntityName(value: string | null | undefined): string {
+  return normalizeSpaces(value)
+    .toLocaleLowerCase("es-CL")
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/\b(?:pmo|proyecto|project|deal)\b/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function entityNameTokens(value: string | null | undefined): string[] {
+  return normalizeSpaces(value)
+    .toLocaleLowerCase("es-CL")
+    .replace(/\[[^\]]*\]/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, " ")
+    .split(/[^a-z0-9]+/g)
+    .filter(token => token.length >= 4 && !["proyecto", "project", "servicio", "service", "interno", "interna"].includes(token));
+}
+
+function operationalItemMatchesSnapshot(snapshot: FinancialSnapshotInput, item: FinancialOperationalItemInput): boolean {
+  const snapshotKey = financialKey(snapshot.dealId);
+  const operationalKey = financialKey(resolveOperationalId(item));
+  if (snapshotKey && operationalKey) return snapshotKey === operationalKey;
+  const snapshotName = normalizeEntityName(snapshot.projectName);
+  const operationalName = normalizeEntityName(item.name);
+  if (!snapshotName || !operationalName) return false;
+  if (snapshotName === operationalName) return true;
+  if (snapshotName.length >= 8 && operationalName.length >= 8
+    && (snapshotName.includes(operationalName) || operationalName.includes(snapshotName))) return true;
+  const snapshotTokens = new Set(entityNameTokens(snapshot.projectName));
+  const sharedTokens = entityNameTokens(item.name).filter(token => snapshotTokens.has(token));
+  return sharedTokens.length >= 2 || (sharedTokens.length === 1 && sharedTokens[0].length >= 7);
+}
+
 export function deriveFinancialLifecycle(
   snapshot: FinancialSnapshotInput,
   operationalItems: FinancialOperationalItemInput[],
 ): { lifecycle: FinancialLifecycle; source: FinancialLifecycleSource; links: FinancialPortfolioItem["operationalLinks"] } {
-  if (isInternalSnapshot(snapshot)) return { lifecycle: "internal", source: "internal_initiative", links: [] };
-  const snapshotKey = financialKey(snapshot.dealId);
-  const matches = operationalItems.filter(item => financialKey(resolveOperationalId(item)) === snapshotKey);
+  const matches = operationalItems.filter(item => operationalItemMatchesSnapshot(snapshot, item));
   const links = matches.map(item => ({ kind: item.kind, id: item.id, status: item.status }));
+  const explicitMode = snapshot.financialMode ?? matches.find(item => item.financialMode != null)?.financialMode ?? null;
+  if (explicitMode === "internal") return { lifecycle: "internal", source: "internal_initiative", links };
+  // A persisted commercial classification wins over the legacy text heuristic.
+  if (explicitMode !== "commercial" && isInternalSnapshot(snapshot)) {
+    return { lifecycle: "internal", source: "internal_initiative", links };
+  }
   const activeProject = matches.find(item => item.kind === "project" && OPEN_STATUSES.has(normalizeStatus(item.status)));
   if (activeProject) return { lifecycle: "open", source: "project_active", links };
   const activeService = matches.find(item => item.kind === "service" && OPEN_STATUSES.has(normalizeStatus(item.status)));
@@ -515,8 +560,11 @@ export function buildFinancialPortfolioV2(input: FinancialPortfolioV2Input): Fin
     const projectedMarginPct = numberOrNull(snapshot.margenProyectadoPorc);
     const marginTargetPct = numberOrNull(snapshot.margenTargetPorc);
 
+    const isInternal = lifecycle.lifecycle === "internal";
+    const financialMode: FinancialMode = isInternal ? "internal" : "commercial";
     return {
       financialId,
+      financialMode,
       clientName: normalizeSpaces(snapshot.clientName) || "Sin cliente",
       projectName: normalizeSpaces(snapshot.projectName) || financialId,
       lineOfBusiness: normalizeSpaces(snapshot.lineaNegocio) || null,
@@ -533,25 +581,29 @@ export function buildFinancialPortfolioV2(input: FinancialPortfolioV2Input): Fin
       projectedMarginPct,
       marginTargetPct,
       marginGapPp: projectedMarginPct !== null && marginTargetPct !== null ? round((projectedMarginPct - marginTargetPct) * 100, 2) : null,
-      billedRangeNative,
-      billedRangeUsdComparable: billedRangeUsdCoverage > 0 ? round(billedRangeUsd, 2) : null,
-      billedHistoricalNative,
-      overdueAtCutoffNative,
-      overdueAtCutoffCount,
-      nextMilestone: future ? {
+      billedRangeNative: isInternal ? {} : billedRangeNative,
+      billedRangeUsdComparable: isInternal ? null : billedRangeUsdCoverage > 0 ? round(billedRangeUsd, 2) : null,
+      billedHistoricalNative: isInternal ? {} : billedHistoricalNative,
+      overdueAtCutoffNative: isInternal ? {} : overdueAtCutoffNative,
+      overdueAtCutoffCount: isInternal ? 0 : overdueAtCutoffCount,
+      nextMilestone: !isInternal && future ? {
         name: future.milestoneName,
         plannedDate: future.plannedDate!,
         amount: numberOrNull(future.amount),
         currency: normalizeCurrency(future.currency),
       } : null,
-      billingItemCount: billing.length,
+      billingItemCount: isInternal ? 0 : billing.length,
       sourceActive: snapshot.sourceActive !== false,
       syncedAt: snapshot.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null,
     };
   }).filter(item => matchesFilters(item, input.filters));
 
   const includedDeals = new Set(items.map(item => financialKey(item.financialId) ?? normalizeStatus(item.financialId)));
-  const filteredBilling = activeBilling.filter(item => includedDeals.has(financialKey(item.dealId) ?? normalizeStatus(item.dealId)));
+  const commercialDeals = new Set(items.filter(item => item.lifecycle !== "internal").map(item => financialKey(item.financialId) ?? normalizeStatus(item.financialId)));
+  const filteredBilling = activeBilling.filter(item => {
+    const dealKey = financialKey(item.dealId) ?? normalizeStatus(item.dealId);
+    return includedDeals.has(dealKey) && commercialDeals.has(dealKey);
+  });
   const current = buildPeriodMetrics(period, filteredBilling, clientByDeal);
   const comparison = comparisonPeriod ? buildPeriodMetrics(comparisonPeriod, filteredBilling, clientByDeal) : null;
   const currentUsd = current.billedUsdComparable;

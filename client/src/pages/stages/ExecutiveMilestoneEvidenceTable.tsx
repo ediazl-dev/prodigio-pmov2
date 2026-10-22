@@ -29,6 +29,7 @@ export type ExecutiveMilestoneEvidenceTableProps = {
   source?: { contractFileName?: string | null } | null;
   canManageRequirements: boolean;
   onRegisterActa: (milestoneId: number) => void;
+  projectFinancialMode?: "internal" | "commercial";
 };
 
 function parseDateValue(value: unknown): Date | null {
@@ -120,24 +121,26 @@ export function ExecutiveMilestoneEvidenceTable({
   source,
   canManageRequirements,
   onRegisterActa,
+  projectFinancialMode = "commercial",
 }: ExecutiveMilestoneEvidenceTableProps) {
   const jiraOrigin = isJiraOrigin(source);
   const latestObservation = latestObservedAt(milestones);
   const amountHeading = jiraOrigin ? "Monto referencial" : "Monto";
+  const isInternal = projectFinancialMode === "internal";
 
   return <>
     <div className="edv2-card-head">
-      <h3>Calendario y evidencia por hito</h3>
-      <span>SoW / acta / Jira</span>
+      <h3>{isInternal ? "Actividades y evidencia de entrega" : "Calendario y evidencia por hito"}</h3>
+      <span>{isInternal ? "Plan interno / acta / Jira" : "SoW / acta / Jira"}</span>
     </div>
     <div className="edv2-table-wrap">
       <table className="edv2-table" aria-label="Calendario y evidencia por hito" style={{ minWidth: 1280 }}>
         <thead>
           <tr>
             <th>Hito</th>
-            <th>{amountHeading}</th>
-            <th>Fecha base contractual</th>
-            <th>Programada Jira</th>
+            {!isInternal && <th>{amountHeading}</th>}
+            <th>{isInternal ? "Línea base interna" : "Fecha base contractual"}</th>
+            <th>{isInternal ? "Due Jira actual" : "Programada Jira"}</th>
             <th>Cierre Jira</th>
             <th>Aceptación</th>
             <th>Acta</th>
@@ -158,10 +161,10 @@ export function ExecutiveMilestoneEvidenceTable({
                 <b>{code}</b><br />
                 <span>{milestone.title ?? "N/D"}</span>
               </td>
-              <td>
+              {!isInternal && <td>
                 <b>{formatAmount(finance?.amountUf)}</b><br />
                 <small>{amountNote(finance, jiraOrigin)}</small>
-              </td>
+              </td>}
               <td>{formatExecutiveMilestoneDate(milestone.baselineDate)}</td>
               <td>{formatExecutiveMilestoneDate(milestone.jiraDueDate || milestone.committedDate)}</td>
               <td>{formatExecutiveMilestoneDate(milestone.jiraClosedDate)}</td>
@@ -199,7 +202,8 @@ export function ExecutiveMilestoneEvidenceTable({
     </div>
     <p className="edv2-note" data-testid="milestone-evidence-footer" style={{ margin: "12px 16px 16px" }}>
       <b>Última observación PMO:</b> {formatExecutiveMilestoneObservation(latestObservation)} (Chile) · Jira informa estado y planificación operativa; la aceptación requiere acta con fecha vinculada al hito.
-      {jiraOrigin && milestones.some(milestone => !parseDateValue(milestone.baselineDate)) ? <> <b>Fuente Jira:</b> hay hitos con línea base contractual pendiente; sus fechas programadas no reemplazan el compromiso original.</> : null}
+      {isInternal ? <> <b>Plan interno:</b> la línea base del Excel y el due Jira se muestran separados; un cierre Jira no declara entregable cumplido sin acta.</> : null}
+      {!isInternal && jiraOrigin && milestones.some(milestone => !parseDateValue(milestone.baselineDate)) ? <> <b>Fuente Jira:</b> hay hitos con línea base contractual pendiente; sus fechas programadas no reemplazan el compromiso original.</> : null}
     </p>
   </>;
 }

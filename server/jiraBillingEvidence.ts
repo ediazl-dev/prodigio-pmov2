@@ -55,6 +55,9 @@ export type JiraBillingEvidence = {
   entityType: "project" | "recurring_service";
   entityId: number;
   dealId: string | null;
+  /** False means billing is not an applicable financial source, not zero billing. */
+  billingApplicable?: boolean;
+  billingNotApplicableReason?: string | null;
   jiraAvailable: boolean;
   loadedAt: string;
   evidenceAt: string | null;
@@ -103,6 +106,9 @@ export type JiraBillingBuildInput = {
   billingFieldUnavailable?: boolean;
   /** Explicit service/project/key/author policy; never a global workflow fallback. */
   billingCommentPolicy?: RecurringJiraBillingCommentPolicy;
+  /** Internal projects must not query Jira billing or emit a zero-revenue result. */
+  billingApplicable?: boolean;
+  billingNotApplicableReason?: string | null;
 };
 
 function numeric(value: unknown): number | null {
@@ -252,6 +258,32 @@ function aggregateByCurrency(items: JiraBillingEvidenceItem[], status: JiraOpera
 
 export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBillingEvidence {
   const billingField = input.billingField ?? DEFAULT_JIRA_BILLING_FIELD;
+  if (input.billingApplicable === false) {
+    return {
+      entityType: input.entityType,
+      entityId: input.entityId,
+      dealId: input.dealId,
+      billingApplicable: false,
+      billingNotApplicableReason: input.billingNotApplicableReason ?? "La facturación no aplica a esta entidad.",
+      jiraAvailable: false,
+      loadedAt: new Date().toISOString(),
+      evidenceAt: null,
+      sourceProjectKeys: [],
+      field: billingField,
+      summary: {
+        totalItems: 0,
+        billedItems: 0,
+        notBilledItems: 0,
+        unknownItems: 0,
+        duplicateGroups: 0,
+        amountCoverage: { withAmount: 0, total: 0 },
+        billedByCurrency: [],
+        notBilledByCurrency: [],
+      },
+      items: [],
+      warnings: [],
+    };
+  }
   const eligibleIssues = input.entityType === "recurring_service"
     ? input.jiraIssues.filter(issue => !isGeneratedRecurringIssue(issue))
     : input.jiraIssues;
@@ -393,6 +425,8 @@ export function buildJiraBillingEvidence(input: JiraBillingBuildInput): JiraBill
     entityType: input.entityType,
     entityId: input.entityId,
     dealId: input.dealId,
+    billingApplicable: true,
+    billingNotApplicableReason: null,
     jiraAvailable: input.jiraAvailable,
     loadedAt: new Date().toISOString(),
     evidenceAt,
@@ -453,6 +487,20 @@ async function safeIssueSearch(jql: string, label: string, billingFieldId = JIRA
 export async function loadProjectJiraBillingEvidence(projectId: number): Promise<JiraBillingEvidence> {
   const project = await getProjectById(projectId);
   if (!project) throw new Error("Proyecto no encontrado");
+  if (project.financialMode === "internal") {
+    return buildJiraBillingEvidence({
+      entityType: "project",
+      entityId: projectId,
+      dealId: null,
+      localItems: [],
+      jiraIssues: [],
+      sourceProjectKeys: [],
+      allowBillingIssueStatusFallback: false,
+      jiraAvailable: false,
+      billingApplicable: false,
+      billingNotApplicableReason: "Proyecto clasificado como interno: no aplica ingreso ni facturación Jira.",
+    });
+  }
   const dealId = projectDeal(project);
   const source = await getExecutiveProjectSource(projectId);
   const [executiveMilestones, billingMilestones, financial] = await Promise.all([

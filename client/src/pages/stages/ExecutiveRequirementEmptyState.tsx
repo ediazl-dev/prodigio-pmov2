@@ -5,6 +5,7 @@ type GovernanceGapInput = {
   pendingMilestones: number;
   highOpenRisks: number | null;
   activeTriggers: number;
+  isInternalProject?: boolean;
 };
 
 type RequirementHeaderInput = {
@@ -24,7 +25,7 @@ export function buildExecutiveRequirementGapPresentation(input: GovernanceGapInp
   const signals: string[] = [];
 
   if (input.pendingMilestones > 0) {
-    signals.push(`${input.pendingMilestones} hito(s) contractual(es) pendiente(s) o demorado(s)`);
+    signals.push(`${input.pendingMilestones} ${input.isInternalProject ? "entregable(s) interno(s)" : "hito(s) contractual(es)"} pendiente(s) o demorado(s)`);
   }
   if (input.highOpenRisks != null && input.highOpenRisks > 0) {
     signals.push(`${input.highOpenRisks} riesgo(s) alto(s) abierto(s) en Jira`);
@@ -83,6 +84,7 @@ export function ExecutiveRequirementsStatusBanner({
   pendingMilestones,
   highOpenRisks,
   activeTriggers,
+  isInternalProject,
 }: GovernanceGapInput & { totalRequirements: number; openRequirements: number }) {
   if (totalRequirements > 0) {
     return <div className="edv2-sla">
@@ -98,6 +100,7 @@ export function ExecutiveRequirementsStatusBanner({
     pendingMilestones,
     highOpenRisks,
     activeTriggers,
+    isInternalProject,
   });
   const critical = presentation.tone === "critical";
   const border = critical ? "#E5484D" : presentation.tone === "warning" ? "#F5A524" : "#7E8896";
@@ -114,6 +117,7 @@ export function ExecutiveRequirementEmptyState({
   pendingMilestones,
   highOpenRisks,
   activeTriggers,
+  isInternalProject,
   canManage,
   onOpenRequirementForm,
 }: GovernanceGapInput & {
@@ -125,6 +129,7 @@ export function ExecutiveRequirementEmptyState({
     pendingMilestones,
     highOpenRisks,
     activeTriggers,
+    isInternalProject,
   });
   const palette = presentation.tone === "critical"
     ? { border: "#E5484D", background: "#FEF1F2", badge: "#A8272B" }
@@ -146,7 +151,7 @@ export function ExecutiveRequirementEmptyState({
     {presentation.signals.length > 0
       ? <p style={{ margin: "12px 0 0", fontSize: 11.5, lineHeight: 1.5 }}><b>Señales que requieren revisión:</b> {presentation.signals.join(" · ")}.</p>
       : <p style={{ margin: "12px 0 0", fontSize: 11.5, lineHeight: 1.5 }}><b>Revisión necesaria:</b> la ausencia de exigencias no debe interpretarse como ausencia de exposición.</p>}
-    <p style={{ margin: "8px 0 0", fontSize: 11, lineHeight: 1.5, color: "#5A6472" }}><b>Alcance del contador:</b> sólo incluye decisiones de comité persistidas; no incluye hitos contractuales, riesgos, backlog, issues Jira ni compromisos.</p>
+    <p style={{ margin: "8px 0 0", fontSize: 11, lineHeight: 1.5, color: "#5A6472" }}><b>Alcance del contador:</b> sólo incluye decisiones de comité persistidas; no incluye {isInternalProject ? "entregables internos" : "hitos contractuales"}, riesgos, backlog, issues Jira ni compromisos.</p>
     {canManage
       ? <button type="button" onClick={onOpenRequirementForm} style={{ marginTop: 13, background: "#0D1117", color: "white", border: 0, borderRadius: 6, padding: "8px 11px", cursor: "pointer", fontWeight: 700 }}>Revisar y formalizar exigencia</button>
       : <p style={{ margin: "10px 0 0", fontSize: 11, color: "#5A6472" }}>La formalización corresponde a un usuario Admin o PMO y requiere una decisión humana de comité.</p>}

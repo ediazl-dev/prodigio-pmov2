@@ -28,6 +28,7 @@ export const projects = mysqlTable("projects", {
   clientContact: varchar("clientContact", { length: 255 }),
   clientEmail: varchar("clientEmail", { length: 320 }),
   projectType: mysqlEnum("projectType", ["apigee", "desarrollo", "integracion", "data", "otro"]).default("otro"),
+  financialMode: mysqlEnum("financialMode", ["commercial", "internal"]).default("commercial").notNull(),
   status: mysqlEnum("status", ["activo", "pausado", "completado", "cancelado"]).default("activo").notNull(),
   currentStage: mysqlEnum("currentStage", ["sow", "jira", "risks", "planning", "design", "closure"]).default("sow").notNull(),
   pmId: int("pmId"),

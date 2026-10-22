@@ -1,9 +1,12 @@
+import React from "react";
+
 type FinancialAxisProps = {
   projectFinance: any;
   financialEvidence: any;
   commercialExposure: any;
   latestSyncAt?: Date | string | null;
   auditBase: string;
+  projectFinancialMode?: "internal" | "commercial";
 };
 
 export function formatUfOrNd(value: unknown, digits = 2) {
@@ -34,7 +37,7 @@ function FinancialCell({ label, value, detail, danger = false }: { label: string
   </div>;
 }
 
-export function ExecutiveFinancialAxis({ projectFinance, financialEvidence, commercialExposure, latestSyncAt, auditBase }: FinancialAxisProps) {
+export function ExecutiveFinancialAxis({ projectFinance, financialEvidence, commercialExposure, latestSyncAt, auditBase, projectFinancialMode = "commercial" }: FinancialAxisProps) {
   const finance = projectFinance ?? {};
   const overview = finance.overview ?? {};
   const costs = finance.costs ?? {};
@@ -47,6 +50,34 @@ export function ExecutiveFinancialAxis({ projectFinance, financialEvidence, comm
   const acceptedCoverage = overview.milestoneAmountCoverage?.total
     ? `${overview.milestoneAmountCoverage.withAmount}/${overview.milestoneAmountCoverage.total} hitos con monto`
     : "Sin hitos valorizables";
+
+  if (projectFinancialMode === "internal") {
+    return <section className="edv2-section" id="finanzas">
+      <header className="edv2-section-header">
+        <span>02</span>
+        <div>
+          <h2>Costos de ejecución — plan interno</h2>
+          <p>Se muestran únicamente costos y capacidad informados por la fuente interna. No se inventan ingresos, facturas, cobros ni costos en cero.</p>
+        </div>
+        <b>INTERNO · N/D SI FALTA FUENTE</b>
+      </header>
+      <div className="edv2-kpis">
+        <article className="edv2-kpi ambar"><span className="edv2-kpi-label">Costo consumido</span><strong className="edv2-kpi-value">{formatUfOrNd(costs.consumedUf)}</strong><p>{formatPercentOrNd(costs.consumedPct, true)} del presupuesto informado</p><small>Fuente financiera disponible</small></article>
+        <article className="edv2-kpi gris"><span className="edv2-kpi-label">Presupuesto de costo</span><strong className="edv2-kpi-value">{formatUfOrNd(costs.budgetUf)}</strong><p>Base aprobada para medir consumo</p><small>No se reemplaza por 0</small></article>
+        <article className="edv2-kpi magenta"><span className="edv2-kpi-label">Costo proyectado</span><strong className="edv2-kpi-value">{formatUfOrNd(costs.projectedCostUf)}</strong><p>Estimación a término si la fuente la informa</p><small>N/D si no disponible</small></article>
+        <article className="edv2-kpi teal"><span className="edv2-kpi-label">Capacity proyectado</span><strong className="edv2-kpi-value">{formatUfOrNd(costs.capacityProjectedUf)}</strong><p>Capacidad valorizada informada</p><small>No se infiere</small></article>
+      </div>
+      <div className="edv2-two-col" style={{ marginTop: 16 }}>
+        <article className="edv2-card"><div className="edv2-card-head"><h3>Desglose de costos</h3><span>{sourceLabel(finance.source)}</span></div><div className="edv2-financials">
+          <FinancialCell label="Capacity utilizado" value={formatUfOrNd(costs.capacityUsedUf)} detail="Carga consumida valorizada" />
+          <FinancialCell label="Capacity planificado" value={formatUfOrNd(costs.capacityPlannedUf)} detail="Carga futura planificada" />
+          <FinancialCell label="Otros costos" value={formatUfOrNd(costs.otherCostsUf)} detail="Sólo cuando la fuente los informa" />
+          <FinancialCell label="Costo consumido" value={formatUfOrNd(costs.consumedUf)} detail="Costo persistido al corte" />
+        </div><p className="edv2-note" style={{ margin: "0 18px 18px" }}><b>Fuente y corte:</b> {sourceLabel(finance.source)} · {formattedCapturedAt}. Un N/D significa dato no disponible; no equivale a costo cero.</p></article>
+        <article className="edv2-card"><div className="edv2-card-head"><h3>Ingresos y facturación</h3><span>NO APLICA</span></div><div className="edv2-evidence-panel"><p className="edv2-evidence-value">No aplica</p><p className="edv2-note">Proyecto interno sin ingresos ni facturación. Este eje no consulta ni presenta revenue comercial, contratos, devengo, facturas o cobros.</p></div></article>
+      </div>
+    </section>;
+  }
 
   return <section className="edv2-section" id="finanzas">
     <header className="edv2-section-header">

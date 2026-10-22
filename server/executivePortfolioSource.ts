@@ -87,6 +87,7 @@ export async function getExecutivePortfolio(cutOffDate = todayIso()): Promise<Ex
       clientName: row.clientName,
       dealId: row.dealId ?? null,
       projectType: row.projectType ?? null,
+      financialMode: row.financialMode ?? "commercial",
       status: row.status,
       currentStage: row.currentStage,
       pmId: row.pmId ?? null,

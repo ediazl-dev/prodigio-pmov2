@@ -50,6 +50,7 @@ export async function loadFinancialPortfolioV2(query: FinancialPortfolioV2Query,
       name: projects.projectName,
       clientName: projects.clientName,
       dealId: projects.dealId,
+      financialMode: projects.financialMode,
       status: projects.status,
     }).from(projects),
     db.select({

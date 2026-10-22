@@ -31,6 +31,7 @@ export const EXECUTIVE_PORTFOLIO_VERSION = "1.0" as const;
 
 export type ProjectStatus = "activo" | "pausado" | "completado" | "cancelado";
 export type StageId = "sow" | "jira" | "risks" | "planning" | "design" | "closure";
+export type FinancialMode = "commercial" | "internal";
 
 export interface ExecutiveProjectSource {
   id: number;
@@ -38,6 +39,8 @@ export interface ExecutiveProjectSource {
   clientName: string;
   dealId: string | null;
   projectType: string | null;
+  /** Explicit classification; omitted legacy rows remain commercial. */
+  financialMode?: FinancialMode | null;
   status: ProjectStatus;
   currentStage: StageId;
   pmId: number | null;
@@ -190,6 +193,7 @@ export interface PortfolioRow {
   clientName: string;
   dealId: string | null;
   projectType: string | null;
+  financialMode?: FinancialMode;
   origin: string | null;
   jiraProjectKey: string | null;
   status: ProjectStatus;
@@ -383,6 +387,9 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
   };
 
   const amountFor = (project: ExecutiveProjectSource) => {
+    if (project.financialMode === "internal") {
+      return { amount: null, currency: null, source: "missing" as const };
+    }
     const financial = financialByDeal.get(normalizeDeal(dealFor(project)));
     const financialAmount = toNumber(financial?.valorVentaUF);
     if (financialAmount !== null) {
@@ -603,6 +610,7 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
       clientName: project.clientName,
       dealId: dealFor(project),
       projectType: project.projectType,
+      financialMode: project.financialMode ?? "commercial",
       origin: project.origin ?? null,
       jiraProjectKey: project.jiraProjectKey ?? snapshot?.jiraProjectKey ?? null,
       status: project.status,
@@ -673,7 +681,11 @@ export function buildExecutivePortfolio(input: ExecutivePortfolioInput): Executi
     else if (project.status === "completado") figure.contractedClosed += contracted.amount;
   }
 
+  const internalProjectIds = new Set(
+    input.projects.filter(project => project.financialMode === "internal").map(project => project.id),
+  );
   for (const milestone of input.milestones) {
+    if (internalProjectIds.has(milestone.projectId)) continue;
     const amount = toNumber(milestone.amount);
     const currency = normalizeEvidenceCurrency(milestone.currency);
     if (amount === null || currency === null) continue;

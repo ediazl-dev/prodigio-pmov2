@@ -912,3 +912,10 @@ Decisiones del usuario: por etapas / sin integraciones externas (stubs [POR CONF
 - [x] Q1: Doce referencias financieras asociadas; ambas categorías reutilizan existentes; mappings anteriores superseded. Jira sin escrituras y cuotas/plan/documentos/validaciones preservados, emisión N/D.
 - [x] Q2: Listado muestra actividades y hitos existentes; cierre nativo con cero bloqueadores, Setup completed, Ejecución in_progress y Cierre locked. Análisis previo a configuración retirado del veredicto/caches sin borrar historial ni generar otro.
 - [x] Q3: 1.241 pruebas aprobadas y 20 omitidas, build y mismos cinco TS heredados; API/dashboard de Ejecución verificados, 4687 intacto y diff íntegro. Checkpoint final de entrega.
+
+## NEXOS SFA Multitenant — proyecto interno 4470001 — 2026-10-21
+- [x] N0: Respaldo PMO/Excel/24 issues verificado SHA-256; 19 actividades, 5 épicas y 4 gates. Día1 confirmado por CEO: lunes 19-oct-2026; fechas Jira originales separadas.
+- [x] N1: Clasificación interna explícita sin ingresos/factura; projectType tecnológico, costos, historial y proyectos cliente preservados. Lectores financieros no aplicables, N/D !=0.
+- [x] N2: WBS24 (19 actividades+5épicas), fuente ejecutiva2010002/Excel conservado y cuatro entregables no facturables; Gantt/dashboard autenticado con 19filas y cuatrogates21oct/23oct/26oct/6nov. Sin aceptación ficticia.
+- [x] N3: 18riesgos PMOPRONEX-25…42, tipoRiesgosPMO/Identificado, etiquetas únicas/propuesto y confirmed=false. Journal18verified y respaldos antes/después/verification con hashes. Due/owner/evaluación/costo/etapas/24originales intactos.
+- [x] N4: 1.235 pruebas aprobadas/20 omitidas/cero fallos (cinco suites externas excluidas); build exitoso y mismos cinco TS heredados. Accesibilidad selección/foco/flechas CTO corregida y verificada, API HTTP200/Jira available, datos19/5/4/18/42 y originales intactos. Plan already_applied, hashes y secret scan correctos; acta completa y temporal retirado. Checkpoint final de entrega, sin publicación automática.

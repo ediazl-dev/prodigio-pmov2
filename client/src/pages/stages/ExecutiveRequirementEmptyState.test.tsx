@@ -24,6 +24,19 @@ describe("ExecutiveRequirementEmptyState", () => {
     ]);
   });
 
+  it("identifica entregables internos sin convertir su carga en cumplimiento", () => {
+    const result = buildExecutiveRequirementGapPresentation({
+      governanceState: "POR_CONFIRMAR",
+      pendingMilestones: 4,
+      highOpenRisks: null,
+      activeTriggers: 0,
+      isInternalProject: true,
+    });
+    expect(result.signals).toEqual(["4 entregable(s) interno(s) pendiente(s) o demorado(s)"]);
+    expect(result.message).toContain("no acredita cumplimiento");
+    expect(result.signals.join(" ")).not.toContain("contractual");
+  });
+
   it("usa revisión pendiente para estados amarillo o naranjo", () => {
     for (const governanceState of ["AMARILLO", "NARANJO"]) {
       const result = buildExecutiveRequirementGapPresentation({
